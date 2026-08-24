@@ -96,9 +96,9 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '1) اضغط «تحديث البيانات» وأنت متصل بالإنترنت لتحميل العملاء والمواد والمستودعات على الجهاز.\n'
-                    '2) عند انقطاع الإنترنت يبقى التطبيق يعمل من البيانات المحلية.\n'
-                    '3) عند عودة الاتصال تُرحَّل العمليات المعلّقة تلقائياً.',
+                    '1) اضغط «تحديث البيانات» وأنت متصل لتحميل العملاء والمواد والجولات والطلبات على الجهاز.\n'
+                    '2) عند انقطاع الإنترنت يعمل التطبيق من البيانات المحلية (جولات، طلبات، إضافة عميل…).\n'
+                    '3) عند عودة الاتصال تُرحَّل العمليات المعلّقة تلقائياً بعد دقيقة.',
                     style: TextStyle(
                       color: Colors.black.withValues(alpha: 0.7),
                       height: 1.45,
@@ -130,11 +130,27 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                     highlight: info.hasData && info.noOrderReasons < 1,
                   ),
                   _kv('نصف قطر الزيارة', '${info.visitRadiusM} م'),
+                  _kv('أيام الجولة (كاش)', '${info.routeDays}'),
+                  _kv('صفوف تقرير الزيارات', '${info.visitReportRows}'),
+                  _kv('طلبات غير مرسلة (محلي)', '${info.ordersPending}'),
+                  _kv('طلبات مرسلة (محلي)', '${info.ordersSent}'),
+                  if (info.cacheFrom != null &&
+                      (info.cacheFrom ?? '').isNotEmpty)
+                    _kv(
+                      'نافذة الكاش',
+                      '${info.cacheFrom} ← ${info.cacheTo ?? ''}',
+                    ),
                   _kv(
                     'بانتظار الترحيل',
                     '${info.pendingOutbox}',
                     highlight: info.pendingOutbox > 0,
                   ),
+                  if (off.flushScheduledAt != null)
+                    _kv(
+                      'ترحيل تلقائي مجدول',
+                      _fmtAt(off.flushScheduledAt!.toIso8601String()),
+                      highlight: true,
+                    ),
                 ],
               ),
             ),

@@ -5,6 +5,8 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
@@ -42,7 +44,12 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
       _loading = true;
       _error = null;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       final res = await context.read<ApiClient>().getJson(
             AppConfig.repVisitReportPath,
             query: {
@@ -69,6 +76,10 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       setState(() {
         _error = e.message;
         _loading = false;
@@ -80,6 +91,38 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
         _loading = false;
       });
     }
+  }
+
+  Future<void> _loadLocal() async {
+    final store = OfflineStore.instance;
+    final rows = await store.visitReportRows(
+      from: _from,
+      to: _to,
+      customerId: _customerId,
+    );
+    final custMap = <int, Map<String, dynamic>>{};
+    var orderCount = 0;
+    var orderTotal = 0.0;
+    for (final r in rows) {
+      final cid = Fmt.toInt(r['customer_id']);
+      if (cid != 0 && !custMap.containsKey(cid)) {
+        custMap[cid] = {
+          'id': cid,
+          'name': Fmt.str(r['customer_name']),
+          'code': Fmt.str(r['customer_code']),
+        };
+      }
+      orderCount += Fmt.toInt(r['order_count']);
+      orderTotal += Fmt.toDouble(r['order_total']);
+    }
+    if (!mounted) return;
+    setState(() {
+      _rows = rows;
+      _customers = custMap.values.toList();
+      _orderCount = orderCount;
+      _orderTotal = orderTotal;
+      _loading = false;
+    });
   }
 
   Future<void> _pick(bool isFrom) async {

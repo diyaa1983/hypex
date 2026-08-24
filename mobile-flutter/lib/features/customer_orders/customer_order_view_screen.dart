@@ -7,6 +7,8 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
 import '../../services/document_print_helper.dart';
 import '../../widgets/app_confirm_dialog.dart';
@@ -34,21 +36,51 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       _loading = true;
       _error = null;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        final local =
+            await OfflineStore.instance.getOrderById(widget.orderId);
+        if (!mounted) return;
+        if (local == null) {
+          setState(() {
+            _error = 'الطلب غير متوفر محلياً. حدّث البيانات أولاً.';
+            _loading = false;
+          });
+          return;
+        }
+        setState(() {
+          _order = local;
+          _loading = false;
+        });
+        return;
+      }
       final res = await context.read<ApiClient>().getJson(
           AppConfig.customerOrderViewPath,
           query: {'id': widget.orderId});
-      if (mounted)
+      if (mounted) {
         setState(() {
           _order = (res['order'] as Map?)?.cast<String, dynamic>() ?? res;
           _loading = false;
         });
+      }
     } on ApiException catch (e) {
-      if (mounted)
-        setState(() {
-          _error = e.message;
-          _loading = false;
-        });
+      if (!mounted) return;
+      if (offline.catalogReady) {
+        final local =
+            await OfflineStore.instance.getOrderById(widget.orderId);
+        if (local != null) {
+          setState(() {
+            _order = local;
+            _loading = false;
+          });
+          return;
+        }
+      }
+      setState(() {
+        _error = e.message;
+        _loading = false;
+      });
     }
   }
 
@@ -140,7 +172,24 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       destructive: true,
     );
     if (ok != true || !mounted) return;
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        if (widget.orderId < 0) {
+          await OfflineStore.instance.deleteLocalOrder(widget.orderId);
+        } else {
+          await offline.enqueue(
+            kind: 'customer_order_delete',
+            path: AppConfig.customerOrderDeletePath,
+            body: {'id': widget.orderId},
+          );
+          await OfflineStore.instance.deleteLocalOrder(widget.orderId);
+        }
+        if (!mounted) return;
+        showSnack(context, 'حُذف الطلب محلياً / وُضع في الطابور.');
+        context.go('/customer-orders/pending');
+        return;
+      }
       final res = await context.read<ApiClient>().postJson(
         AppConfig.customerOrderDeletePath,
         body: {'id': widget.orderId},

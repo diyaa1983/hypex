@@ -237,16 +237,185 @@ try {
         $visitRadius = 200;
     }
 
+    // —— جولات / تقرير زيارات / طلبات (نافذة: أول الشهر السابق → اليوم) ——
+    require_once app_path('includes/sal_customer_order.php');
+    sal_customer_order_ensure_schema($pdo);
+
+    $repId = crm_sales_rep_id_for_user($pdo, $uid);
+    if (($repId === null || $repId < 1) && $scopedRepId !== null && $scopedRepId > 0) {
+        $repId = $scopedRepId;
+    }
+
+    $cacheFrom = date('Y-m-01', strtotime('first day of last month'));
+    $cacheTo = date('Y-m-d');
+    $prevMonthYm = date('Y-m', strtotime('first day of last month'));
+    $curMonthYm = date('Y-m');
+
+    $routeMonths = [];
+    $todayVisits = [];
+    $visitReportRows = [];
+    $ordersOut = [];
+
+    if ($repId !== null && $repId > 0) {
+        try {
+            foreach ([$prevMonthYm, $curMonthYm] as $ym) {
+                $agenda = sal_rep_visit_month_agenda_for_rep($pdo, (int) $repId, $ym);
+                $routeMonths[] = [
+                    'month' => (string) ($agenda['month'] ?? $ym),
+                    'date_from' => (string) ($agenda['date_from'] ?? ($ym . '-01')),
+                    'date_to' => (string) ($agenda['date_to'] ?? ''),
+                    'days' => is_array($agenda['days'] ?? null) ? $agenda['days'] : [],
+                ];
+            }
+        } catch (Throwable $e) {
+            error_log('mobile_sync_pull route_months: ' . $e->getMessage());
+            $routeMonths = [];
+        }
+
+        try {
+            $todayVisits = sal_rep_visit_list_for_rep($pdo, (int) $repId, $cacheTo);
+        } catch (Throwable $e) {
+            $todayVisits = [];
+        }
+
+        try {
+            $visitReportRows = sal_rep_visit_report_rows($pdo, [
+                'from' => $cacheFrom,
+                'to' => $cacheTo,
+                'sales_rep_id' => (int) $repId,
+                'customer_id' => 0,
+                'method' => '',
+                'status' => '',
+                'limit' => 800,
+            ]);
+        } catch (Throwable $e) {
+            error_log('mobile_sync_pull visit_report: ' . $e->getMessage());
+            $visitReportRows = [];
+        }
+
+        try {
+            $byId = [];
+            $dated = sal_customer_order_list_fetch(
+                $pdo,
+                '',
+                (int) $repId,
+                null,
+                null,
+                3000,
+                0,
+                null,
+                $cacheFrom,
+                $cacheTo
+            );
+            foreach ($dated as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $oid = (int) ($row['id'] ?? 0);
+                if ($oid > 0) {
+                    $byId[$oid] = $row;
+                }
+            }
+            // كل غير المرسلة حتى خارج النافذة الزمنية
+            $unsent = sal_customer_order_list_fetch(
+                $pdo,
+                '',
+                (int) $repId,
+                null,
+                null,
+                500,
+                0,
+                0,
+                null,
+                null
+            );
+            foreach ($unsent as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $oid = (int) ($row['id'] ?? 0);
+                if ($oid > 0) {
+                    $byId[$oid] = $row;
+                }
+            }
+
+            $orderIds = array_keys($byId);
+            $linesByOrder = [];
+            if ($orderIds !== []) {
+                $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+                $hasBarcode = false;
+                try {
+                    require_once app_path('includes/inv_item_barcode.php');
+                    $hasBarcode = inv_item_has_barcode_column($pdo);
+                } catch (Throwable $e) {
+                    $hasBarcode = false;
+                }
+                $itemSku = $hasBarcode
+                    ? 'COALESCE(NULLIF(TRIM(i.barcode), \'\'), i.sku) AS item_sku, i.sku AS item_code'
+                    : 'i.sku AS item_sku, i.sku AS item_code';
+                $stLn = $pdo->prepare(
+                    "SELECT l.*, {$itemSku}, COALESCE(i.name_ar, '') AS item_name
+                     FROM sal_customer_order_line l
+                     LEFT JOIN inv_item i ON i.id = l.item_id
+                     WHERE l.order_id IN ($placeholders)
+                     ORDER BY l.order_id, l.line_no, l.id"
+                );
+                $stLn->execute(array_values($orderIds));
+                foreach ($stLn->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ln) {
+                    $oid = (int) ($ln['order_id'] ?? 0);
+                    if ($oid < 1) {
+                        continue;
+                    }
+                    $sku = trim((string) ($ln['item_sku'] ?? ''));
+                    if ($sku === '') {
+                        $sku = trim((string) ($ln['item_code'] ?? ''));
+                    }
+                    $ln['sku'] = $sku;
+                    $ln['barcode'] = $sku;
+                    $ln['name'] = (string) ($ln['item_name'] ?? $ln['name'] ?? '');
+                    $linesByOrder[$oid][] = $ln;
+                }
+            }
+
+            foreach ($byId as $oid => $row) {
+                $row['lines'] = $linesByOrder[$oid] ?? [];
+                $row['id'] = (int) $oid;
+                $row['customer_id'] = (int) ($row['customer_id'] ?? 0);
+                $row['warehouse_id'] = (int) ($row['warehouse_id'] ?? 0);
+                $row['is_sent'] = (int) ($row['is_sent'] ?? 1);
+                $row['total'] = (float) ($row['total'] ?? 0);
+                $row['line_count'] = (int) ($row['line_count'] ?? count($row['lines']));
+                $row['total_qty'] = (float) ($row['total_qty'] ?? 0);
+                $ordersOut[] = $row;
+            }
+        } catch (Throwable $e) {
+            error_log('mobile_sync_pull orders: ' . $e->getMessage());
+            $ordersOut = [];
+        }
+    }
+
+    $pendingOrders = 0;
+    $sentOrders = 0;
+    foreach ($ordersOut as $o) {
+        if ((int) ($o['is_sent'] ?? 1) === 0) {
+            $pendingOrders++;
+        } else {
+            $sentOrders++;
+        }
+    }
+
     echo json_encode([
         'ok' => true,
         'synced_at' => date('c'),
         'user_id' => $uid,
-        'sales_rep_id' => $scopedRepId,
+        'sales_rep_id' => $scopedRepId ?? $repId,
         'meta' => [
             'default_warehouse_id' => wh_access_default_issue_warehouse_id($pdo),
             'decimal_places' => company_decimal_places($pdo),
             'default_tax_percent' => $defaultTaxPercent,
             'visit_radius_m' => $visitRadius,
+            'cache_from' => $cacheFrom,
+            'cache_to' => $cacheTo,
         ],
         'counts' => [
             'customers' => count($customers),
@@ -255,6 +424,14 @@ try {
             'stock_rows' => count($stock),
             'tax_rates' => count($taxRatesOut),
             'no_order_reasons' => count($noOrderReasons),
+            'route_days' => array_sum(array_map(
+                static fn(array $m): int => count($m['days'] ?? []),
+                $routeMonths
+            )),
+            'visit_report_rows' => count($visitReportRows),
+            'orders' => count($ordersOut),
+            'orders_pending' => $pendingOrders,
+            'orders_sent' => $sentOrders,
         ],
         'customers' => $customers,
         'warehouses' => $warehouses,
@@ -262,6 +439,14 @@ try {
         'items' => $items,
         'stock' => $stock,
         'no_order_reasons' => $noOrderReasons,
+        'route_months' => $routeMonths,
+        'today_visits' => $todayVisits,
+        'visit_report' => [
+            'from' => $cacheFrom,
+            'to' => $cacheTo,
+            'visits' => $visitReportRows,
+        ],
+        'orders' => $ordersOut,
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_sync_pull: ' . $e->getMessage());

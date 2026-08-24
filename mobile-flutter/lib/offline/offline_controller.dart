@@ -22,6 +22,7 @@ class OfflineController extends ChangeNotifier {
   Future<String> Function()? csrfProvider;
 
   StreamSubscription<List<ConnectivityResult>>? _sub;
+  Timer? _reconnectFlushTimer;
   bool online = true;
   bool catalogReady = false;
   bool busy = false;
@@ -31,8 +32,11 @@ class OfflineController extends ChangeNotifier {
   String? statusMessage;
   OfflineSyncInfo info = const OfflineSyncInfo(hasData: false);
   double pullProgress = 0;
+  DateTime? flushScheduledAt;
 
   bool get canWorkOffline => catalogReady;
+
+  static const reconnectFlushDelay = Duration(seconds: 60);
 
   Future<void> start() async {
     await refreshInfo();
@@ -43,12 +47,36 @@ class OfflineController extends ChangeNotifier {
       final wasOnline = online;
       _applyConnectivity(r);
       if (!wasOnline && online) {
-        unawaited(flushOutbox(silent: true));
+        _scheduleReconnectFlush();
+      } else if (!online) {
+        _cancelReconnectFlush();
       }
     });
-    if (online) {
+    if (online && info.pendingOutbox > 0) {
+      // عند فتح التطبيق وهو متصل — ترحيل فوري للعمليات المعلّقة
       unawaited(flushOutbox(silent: true));
     }
+  }
+
+  void _scheduleReconnectFlush() {
+    _reconnectFlushTimer?.cancel();
+    flushScheduledAt = DateTime.now().add(reconnectFlushDelay);
+    statusMessage =
+        'عادت الشبكة — سيتم ترحيل العمليات المعلّقة خلال دقيقة…';
+    notifyListeners();
+    _reconnectFlushTimer = Timer(reconnectFlushDelay, () {
+      flushScheduledAt = null;
+      if (online) {
+        unawaited(flushOutbox(silent: true));
+      }
+      notifyListeners();
+    });
+  }
+
+  void _cancelReconnectFlush() {
+    _reconnectFlushTimer?.cancel();
+    _reconnectFlushTimer = null;
+    flushScheduledAt = null;
   }
 
   void _applyConnectivity(List<ConnectivityResult> results,
@@ -57,7 +85,8 @@ class OfflineController extends ChangeNotifier {
         results.any((r) => r != ConnectivityResult.none);
     if (next == online) return;
     online = next;
-    statusMessage = online ? 'متصل بالشبكة' : 'وضع Offline — يعمل من البيانات المحلية';
+    statusMessage =
+        online ? 'متصل بالشبكة' : 'وضع Offline — يعمل من البيانات المحلية';
     if (notify) notifyListeners();
   }
 
@@ -95,13 +124,12 @@ class OfflineController extends ChangeNotifier {
       pullProgress = 1;
       await refreshInfo();
       statusMessage =
-          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.warehouses} مستودع، ${info.noOrderReasons} سبب زيارة.';
+          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.ordersPending} طلب غير مرسل، ${info.ordersSent} مرسل، ${info.visitReportRows} زيارة.';
       onStep?.call(statusMessage!);
       if (info.noOrderReasons < 1) {
         statusMessage =
             '$statusMessage\nتنبيه: لم تُحمَّل أسباب عدم الطلب — أعد التحديث بعد نشر API المحدّث.';
       }
-      // بعد التحديث حاول ترحيل أي طابور معلّق
       unawaited(flushOutbox(silent: true));
       return true;
     } on ApiException catch (e) {
@@ -124,6 +152,7 @@ class OfflineController extends ChangeNotifier {
     required String path,
     required Map<String, dynamic> body,
     String? clientUuid,
+    String method = 'POST_JSON',
   }) async {
     final id = (clientUuid == null || clientUuid.isEmpty)
         ? _uuid.v4()
@@ -135,9 +164,11 @@ class OfflineController extends ChangeNotifier {
       kind: kind,
       path: path,
       body: payload,
+      method: method,
     );
     await refreshInfo();
     if (online) {
+      // أثناء العمل أونلاين: ترحيل فوري
       unawaited(flushOutbox(silent: true));
     }
     return id;
@@ -176,26 +207,25 @@ class OfflineController extends ChangeNotifier {
           continue;
         }
         try {
+          // لا نرسل حقول محلية للسيرفر
+          final sendBody = Map<String, dynamic>.from(body);
+          sendBody.remove('local_customer_id');
+          sendBody.remove('local_order_id');
+
           Map<String, dynamic> res;
           if (method == 'POST_FORM') {
-            res = await api.postForm(path, fields: body, csrf: csrf);
+            // postForm يتوقع قيم نصية/بسيطة
+            final fields = <String, dynamic>{};
+            sendBody.forEach((k, v) {
+              if (v == null) return;
+              fields[k] = v;
+            });
+            res = await api.postForm(path, fields: fields, csrf: csrf);
           } else {
-            res = await api.postJson(path, body: body, csrf: csrf);
+            res = await api.postJson(path, body: sendBody, csrf: csrf);
           }
           final kind = (row['kind'] as String?) ?? '';
-          if (kind == 'visit_checkin') {
-            final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
-            final lineId = (visit?['route_line_id'] as num?)?.toInt() ??
-                (res['route_line_id'] as num?)?.toInt() ??
-                0;
-            final cid = (body['customer_id'] as num?)?.toInt() ?? 0;
-            if (lineId > 0 && cid > 0) {
-              await store.rewritePendingOrdersVisitLine(
-                customerId: cid,
-                routeLineId: lineId,
-              );
-            }
-          }
+          await _afterFlushSuccess(kind: kind, body: body, res: res);
           await store.markOutboxDone(id);
           okCount++;
         } on ApiException catch (e) {
@@ -226,9 +256,73 @@ class OfflineController extends ChangeNotifier {
     return okCount;
   }
 
+  Future<void> _afterFlushSuccess({
+    required String kind,
+    required Map<String, dynamic> body,
+    required Map<String, dynamic> res,
+  }) async {
+    if (kind == 'visit_checkin') {
+      final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
+      final lineId = (visit?['route_line_id'] as num?)?.toInt() ??
+          (res['route_line_id'] as num?)?.toInt() ??
+          0;
+      final cid = (body['customer_id'] as num?)?.toInt() ?? 0;
+      if (lineId > 0 && cid > 0) {
+        await store.rewritePendingOrdersVisitLine(
+          customerId: cid,
+          routeLineId: lineId,
+        );
+      }
+      return;
+    }
+    if (kind == 'customer_save') {
+      final localId = (body['local_customer_id'] as num?)?.toInt() ?? 0;
+      final cust = (res['customer'] as Map?)?.cast<String, dynamic>();
+      final serverId = (cust?['id'] as num?)?.toInt() ?? 0;
+      if (localId < 0 && serverId > 0) {
+        await store.rewriteLocalCustomerId(localId, serverId);
+      }
+      return;
+    }
+    if (kind == 'customer_order_save') {
+      final localId = (body['local_order_id'] as num?)?.toInt() ??
+          (body['id'] as num?)?.toInt() ??
+          0;
+      final serverId = (res['order_id'] as num?)?.toInt() ??
+          (res['id'] as num?)?.toInt() ??
+          0;
+      final orderNo = (res['order_no'] ?? '').toString();
+      if (localId < 0 && serverId > 0) {
+        await store.rewriteLocalOrderId(
+          localId: localId,
+          serverId: serverId,
+          orderNo: orderNo,
+        );
+      }
+      return;
+    }
+    if (kind == 'customer_order_send') {
+      final ids = (body['ids'] as List? ?? [])
+          .map((e) => (e as num?)?.toInt() ?? 0)
+          .where((e) => e != 0)
+          .toList();
+      if (ids.isNotEmpty) {
+        await store.markOrderSent(ids);
+      }
+      return;
+    }
+    if (kind == 'customer_order_delete') {
+      final oid = (body['id'] as num?)?.toInt() ?? 0;
+      if (oid != 0) {
+        await store.deleteLocalOrder(oid);
+      }
+    }
+  }
+
   @override
   void dispose() {
     _sub?.cancel();
+    _cancelReconnectFlush();
     super.dispose();
   }
 }

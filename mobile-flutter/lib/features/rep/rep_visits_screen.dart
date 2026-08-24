@@ -8,6 +8,8 @@ import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../core/visit_status.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -55,6 +57,21 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     super.dispose();
   }
 
+  Future<void> _applyMonthPayload(Map<String, dynamic> res) async {
+    final days = (res['days'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    setState(() {
+      _agendaDays = days;
+      _monthYm =
+          Fmt.str(res['month']).isEmpty ? _monthYm : Fmt.str(res['month']);
+      final r = Fmt.toInt(res['visit_radius_m']);
+      if (r > 0) _radiusM = r;
+      _loading = false;
+    });
+  }
+
   Future<void> _loadMonth() async {
     setState(() {
       _loading = true;
@@ -62,25 +79,37 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       _monthMode = true;
       _selected = null;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        final local = await OfflineStore.instance.monthAgenda(_monthYm);
+        if (!mounted) return;
+        if (local == null) {
+          setState(() {
+            _error =
+                'لا توجد أجندة محلية لهذا الشهر. حدّث البيانات وأنت متصل.';
+            _loading = false;
+          });
+          return;
+        }
+        await _applyMonthPayload(local);
+        return;
+      }
       final res = await context.read<ApiClient>().getJson(
             AppConfig.repVisitListPath,
             query: {'mode': 'month', 'month': _monthYm},
           );
       if (!mounted) return;
-      final days = (res['days'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
-          .toList();
-      setState(() {
-        _agendaDays = days;
-        _monthYm = Fmt.str(res['month']).isEmpty ? _monthYm : Fmt.str(res['month']);
-        final r = Fmt.toInt(res['visit_radius_m']);
-        if (r > 0) _radiusM = r;
-        _loading = false;
-      });
+      await _applyMonthPayload(res);
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        final local = await OfflineStore.instance.monthAgenda(_monthYm);
+        if (local != null) {
+          await _applyMonthPayload(local);
+          return;
+        }
+      }
       setState(() {
         _error = e.message;
         _loading = false;
@@ -128,6 +157,108 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     });
   }
 
+  Future<void> _applyDayPayload(
+    Map<String, dynamic> res, {
+    required int keepId,
+  }) async {
+    final visits = (res['visits'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    var noOrderReasons = (res['no_order_reasons'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    if (noOrderReasons.isEmpty) {
+      noOrderReasons = await OfflineStore.instance.noOrderReasons();
+    }
+    // دمج الزيارة المفتوحة محلياً
+    final open = await OfflineStore.instance.loadOpenVisit();
+    if (open != null) {
+      final oid = Fmt.toInt(open['customer_id']);
+      if (oid != 0) {
+        final idx = visits.indexWhere((v) => Fmt.toInt(v['customer_id']) == oid);
+        final patch = {
+          'status': 'checked_in',
+          'visit_checkin_at': open['visit_checkin_at'],
+          'route_line_id': open['route_line_id'],
+          'checkin_method': open['method'],
+          'offline': true,
+        };
+        if (idx >= 0) {
+          visits[idx] = {...visits[idx], ...patch};
+        } else {
+          final c = await OfflineStore.instance.getCustomerById(oid);
+          visits.add({
+            'customer_id': oid,
+            'name': c?['name'] ?? '',
+            'code': c?['code'] ?? '',
+            'in_plan': false,
+            ...patch,
+          });
+        }
+      }
+    }
+    visits.sort((a, b) {
+      final ap = a['in_plan'] == true ? 0 : 1;
+      final bp = b['in_plan'] == true ? 0 : 1;
+      if (ap != bp) return ap - bp;
+      return Fmt.toInt(a['sort_order']).compareTo(Fmt.toInt(b['sort_order']));
+    });
+    Map<String, dynamic>? selected;
+    if (keepId != 0) {
+      for (final v in visits) {
+        if (Fmt.toInt(v['customer_id']) == keepId) {
+          selected = v;
+          break;
+        }
+      }
+    }
+    if (selected == null) {
+      final openVisits = visits.where((v) {
+        final s = Fmt.str(v['status']);
+        return s == 'checked_in' || s == 'pending_manual_checkout';
+      }).toList();
+      if (openVisits.length == 1) {
+        selected = openVisits.first;
+      }
+    }
+    setState(() {
+      _visits = visits;
+      _noOrderReasons = noOrderReasons;
+      _selected = selected;
+      _routeDate = Fmt.str(res['route_date']).isEmpty
+          ? _routeDate
+          : Fmt.str(res['route_date']);
+      _dateCtrl.text = _routeDate;
+      _weekdayLabel = Fmt.str(res['weekday_label']);
+      if (_weekdayLabel.isEmpty && visits.isNotEmpty) {
+        _weekdayLabel = Fmt.str(visits.first['weekday_label']);
+      }
+      _radiusM = Fmt.toInt(res['visit_radius_m']);
+      if (_radiusM < 1) {
+        _radiusM = 200;
+      }
+      _loading = false;
+    });
+  }
+
+  Future<Map<String, dynamic>?> _localDayPayload() async {
+    final store = OfflineStore.instance;
+    final visits = await store.visitsForDate(_routeDate);
+    if (visits.isEmpty && !await store.hasCatalog) return null;
+    final wd = await store.weekdayLabelForDate(_routeDate);
+    final radius = await store.visitRadiusM();
+    final reasons = await store.noOrderReasons();
+    return {
+      'route_date': _routeDate,
+      'weekday_label': wd,
+      'visit_radius_m': radius,
+      'visits': visits,
+      'no_order_reasons': reasons,
+    };
+  }
+
   Future<void> _load({int? keepCustomerId}) async {
     final keepId = keepCustomerId ?? Fmt.toInt(_selected?['customer_id']);
     setState(() {
@@ -135,62 +266,36 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       _error = null;
       _monthMode = false;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        final local = await _localDayPayload();
+        if (!mounted) return;
+        if (local == null) {
+          setState(() {
+            _error = 'لا توجد جولة محلية. حدّث البيانات وأنت متصل.';
+            _loading = false;
+          });
+          return;
+        }
+        await _applyDayPayload(local, keepId: keepId);
+        return;
+      }
       final res = await context.read<ApiClient>().getJson(
             AppConfig.repVisitListPath,
             query: {'date': _routeDate},
           );
       if (!mounted) return;
-      final visits = (res['visits'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
-          .toList();
-      final noOrderReasons = (res['no_order_reasons'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
-          .toList();
-      visits.sort((a, b) {
-        final ap = a['in_plan'] == true ? 0 : 1;
-        final bp = b['in_plan'] == true ? 0 : 1;
-        if (ap != bp) return ap - bp;
-        return Fmt.toInt(a['sort_order']).compareTo(Fmt.toInt(b['sort_order']));
-      });
-      Map<String, dynamic>? selected;
-      if (keepId > 0) {
-        for (final v in visits) {
-          if (Fmt.toInt(v['customer_id']) == keepId) {
-            selected = v;
-            break;
-          }
-        }
-      }
-      if (selected == null) {
-        final open = visits.where((v) {
-          final s = Fmt.str(v['status']);
-          return s == 'checked_in' || s == 'pending_manual_checkout';
-        }).toList();
-        if (open.length == 1) {
-          selected = open.first;
-        }
-      }
-      setState(() {
-        _visits = visits;
-        _noOrderReasons = noOrderReasons;
-        _selected = selected;
-        _routeDate = Fmt.str(res['route_date']).isEmpty
-            ? _routeDate
-            : Fmt.str(res['route_date']);
-        _dateCtrl.text = _routeDate;
-        _weekdayLabel = Fmt.str(res['weekday_label']);
-        if (_weekdayLabel.isEmpty && visits.isNotEmpty) {
-          _weekdayLabel = Fmt.str(visits.first['weekday_label']);
-        }
-        _radiusM = Fmt.toInt(res['visit_radius_m']);
-        if (_radiusM < 1) _radiusM = 200;
-        _loading = false;
-      });
+      await _applyDayPayload(res, keepId: keepId);
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        final local = await _localDayPayload();
+        if (local != null) {
+          await _applyDayPayload(local, keepId: keepId);
+          return;
+        }
+      }
       setState(() {
         _error = e.message;
         _loading = false;
@@ -347,6 +452,45 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     return ok == true;
   }
 
+  int _offlineRouteLineId(int customerId) => -(1000000000 + customerId.abs());
+
+  Future<void> _applyLocalCheckin({
+    required int customerId,
+    required bool manual,
+    required Map<String, dynamic> gps,
+  }) async {
+    final offline = context.read<OfflineController>();
+    final now = DateTime.now().toIso8601String();
+    final lineId = _offlineRouteLineId(customerId);
+    final method = manual ? 'MANUAL' : 'GPS';
+    await offline.enqueue(
+      kind: 'visit_checkin',
+      path: AppConfig.repVisitCheckinPath,
+      body: {
+        'customer_id': customerId,
+        'method': method,
+        ...gps,
+      },
+    );
+    await OfflineStore.instance.saveOpenVisit({
+      'customer_id': customerId,
+      'visit_checkin_at': now,
+      'route_line_id': lineId,
+      'method': method,
+      'visit_radius_m': _radiusM,
+    });
+    await OfflineStore.instance.patchLocalVisitCheckin(
+      routeDate: _routeDate,
+      customerId: customerId,
+      checkinAt: now,
+      method: method,
+      routeLineId: lineId,
+    );
+    if (!mounted) return;
+    showSnack(context, 'تم تسجيل الدخول محلياً — سيُرحَّل عند عودة الاتصال.');
+    await _load(keepCustomerId: customerId);
+  }
+
   Future<void> _checkin({required bool manual}) async {
     final v = _selected;
     if (v == null || _busy) return;
@@ -360,6 +504,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     if (!ok || !mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
+    final offline = context.read<OfflineController>();
     setState(() => _busy = true);
     try {
       Map<String, dynamic> gps = {};
@@ -374,21 +519,47 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       } else {
         gps = await _gpsFields() ?? {};
       }
-      final res = await api.postJson(
-        AppConfig.repVisitCheckinPath,
-        body: {
-          'customer_id': v['customer_id'],
-          'method': manual ? 'MANUAL' : 'GPS',
-          ...gps,
-        },
-        csrf: csrf,
-      );
-      if (!mounted) return;
-      showSnack(
-        context,
-        Fmt.str(res['message']).isEmpty ? 'تم تسجيل الدخول. الزيارة مفتوحة.' : Fmt.str(res['message']),
-      );
-      await _load(keepCustomerId: Fmt.toInt(v['customer_id']));
+      final customerId = Fmt.toInt(v['customer_id']);
+      if (!offline.online && offline.catalogReady) {
+        await _applyLocalCheckin(
+          customerId: customerId,
+          manual: manual,
+          gps: gps,
+        );
+        return;
+      }
+      try {
+        final res = await api.postJson(
+          AppConfig.repVisitCheckinPath,
+          body: {
+            'customer_id': customerId,
+            'method': manual ? 'MANUAL' : 'GPS',
+            ...gps,
+          },
+          csrf: csrf,
+        );
+        if (!mounted) return;
+        showSnack(
+          context,
+          Fmt.str(res['message']).isEmpty
+              ? 'تم تسجيل الدخول. الزيارة مفتوحة.'
+              : Fmt.str(res['message']),
+        );
+        await _load(keepCustomerId: customerId);
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await _applyLocalCheckin(
+            customerId: customerId,
+            manual: manual,
+            gps: gps,
+          );
+        } else {
+          if (!mounted) return;
+          showSnack(context, e.message, error: true);
+        }
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);
@@ -399,9 +570,15 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
 
   Future<List<int>?> _pickNoOrderReasons() async {
     if (_noOrderReasons.isEmpty) {
+      final local = await OfflineStore.instance.noOrderReasons();
+      if (local.isNotEmpty && mounted) {
+        setState(() => _noOrderReasons = local);
+      }
+    }
+    if (_noOrderReasons.isEmpty) {
       showSnack(
         context,
-        'لا توجد أسباب «عدم طلب العميل» مضافة في إعدادات النظام.',
+        'لا توجد أسباب «عدم طلب العميل». حدّث البيانات أولاً.',
         error: true,
       );
       return null;
@@ -472,6 +649,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     if (!ok || !mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
+    final offline = context.read<OfflineController>();
     String? reason;
     if (manual) {
       reason = await showManualCheckoutReasonDialog(context);
@@ -491,27 +669,89 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       } else {
         gps = await _gpsFields() ?? {};
       }
-      final res = await api.postJson(
-        AppConfig.repVisitCheckoutPath,
-        body: {
-          'customer_id': v['customer_id'],
-          'method': manual ? 'MANUAL' : 'GPS',
-          'no_order_reason_ids': noOrderReasonIds,
-          if (reason != null && reason.isNotEmpty) 'reason': reason,
-          ...gps,
-        },
-        csrf: csrf,
-      );
-      if (!mounted) return;
-      final msg = Fmt.str(res['message']);
-      final needsApproval = res['requires_approval'] == true;
-      showSnack(
-        context,
-        msg.isEmpty
-            ? (needsApproval ? 'بانتظار موافقة المدير' : 'تم تسجيل الخروج وإغلاق الزيارة')
-            : msg,
-      );
-      await _load(keepCustomerId: needsApproval ? Fmt.toInt(v['customer_id']) : 0);
+      final customerId = Fmt.toInt(v['customer_id']);
+      final body = <String, dynamic>{
+        'customer_id': customerId,
+        'method': manual ? 'MANUAL' : 'GPS',
+        'no_order_reason_ids':
+            noOrderReasonIds.where((id) => id > 0).toList(),
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+        ...gps,
+      };
+      // أسباب سالبة (محلية): أرسل نص السبب فقط
+      if (noOrderReasonIds.any((id) => id < 0) &&
+          (reason == null || reason.isEmpty)) {
+        final names = _noOrderReasons
+            .where((r) => noOrderReasonIds.contains(Fmt.toInt(r['id'])))
+            .map((r) => Fmt.str(r['name_ar']))
+            .where((s) => s.isNotEmpty)
+            .join('، ');
+        if (names.isNotEmpty) body['reason'] = names;
+      }
+
+      Future<void> localCheckout() async {
+        await offline.enqueue(
+          kind: 'visit_checkout',
+          path: AppConfig.repVisitCheckoutPath,
+          body: body,
+        );
+        final now = DateTime.now().toIso8601String();
+        final reasonNames = _noOrderReasons
+            .where((r) => noOrderReasonIds.contains(Fmt.toInt(r['id'])))
+            .map((r) => Fmt.str(r['name_ar']))
+            .where((s) => s.isNotEmpty)
+            .toList();
+        await OfflineStore.instance.patchLocalVisitCheckout(
+          routeDate: _routeDate,
+          customerId: customerId,
+          checkoutAt: now,
+          method: manual ? 'MANUAL' : 'GPS',
+          reasonNames: reasonNames,
+        );
+        await OfflineStore.instance.clearOpenVisit();
+        if (!mounted) return;
+        showSnack(
+          context,
+          'تم تسجيل الخروج محلياً — سيُرحَّل عند عودة الاتصال.',
+        );
+        await _load();
+      }
+
+      if (!offline.online && offline.catalogReady) {
+        await localCheckout();
+        return;
+      }
+      try {
+        final res = await api.postJson(
+          AppConfig.repVisitCheckoutPath,
+          body: body,
+          csrf: csrf,
+        );
+        if (!mounted) return;
+        final msg = Fmt.str(res['message']);
+        final needsApproval = res['requires_approval'] == true;
+        showSnack(
+          context,
+          msg.isEmpty
+              ? (needsApproval
+                  ? 'بانتظار موافقة المدير'
+                  : 'تم تسجيل الخروج وإغلاق الزيارة')
+              : msg,
+        );
+        await OfflineStore.instance.clearOpenVisit();
+        await _load(
+          keepCustomerId: needsApproval ? customerId : 0,
+        );
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await localCheckout();
+        } else {
+          if (!mounted) return;
+          showSnack(context, e.message, error: true);
+        }
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);

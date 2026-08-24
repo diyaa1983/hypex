@@ -182,15 +182,36 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         }
       }
       Map<String, dynamic> order = {};
-      if (_id > 0) {
+      if (_id != 0) {
         if (!offline.online) {
-          throw ApiException(
-            'تعديل طلب موجود على السيرفر يتطلب اتصالاً بالإنترنت.',
-          );
+          final local = await OfflineStore.instance.getOrderById(_id);
+          if (local == null) {
+            throw ApiException(
+              'الطلب غير متوفر محلياً. حدّث البيانات أو اتصل بالإنترنت.',
+            );
+          }
+          order = local;
+        } else {
+          try {
+            final result = await api.getJson(
+              AppConfig.customerOrderViewPath,
+              query: {'id': _id},
+            );
+            order =
+                (result['order'] as Map?)?.cast<String, dynamic>() ?? result;
+          } on ApiException {
+            if (offline.catalogReady) {
+              final local = await OfflineStore.instance.getOrderById(_id);
+              if (local != null) {
+                order = local;
+              } else {
+                rethrow;
+              }
+            } else {
+              rethrow;
+            }
+          }
         }
-        final result = await api
-            .getJson(AppConfig.customerOrderViewPath, query: {'id': _id});
-        order = (result['order'] as Map?)?.cast<String, dynamic>() ?? result;
       }
       if (!mounted) return;
       final ws = (meta['warehouses'] as List? ?? [])
@@ -493,24 +514,51 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           );
           return 0;
         }
-        await offline.enqueue(
+        var localId = _id;
+        if (localId <= 0) {
+          localId = await OfflineStore.instance.nextLocalOrderId();
+        }
+        final orderNo = (_orderNo != null && _orderNo!.isNotEmpty)
+            ? _orderNo!
+            : 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
+        body['id'] = localId < 0 ? 0 : localId;
+        body['local_order_id'] = localId;
+        final uuid = await offline.enqueue(
           kind: 'customer_order_save',
           path: AppConfig.customerOrderSavePath,
           body: body,
         );
+        final lines = _lines.map((l) => l.toJson()).toList();
+        await OfflineStore.instance.upsertLocalOrder(
+          {
+            'id': localId,
+            'order_no': orderNo,
+            'order_date': Fmt.todayIso(),
+            'customer_id': _customer!.id,
+            'customer_name': _customer!.name,
+            'warehouse_id': _warehouseId,
+            'warehouse_name': '',
+            'status': 'draft',
+            'is_sent': 0,
+            'total': 0,
+            'line_count': lines.length,
+            'lines': lines,
+            'payment_type': _paymentType,
+          },
+          clientUuid: uuid,
+        );
         if (mounted) {
           setState(() {
-            if ((_orderNo ?? '').isEmpty) {
-              _orderNo = 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
-            }
+            _id = localId;
+            _orderNo = orderNo;
           });
           showSnack(
             context,
             'حُفظ الطلب محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
           );
-          widget.onSaved?.call(_id > 0 ? _id : -1);
+          widget.onSaved?.call(localId);
         }
-        return _id > 0 ? _id : -1;
+        return localId;
       }
       try {
         final result = await context.read<ApiClient>().postJson(
@@ -538,19 +586,46 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         if (offline.catalogReady &&
             (e.message.contains('تعذر الاتصال') ||
                 e.message.contains('الإنترنت'))) {
-          await offline.enqueue(
+          var localId = _id;
+          if (localId <= 0) {
+            localId = await OfflineStore.instance.nextLocalOrderId();
+          }
+          body['id'] = localId < 0 ? 0 : localId;
+          body['local_order_id'] = localId;
+          final uuid = await offline.enqueue(
             kind: 'customer_order_save',
             path: AppConfig.customerOrderSavePath,
             body: body,
           );
+          final orderNo = (_orderNo != null && _orderNo!.isNotEmpty)
+              ? _orderNo!
+              : 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
+          await OfflineStore.instance.upsertLocalOrder(
+            {
+              'id': localId,
+              'order_no': orderNo,
+              'order_date': Fmt.todayIso(),
+              'customer_id': _customer!.id,
+              'customer_name': _customer!.name,
+              'warehouse_id': _warehouseId,
+              'status': 'draft',
+              'is_sent': 0,
+              'lines': _lines.map((l) => l.toJson()).toList(),
+            },
+            clientUuid: uuid,
+          );
           if (mounted) {
+            setState(() {
+              _id = localId;
+              _orderNo = orderNo;
+            });
             showSnack(
               context,
               'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
             );
-            widget.onSaved?.call(_id > 0 ? _id : -1);
+            widget.onSaved?.call(localId);
           }
-          return _id > 0 ? _id : -1;
+          return localId;
         }
         rethrow;
       }

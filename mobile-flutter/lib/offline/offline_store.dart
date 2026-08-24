@@ -15,6 +15,12 @@ class OfflineSyncInfo {
     this.pendingOutbox = 0,
     this.noOrderReasons = 0,
     this.visitRadiusM = 200,
+    this.routeDays = 0,
+    this.visitReportRows = 0,
+    this.ordersPending = 0,
+    this.ordersSent = 0,
+    this.cacheFrom,
+    this.cacheTo,
   });
 
   final bool hasData;
@@ -26,6 +32,12 @@ class OfflineSyncInfo {
   final int pendingOutbox;
   final int noOrderReasons;
   final int visitRadiusM;
+  final int routeDays;
+  final int visitReportRows;
+  final int ordersPending;
+  final int ordersSent;
+  final String? cacheFrom;
+  final String? cacheTo;
 }
 
 class OfflineStore {
@@ -91,6 +103,49 @@ class OfflineStore {
     } catch (_) {
       reasons = 0;
     }
+    var routeDays = 0;
+    var visitReportRows = 0;
+    var ordersPending = 0;
+    var ordersSent = 0;
+    try {
+      routeDays = Sqflite.firstIntValue(
+            await db.rawQuery(
+              "SELECT COALESCE(SUM(json_array_length(days_json)), 0) FROM route_months",
+            ),
+          ) ??
+          0;
+    } catch (_) {
+      try {
+        final months = await db.query('route_months');
+        for (final m in months) {
+          final days = jsonDecode(m['days_json'] as String);
+          if (days is List) routeDays += days.length;
+        }
+      } catch (_) {
+        routeDays = 0;
+      }
+    }
+    try {
+      visitReportRows = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM visit_report_rows'),
+          ) ??
+          0;
+    } catch (_) {
+      visitReportRows = 0;
+    }
+    try {
+      ordersPending = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM orders WHERE is_sent = 0'),
+          ) ??
+          0;
+      ordersSent = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM orders WHERE is_sent = 1'),
+          ) ??
+          0;
+    } catch (_) {
+      ordersPending = 0;
+      ordersSent = 0;
+    }
     final radius = await visitRadiusM();
     return OfflineSyncInfo(
       hasData: syncedAt != null && syncedAt.isNotEmpty,
@@ -102,7 +157,57 @@ class OfflineStore {
       pendingOutbox: pending,
       noOrderReasons: reasons,
       visitRadiusM: radius,
+      routeDays: routeDays,
+      visitReportRows: visitReportRows,
+      ordersPending: ordersPending,
+      ordersSent: ordersSent,
+      cacheFrom: await getMeta('cache_from'),
+      cacheTo: await getMeta('cache_to'),
     );
+  }
+
+  Future<void> _ensureV3(DatabaseExecutor txn) async {
+    await txn.execute('''
+      CREATE TABLE IF NOT EXISTS route_months (
+        month_ym TEXT PRIMARY KEY NOT NULL,
+        date_from TEXT NOT NULL,
+        date_to TEXT NOT NULL,
+        days_json TEXT NOT NULL
+      )
+    ''');
+    await txn.execute('''
+      CREATE TABLE IF NOT EXISTS route_day_visits (
+        route_date TEXT PRIMARY KEY NOT NULL,
+        weekday_label TEXT NOT NULL DEFAULT '',
+        visits_json TEXT NOT NULL
+      )
+    ''');
+    await txn.execute('''
+      CREATE TABLE IF NOT EXISTS visit_report_rows (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        route_date TEXT NOT NULL,
+        customer_id INTEGER NOT NULL,
+        payload_json TEXT NOT NULL
+      )
+    ''');
+    await txn.execute('''
+      CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY NOT NULL,
+        order_no TEXT NOT NULL DEFAULT '',
+        order_date TEXT NOT NULL DEFAULT '',
+        customer_id INTEGER NOT NULL DEFAULT 0,
+        customer_name TEXT NOT NULL DEFAULT '',
+        warehouse_id INTEGER NOT NULL DEFAULT 0,
+        warehouse_name TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL DEFAULT 'draft',
+        is_sent INTEGER NOT NULL DEFAULT 0,
+        total REAL NOT NULL DEFAULT 0,
+        line_count INTEGER NOT NULL DEFAULT 0,
+        total_qty REAL NOT NULL DEFAULT 0,
+        client_uuid TEXT,
+        payload_json TEXT NOT NULL DEFAULT '{}'
+      )
+    ''');
   }
 
   Future<void> replaceCatalog(Map<String, dynamic> payload) async {
@@ -115,6 +220,14 @@ class OfflineStore {
     final meta = (payload['meta'] as Map?)?.cast<String, dynamic>() ?? {};
 
     await db.transaction((txn) async {
+      await _ensureV3(txn);
+
+      // احتفظ بالعملاء المحليين المؤقتين (id سالب) حتى الترحيل
+      final localCustomers = await txn.query(
+        'customers',
+        where: 'id < 0',
+      );
+
       await txn.delete('customers');
       await txn.delete('warehouses');
       await txn.delete('tax_rates');
@@ -135,6 +248,13 @@ class OfflineStore {
           'use_wholesale_price':
               (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
         });
+      }
+      for (final r in localCustomers) {
+        custBatch.insert(
+          'customers',
+          r,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
       await custBatch.commit(noResult: true);
 
@@ -190,9 +310,9 @@ class OfflineStore {
         ''');
         await txn.delete('no_order_reasons');
         final reasonBatch = txn.batch();
-        final reasons = (payload['no_order_reasons'] as List? ?? []).whereType<Map>();
+        final reasons =
+            (payload['no_order_reasons'] as List? ?? []).whereType<Map>();
         if (reasons.isEmpty) {
-          // احتياط محلي إن لم يُرجع السيرفر أسباباً
           reasonBatch.insert('no_order_reasons', {
             'id': -1,
             'name_ar': 'لا يحتاج طلبية حالياً',
@@ -214,9 +334,96 @@ class OfflineStore {
           }
         }
         await reasonBatch.commit(noResult: true);
-      } catch (e) {
-        // ignore table issues
+      } catch (_) {}
+
+      // —— جولات ——
+      await txn.delete('route_months');
+      await txn.delete('route_day_visits');
+      final months =
+          (payload['route_months'] as List? ?? []).whereType<Map>();
+      final monthBatch = txn.batch();
+      for (final m in months) {
+        final ym = (m['month'] ?? '').toString();
+        if (ym.isEmpty) continue;
+        monthBatch.insert('route_months', {
+          'month_ym': ym,
+          'date_from': (m['date_from'] ?? '').toString(),
+          'date_to': (m['date_to'] ?? '').toString(),
+          'days_json': jsonEncode(m['days'] ?? []),
+        });
+        final days = (m['days'] as List? ?? []).whereType<Map>();
+        for (final d in days) {
+          final date = (d['route_date'] ?? '').toString();
+          if (date.isEmpty) continue;
+          final customersDay =
+              (d['customers'] as List? ?? d['visits'] as List? ?? []);
+          monthBatch.insert(
+            'route_day_visits',
+            {
+              'route_date': date,
+              'weekday_label':
+                  (d['weekday_label'] ?? '').toString(),
+              'visits_json': jsonEncode(customersDay),
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
       }
+      await monthBatch.commit(noResult: true);
+
+      final todayVisits =
+          (payload['today_visits'] as List? ?? []).whereType<Map>().toList();
+      if (todayVisits.isNotEmpty) {
+        final today = DateTime.now();
+        final todayIso =
+            '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+        await txn.insert(
+          'route_day_visits',
+          {
+            'route_date': todayIso,
+            'weekday_label': '',
+            'visits_json': jsonEncode(todayVisits),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // —— تقرير الزيارات ——
+      await txn.delete('visit_report_rows');
+      final report = (payload['visit_report'] as Map?)?.cast<String, dynamic>() ??
+          {};
+      final reportVisits =
+          (report['visits'] as List? ?? []).whereType<Map>();
+      final reportBatch = txn.batch();
+      for (final r in reportVisits) {
+        reportBatch.insert('visit_report_rows', {
+          'route_date': (r['route_date'] ?? '').toString(),
+          'customer_id': (r['customer_id'] as num?)?.toInt() ?? 0,
+          'payload_json': jsonEncode(r),
+        });
+      }
+      await reportBatch.commit(noResult: true);
+
+      // —— طلبات ——
+      final localOrders = await txn.query('orders', where: 'id < 0');
+      await txn.delete('orders');
+      final orders = (payload['orders'] as List? ?? []).whereType<Map>();
+      final orderBatch = txn.batch();
+      for (final o in orders) {
+        orderBatch.insert(
+          'orders',
+          _orderRowFromMap(o.cast<String, dynamic>()),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (final o in localOrders) {
+        orderBatch.insert(
+          'orders',
+          o,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await orderBatch.commit(noResult: true);
 
       Future<void> putMeta(String k, String v) => txn.insert(
             'sync_meta',
@@ -241,11 +448,45 @@ class OfflineStore {
         'visit_radius_m',
         '${meta['visit_radius_m'] ?? 200}',
       );
+      await putMeta(
+        'cache_from',
+        (meta['cache_from'] ?? report['from'] ?? '').toString(),
+      );
+      await putMeta(
+        'cache_to',
+        (meta['cache_to'] ?? report['to'] ?? '').toString(),
+      );
     });
   }
 
+  Map<String, Object?> _orderRowFromMap(Map<String, dynamic> o,
+      {String? clientUuid}) {
+    final lines = o['lines'] as List? ?? o['items'] as List? ?? [];
+    final totalQty = (o['total_qty'] as num?)?.toDouble() ??
+        lines.fold<double>(0, (s, l) {
+          if (l is! Map) return s;
+          return s + ((l['qty'] as num?)?.toDouble() ?? 0);
+        });
+    return {
+      'id': (o['id'] as num?)?.toInt() ?? 0,
+      'order_no': (o['order_no'] ?? '').toString(),
+      'order_date': (o['order_date'] ?? '').toString(),
+      'customer_id': (o['customer_id'] as num?)?.toInt() ?? 0,
+      'customer_name': (o['customer_name'] ?? '').toString(),
+      'warehouse_id': (o['warehouse_id'] as num?)?.toInt() ?? 0,
+      'warehouse_name': (o['warehouse_name'] ?? '').toString(),
+      'status': (o['status'] ?? 'draft').toString(),
+      'is_sent': (o['is_sent'] as num?)?.toInt() ?? 0,
+      'total': (o['total'] as num?)?.toDouble() ?? 0,
+      'line_count': (o['line_count'] as num?)?.toInt() ?? lines.length,
+      'total_qty': totalQty,
+      'client_uuid': clientUuid ?? o['client_uuid']?.toString(),
+      'payload_json': jsonEncode(o),
+    };
+  }
+
   Future<Map<String, dynamic>?> getCustomerById(int id) async {
-    if (id < 1) return null;
+    if (id == 0) return null;
     final db = await _db;
     final rows = await db.query(
       'customers',
@@ -271,6 +512,118 @@ class OfflineStore {
       orderBy: 'name COLLATE NOCASE',
       limit: limit,
     );
+  }
+
+  Future<int> nextLocalCustomerId() async {
+    final db = await _db;
+    final minId = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT MIN(id) FROM customers WHERE id < 0'),
+        ) ??
+        0;
+    return minId < 0 ? minId - 1 : -1;
+  }
+
+  Future<void> upsertLocalCustomer({
+    required int id,
+    required String name,
+    String code = '',
+    String phone = '',
+    String address = '',
+    double? latitude,
+    double? longitude,
+    int paymentPeriod = 0,
+  }) async {
+    final db = await _db;
+    await db.insert(
+      'customers',
+      {
+        'id': id,
+        'name': name,
+        'code': code,
+        'phone': phone,
+        'address': address,
+        'latitude': latitude,
+        'longitude': longitude,
+        'payment_period': paymentPeriod,
+        'use_wholesale_price': 0,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> rewriteLocalCustomerId(int localId, int serverId) async {
+    if (localId >= 0 || serverId < 1) return;
+    final db = await _db;
+    await db.transaction((txn) async {
+      final rows = await txn.query(
+        'customers',
+        where: 'id = ?',
+        whereArgs: [localId],
+        limit: 1,
+      );
+      if (rows.isNotEmpty) {
+        final row = Map<String, Object?>.from(rows.first);
+        row['id'] = serverId;
+        await txn.delete('customers', where: 'id = ?', whereArgs: [localId]);
+        await txn.insert(
+          'customers',
+          row,
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await txn.rawUpdate(
+        'UPDATE orders SET customer_id = ? WHERE customer_id = ?',
+        [serverId, localId],
+      );
+      final outbox = await txn.query(
+        'outbox',
+        where: "status IN ('pending','error')",
+      );
+      for (final row in outbox) {
+        try {
+          final body =
+              jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+          var changed = false;
+          if ((body['customer_id'] as num?)?.toInt() == localId) {
+            body['customer_id'] = serverId;
+            changed = true;
+          }
+          if ((body['local_customer_id'] as num?)?.toInt() == localId) {
+            body['local_customer_id'] = serverId;
+            changed = true;
+          }
+          if (!changed) continue;
+          await txn.update(
+            'outbox',
+            {
+              'body_json': jsonEncode(body),
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            where: 'id = ?',
+            whereArgs: [row['id']],
+          );
+        } catch (_) {}
+      }
+      // حدّث payload الطلبات
+      final orders = await txn.query(
+        'orders',
+        where: 'customer_id = ?',
+        whereArgs: [serverId],
+      );
+      for (final o in orders) {
+        try {
+          final payload =
+              jsonDecode(o['payload_json'] as String) as Map<String, dynamic>;
+          payload['customer_id'] = serverId;
+          await txn.update(
+            'orders',
+            {'payload_json': jsonEncode(payload)},
+            where: 'id = ?',
+            whereArgs: [o['id']],
+          );
+        } catch (_) {}
+      }
+    });
   }
 
   Future<List<Map<String, dynamic>>> warehouses() async {
@@ -371,7 +724,487 @@ class OfflineStore {
     await setMeta('open_visit_json', '');
   }
 
-  /// بعد نجاح check-in على السيرفر: اربط طلبات Offline بالـ route_line_id الحقيقي.
+  Future<List<Map<String, dynamic>>> visitsForDate(String routeDate) async {
+    final db = await _db;
+    final rows = await db.query(
+      'route_day_visits',
+      where: 'route_date = ?',
+      whereArgs: [routeDate],
+      limit: 1,
+    );
+    if (rows.isEmpty) {
+      // جرّب من أجندة الشهر
+      final ym = routeDate.length >= 7 ? routeDate.substring(0, 7) : '';
+      if (ym.isEmpty) return [];
+      final months = await db.query(
+        'route_months',
+        where: 'month_ym = ?',
+        whereArgs: [ym],
+        limit: 1,
+      );
+      if (months.isEmpty) return [];
+      try {
+        final days = jsonDecode(months.first['days_json'] as String);
+        if (days is! List) return [];
+        for (final d in days) {
+          if (d is! Map) continue;
+          if ((d['route_date'] ?? '').toString() != routeDate) continue;
+          final customers =
+              (d['customers'] as List? ?? d['visits'] as List? ?? []);
+          return customers
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+        }
+      } catch (_) {}
+      return [];
+    }
+    try {
+      final list = jsonDecode(rows.first['visits_json'] as String);
+      if (list is! List) return [];
+      return list
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<String> weekdayLabelForDate(String routeDate) async {
+    final db = await _db;
+    final rows = await db.query(
+      'route_day_visits',
+      where: 'route_date = ?',
+      whereArgs: [routeDate],
+      limit: 1,
+    );
+    if (rows.isNotEmpty) {
+      final w = (rows.first['weekday_label'] as String?) ?? '';
+      if (w.isNotEmpty) return w;
+    }
+    const labels = [
+      'الأحد',
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'الجمعة',
+      'السبت',
+    ];
+    final d = DateTime.tryParse(routeDate);
+    if (d == null) return '';
+    return labels[d.weekday % 7]; // DateTime: Mon=1..Sun=7; PHP w: Sun=0
+  }
+
+  Future<Map<String, dynamic>?> monthAgenda(String monthYm) async {
+    final db = await _db;
+    final rows = await db.query(
+      'route_months',
+      where: 'month_ym = ?',
+      whereArgs: [monthYm],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    try {
+      final days = jsonDecode(rows.first['days_json'] as String);
+      return {
+        'month': monthYm,
+        'date_from': rows.first['date_from'],
+        'date_to': rows.first['date_to'],
+        'days': days is List ? days : [],
+        'visit_radius_m': await visitRadiusM(),
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> patchLocalVisitCheckin({
+    required String routeDate,
+    required int customerId,
+    required String checkinAt,
+    required String method,
+    required int routeLineId,
+  }) async {
+    final visits = await visitsForDate(routeDate);
+    var found = false;
+    for (var i = 0; i < visits.length; i++) {
+      if ((visits[i]['customer_id'] as num?)?.toInt() == customerId) {
+        visits[i] = {
+          ...visits[i],
+          'status': 'checked_in',
+          'visit_checkin_at': checkinAt,
+          'checkin_method': method,
+          'route_line_id': routeLineId,
+          'offline': true,
+        };
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      final c = await getCustomerById(customerId);
+      visits.add({
+        'customer_id': customerId,
+        'name': c?['name'] ?? '',
+        'code': c?['code'] ?? '',
+        'status': 'checked_in',
+        'in_plan': false,
+        'visit_checkin_at': checkinAt,
+        'checkin_method': method,
+        'route_line_id': routeLineId,
+        'has_order': false,
+        'offline': true,
+      });
+    }
+    await _saveDayVisits(routeDate, visits);
+  }
+
+  Future<void> patchLocalVisitCheckout({
+    required String routeDate,
+    required int customerId,
+    required String checkoutAt,
+    required String method,
+    List<String> reasonNames = const [],
+  }) async {
+    final visits = await visitsForDate(routeDate);
+    for (var i = 0; i < visits.length; i++) {
+      if ((visits[i]['customer_id'] as num?)?.toInt() == customerId) {
+        visits[i] = {
+          ...visits[i],
+          'status': 'checked_out',
+          'visit_checkout_at': checkoutAt,
+          'checkout_method': method,
+          'no_order_reasons': reasonNames,
+          'offline': true,
+        };
+        break;
+      }
+    }
+    await _saveDayVisits(routeDate, visits);
+  }
+
+  Future<void> _saveDayVisits(
+      String routeDate, List<Map<String, dynamic>> visits) async {
+    final db = await _db;
+    final wd = await weekdayLabelForDate(routeDate);
+    await db.insert(
+      'route_day_visits',
+      {
+        'route_date': routeDate,
+        'weekday_label': wd,
+        'visits_json': jsonEncode(visits),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, dynamic>>> visitReportRows({
+    required String from,
+    required String to,
+    int customerId = 0,
+  }) async {
+    final db = await _db;
+    final rows = await db.query('visit_report_rows', orderBy: 'route_date DESC, id DESC');
+    final out = <Map<String, dynamic>>[];
+    for (final r in rows) {
+      final date = (r['route_date'] as String?) ?? '';
+      if (date.compareTo(from) < 0 || date.compareTo(to) > 0) continue;
+      final cid = (r['customer_id'] as int?) ?? 0;
+      if (customerId > 0 && cid != customerId) continue;
+      try {
+        final m = jsonDecode(r['payload_json'] as String);
+        if (m is Map) out.add(m.cast<String, dynamic>());
+      } catch (_) {}
+    }
+    return out;
+  }
+
+  Future<int> nextLocalOrderId() async {
+    final db = await _db;
+    final minId = Sqflite.firstIntValue(
+          await db.rawQuery('SELECT MIN(id) FROM orders WHERE id < 0'),
+        ) ??
+        0;
+    return minId < 0 ? minId - 1 : -1;
+  }
+
+  Future<void> upsertLocalOrder(
+    Map<String, dynamic> order, {
+    String? clientUuid,
+  }) async {
+    final db = await _db;
+    await db.insert(
+      'orders',
+      _orderRowFromMap(order, clientUuid: clientUuid),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Map<String, dynamic>?> getOrderById(int id) async {
+    if (id == 0) return null;
+    final db = await _db;
+    final rows = await db.query(
+      'orders',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    try {
+      final payload = jsonDecode(rows.first['payload_json'] as String);
+      if (payload is Map) {
+        final m = payload.cast<String, dynamic>();
+        m['id'] = rows.first['id'];
+        m['is_sent'] = rows.first['is_sent'];
+        m['order_no'] = rows.first['order_no'];
+        return m;
+      }
+    } catch (_) {}
+    return Map<String, dynamic>.from(rows.first);
+  }
+
+  Future<List<Map<String, dynamic>>> listOrders({
+    int? isSent,
+    int? customerId,
+    String? from,
+    String? to,
+    String q = '',
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    final db = await _db;
+    final where = <String>[];
+    final args = <Object>[];
+    if (isSent != null) {
+      where.add('is_sent = ?');
+      args.add(isSent);
+    }
+    if (customerId != null && customerId != 0) {
+      where.add('customer_id = ?');
+      args.add(customerId);
+    }
+    if (from != null && from.isNotEmpty) {
+      where.add('order_date >= ?');
+      args.add(from);
+    }
+    if (to != null && to.isNotEmpty) {
+      where.add('order_date <= ?');
+      args.add(to);
+    }
+    final query = q.trim();
+    if (query.isNotEmpty) {
+      where.add('(order_no LIKE ? OR customer_name LIKE ?)');
+      args.add('%$query%');
+      args.add('%$query%');
+    }
+    final sql = '''
+      SELECT * FROM orders
+      ${where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}'}
+      ORDER BY order_date DESC, id DESC
+      LIMIT ? OFFSET ?
+    ''';
+    args.add(limit);
+    args.add(offset);
+    final rows = await db.rawQuery(sql, args);
+    return rows.map((r) {
+      try {
+        final payload = jsonDecode(r['payload_json'] as String);
+        if (payload is Map) {
+          final m = payload.cast<String, dynamic>();
+          m['id'] = r['id'];
+          m['is_sent'] = r['is_sent'];
+          m['order_no'] = r['order_no'];
+          m['order_date'] = r['order_date'];
+          m['customer_name'] = r['customer_name'];
+          m['total'] = r['total'];
+          m['line_count'] = r['line_count'];
+          m['total_qty'] = r['total_qty'];
+          m['client_uuid'] = r['client_uuid'];
+          return m;
+        }
+      } catch (_) {}
+      return Map<String, dynamic>.from(r);
+    }).toList();
+  }
+
+  Future<int> countOrders({
+    int? isSent,
+    int? customerId,
+    String? from,
+    String? to,
+    String q = '',
+  }) async {
+    final db = await _db;
+    final where = <String>[];
+    final args = <Object>[];
+    if (isSent != null) {
+      where.add('is_sent = ?');
+      args.add(isSent);
+    }
+    if (customerId != null && customerId != 0) {
+      where.add('customer_id = ?');
+      args.add(customerId);
+    }
+    if (from != null && from.isNotEmpty) {
+      where.add('order_date >= ?');
+      args.add(from);
+    }
+    if (to != null && to.isNotEmpty) {
+      where.add('order_date <= ?');
+      args.add(to);
+    }
+    final query = q.trim();
+    if (query.isNotEmpty) {
+      where.add('(order_no LIKE ? OR customer_name LIKE ?)');
+      args.add('%$query%');
+      args.add('%$query%');
+    }
+    final sql =
+        'SELECT COUNT(*) FROM orders ${where.isEmpty ? '' : 'WHERE ${where.join(' AND ')}'}';
+    return Sqflite.firstIntValue(await db.rawQuery(sql, args)) ?? 0;
+  }
+
+  Future<void> markOrderSent(List<int> ids) async {
+    if (ids.isEmpty) return;
+    final db = await _db;
+    final placeholders = List.filled(ids.length, '?').join(',');
+    await db.rawUpdate(
+      'UPDATE orders SET is_sent = 1 WHERE id IN ($placeholders)',
+      ids,
+    );
+    for (final id in ids) {
+      final o = await getOrderById(id);
+      if (o == null) continue;
+      o['is_sent'] = 1;
+      await upsertLocalOrder(o);
+    }
+  }
+
+  Future<void> deleteLocalOrder(int id) async {
+    final db = await _db;
+    await db.delete('orders', where: 'id = ?', whereArgs: [id]);
+    if (id < 0) {
+      // ألغِ عمليات الطابور المرتبطة بهذا الطلب المحلي
+      final rows = await db.query(
+        'outbox',
+        where: "status IN ('pending','error')",
+      );
+      for (final row in rows) {
+        try {
+          final body =
+              jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+          final kind = (row['kind'] as String?) ?? '';
+          final localOid = (body['local_order_id'] as num?)?.toInt() ??
+              (body['id'] as num?)?.toInt() ??
+              0;
+          if (kind == 'customer_order_save' && localOid == id) {
+            await db.delete('outbox', where: 'id = ?', whereArgs: [row['id']]);
+            continue;
+          }
+          if (kind == 'customer_order_send') {
+            final ids = (body['ids'] as List? ?? [])
+                .map((e) => (e as num?)?.toInt() ?? 0)
+                .where((e) => e != id)
+                .toList();
+            if (ids.isEmpty) {
+              await db.delete('outbox', where: 'id = ?', whereArgs: [row['id']]);
+            } else if (ids.length != (body['ids'] as List).length) {
+              body['ids'] = ids;
+              await db.update(
+                'outbox',
+                {'body_json': jsonEncode(body)},
+                where: 'id = ?',
+                whereArgs: [row['id']],
+              );
+            }
+          }
+          if (kind == 'customer_order_delete' &&
+              (body['id'] as num?)?.toInt() == id) {
+            await db.delete('outbox', where: 'id = ?', whereArgs: [row['id']]);
+          }
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<void> rewriteLocalOrderId({
+    required int localId,
+    required int serverId,
+    String? orderNo,
+  }) async {
+    if (localId >= 0 || serverId < 1) return;
+    final db = await _db;
+    await db.transaction((txn) async {
+      final rows = await txn.query(
+        'orders',
+        where: 'id = ?',
+        whereArgs: [localId],
+        limit: 1,
+      );
+      if (rows.isEmpty) return;
+      final row = Map<String, Object?>.from(rows.first);
+      row['id'] = serverId;
+      if (orderNo != null && orderNo.isNotEmpty) {
+        row['order_no'] = orderNo;
+      }
+      try {
+        final payload =
+            jsonDecode(row['payload_json'] as String) as Map<String, dynamic>;
+        payload['id'] = serverId;
+        if (orderNo != null && orderNo.isNotEmpty) {
+          payload['order_no'] = orderNo;
+        }
+        row['payload_json'] = jsonEncode(payload);
+      } catch (_) {}
+      await txn.delete('orders', where: 'id = ?', whereArgs: [localId]);
+      await txn.insert(
+        'orders',
+        row,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+
+      final outbox = await txn.query(
+        'outbox',
+        where: "status IN ('pending','error')",
+      );
+      for (final ob in outbox) {
+        try {
+          final body =
+              jsonDecode(ob['body_json'] as String) as Map<String, dynamic>;
+          var changed = false;
+          if ((body['id'] as num?)?.toInt() == localId) {
+            body['id'] = serverId;
+            changed = true;
+          }
+          final ids = body['ids'];
+          if (ids is List) {
+            final next = ids.map((e) {
+              final n = (e as num?)?.toInt() ?? 0;
+              return n == localId ? serverId : n;
+            }).toList();
+            if (next.toString() != ids.toString()) {
+              body['ids'] = next;
+              changed = true;
+            }
+          }
+          if (!changed) continue;
+          await txn.update(
+            'outbox',
+            {
+              'body_json': jsonEncode(body),
+              'updated_at': DateTime.now().toIso8601String(),
+            },
+            where: 'id = ?',
+            whereArgs: [ob['id']],
+          );
+        } catch (_) {}
+      }
+    });
+  }
+
+  /// بعد نجاح check-in على السيرفر: اربط طلبات offline بالـ route_line_id الحقيقي.
   Future<int> rewritePendingOrdersVisitLine({
     required int customerId,
     required int routeLineId,
@@ -409,7 +1242,6 @@ class OfflineStore {
 
   Future<List<Map<String, dynamic>>> pendingOutbox({int limit = 50}) async {
     final db = await _db;
-    // ترتيب: دخول زيارة → طلبات → خروج
     return db.rawQuery(
       '''
       SELECT * FROM outbox
@@ -417,8 +1249,11 @@ class OfflineStore {
       ORDER BY
         CASE kind
           WHEN 'visit_checkin' THEN 1
-          WHEN 'customer_order_save' THEN 2
-          WHEN 'visit_checkout' THEN 3
+          WHEN 'customer_save' THEN 2
+          WHEN 'customer_order_save' THEN 3
+          WHEN 'customer_order_send' THEN 4
+          WHEN 'visit_checkout' THEN 5
+          WHEN 'customer_order_delete' THEN 6
           ELSE 9
         END,
         id ASC

@@ -6,6 +6,8 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -68,6 +70,37 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
     });
   }
 
+  Future<void> _loadLocal() async {
+    const perPage = 30;
+    final store = OfflineStore.instance;
+    final cid = (!_allCustomers && _customer != null) ? _customer!.id : null;
+    final total = await store.countOrders(
+      customerId: cid,
+      from: _fromIso,
+      to: _toIso,
+    );
+    final offset = (_page - 1) * perPage;
+    final orders = await store.listOrders(
+      customerId: cid,
+      from: _fromIso,
+      to: _toIso,
+      limit: perPage,
+      offset: offset,
+    );
+    final pages = total == 0 ? 1 : ((total + perPage - 1) ~/ perPage);
+    if (!mounted) return;
+    setState(() {
+      _orders = orders;
+      _pager = {
+        'page': _page,
+        'pages': pages,
+        'total': total,
+        'per_page': perPage,
+      };
+      _loading = false;
+    });
+  }
+
   Future<void> _load({bool resetPage = false}) async {
     if (!_allCustomers && _customer == null) {
       showSnack(context, 'اختر العميل أو فعّل جميع العملاء.', error: true);
@@ -79,7 +112,12 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
       _error = null;
       _ran = true;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       final query = <String, dynamic>{
         'from': _fromIso,
         'to': _toIso,
@@ -108,6 +146,10 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       setState(() {
         _error = e.message;
         _loading = false;

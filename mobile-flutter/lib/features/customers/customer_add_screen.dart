@@ -9,6 +9,8 @@ import '../../core/session.dart';
 import '../../core/theme.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../services/location_service.dart';
 import '../../widgets/location_map_picker.dart';
 import '../../widgets/async_view.dart';
@@ -107,6 +109,7 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
       return;
     }
     final s = context.read<SessionController>();
+    final offline = context.read<OfflineController>();
     setState(() => _saving = true);
     try {
       final fields = <String, dynamic>{
@@ -122,23 +125,82 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
           fields['gps_accuracy'] = _accuracy;
         }
       }
-      final res = await context.read<ApiClient>().postForm(
-            AppConfig.customerSavePath,
-            csrf: s.csrf,
-            fields: fields,
-          );
-      if (!mounted) return;
-      showSnack(context, (res['message'] ?? 'تم إضافة العميل').toString());
-      final cust = res['customer'];
-      if (cust is Map && context.canPop()) {
-        context.pop({
-          'id': (cust['id'] as num?)?.toInt() ?? 0,
-          'name': (cust['name'] ?? name).toString(),
-          'code': (cust['code'] ?? '').toString(),
-          'pending_oracle_link': cust['pending_oracle_link'] == true,
-        });
-      } else if (context.canPop()) {
-        context.pop(true);
+
+      Future<void> saveLocal() async {
+        final store = OfflineStore.instance;
+        final localId = await store.nextLocalCustomerId();
+        await store.upsertLocalCustomer(
+          id: localId,
+          name: name,
+          phone: _phone.text.trim(),
+          address: _address.text.trim(),
+          latitude: _latitude,
+          longitude: _longitude,
+        );
+        fields['local_customer_id'] = localId;
+        await offline.enqueue(
+          kind: 'customer_save',
+          path: AppConfig.customerSavePath,
+          body: fields,
+          method: 'POST_FORM',
+        );
+        if (!mounted) return;
+        showSnack(
+          context,
+          'حُفظ العميل محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
+        );
+        if (context.canPop()) {
+          context.pop({
+            'id': localId,
+            'name': name,
+            'code': '',
+            'pending_oracle_link': true,
+            'offline': true,
+          });
+        }
+      }
+
+      if (!offline.online && offline.catalogReady) {
+        await saveLocal();
+        return;
+      }
+      if (!offline.online && !offline.catalogReady) {
+        showSnack(
+          context,
+          'لا اتصال ولا بيانات محلية. حدّث البيانات أولاً.',
+          error: true,
+        );
+        return;
+      }
+
+      try {
+        final res = await context.read<ApiClient>().postForm(
+              AppConfig.customerSavePath,
+              csrf: s.csrf,
+              fields: fields,
+            );
+        if (!mounted) return;
+        showSnack(context, (res['message'] ?? 'تم إضافة العميل').toString());
+        final cust = res['customer'];
+        if (cust is Map && context.canPop()) {
+          context.pop({
+            'id': (cust['id'] as num?)?.toInt() ?? 0,
+            'name': (cust['name'] ?? name).toString(),
+            'code': (cust['code'] ?? '').toString(),
+            'pending_oracle_link': cust['pending_oracle_link'] == true,
+          });
+        } else if (context.canPop()) {
+          context.pop(true);
+        }
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await saveLocal();
+        } else {
+          if (!mounted) return;
+          showSnack(context, e.message, error: true);
+        }
       }
     } on ApiException catch (e) {
       if (!mounted) return;

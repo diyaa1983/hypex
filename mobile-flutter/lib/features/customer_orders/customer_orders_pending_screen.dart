@@ -7,6 +7,8 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
@@ -39,12 +41,44 @@ class _CustomerOrdersPendingScreenState
     _load();
   }
 
+  Future<void> _loadLocal() async {
+    const perPage = 30;
+    final store = OfflineStore.instance;
+    final total = await store.countOrders(isSent: 0);
+    final offset = (_page - 1) * perPage;
+    final orders = await store.listOrders(
+      isSent: 0,
+      limit: perPage,
+      offset: offset,
+    );
+    final pages = total == 0 ? 1 : ((total + perPage - 1) ~/ perPage);
+    if (!mounted) return;
+    setState(() {
+      _orders = orders;
+      _pager = {
+        'page': _page,
+        'pages': pages,
+        'total': total,
+        'per_page': perPage,
+      };
+      _selected.removeWhere(
+        (id) => !orders.any((o) => Fmt.toInt(o['id']) == id),
+      );
+      _loading = false;
+    });
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       final data = await context.read<ApiClient>().getJson(
             AppConfig.customerOrderListPath,
             query: {'is_sent': 0, 'page': _page},
@@ -69,6 +103,10 @@ class _CustomerOrdersPendingScreenState
       });
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       setState(() {
         _error = e.message;
         _loading = false;
@@ -98,23 +136,67 @@ class _CustomerOrdersPendingScreenState
       return;
     }
     setState(() => _busy = true);
+    final offline = context.read<OfflineController>();
     try {
-      final res = await context.read<ApiClient>().postJson(
-            AppConfig.customerOrderSendPath,
-            body: {'ids': _selected.toList()},
-            csrf: context.read<SessionController>().csrf,
+      final serverIds =
+          _selected.where((id) => id > 0).toList();
+      final localIds =
+          _selected.where((id) => id < 0).toList();
+
+      Future<void> queueSend(List<int> ids) async {
+        if (ids.isEmpty) return;
+        await offline.enqueue(
+          kind: 'customer_order_send',
+          path: AppConfig.customerOrderSendPath,
+          body: {'ids': ids},
+        );
+        // محلياً: أظهرها كمرسلة بعد وضعها في الطابور فقط للسالبين بعد save؛
+        // للسيرفر ids تُعلَّم بعد الترحيل. للـ offline المحلي يمكن تعليمها كمرسلة مؤقتاً بعد أن يكون الـ save قد رُحّل — نبقيها غير مرسلة حتى flush.
+      }
+
+      if (!offline.online && offline.catalogReady) {
+        // طلبات محلية غير مُرحَّلة: send بعد save عبر ترتيب الطابور
+        await queueSend([...serverIds, ...localIds]);
+        if (!mounted) return;
+        showSnack(
+          context,
+          'وُضع الإرسال في الطابور — سيُرحَّل عند عودة الاتصال.',
+        );
+        _selected.clear();
+        await _load();
+        return;
+      }
+      try {
+        final res = await context.read<ApiClient>().postJson(
+              AppConfig.customerOrderSendPath,
+              body: {'ids': _selected.toList()},
+              csrf: context.read<SessionController>().csrf,
+            );
+        if (!mounted) return;
+        showSnack(
+          context,
+          Fmt.str(res['message']).isEmpty
+              ? 'تم الإرسال.'
+              : Fmt.str(res['message']),
+        );
+        _selected.clear();
+        await _load();
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await queueSend(_selected.toList());
+          if (!mounted) return;
+          showSnack(
+            context,
+            'انقطع الاتصال — وُضع الإرسال في الطابور.',
           );
-      if (!mounted) return;
-      showSnack(
-        context,
-        Fmt.str(res['message']).isEmpty
-            ? 'تم الإرسال.'
-            : Fmt.str(res['message']),
-      );
-      _selected.clear();
-      await _load();
-    } on ApiException catch (e) {
-      if (mounted) showSnack(context, e.message, error: true);
+          _selected.clear();
+          await _load();
+        } else {
+          if (mounted) showSnack(context, e.message, error: true);
+        }
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -146,15 +228,47 @@ class _CustomerOrdersPendingScreenState
     setState(() => _busy = true);
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
+    final offline = context.read<OfflineController>();
     var deleted = 0;
     try {
       for (final id in _selected.toList()) {
-        await api.postJson(
-          AppConfig.customerOrderDeletePath,
-          body: {'id': id},
-          csrf: csrf,
-        );
-        deleted++;
+        if (!offline.online && offline.catalogReady) {
+          if (id < 0) {
+            await OfflineStore.instance.deleteLocalOrder(id);
+          } else {
+            await offline.enqueue(
+              kind: 'customer_order_delete',
+              path: AppConfig.customerOrderDeletePath,
+              body: {'id': id},
+            );
+            await OfflineStore.instance.deleteLocalOrder(id);
+          }
+          deleted++;
+          continue;
+        }
+        try {
+          await api.postJson(
+            AppConfig.customerOrderDeletePath,
+            body: {'id': id},
+            csrf: csrf,
+          );
+          await OfflineStore.instance.deleteLocalOrder(id);
+          deleted++;
+        } on ApiException catch (e) {
+          if (offline.catalogReady &&
+              (e.message.contains('تعذر الاتصال') ||
+                  e.message.contains('الإنترنت'))) {
+            await offline.enqueue(
+              kind: 'customer_order_delete',
+              path: AppConfig.customerOrderDeletePath,
+              body: {'id': id},
+            );
+            await OfflineStore.instance.deleteLocalOrder(id);
+            deleted++;
+          } else {
+            rethrow;
+          }
+        }
       }
       if (!mounted) return;
       showSnack(context, 'تم حذف $deleted طلب.');

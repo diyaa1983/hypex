@@ -6,6 +6,8 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -40,12 +42,43 @@ class _CustomerOrdersSentScreenState extends State<CustomerOrdersSentScreen> {
     super.dispose();
   }
 
+  Future<void> _loadLocal() async {
+    const perPage = 30;
+    final store = OfflineStore.instance;
+    final q = _search.text.trim();
+    final total = await store.countOrders(isSent: 1, q: q);
+    final offset = (_page - 1) * perPage;
+    final orders = await store.listOrders(
+      isSent: 1,
+      q: q,
+      limit: perPage,
+      offset: offset,
+    );
+    final pages = total == 0 ? 1 : ((total + perPage - 1) ~/ perPage);
+    if (!mounted) return;
+    setState(() {
+      _orders = orders;
+      _pager = {
+        'page': _page,
+        'pages': pages,
+        'total': total,
+        'per_page': perPage,
+      };
+      _loading = false;
+    });
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
+    final offline = context.read<OfflineController>();
     try {
+      if (!offline.online && offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       final data = await context.read<ApiClient>().getJson(
             AppConfig.customerOrderListPath,
             query: {
@@ -70,6 +103,10 @@ class _CustomerOrdersSentScreenState extends State<CustomerOrdersSentScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        await _loadLocal();
+        return;
+      }
       setState(() {
         _error = e.message;
         _loading = false;
