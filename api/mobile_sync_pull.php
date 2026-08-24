@@ -176,6 +176,35 @@ try {
         }
     }
 
+    // —— زيارات: أسباب عدم الطلب + نصف القطر ——
+    require_once app_path('includes/sal_rep_visit.php');
+    sal_rep_visit_ensure_schema($pdo);
+    $noOrderReasons = [];
+    try {
+        foreach (sal_rep_visit_no_order_reasons($pdo) as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $noOrderReasons[] = [
+                'id' => (int) ($r['id'] ?? 0),
+                'name_ar' => (string) ($r['name_ar'] ?? $r['name'] ?? ''),
+            ];
+        }
+    } catch (Throwable $e) {
+        $noOrderReasons = [];
+    }
+    $visitRadius = 200;
+    try {
+        if (function_exists('sal_rep_visit_radius_m')) {
+            $visitRadius = (int) sal_rep_visit_radius_m($pdo);
+        }
+    } catch (Throwable $e) {
+        $visitRadius = 200;
+    }
+    if ($visitRadius < 1) {
+        $visitRadius = 200;
+    }
+
     echo json_encode([
         'ok' => true,
         'synced_at' => date('c'),
@@ -185,6 +214,7 @@ try {
             'default_warehouse_id' => wh_access_default_issue_warehouse_id($pdo),
             'decimal_places' => company_decimal_places($pdo),
             'default_tax_percent' => $defaultTaxPercent,
+            'visit_radius_m' => $visitRadius,
         ],
         'counts' => [
             'customers' => count($customers),
@@ -192,12 +222,14 @@ try {
             'items' => count($items),
             'stock_rows' => count($stock),
             'tax_rates' => count($taxRatesOut),
+            'no_order_reasons' => count($noOrderReasons),
         ],
         'customers' => $customers,
         'warehouses' => $warehouses,
         'tax_rates' => $taxRatesOut,
         'items' => $items,
         'stock' => $stock,
+        'no_order_reasons' => $noOrderReasons,
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_sync_pull: ' . $e->getMessage());

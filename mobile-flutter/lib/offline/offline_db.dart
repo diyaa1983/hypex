@@ -12,8 +12,21 @@ class OfflineDb {
     final path = p.join(dir, 'hypex_offline.db');
     _db = await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: (db, version) async {
+        await _createV1(db);
+        await _createV2(db);
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await _createV2(db);
+        }
+      },
+    );
+    return _db!;
+  }
+
+  static Future<void> _createV1(Database db) async {
         await db.execute('''
           CREATE TABLE sync_meta (
             key TEXT PRIMARY KEY NOT NULL,
@@ -89,8 +102,14 @@ class OfflineDb {
         await db.execute(
           'CREATE INDEX idx_outbox_status ON outbox(status, id)',
         );
-      },
-    );
-    return _db!;
+  }
+
+  static Future<void> _createV2(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS no_order_reasons (
+        id INTEGER PRIMARY KEY NOT NULL,
+        name_ar TEXT NOT NULL
+      )
+    ''');
   }
 }

@@ -12,6 +12,8 @@ import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/visit_status.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -89,8 +91,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _loadCustomers();
-    _refreshOpenVisit();
+    _restoreLocalVisit().then((_) {
+      _loadCustomers();
+      _refreshOpenVisit();
+    });
     final bootId = widget.initialCustomerId ?? 0;
     if (bootId > 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -98,6 +102,40 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         _selectCustomer(bootId, openNarrowDetail: true);
       });
     }
+  }
+
+  Future<void> _restoreLocalVisit() async {
+    try {
+      final v = await OfflineStore.instance.loadOpenVisit();
+      if (v == null || !mounted) return;
+      final cid = Fmt.toInt(v['customer_id']);
+      if (cid < 1) return;
+      setState(() {
+        _openVisitCustomerId = cid;
+        _openVisitCheckinAt = Fmt.str(v['visit_checkin_at']);
+        _visitStatusByCustomer[cid] = 'checked_in';
+        _visitCheckinAtByCustomer[cid] = Fmt.str(v['visit_checkin_at']);
+        final r = Fmt.toInt(v['visit_radius_m']);
+        if (r > 0) _radiusM = r;
+      });
+    } catch (_) {}
+  }
+
+  int _offlineRouteLineId(int customerId) => -(1000000000 + customerId);
+
+  Future<void> _persistOpenVisit({
+    required int customerId,
+    required String checkinAt,
+    required int routeLineId,
+    String method = 'MANUAL',
+  }) async {
+    await OfflineStore.instance.saveOpenVisit({
+      'customer_id': customerId,
+      'visit_checkin_at': checkinAt,
+      'route_line_id': routeLineId,
+      'method': method,
+      'visit_radius_m': _radiusM,
+    });
   }
 
   @override
@@ -134,14 +172,15 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   void _onVisitOrderSaved(int orderId) {
-    if (orderId < 1 || !mounted) return;
+    // Offline: orderId قد يكون -1 أو 0 بعد الحفظ المحلي
+    if (!mounted) return;
     setState(() {
-      _visitOrderId = orderId;
+      if (orderId > 0) _visitOrderId = orderId;
       if (_visit != null) {
         _visit = Map<String, dynamic>.from(_visit!)..['has_order'] = true;
       }
     });
-    if (_selectedId != null) {
+    if (_selectedId != null && orderId > 0) {
       _loadHistOrders(_selectedId!);
     }
   }
@@ -159,32 +198,113 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     }
   }
 
+  bool _isNetworkFail(Object e) {
+    final m = e is ApiException ? e.message : e.toString();
+    return m.contains('تعذر الاتصال') ||
+        m.contains('الإنترنت') ||
+        m.contains('SocketException') ||
+        m.contains('connection');
+  }
+
+  Future<List<Map<String, dynamic>>> _customersFromLocal(String q) async {
+    final rows = await OfflineStore.instance.searchCustomers(q, limit: 2000);
+    return rows
+        .map(
+          (e) => <String, dynamic>{
+            'id': e['id'],
+            'name': e['name'],
+            'code': e['code'],
+            'phone': e['phone'],
+            'address': e['address'],
+            'latitude': e['latitude'],
+            'longitude': e['longitude'],
+          },
+        )
+        .toList();
+  }
+
+  Future<Map<String, dynamic>?> _customerFromLocal(int id) async {
+    final e = await OfflineStore.instance.getCustomerById(id);
+    if (e == null) return null;
+    return {
+      'id': e['id'],
+      'name': e['name'],
+      'code': e['code'],
+      'phone': e['phone'],
+      'address': e['address'],
+      'address_ar': e['address'],
+      'latitude': e['latitude'],
+      'longitude': e['longitude'],
+      'payment_period': e['payment_period'],
+    };
+  }
+
   Future<void> _loadCustomers() async {
     setState(() {
       _listLoading = true;
       _listError = null;
     });
+    final offline = context.read<OfflineController>();
+    final q = _search.text.trim();
     try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.partiesPath,
-        query: {'type': 'customer', 'q': _search.text.trim()},
-      );
+      List<Map<String, dynamic>> list;
+      if (!offline.online && offline.catalogReady) {
+        list = await _customersFromLocal(q);
+      } else {
+        try {
+          final res = await context.read<ApiClient>().getJson(
+            AppConfig.partiesPath,
+            query: {'type': 'customer', 'q': q},
+          );
+          list = (res['parties'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+        } on ApiException catch (e) {
+          if (offline.catalogReady && _isNetworkFail(e)) {
+            list = await _customersFromLocal(q);
+          } else {
+            rethrow;
+          }
+        }
+      }
       if (!mounted) return;
       setState(() {
-        _customers = (res['parties'] as List? ?? [])
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList();
+        _customers = list;
         _listLoading = false;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        try {
+          final list = await _customersFromLocal(q);
+          if (!mounted) return;
+          setState(() {
+            _customers = list;
+            _listLoading = false;
+            _listError = null;
+          });
+          return;
+        } catch (_) {}
+      }
       setState(() {
         _listError = e.message;
         _listLoading = false;
       });
     } catch (e) {
       if (!mounted) return;
+      if (offline.catalogReady) {
+        try {
+          final list = await _customersFromLocal(q);
+          if (!mounted) return;
+          setState(() {
+            _customers = list;
+            _listLoading = false;
+            _listError = null;
+          });
+          return;
+        } catch (_) {}
+      }
       setState(() {
         _listError = e.toString();
         _listLoading = false;
@@ -193,6 +313,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   Future<void> _refreshOpenVisit() async {
+    final offline = context.read<OfflineController>();
+    if (!offline.online) return;
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.repVisitListPath,
@@ -324,18 +446,76 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       _histOrdersError = null;
     });
     try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.customerViewPath,
-        query: {'id': id},
-      );
+      final offline = context.read<OfflineController>();
+      Map<String, dynamic>? c;
+      Map<String, dynamic>? v;
+      var noOrderReasons = <Map<String, dynamic>>[];
+      var radius = _radiusM;
+
+      Future<void> applyLocal() async {
+        c = await _customerFromLocal(id);
+        if (c == null) {
+          throw ApiException(
+              'العميل غير موجود في البيانات المحلية. حدّث البيانات وأنت متصل.');
+        }
+        final reasons = await OfflineStore.instance.noOrderReasons();
+        noOrderReasons = reasons
+            .map((e) => {
+                  'id': e['id'],
+                  'name_ar': e['name_ar'],
+                })
+            .toList();
+        final rLocal = await OfflineStore.instance.visitRadiusM();
+        if (rLocal > 0) radius = rLocal;
+
+        final open = await OfflineStore.instance.loadOpenVisit();
+        final isOpen = open != null && Fmt.toInt(open['customer_id']) == id;
+        final lineId = isOpen
+            ? (Fmt.toInt(open['route_line_id']) != 0
+                ? Fmt.toInt(open['route_line_id'])
+                : _offlineRouteLineId(id))
+            : (_openVisitCustomerId == id ? _offlineRouteLineId(id) : 0);
+        final cin = isOpen
+            ? Fmt.str(open['visit_checkin_at'])
+            : (_visitCheckinAtByCustomer[id] ?? '');
+        v = {
+          'route_line_id': lineId,
+          'status': isOpen || _openVisitCustomerId == id
+              ? 'checked_in'
+              : (_visitStatusByCustomer[id] ?? 'idle'),
+          'visit_checkin_at': cin,
+          'visit_checkout_at': _visitCheckoutAtByCustomer[id] ?? '',
+          'order_id': _visitOrderId,
+          'has_order': _visitOrderId > 0,
+          'offline': true,
+        };
+      }
+
+      if (!offline.online && offline.catalogReady) {
+        await applyLocal();
+      } else {
+        try {
+          final res = await context.read<ApiClient>().getJson(
+            AppConfig.customerViewPath,
+            query: {'id': id},
+          );
+          c = (res['customer'] as Map?)?.cast<String, dynamic>();
+          v = (res['visit'] as Map?)?.cast<String, dynamic>();
+          noOrderReasons = (res['no_order_reasons'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+          radius = Fmt.toInt(res['visit_radius_m']);
+        } on ApiException catch (e) {
+          if (offline.catalogReady && _isNetworkFail(e)) {
+            await applyLocal();
+          } else {
+            rethrow;
+          }
+        }
+      }
+
       if (!mounted) return;
-      final c = (res['customer'] as Map?)?.cast<String, dynamic>();
-      final v = (res['visit'] as Map?)?.cast<String, dynamic>();
-      final noOrderReasons = (res['no_order_reasons'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
-          .toList();
-      final radius = Fmt.toInt(res['visit_radius_m']);
       setState(() {
         _customer = c;
         _visit = v;
@@ -377,6 +557,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       _histOrdersLoading = true;
       _histOrdersError = null;
     });
+    final offline = context.read<OfflineController>();
+    if (!offline.online) {
+      if (!mounted) return;
+      setState(() {
+        _histOrders = [];
+        _histOrdersLoading = false;
+        _histOrdersError =
+            'سجل الطلبات يتطلب اتصالاً — متاح بعد عودة الإنترنت.';
+      });
+      return;
+    }
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.customerOrderListPath,
@@ -398,7 +589,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _histOrdersError = e.message;
+        _histOrdersError = _isNetworkFail(e)
+            ? 'سجل الطلبات يتطلب اتصالاً — متاح بعد عودة الإنترنت.'
+            : e.message;
         _histOrdersLoading = false;
       });
     } catch (e) {
@@ -415,6 +608,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       _histInvoicesLoading = true;
       _histInvoicesError = null;
     });
+    final offline = context.read<OfflineController>();
+    if (!offline.online) {
+      if (!mounted) return;
+      setState(() {
+        _histInvoices = [];
+        _histInvoicesLoading = false;
+        _histInvoicesError =
+            'سجل الفواتير يتطلب اتصالاً — متاح بعد عودة الإنترنت.';
+      });
+      return;
+    }
     try {
       final res = await context.read<ApiClient>().getJson(
         AppConfig.salesInvoiceListPath,
@@ -437,7 +641,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _histInvoicesError = e.message;
+        _histInvoicesError = _isNetworkFail(e)
+            ? 'سجل الفواتير يتطلب اتصالاً — متاح بعد عودة الإنترنت.'
+            : e.message;
         _histInvoicesLoading = false;
       });
     } catch (e) {
@@ -537,6 +743,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   Future<void> _gpsPreviewThenCheckin() async {
     final id = _selectedId;
     if (id == null || _busy) return;
+    final offline = context.read<OfflineController>();
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
     setState(() => _busy = true);
@@ -547,25 +754,74 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         showSnack(context, 'تعذّر قراءة GPS. جرّب دخولاً يدوياً.', error: true);
         return;
       }
-      final preview = await api.postJson(
-        AppConfig.visitGpsPreviewPath,
-        body: {'customer_id': id, ...gps},
-        csrf: csrf,
-      );
-      if (!mounted) return;
-      final within = preview['within_geofence'] == true;
-      final action = await showDialog<_GpsPreviewAction>(
-        context: context,
-        builder: (ctx) => _GpsPreviewDialog(
-          preview: preview,
-          within: within,
-        ),
-      );
-      if (action == null || !mounted) return;
-      if (action == _GpsPreviewAction.checkinGps) {
-        await _checkin(manual: false, gpsOverride: gps);
-      } else if (action == _GpsPreviewAction.checkinManual) {
-        await _checkin(manual: true, gpsOverride: gps);
+
+      // Offline: معاينة محلية بدون سيرفر
+      if (!offline.online && offline.catalogReady) {
+        final c = _customer;
+        final clat = c?['latitude'];
+        final clng = c?['longitude'];
+        var within = true;
+        var distance = 0.0;
+        if (clat is num && clng is num) {
+          distance = const Distance().as(
+            LengthUnit.Meter,
+            LatLng(clat.toDouble(), clng.toDouble()),
+            LatLng(
+              (gps['latitude'] as num).toDouble(),
+              (gps['longitude'] as num).toDouble(),
+            ),
+          );
+          within = distance <= _radiusM;
+        }
+        if (!mounted) return;
+        final action = await showDialog<_GpsPreviewAction>(
+          context: context,
+          builder: (ctx) => _GpsPreviewDialog(
+            preview: {
+              'distance_m': distance.round(),
+              'visit_radius_m': _radiusM,
+              'within_geofence': within,
+              'offline': true,
+            },
+            within: within,
+          ),
+        );
+        if (action == null || !mounted) return;
+        if (action == _GpsPreviewAction.checkinGps) {
+          await _checkin(manual: false, gpsOverride: gps);
+        } else if (action == _GpsPreviewAction.checkinManual) {
+          await _checkin(manual: true, gpsOverride: gps);
+        }
+        return;
+      }
+
+      try {
+        final preview = await api.postJson(
+          AppConfig.visitGpsPreviewPath,
+          body: {'customer_id': id, ...gps},
+          csrf: csrf,
+        );
+        if (!mounted) return;
+        final within = preview['within_geofence'] == true;
+        final action = await showDialog<_GpsPreviewAction>(
+          context: context,
+          builder: (ctx) => _GpsPreviewDialog(
+            preview: preview,
+            within: within,
+          ),
+        );
+        if (action == null || !mounted) return;
+        if (action == _GpsPreviewAction.checkinGps) {
+          await _checkin(manual: false, gpsOverride: gps);
+        } else if (action == _GpsPreviewAction.checkinManual) {
+          await _checkin(manual: true, gpsOverride: gps);
+        }
+      } on ApiException catch (e) {
+        if (offline.catalogReady && _isNetworkFail(e)) {
+          await _checkin(manual: true, gpsOverride: gps);
+        } else {
+          rethrow;
+        }
       }
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -573,6 +829,51 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _applyLocalCheckin({
+    required int id,
+    required bool manual,
+    required Map<String, dynamic> gps,
+  }) async {
+    final offline = context.read<OfflineController>();
+    final now = DateTime.now().toIso8601String();
+    final lineId = _offlineRouteLineId(id);
+    await offline.enqueue(
+      kind: 'visit_checkin',
+      path: AppConfig.repVisitCheckinPath,
+      body: {
+        'customer_id': id,
+        'method': manual ? 'MANUAL' : 'GPS',
+        ...gps,
+      },
+    );
+    await _persistOpenVisit(
+      customerId: id,
+      checkinAt: now,
+      routeLineId: lineId,
+      method: manual ? 'MANUAL' : 'GPS',
+    );
+    if (!mounted) return;
+    setState(() {
+      _visit = {
+        'route_line_id': lineId,
+        'status': 'checked_in',
+        'visit_checkin_at': now,
+        'visit_checkout_at': '',
+        'has_order': false,
+        'order_id': 0,
+        'offline': true,
+      };
+      _openVisitCustomerId = id;
+      _openVisitCheckinAt = now;
+      _visitStatusByCustomer[id] = 'checked_in';
+      _visitCheckinAtByCustomer[id] = now;
+    });
+    showSnack(
+      context,
+      'تم تسجيل الدخول محلياً — سيُرحَّل عند عودة الاتصال.',
+    );
   }
 
   Future<void> _checkin({
@@ -600,6 +901,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     if (!ok || !mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
+    final offline = context.read<OfflineController>();
     setState(() => _busy = true);
     try {
       Map<String, dynamic> gps = gpsOverride ?? {};
@@ -617,32 +919,47 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         gps = gps.isEmpty ? (await _gpsFields() ?? {}) : gps;
       }
       if (!mounted) return;
-      final res = await api.postJson(
-        AppConfig.repVisitCheckinPath,
-        body: {
-          'customer_id': id,
-          'method': manual ? 'MANUAL' : 'GPS',
-          ...gps,
-        },
-        csrf: csrf,
-      );
-      if (!mounted) return;
-      final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
-      showSnack(
-        context,
-        Fmt.str(res['message']).isEmpty
-            ? 'تم تسجيل الدخول.'
-            : Fmt.str(res['message']),
-      );
-      setState(() {
-        _visit = visit ?? _visit;
-        _openVisitCustomerId = id;
-        _openVisitCheckinAt = Fmt.str(
-          visit?['visit_checkin_at'] ?? DateTime.now().toIso8601String(),
+
+      if (!offline.online && offline.catalogReady) {
+        await _applyLocalCheckin(id: id, manual: manual, gps: gps);
+        return;
+      }
+
+      try {
+        final res = await api.postJson(
+          AppConfig.repVisitCheckinPath,
+          body: {
+            'customer_id': id,
+            'method': manual ? 'MANUAL' : 'GPS',
+            ...gps,
+          },
+          csrf: csrf,
         );
-      });
-      await _refreshOpenVisit();
-      await _selectCustomer(id);
+        if (!mounted) return;
+        final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
+        showSnack(
+          context,
+          Fmt.str(res['message']).isEmpty
+              ? 'تم تسجيل الدخول.'
+              : Fmt.str(res['message']),
+        );
+        setState(() {
+          _visit = visit ?? _visit;
+          _openVisitCustomerId = id;
+          _openVisitCheckinAt = Fmt.str(
+            visit?['visit_checkin_at'] ?? DateTime.now().toIso8601String(),
+          );
+        });
+        await OfflineStore.instance.clearOpenVisit();
+        await _refreshOpenVisit();
+        await _selectCustomer(id);
+      } on ApiException catch (e) {
+        if (offline.catalogReady && _isNetworkFail(e)) {
+          await _applyLocalCheckin(id: id, manual: manual, gps: gps);
+        } else {
+          rethrow;
+        }
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);
@@ -654,9 +971,22 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
 
   Future<List<int>?> _pickNoOrderReasons() async {
     if (_noOrderReasons.isEmpty) {
+      final local = await OfflineStore.instance.noOrderReasons();
+      if (local.isNotEmpty && mounted) {
+        setState(() {
+          _noOrderReasons = local
+              .map((e) => {
+                    'id': e['id'],
+                    'name_ar': e['name_ar'],
+                  })
+              .toList();
+        });
+      }
+    }
+    if (_noOrderReasons.isEmpty) {
       showSnack(
         context,
-        'لا توجد أسباب «عدم طلب العميل» مضافة في إعدادات النظام.',
+        'لا توجد أسباب «عدم طلب العميل». حدّث البيانات وأنت متصل، أو أنشئ طلباً قبل الخروج.',
         error: true,
       );
       return null;
@@ -714,7 +1044,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     if (id == null || c == null || _busy) return;
     final name = Fmt.str(c['name']);
     List<int> noOrderReasonIds = [];
-    if (_visit?['has_order'] != true) {
+    if (_visit?['has_order'] != true && _visitOrderId < 1) {
       final picked = await _pickNoOrderReasons();
       if (picked == null || picked.isEmpty) return;
       noOrderReasonIds = picked;
@@ -734,6 +1064,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     if (!mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
+    final offline = context.read<OfflineController>();
     setState(() => _busy = true);
     try {
       Map<String, dynamic> gps = {};
@@ -750,37 +1081,81 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         gps = await _gpsFields() ?? {};
       }
       if (!mounted) return;
-      final res = await api.postJson(
-        AppConfig.repVisitCheckoutPath,
-        body: {
-          'customer_id': id,
-          'method': manual ? 'MANUAL' : 'GPS',
-          'no_order_reason_ids': noOrderReasonIds,
-          if (reason != null && reason.isNotEmpty) 'reason': reason,
-          ...gps,
-        },
-        csrf: csrf,
-      );
-      if (!mounted) return;
-      final msg = Fmt.str(res['message']);
-      final needsApproval = res['requires_approval'] == true;
-      showSnack(
-        context,
-        msg.isEmpty
-            ? (needsApproval
-                ? 'بانتظار موافقة المدير'
-                : 'تم تسجيل الخروج وإغلاق الزيارة')
-            : msg,
-      );
-      if (!needsApproval) {
+
+      final body = <String, dynamic>{
+        'customer_id': id,
+        'method': manual ? 'MANUAL' : 'GPS',
+        'no_order_reason_ids': noOrderReasonIds,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+        ...gps,
+      };
+
+      Future<void> applyLocalCheckout() async {
+        await offline.enqueue(
+          kind: 'visit_checkout',
+          path: AppConfig.repVisitCheckoutPath,
+          body: body,
+        );
+        await OfflineStore.instance.clearOpenVisit();
+        if (!mounted) return;
         setState(() {
           _openVisitCustomerId = 0;
           _openVisitCheckinAt = '';
           _visitOrderId = 0;
+          _visitStatusByCustomer[id] = 'checked_out';
+          _visitCheckoutAtByCustomer[id] = DateTime.now().toIso8601String();
+          _visit = {
+            ...?_visit,
+            'status': 'checked_out',
+            'visit_checkout_at': _visitCheckoutAtByCustomer[id],
+            'offline': true,
+          };
         });
+        showSnack(
+          context,
+          'تم تسجيل الخروج محلياً — سيُرحَّل عند عودة الاتصال.',
+        );
       }
-      await _refreshOpenVisit();
-      await _selectCustomer(id);
+
+      if (!offline.online && offline.catalogReady) {
+        await applyLocalCheckout();
+        return;
+      }
+
+      try {
+        final res = await api.postJson(
+          AppConfig.repVisitCheckoutPath,
+          body: body,
+          csrf: csrf,
+        );
+        if (!mounted) return;
+        final msg = Fmt.str(res['message']);
+        final needsApproval = res['requires_approval'] == true;
+        showSnack(
+          context,
+          msg.isEmpty
+              ? (needsApproval
+                  ? 'بانتظار موافقة المدير'
+                  : 'تم تسجيل الخروج وإغلاق الزيارة')
+              : msg,
+        );
+        if (!needsApproval) {
+          setState(() {
+            _openVisitCustomerId = 0;
+            _openVisitCheckinAt = '';
+            _visitOrderId = 0;
+          });
+          await OfflineStore.instance.clearOpenVisit();
+        }
+        await _refreshOpenVisit();
+        await _selectCustomer(id);
+      } on ApiException catch (e) {
+        if (offline.catalogReady && _isNetworkFail(e)) {
+          await applyLocalCheckout();
+        } else {
+          rethrow;
+        }
+      }
     } on ApiException catch (e) {
       if (!mounted) return;
       showSnack(context, e.message, error: true);
@@ -1845,6 +2220,24 @@ class _StatementTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final offline = context.watch<OfflineController>();
+    if (!offline.online) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'كشف الحساب يتطلب اتصالاً بالإنترنت.\nيمكنك متابعة طلب الشراء وبيانات العميل Offline.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppTheme.textSoft,
+              fontWeight: FontWeight.w700,
+              fontSize: 14.5,
+              height: 1.45,
+            ),
+          ),
+        ),
+      );
+    }
     final id = Fmt.toInt(customer['id']);
     return PartyStatementScreen(
       key: ValueKey('stmt-$id'),
@@ -1877,7 +2270,9 @@ class _PurchaseOrderTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!visitOpen || visitRouteLineId < 1) {
+    // Offline: route_line_id سالب مقبول طالما الزيارة مفتوحة محلياً
+    final canOrder = visitOpen && (visitRouteLineId != 0);
+    if (!canOrder) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -1903,7 +2298,7 @@ class _PurchaseOrderTab extends StatelessWidget {
       initialCustomerName: Fmt.str(customer['name']),
       initialCustomerCode: Fmt.str(customer['code']),
       visitRouteLineId: visitRouteLineId,
-      orderId: orderId,
+      orderId: (orderId ?? 0) > 0 ? orderId : null,
       onSaved: onSaved,
       onDeleted: onDeleted,
     );

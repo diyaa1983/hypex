@@ -455,16 +455,32 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'customer_id': _customer!.id,
         'warehouse_id': _warehouseId,
         'payment_type': _paymentType,
-        if ((widget.visitRouteLineId ?? 0) > 0)
-          'visit_route_line_id': widget.visitRouteLineId,
         'lines': _lines.map((l) => l.toJson()).toList(),
       };
+      final visitLine = widget.visitRouteLineId ?? 0;
+      if (visitLine > 0) {
+        body['visit_route_line_id'] = visitLine;
+      } else if (visitLine < 0) {
+        body['offline_visit'] = true;
+        // يُستبدل بـ route_line_id الحقيقي عند ترحيل check-in
+      }
       if (session.gpsConfig.repVisitGeofence) {
-        final gps = await LocationService.requirePosition();
-        body['latitude'] = gps.latitude;
-        body['longitude'] = gps.longitude;
-        body['gps_accuracy'] = gps.accuracy;
-        body['gps_source'] = 'mobile';
+        final offline = context.read<OfflineController>();
+        if (offline.online) {
+          final gps = await LocationService.requirePosition();
+          body['latitude'] = gps.latitude;
+          body['longitude'] = gps.longitude;
+          body['gps_accuracy'] = gps.accuracy;
+          body['gps_source'] = 'mobile';
+        } else {
+          final g = await LocationService.tryGetPosition();
+          if (g != null) {
+            body['latitude'] = g.latitude;
+            body['longitude'] = g.longitude;
+            body['gps_accuracy'] = g.accuracy;
+            body['gps_source'] = 'mobile_offline';
+          }
+        }
       }
       if (!mounted) return 0;
       final offline = context.read<OfflineController>();

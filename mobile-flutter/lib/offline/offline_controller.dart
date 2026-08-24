@@ -172,10 +172,25 @@ class OfflineController extends ChangeNotifier {
           continue;
         }
         try {
+          Map<String, dynamic> res;
           if (method == 'POST_FORM') {
-            await api.postForm(path, fields: body, csrf: csrf);
+            res = await api.postForm(path, fields: body, csrf: csrf);
           } else {
-            await api.postJson(path, body: body, csrf: csrf);
+            res = await api.postJson(path, body: body, csrf: csrf);
+          }
+          final kind = (row['kind'] as String?) ?? '';
+          if (kind == 'visit_checkin') {
+            final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
+            final lineId = (visit?['route_line_id'] as num?)?.toInt() ??
+                (res['route_line_id'] as num?)?.toInt() ??
+                0;
+            final cid = (body['customer_id'] as num?)?.toInt() ?? 0;
+            if (lineId > 0 && cid > 0) {
+              await store.rewritePendingOrdersVisitLine(
+                customerId: cid,
+                routeLineId: lineId,
+              );
+            }
           }
           await store.markOutboxDone(id);
           okCount++;

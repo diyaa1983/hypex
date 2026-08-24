@@ -165,6 +165,20 @@ class OfflineStore {
       }
       await stkBatch.commit(noResult: true);
 
+      try {
+        await txn.delete('no_order_reasons');
+        final reasonBatch = txn.batch();
+        for (final r in (payload['no_order_reasons'] as List? ?? []).whereType<Map>()) {
+          reasonBatch.insert('no_order_reasons', {
+            'id': (r['id'] as num?)?.toInt() ?? 0,
+            'name_ar': (r['name_ar'] ?? r['name'] ?? '').toString(),
+          });
+        }
+        await reasonBatch.commit(noResult: true);
+      } catch (_) {
+        // جدول قديم قبل الترقية
+      }
+
       Future<void> putMeta(String k, String v) => txn.insert(
             'sync_meta',
             {'key': k, 'value': v},
@@ -184,7 +198,23 @@ class OfflineStore {
         '${meta['default_tax_percent'] ?? 0}',
       );
       await putMeta('decimal_places', '${meta['decimal_places'] ?? 3}');
+      await putMeta(
+        'visit_radius_m',
+        '${meta['visit_radius_m'] ?? 200}',
+      );
     });
+  }
+
+  Future<Map<String, dynamic>?> getCustomerById(int id) async {
+    if (id < 1) return null;
+    final db = await _db;
+    final rows = await db.query(
+      'customers',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return rows.isEmpty ? null : rows.first;
   }
 
   Future<List<Map<String, dynamic>>> searchCustomers(String q,
@@ -270,13 +300,92 @@ class OfflineStore {
     );
   }
 
+  Future<List<Map<String, dynamic>>> noOrderReasons() async {
+    final db = await _db;
+    try {
+      return db.query('no_order_reasons', orderBy: 'id');
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<int> visitRadiusM() async {
+    return int.tryParse(await getMeta('visit_radius_m') ?? '') ?? 200;
+  }
+
+  Future<void> saveOpenVisit(Map<String, dynamic> visit) async {
+    await setMeta('open_visit_json', jsonEncode(visit));
+  }
+
+  Future<Map<String, dynamic>?> loadOpenVisit() async {
+    final raw = await getMeta('open_visit_json');
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final m = jsonDecode(raw);
+      return m is Map ? m.cast<String, dynamic>() : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> clearOpenVisit() async {
+    await setMeta('open_visit_json', '');
+  }
+
+  /// بعد نجاح check-in على السيرفر: اربط طلبات Offline بالـ route_line_id الحقيقي.
+  Future<int> rewritePendingOrdersVisitLine({
+    required int customerId,
+    required int routeLineId,
+  }) async {
+    if (customerId < 1 || routeLineId < 1) return 0;
+    final db = await _db;
+    final rows = await db.query(
+      'outbox',
+      where: "status IN ('pending','error') AND kind = ?",
+      whereArgs: ['customer_order_save'],
+    );
+    var n = 0;
+    for (final row in rows) {
+      try {
+        final body =
+            jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+        final cid = (body['customer_id'] as num?)?.toInt() ?? 0;
+        if (cid != customerId) continue;
+        body['visit_route_line_id'] = routeLineId;
+        body.remove('offline_visit');
+        await db.update(
+          'outbox',
+          {
+            'body_json': jsonEncode(body),
+            'updated_at': DateTime.now().toIso8601String(),
+          },
+          where: 'id = ?',
+          whereArgs: [row['id']],
+        );
+        n++;
+      } catch (_) {}
+    }
+    return n;
+  }
+
   Future<List<Map<String, dynamic>>> pendingOutbox({int limit = 50}) async {
     final db = await _db;
-    return db.query(
-      'outbox',
-      where: "status IN ('pending','error')",
-      orderBy: 'id ASC',
-      limit: limit,
+    // ترتيب: دخول زيارة → طلبات → خروج
+    return db.rawQuery(
+      '''
+      SELECT * FROM outbox
+      WHERE status IN ('pending','error')
+      ORDER BY
+        CASE kind
+          WHEN 'visit_checkin' THEN 1
+          WHEN 'customer_order_save' THEN 2
+          WHEN 'visit_checkout' THEN 3
+          ELSE 9
+        END,
+        id ASC
+      LIMIT ?
+      ''',
+      [limit],
     );
   }
 
