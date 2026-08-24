@@ -178,7 +178,32 @@ try {
 
     // —— زيارات: أسباب عدم الطلب + نصف القطر ——
     require_once app_path('includes/sal_rep_visit.php');
+    require_once app_path('includes/sal_rep_route.php');
     sal_rep_visit_ensure_schema($pdo);
+
+    // ضمان وجود أسباب افتراضية إن كان الجدول فارغاً
+    try {
+        $cntReasons = (int) $pdo->query('SELECT COUNT(*) FROM sal_no_order_reason WHERE is_active = 1')->fetchColumn();
+        if ($cntReasons < 1) {
+            $defaults = [
+                'لا يحتاج طلبية حالياً',
+                'العميل مغلق',
+                'المسؤول عن الطلب غير موجود',
+                'لدى العميل مخزون كافٍ',
+                'أخرى',
+            ];
+            $ins = $pdo->prepare(
+                'INSERT INTO sal_no_order_reason (name_ar, sort_order, is_active) VALUES (?,?,1)'
+            );
+            $i = 1;
+            foreach ($defaults as $name) {
+                $ins->execute([$name, $i++]);
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('mobile_sync_pull seed no_order_reasons: ' . $e->getMessage());
+    }
+
     $noOrderReasons = [];
     try {
         foreach (sal_rep_visit_no_order_reasons($pdo) as $r) {
@@ -193,11 +218,18 @@ try {
     } catch (Throwable $e) {
         $noOrderReasons = [];
     }
+    // إن بقي فارغاً — أسباب مؤقتة بتعريف سالب للموبايل Offline فقط
+    if ($noOrderReasons === []) {
+        $noOrderReasons = [
+            ['id' => -1, 'name_ar' => 'لا يحتاج طلبية حالياً'],
+            ['id' => -2, 'name_ar' => 'العميل مغلق'],
+            ['id' => -3, 'name_ar' => 'أخرى'],
+        ];
+    }
+
     $visitRadius = 200;
     try {
-        if (function_exists('sal_rep_visit_radius_m')) {
-            $visitRadius = (int) sal_rep_visit_radius_m($pdo);
-        }
+        $visitRadius = (int) sal_rep_visit_radius_m($pdo);
     } catch (Throwable $e) {
         $visitRadius = 200;
     }

@@ -95,8 +95,12 @@ class OfflineController extends ChangeNotifier {
       pullProgress = 1;
       await refreshInfo();
       statusMessage =
-          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.warehouses} مستودع.';
+          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.warehouses} مستودع، ${info.noOrderReasons} سبب زيارة.';
       onStep?.call(statusMessage!);
+      if (info.noOrderReasons < 1) {
+        statusMessage =
+            '$statusMessage\nتنبيه: لم تُحمَّل أسباب عدم الطلب — أعد التحديث بعد نشر API المحدّث.';
+      }
       // بعد التحديث حاول ترحيل أي طابور معلّق
       unawaited(flushOutbox(silent: true));
       return true;

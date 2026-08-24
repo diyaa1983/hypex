@@ -970,26 +970,23 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   Future<List<int>?> _pickNoOrderReasons() async {
-    if (_noOrderReasons.isEmpty) {
-      final local = await OfflineStore.instance.noOrderReasons();
-      if (local.isNotEmpty && mounted) {
-        setState(() {
-          _noOrderReasons = local
-              .map((e) => {
-                    'id': e['id'],
-                    'name_ar': e['name_ar'],
-                  })
-              .toList();
-        });
-      }
+    // دائماً نفضّل المحلي لشاشة الزيارة Offline
+    final local = await OfflineStore.instance.noOrderReasons();
+    if (local.isNotEmpty) {
+      _noOrderReasons = local
+          .map((e) => {
+                'id': e['id'],
+                'name_ar': e['name_ar'],
+              })
+          .toList();
     }
     if (_noOrderReasons.isEmpty) {
-      showSnack(
-        context,
-        'لا توجد أسباب «عدم طلب العميل». حدّث البيانات وأنت متصل، أو أنشئ طلباً قبل الخروج.',
-        error: true,
-      );
-      return null;
+      // أسباب افتراضية محلية حتى يعمل الخروج بدون نت
+      _noOrderReasons = [
+        {'id': -1, 'name_ar': 'لا يحتاج طلبية حالياً'},
+        {'id': -2, 'name_ar': 'العميل مغلق'},
+        {'id': -3, 'name_ar': 'أخرى'},
+      ];
     }
     final selected = <int>{};
     return showDialog<List<int>>(
@@ -1044,10 +1041,18 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     if (id == null || c == null || _busy) return;
     final name = Fmt.str(c['name']);
     List<int> noOrderReasonIds = [];
+    String? offlineReasonNames;
     if (_visit?['has_order'] != true && _visitOrderId < 1) {
       final picked = await _pickNoOrderReasons();
       if (picked == null || picked.isEmpty) return;
-      noOrderReasonIds = picked;
+      noOrderReasonIds = picked.where((id) => id > 0).toList();
+      // أسباب محلية سالبة: نحفظ أسماءها كنص سبب للترحيل
+      final names = _noOrderReasons
+          .where((r) => picked.contains(Fmt.toInt(r['id'])))
+          .map((r) => Fmt.str(r['name_ar']))
+          .where((s) => s.isNotEmpty)
+          .join('، ');
+      if (names.isNotEmpty) offlineReasonNames = names;
     }
     final ok = await _confirm(
       'تأكيد تسجيل الخروج',
@@ -1087,6 +1092,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         'method': manual ? 'MANUAL' : 'GPS',
         'no_order_reason_ids': noOrderReasonIds,
         if (reason != null && reason.isNotEmpty) 'reason': reason,
+        if ((reason == null || reason.isEmpty) &&
+            offlineReasonNames != null &&
+            offlineReasonNames.isNotEmpty)
+          'reason': offlineReasonNames,
         ...gps,
       };
 

@@ -13,6 +13,8 @@ class OfflineSyncInfo {
     this.warehouses = 0,
     this.stockRows = 0,
     this.pendingOutbox = 0,
+    this.noOrderReasons = 0,
+    this.visitRadiusM = 200,
   });
 
   final bool hasData;
@@ -22,6 +24,8 @@ class OfflineSyncInfo {
   final int warehouses;
   final int stockRows;
   final int pendingOutbox;
+  final int noOrderReasons;
+  final int visitRadiusM;
 }
 
 class OfflineStore {
@@ -78,6 +82,16 @@ class OfflineStore {
           ),
         ) ??
         0;
+    var reasons = 0;
+    try {
+      reasons = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM no_order_reasons'),
+          ) ??
+          0;
+    } catch (_) {
+      reasons = 0;
+    }
+    final radius = await visitRadiusM();
     return OfflineSyncInfo(
       hasData: syncedAt != null && syncedAt.isNotEmpty,
       syncedAt: syncedAt,
@@ -86,6 +100,8 @@ class OfflineStore {
       warehouses: warehouses,
       stockRows: stockRows,
       pendingOutbox: pending,
+      noOrderReasons: reasons,
+      visitRadiusM: radius,
     );
   }
 
@@ -166,17 +182,40 @@ class OfflineStore {
       await stkBatch.commit(noResult: true);
 
       try {
+        await txn.execute('''
+          CREATE TABLE IF NOT EXISTS no_order_reasons (
+            id INTEGER PRIMARY KEY NOT NULL,
+            name_ar TEXT NOT NULL
+          )
+        ''');
         await txn.delete('no_order_reasons');
         final reasonBatch = txn.batch();
-        for (final r in (payload['no_order_reasons'] as List? ?? []).whereType<Map>()) {
+        final reasons = (payload['no_order_reasons'] as List? ?? []).whereType<Map>();
+        if (reasons.isEmpty) {
+          // احتياط محلي إن لم يُرجع السيرفر أسباباً
           reasonBatch.insert('no_order_reasons', {
-            'id': (r['id'] as num?)?.toInt() ?? 0,
-            'name_ar': (r['name_ar'] ?? r['name'] ?? '').toString(),
+            'id': -1,
+            'name_ar': 'لا يحتاج طلبية حالياً',
           });
+          reasonBatch.insert('no_order_reasons', {
+            'id': -2,
+            'name_ar': 'العميل مغلق',
+          });
+          reasonBatch.insert('no_order_reasons', {
+            'id': -3,
+            'name_ar': 'أخرى',
+          });
+        } else {
+          for (final r in reasons) {
+            reasonBatch.insert('no_order_reasons', {
+              'id': (r['id'] as num?)?.toInt() ?? 0,
+              'name_ar': (r['name_ar'] ?? r['name'] ?? '').toString(),
+            });
+          }
         }
         await reasonBatch.commit(noResult: true);
-      } catch (_) {
-        // جدول قديم قبل الترقية
+      } catch (e) {
+        // ignore table issues
       }
 
       Future<void> putMeta(String k, String v) => txn.insert(

@@ -125,6 +125,12 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   _kv('المستودعات', '${info.warehouses}'),
                   _kv('صفوف الرصيد', '${info.stockRows}'),
                   _kv(
+                    'أسباب عدم الطلب (زيارة)',
+                    '${info.noOrderReasons}',
+                    highlight: info.hasData && info.noOrderReasons < 1,
+                  ),
+                  _kv('نصف قطر الزيارة', '${info.visitRadiusM} م'),
+                  _kv(
                     'بانتظار الترحيل',
                     '${info.pendingOutbox}',
                     highlight: info.pendingOutbox > 0,
@@ -133,6 +139,18 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
               ),
             ),
           ),
+          if (info.hasData && info.noOrderReasons < 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(
+                'تنبيه: أسباب زيارة العميل غير محمّلة. انشر API المحدّث ثم اضغط تحديث البيانات مرة أخرى.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppTheme.danger.withValues(alpha: 0.9),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           if (off.busy) ...[
             const SizedBox(height: 16),
             LinearProgressIndicator(
