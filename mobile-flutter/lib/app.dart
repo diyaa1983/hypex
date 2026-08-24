@@ -35,6 +35,7 @@ import 'features/rep/rep_transfer_screen.dart';
 import 'features/returns/return_form_screen.dart';
 import 'features/returns/return_list_screen.dart';
 import 'features/returns/return_view_screen.dart';
+import 'features/offline/data_sync_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/main_shell.dart';
 
@@ -90,6 +91,10 @@ class NammaApp extends StatelessWidget {
         GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
         GoRoute(path: '/home', builder: (_, __) => const MainShell()),
         GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+        GoRoute(
+          path: '/offline/sync',
+          builder: (_, __) => const DataSyncScreen(),
+        ),
         GoRoute(
           path: '/invoices',
           builder: (_, __) => const InvoiceListScreen(),

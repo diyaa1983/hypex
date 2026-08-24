@@ -1,9 +1,13 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/config.dart';
 import '../core/format.dart';
+import '../offline/offline_controller.dart';
+import '../offline/offline_store.dart';
 
 class ItemUnitOpt {
   const ItemUnitOpt({
@@ -118,19 +122,57 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
       _loading = true;
       _error = null;
     });
-    try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.itemsSearchPath,
-        query: {
-          'warehouse_id': widget.warehouseId,
-          if (q.isEmpty) 'list': '1' else 'q': q,
-        },
+    final offline = context.read<OfflineController>();
+
+    Future<List<Map<String, dynamic>>> fromLocal() async {
+      final rows = await OfflineStore.instance.searchItems(
+        warehouseId: widget.warehouseId,
+        q: q,
       );
+      return rows.map((e) {
+        return <String, dynamic>{
+          'id': e['id'],
+          'name_ar': e['name'],
+          'name': e['name'],
+          'sku': e['sku'],
+          'barcode': e['barcode'],
+          'default_sale': e['sale_price'],
+          'sale_price': e['sale_price'],
+          'stock_qty': e['stock_qty'] ?? 0,
+          'units': _parseUnitsJson(e['units_json']?.toString() ?? '[]'),
+        };
+      }).toList();
+    }
+
+    try {
+      List<Map<String, dynamic>> list;
+      if (!offline.online && offline.catalogReady) {
+        list = await fromLocal();
+      } else {
+        try {
+          final res = await context.read<ApiClient>().getJson(
+            AppConfig.itemsSearchPath,
+            query: {
+              'warehouse_id': widget.warehouseId,
+              if (q.isEmpty) 'list': '1' else 'q': q,
+            },
+          );
+          list = (res['items'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+        } on ApiException catch (e) {
+          if (offline.catalogReady &&
+              (e.message.contains('تعذر الاتصال') ||
+                  e.message.contains('الإنترنت'))) {
+            list = await fromLocal();
+          } else {
+            rethrow;
+          }
+        }
+      }
       setState(() {
-        _items = (res['items'] as List? ?? [])
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList();
+        _items = list;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -138,6 +180,15 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
         _error = e.message;
         _loading = false;
       });
+    }
+  }
+
+  List<dynamic> _parseUnitsJson(String raw) {
+    try {
+      final decoded = jsonDecode(raw.isEmpty ? '[]' : raw);
+      return decoded is List ? decoded : const [];
+    } catch (_) {
+      return const [];
     }
   }
 

@@ -7,6 +7,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
 import '../../services/location_tracking_service.dart';
 import '../../services/print_brand.dart';
 import '../../widgets/async_view.dart';
@@ -330,7 +331,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// شبكة واحدة بلا عناوين أقسام، مرتّبة حسب ترتيب الأقسام المنطقي.
   List<_Tile> _orderedTiles() {
-    final out = <_Tile>[];
+    final out = <_Tile>[
+      _Tile(
+        'm_offline_sync',
+        'تحديث البيانات',
+        const TileSpec(
+          '/offline/sync',
+          Icons.cloud_sync_rounded,
+          AppTheme.teal,
+          'النظام',
+        ),
+      ),
+    ];
     for (final g in _groupOrder) {
       out.addAll(_group(g));
     }
@@ -361,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
               trackingOk: _trackingOk,
               trackingLabel: _trackingLabel,
             ),
+            const _OfflineHomeBanner(),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
@@ -662,6 +675,71 @@ class _TileButton extends StatelessWidget {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OfflineHomeBanner extends StatelessWidget {
+  const _OfflineHomeBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final off = context.watch<OfflineController>();
+    final pending = off.info.pendingOutbox;
+    if (off.online && off.catalogReady && pending < 1) {
+      return const SizedBox.shrink();
+    }
+    final Color bg;
+    final Color fg;
+    final String text;
+    if (!off.online && off.catalogReady) {
+      bg = const Color(0xFFFFF7E6);
+      fg = const Color(0xFF9A6700);
+      text = pending > 0
+          ? 'Offline — $pending عملية بانتظار الترحيل عند الاتصال'
+          : 'Offline — يعمل من البيانات المحلية';
+    } else if (!off.online) {
+      bg = const Color(0xFFFEECEC);
+      fg = AppTheme.danger;
+      text = 'Offline بدون بيانات — افتح «تحديث البيانات» عند الاتصال';
+    } else if (!off.catalogReady) {
+      bg = const Color(0xFFEEF3FA);
+      fg = AppTheme.primary;
+      text = 'فعّل Offline من بلاطة «تحديث البيانات»';
+    } else {
+      bg = const Color(0xFFFFF7E6);
+      fg = const Color(0xFF9A6700);
+      text = '$pending عملية معلّقة — ستُرحَّل تلقائياً';
+    }
+    return Material(
+      color: bg,
+      child: InkWell(
+        onTap: () => context.push('/offline/sync'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              Icon(
+                off.online ? Icons.cloud_sync_rounded : Icons.cloud_off_rounded,
+                color: fg,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  text,
+                  style: TextStyle(
+                    color: fg,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+              Icon(Icons.chevron_left, color: fg, size: 18),
+            ],
           ),
         ),
       ),

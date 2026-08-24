@@ -99,12 +99,16 @@ class ApiClient {
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, dynamic>? query,
+    Duration? receiveTimeout,
   }) async {
     return _handle(
       () => _dio.get(
         url(path),
         queryParameters: _mergeDeviceQuery(query),
-        options: Options(headers: _deviceHeaders()),
+        options: Options(
+          headers: _deviceHeaders(),
+          receiveTimeout: receiveTimeout,
+        ),
       ),
     );
   }

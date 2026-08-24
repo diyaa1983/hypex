@@ -29,6 +29,7 @@ class AppConfig {
   static const String homePath = 'api/mobile_home.php';
   static const String verifyAdminPath = 'api/mobile_verify_admin.php';
   static const String pingPath = 'm/ping.php';
+  static const String syncPullPath = 'api/mobile_sync_pull.php';
 
   /// واجهات الشاشات (JSON) — نفس ما يستدعيه /m الحالي.
   static const String salesInvoiceListPath = 'api/sales_invoices_list.php';

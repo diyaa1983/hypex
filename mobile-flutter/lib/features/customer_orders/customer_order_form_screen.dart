@@ -8,6 +8,8 @@ import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
 import '../../services/location_service.dart';
@@ -162,9 +164,30 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     });
     try {
       final api = context.read<ApiClient>();
-      final meta = await api.getJson(AppConfig.customerOrderMetaPath);
+      final offline = context.read<OfflineController>();
+      Map<String, dynamic> meta;
+      try {
+        if (!offline.online && offline.catalogReady) {
+          meta = await _metaFromLocal();
+        } else {
+          meta = await api.getJson(AppConfig.customerOrderMetaPath);
+        }
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          meta = await _metaFromLocal();
+        } else {
+          rethrow;
+        }
+      }
       Map<String, dynamic> order = {};
       if (_id > 0) {
+        if (!offline.online) {
+          throw ApiException(
+            'تعديل طلب موجود على السيرفر يتطلب اتصالاً بالإنترنت.',
+          );
+        }
         final result = await api
             .getJson(AppConfig.customerOrderViewPath, query: {'id': _id});
         order = (result['order'] as Map?)?.cast<String, dynamic>() ?? result;
@@ -391,6 +414,29 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         ));
   }
 
+  Future<Map<String, dynamic>> _metaFromLocal() async {
+    final store = OfflineStore.instance;
+    final ws = await store.warehouses();
+    final rates = await store.taxRates();
+    final defWh = int.tryParse(await store.getMeta('default_warehouse_id') ?? '') ?? 0;
+    final defTax =
+        double.tryParse(await store.getMeta('default_tax_percent') ?? '') ?? 0;
+    return {
+      'warehouses': ws
+          .map((w) => {'id': w['id'], 'name': w['name']})
+          .toList(),
+      'tax_rates': rates
+          .map((r) => {
+                'id': r['id'],
+                'name': r['name'],
+                'rate_percent': r['rate_percent'],
+              })
+          .toList(),
+      'default_warehouse_id': defWh,
+      'default_tax_percent': defTax,
+    };
+  }
+
   Future<int> _save() async {
     if (!_editable) {
       showSnack(context, 'لا يمكن تعديل طلب معتمد.', error: true);
@@ -421,27 +467,77 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         body['gps_source'] = 'mobile';
       }
       if (!mounted) return 0;
-      final result = await context.read<ApiClient>().postJson(
-            AppConfig.customerOrderSavePath,
-            csrf: session.csrf,
+      final offline = context.read<OfflineController>();
+      if (!offline.online) {
+        if (!offline.catalogReady) {
+          showSnack(
+            context,
+            'لا اتصال ولا بيانات محلية. حدّث البيانات وأنت متصل أولاً.',
+            error: true,
+          );
+          return 0;
+        }
+        await offline.enqueue(
+          kind: 'customer_order_save',
+          path: AppConfig.customerOrderSavePath,
+          body: body,
+        );
+        if (mounted) {
+          setState(() {
+            if ((_orderNo ?? '').isEmpty) {
+              _orderNo = 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
+            }
+          });
+          showSnack(
+            context,
+            'حُفظ الطلب محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
+          );
+          widget.onSaved?.call(_id > 0 ? _id : -1);
+        }
+        return _id > 0 ? _id : -1;
+      }
+      try {
+        final result = await context.read<ApiClient>().postJson(
+              AppConfig.customerOrderSavePath,
+              csrf: session.csrf,
+              body: body,
+            );
+        final id = Fmt.toInt(result['order_id'] ?? result['id']);
+        if (mounted) {
+          setState(() {
+            _id = id == 0 ? _id : id;
+            _orderNo = Fmt.str(result['order_no']) == ''
+                ? _orderNo
+                : Fmt.str(result['order_no']);
+          });
+          showSnack(
+              context,
+              Fmt.str(result['message']).isEmpty
+                  ? 'تم حفظ الطلب.'
+                  : Fmt.str(result['message']));
+          widget.onSaved?.call(_id);
+        }
+        return _id;
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await offline.enqueue(
+            kind: 'customer_order_save',
+            path: AppConfig.customerOrderSavePath,
             body: body,
           );
-      final id = Fmt.toInt(result['order_id'] ?? result['id']);
-      if (mounted) {
-        setState(() {
-          _id = id == 0 ? _id : id;
-          _orderNo = Fmt.str(result['order_no']) == ''
-              ? _orderNo
-              : Fmt.str(result['order_no']);
-        });
-        showSnack(
-            context,
-            Fmt.str(result['message']).isEmpty
-                ? 'تم حفظ الطلب.'
-                : Fmt.str(result['message']));
-        widget.onSaved?.call(_id);
+          if (mounted) {
+            showSnack(
+              context,
+              'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
+            );
+            widget.onSaved?.call(_id > 0 ? _id : -1);
+          }
+          return _id > 0 ? _id : -1;
+        }
+        rethrow;
       }
-      return _id;
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
       return 0;

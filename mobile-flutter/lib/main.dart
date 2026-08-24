@@ -7,6 +7,7 @@ import 'app.dart';
 import 'core/api_client.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
+import 'offline/offline_controller.dart';
 import 'services/location_presence_service.dart';
 import 'services/location_tracking_service.dart';
 
@@ -28,16 +29,20 @@ Future<void> main() async {
 
   final api = await ApiClient.create();
   final session = SessionController(api);
+  final offline = OfflineController(api);
+  offline.csrfProvider = () async => session.csrf;
   LocationPresenceService.onSessionConflict = (msg) {
     session.handleDeviceConflict(msg);
   };
   await session.boot();
+  await offline.start();
 
   runApp(
     MultiProvider(
       providers: [
         Provider<ApiClient>.value(value: api),
         ChangeNotifierProvider<SessionController>.value(value: session),
+        ChangeNotifierProvider<OfflineController>.value(value: offline),
       ],
       child: const NammaApp(),
     ),

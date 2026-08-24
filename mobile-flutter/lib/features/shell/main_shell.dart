@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/session.dart';
+import '../../offline/offline_controller.dart';
 import '../home/home_screen.dart';
 import '../invoices/invoice_list_screen.dart';
 import '../receipts/receipt_list_screen.dart';
@@ -57,6 +58,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (!session.authenticated) return;
     try {
       await session.refreshMe();
+      if (!mounted) return;
+      final offline = context.read<OfflineController>();
+      if (offline.online) {
+        await offline.flushOutbox(silent: true);
+      }
     } catch (_) {}
   }
 

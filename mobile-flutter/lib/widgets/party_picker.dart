@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/config.dart';
+import '../offline/offline_controller.dart';
+import '../offline/offline_store.dart';
 
 class Party {
   Party(this.id, this.name, this.code);
@@ -86,20 +88,55 @@ class _PartyPickerSheetState extends State<_PartyPickerSheet> {
       _loading = true;
       _error = null;
     });
+    final offline = context.read<OfflineController>();
     try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.partiesPath,
-        query: {'type': widget.type, 'q': q},
-      );
-      if (!mounted || seq != _reqSeq) return;
-      final list = (res['parties'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => Party(
+      List<Party> list;
+      if (!offline.online && offline.catalogReady && widget.type == 'customer') {
+        final rows = await OfflineStore.instance.searchCustomers(q);
+        list = rows
+            .map(
+              (e) => Party(
                 (e['id'] as num?)?.toInt() ?? 0,
                 (e['name'] ?? '').toString(),
                 (e['code'] ?? '').toString(),
-              ))
-          .toList();
+              ),
+            )
+            .toList();
+      } else {
+        try {
+          final res = await context.read<ApiClient>().getJson(
+            AppConfig.partiesPath,
+            query: {'type': widget.type, 'q': q},
+          );
+          list = (res['parties'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => Party(
+                    (e['id'] as num?)?.toInt() ?? 0,
+                    (e['name'] ?? '').toString(),
+                    (e['code'] ?? '').toString(),
+                  ))
+              .toList();
+        } on ApiException catch (e) {
+          if (offline.catalogReady &&
+              widget.type == 'customer' &&
+              (e.message.contains('تعذر الاتصال') ||
+                  e.message.contains('الإنترنت'))) {
+            final rows = await OfflineStore.instance.searchCustomers(q);
+            list = rows
+                .map(
+                  (e) => Party(
+                    (e['id'] as num?)?.toInt() ?? 0,
+                    (e['name'] ?? '').toString(),
+                    (e['code'] ?? '').toString(),
+                  ),
+                )
+                .toList();
+          } else {
+            rethrow;
+          }
+        }
+      }
+      if (!mounted || seq != _reqSeq) return;
       setState(() {
         _items = list;
         _loading = false;
