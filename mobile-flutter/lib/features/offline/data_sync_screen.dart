@@ -96,8 +96,8 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '1) اضغط «تحديث البيانات» وأنت متصل لتحميل العملاء والمواد والجولات والطلبات على الجهاز.\n'
-                    '2) عند انقطاع الإنترنت يعمل التطبيق من البيانات المحلية (جولات، طلبات، إضافة عميل…).\n'
+                    '1) اضغط «تحديث البيانات» وأنت متصل لتحميل العملاء والمواد والجولات والطلبات وكشوف جولة اليوم على الجهاز.\n'
+                    '2) عند انقطاع الإنترنت يعمل التطبيق من البيانات المحلية (جولات، طلبات، إضافة عميل، كشف حساب محفوظ…).\n'
                     '3) عند عودة الاتصال تُرحَّل العمليات المعلّقة تلقائياً بعد دقيقة.',
                     style: TextStyle(
                       color: Colors.black.withValues(alpha: 0.7),
@@ -134,6 +134,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   _kv('صفوف تقرير الزيارات', '${info.visitReportRows}'),
                   _kv('طلبات غير مرسلة (محلي)', '${info.ordersPending}'),
                   _kv('طلبات مرسلة (محلي)', '${info.ordersSent}'),
+                  _kv('كشوف حساب Oracle (محلي)', '${info.oracleStatements}'),
                   if (info.cacheFrom != null &&
                       (info.cacheFrom ?? '').isNotEmpty)
                     _kv(

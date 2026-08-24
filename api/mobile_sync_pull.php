@@ -24,7 +24,7 @@ if (!is_logged_in() || !mobile_is_context() || !user_in_mobile_group()) {
     exit;
 }
 
-@set_time_limit(180);
+@set_time_limit(300);
 @ini_set('memory_limit', '512M');
 
 try {
@@ -394,6 +394,65 @@ try {
         }
     }
 
+    // —— كشوف حساب Oracle لعملاء جولة اليوم (حد أقصى لتجنب بطء التحديث) ——
+    $oracleStatements = [];
+    $stmtFrom = date('Y') . '-01-01';
+    $stmtTo = $cacheTo;
+    if ($repId !== null && $repId > 0 && is_array($todayVisits)) {
+        try {
+            require_once app_path('includes/oracle_mobile_statement_cache.php');
+            $planIds = [];
+            foreach ($todayVisits as $v) {
+                if (!is_array($v) || empty($v['in_plan'])) {
+                    continue;
+                }
+                $cid = (int) ($v['customer_id'] ?? 0);
+                if ($cid > 0) {
+                    $planIds[$cid] = true;
+                }
+            }
+            // إن لم توجد خطة، خذ أول عملاء الجولة الظاهرين
+            if ($planIds === []) {
+                foreach ($todayVisits as $v) {
+                    if (!is_array($v)) {
+                        continue;
+                    }
+                    $cid = (int) ($v['customer_id'] ?? 0);
+                    if ($cid > 0) {
+                        $planIds[$cid] = true;
+                    }
+                    if (count($planIds) >= 20) {
+                        break;
+                    }
+                }
+            }
+            $limit = 20;
+            $n = 0;
+            foreach (array_keys($planIds) as $cid) {
+                if ($n >= $limit) {
+                    break;
+                }
+                try {
+                    $payload = oracle_mobile_customer_statement_payload(
+                        $pdo,
+                        (int) $cid,
+                        $stmtFrom,
+                        $stmtTo
+                    );
+                    if (!empty($payload['ok'])) {
+                        $oracleStatements[] = $payload;
+                        $n++;
+                    }
+                } catch (Throwable $e) {
+                    error_log('mobile_sync_pull statement #' . $cid . ': ' . $e->getMessage());
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('mobile_sync_pull oracle_statements: ' . $e->getMessage());
+            $oracleStatements = [];
+        }
+    }
+
     $pendingOrders = 0;
     $sentOrders = 0;
     foreach ($ordersOut as $o) {
@@ -416,6 +475,8 @@ try {
             'visit_radius_m' => $visitRadius,
             'cache_from' => $cacheFrom,
             'cache_to' => $cacheTo,
+            'statement_from' => $stmtFrom,
+            'statement_to' => $stmtTo,
         ],
         'counts' => [
             'customers' => count($customers),
@@ -432,6 +493,7 @@ try {
             'orders' => count($ordersOut),
             'orders_pending' => $pendingOrders,
             'orders_sent' => $sentOrders,
+            'oracle_statements' => count($oracleStatements),
         ],
         'customers' => $customers,
         'warehouses' => $warehouses,
@@ -447,6 +509,7 @@ try {
             'visits' => $visitReportRows,
         ],
         'orders' => $ordersOut,
+        'oracle_statements' => $oracleStatements,
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_sync_pull: ' . $e->getMessage());

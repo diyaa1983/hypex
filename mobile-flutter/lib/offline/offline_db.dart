@@ -12,11 +12,12 @@ class OfflineDb {
     final path = p.join(dir, 'hypex_offline.db');
     _db = await openDatabase(
       path,
-      version: 3,
+      version: 4,
       onCreate: (db, version) async {
         await _createV1(db);
         await _createV2(db);
         await _createV3(db);
+        await _createV4(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -24,6 +25,9 @@ class OfflineDb {
         }
         if (oldVersion < 3) {
           await _createV3(db);
+        }
+        if (oldVersion < 4) {
+          await _createV4(db);
         }
       },
     );
@@ -170,6 +174,23 @@ class OfflineDb {
     );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_orders_client_uuid ON orders(client_uuid)',
+    );
+  }
+
+  static Future<void> _createV4(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS oracle_statements (
+        customer_id INTEGER NOT NULL,
+        from_date TEXT NOT NULL,
+        to_date TEXT NOT NULL,
+        party_name TEXT NOT NULL DEFAULT '',
+        cached_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        PRIMARY KEY (customer_id, from_date, to_date)
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_oracle_stmt_customer ON oracle_statements(customer_id, cached_at DESC)',
     );
   }
 }

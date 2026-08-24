@@ -114,7 +114,7 @@ class OfflineController extends ChangeNotifier {
     try {
       final res = await api.getJson(
         AppConfig.syncPullPath,
-        receiveTimeout: const Duration(minutes: 3),
+        receiveTimeout: const Duration(minutes: 5),
       );
       pullProgress = 0.65;
       statusMessage = 'جاري حفظ البيانات على الجهاز…';
@@ -124,7 +124,7 @@ class OfflineController extends ChangeNotifier {
       pullProgress = 1;
       await refreshInfo();
       statusMessage =
-          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.ordersPending} طلب غير مرسل، ${info.ordersSent} مرسل، ${info.visitReportRows} زيارة.';
+          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.ordersPending} طلب غير مرسل، ${info.oracleStatements} كشف حساب.';
       onStep?.call(statusMessage!);
       if (info.noOrderReasons < 1) {
         statusMessage =

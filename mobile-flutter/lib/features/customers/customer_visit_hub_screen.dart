@@ -2229,24 +2229,6 @@ class _StatementTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final offline = context.watch<OfflineController>();
-    if (!offline.online) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'كشف الحساب يتطلب اتصالاً بالإنترنت.\nيمكنك متابعة طلب الشراء وبيانات العميل Offline.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppTheme.textSoft,
-              fontWeight: FontWeight.w700,
-              fontSize: 14.5,
-              height: 1.45,
-            ),
-          ),
-        ),
-      );
-    }
     final id = Fmt.toInt(customer['id']);
     return PartyStatementScreen(
       key: ValueKey('stmt-$id'),

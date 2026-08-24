@@ -19,6 +19,7 @@ class OfflineSyncInfo {
     this.visitReportRows = 0,
     this.ordersPending = 0,
     this.ordersSent = 0,
+    this.oracleStatements = 0,
     this.cacheFrom,
     this.cacheTo,
   });
@@ -36,6 +37,7 @@ class OfflineSyncInfo {
   final int visitReportRows;
   final int ordersPending;
   final int ordersSent;
+  final int oracleStatements;
   final String? cacheFrom;
   final String? cacheTo;
 }
@@ -107,6 +109,7 @@ class OfflineStore {
     var visitReportRows = 0;
     var ordersPending = 0;
     var ordersSent = 0;
+    var oracleStatements = 0;
     try {
       routeDays = Sqflite.firstIntValue(
             await db.rawQuery(
@@ -146,6 +149,14 @@ class OfflineStore {
       ordersPending = 0;
       ordersSent = 0;
     }
+    try {
+      oracleStatements = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM oracle_statements'),
+          ) ??
+          0;
+    } catch (_) {
+      oracleStatements = 0;
+    }
     final radius = await visitRadiusM();
     return OfflineSyncInfo(
       hasData: syncedAt != null && syncedAt.isNotEmpty,
@@ -161,6 +172,7 @@ class OfflineStore {
       visitReportRows: visitReportRows,
       ordersPending: ordersPending,
       ordersSent: ordersSent,
+      oracleStatements: oracleStatements,
       cacheFrom: await getMeta('cache_from'),
       cacheTo: await getMeta('cache_to'),
     );
@@ -206,6 +218,17 @@ class OfflineStore {
         total_qty REAL NOT NULL DEFAULT 0,
         client_uuid TEXT,
         payload_json TEXT NOT NULL DEFAULT '{}'
+      )
+    ''');
+    await txn.execute('''
+      CREATE TABLE IF NOT EXISTS oracle_statements (
+        customer_id INTEGER NOT NULL,
+        from_date TEXT NOT NULL,
+        to_date TEXT NOT NULL,
+        party_name TEXT NOT NULL DEFAULT '',
+        cached_at TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        PRIMARY KEY (customer_id, from_date, to_date)
       )
     ''');
   }
@@ -424,6 +447,37 @@ class OfflineStore {
         );
       }
       await orderBatch.commit(noResult: true);
+
+      // —— كشوف Oracle (upsert دون مسح كشوف أخرى محفوظة يدوياً) ——
+      final stmts =
+          (payload['oracle_statements'] as List? ?? []).whereType<Map>();
+      final stmtBatch = txn.batch();
+      final now = DateTime.now().toIso8601String();
+      for (final s in stmts) {
+        final cid = (s['customer_id'] as num?)?.toInt() ??
+            (s['party_id'] as num?)?.toInt() ??
+            0;
+        if (cid < 1 || s['ok'] == false) continue;
+        final from = (s['from'] ?? '').toString();
+        final to = (s['to'] ?? '').toString();
+        if (from.isEmpty || to.isEmpty) continue;
+        final map = Map<String, dynamic>.from(s.cast<String, dynamic>());
+        map['offline_cached'] = true;
+        map['cached_at'] = (s['cached_at'] ?? now).toString();
+        stmtBatch.insert(
+          'oracle_statements',
+          {
+            'customer_id': cid,
+            'from_date': from,
+            'to_date': to,
+            'party_name': (s['party_name'] ?? '').toString(),
+            'cached_at': map['cached_at'],
+            'payload_json': jsonEncode(map),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      await stmtBatch.commit(noResult: true);
 
       Future<void> putMeta(String k, String v) => txn.insert(
             'sync_meta',
@@ -940,6 +994,72 @@ class OfflineStore {
       _orderRowFromMap(order, clientUuid: clientUuid),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  Future<void> saveOracleStatement(Map<String, dynamic> payload) async {
+    final cid = (payload['customer_id'] as num?)?.toInt() ??
+        (payload['party_id'] as num?)?.toInt() ??
+        0;
+    final from = (payload['from'] ?? '').toString();
+    final to = (payload['to'] ?? '').toString();
+    if (cid < 1 || from.isEmpty || to.isEmpty) return;
+    if (payload['ok'] == false) return;
+    final db = await _db;
+    await _ensureV3(db);
+    final now = DateTime.now().toIso8601String();
+    final map = Map<String, dynamic>.from(payload);
+    map['offline_cached'] = true;
+    map['cached_at'] = now;
+    await db.insert(
+      'oracle_statements',
+      {
+        'customer_id': cid,
+        'from_date': from,
+        'to_date': to,
+        'party_name': (payload['party_name'] ?? '').toString(),
+        'cached_at': now,
+        'payload_json': jsonEncode(map),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// يرجع كاش مطابق للفترة، أو آخر كشف محفوظ لنفس العميل.
+  Future<Map<String, dynamic>?> getOracleStatement({
+    required int customerId,
+    String? from,
+    String? to,
+  }) async {
+    if (customerId < 1) return null;
+    final db = await _db;
+    try {
+      if (from != null &&
+          from.isNotEmpty &&
+          to != null &&
+          to.isNotEmpty) {
+        final exact = await db.query(
+          'oracle_statements',
+          where: 'customer_id = ? AND from_date = ? AND to_date = ?',
+          whereArgs: [customerId, from, to],
+          limit: 1,
+        );
+        if (exact.isNotEmpty) {
+          final m = jsonDecode(exact.first['payload_json'] as String);
+          if (m is Map) return m.cast<String, dynamic>();
+        }
+      }
+      final rows = await db.query(
+        'oracle_statements',
+        where: 'customer_id = ?',
+        whereArgs: [customerId],
+        orderBy: 'cached_at DESC',
+        limit: 1,
+      );
+      if (rows.isEmpty) return null;
+      final m = jsonDecode(rows.first['payload_json'] as String);
+      if (m is Map) return m.cast<String, dynamic>();
+    } catch (_) {}
+    return null;
   }
 
   Future<Map<String, dynamic>?> getOrderById(int id) async {

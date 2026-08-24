@@ -5,6 +5,8 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../offline/offline_controller.dart';
+import '../../offline/offline_store.dart';
 import '../../services/document_print_helper.dart';
 import '../../services/party_statement_bluetooth_receipt.dart';
 import '../../widgets/async_view.dart';
@@ -52,6 +54,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
   String? _error;
   Map<String, dynamic>? _result;
   bool _didAutoRun = false;
+  bool _fromCache = false;
 
   @override
   void initState() {
@@ -109,8 +112,54 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
     setState(() {
       _loading = true;
       _error = null;
+      _fromCache = false;
     });
+    final offline = context.read<OfflineController>();
+    final fromIso = _iso(_from);
+    final toIso = _iso(_to);
+
+    Future<bool> loadCached({String? preferMsg}) async {
+      if (_type != 'customer') return false;
+      final cached = await OfflineStore.instance.getOracleStatement(
+        customerId: _party!.id,
+        from: fromIso,
+        to: toIso,
+      );
+      if (cached == null || !mounted) return false;
+      final cachedFrom = Fmt.str(cached['from']);
+      final cachedTo = Fmt.str(cached['to']);
+      setState(() {
+        _result = cached;
+        _fromCache = true;
+        _loading = false;
+        if (cachedFrom.isNotEmpty && cachedTo.isNotEmpty) {
+          final f = DateTime.tryParse(cachedFrom);
+          final t = DateTime.tryParse(cachedTo);
+          if (f != null) _from = f;
+          if (t != null) _to = t;
+        }
+        _error = null;
+      });
+      if (preferMsg != null && preferMsg.isNotEmpty && mounted) {
+        showSnack(context, preferMsg);
+      }
+      return true;
+    }
+
     try {
+      if (!offline.online) {
+        final ok = await loadCached();
+        if (!ok && mounted) {
+          setState(() {
+            _error =
+                'لا يوجد كشف محفوظ لهذا العميل Offline.\nحدّث البيانات وأنت متصل، أو افتح الكشف مرة وهو متصل ليُحفظ على الجهاز.';
+            _loading = false;
+            _result = null;
+          });
+        }
+        return;
+      }
+
       final api = context.read<ApiClient>();
       final Map<String, dynamic> res;
       if (_type == 'customer') {
@@ -118,8 +167,8 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
           AppConfig.oracleCustomerStatementPath,
           query: {
             'customer_id': _party!.id,
-            'from': _iso(_from),
-            'to': _iso(_to),
+            'from': fromIso,
+            'to': toIso,
           },
         );
       } else {
@@ -128,15 +177,19 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
           query: {
             'party_type': _type,
             'party_id': _party!.id,
-            'from': _iso(_from),
-            'to': _iso(_to),
+            'from': fromIso,
+            'to': toIso,
           },
         );
       }
       if (!mounted) return;
+      if (_type == 'customer' && res['ok'] != false) {
+        await OfflineStore.instance.saveOracleStatement(res);
+      }
       setState(() {
         _result = res;
         _loading = false;
+        _fromCache = false;
         if (res['ok'] == false) {
           _error = Fmt.str(res['message']).isEmpty
               ? 'تعذر جلب الكشف'
@@ -145,10 +198,15 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       });
     } on ApiException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.message;
-        _loading = false;
-      });
+      final usedCache = await loadCached(
+        preferMsg: 'يُعرض آخر كشف محفوظ على الجهاز (بدون اتصال حي).',
+      );
+      if (!usedCache) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
     }
   }
 
@@ -383,6 +441,30 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                   icon: const Icon(Icons.search),
                   label: const Text('عرض الكشف'),
                 ),
+                if (_fromCache && hasResult) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.amber.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: AppTheme.amber.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Text(
+                      'عرض من الكاش المحلي'
+                      '${Fmt.str(_result?['cached_at']).isEmpty ? '' : ' — ${Fmt.str(_result?['cached_at'])}'}.\n'
+                      'الأرصدة قد لا تكون أحدث ما في Oracle حتى تُحدَّث وأنت متصل.',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        height: 1.35,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
                 if (hasResult) ...[
                   const SizedBox(height: 10),
                   Row(
