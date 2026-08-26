@@ -188,6 +188,39 @@
     return cleanBarcodeText(c);
   }
 
+  function itemSkuOnly(it) {
+    if (!it) return '';
+    return String(it.sku != null ? it.sku : '').trim();
+  }
+
+  function itemCodeSuggestLabel(it) {
+    var sku = itemSkuOnly(it);
+    var bc = itemBarcodeOnly(it);
+    if (sku && bc && sku !== bc) return sku + ' · ' + bc;
+    return sku || bc || itemNameOnly(it);
+  }
+
+  function itemExactCodeMatch(it, q) {
+    q = String(q || '').trim().toLowerCase();
+    if (!q || !it) return false;
+    var keys = [it.sku, it.barcode, it.code, it.oracle_key];
+    for (var i = 0; i < keys.length; i++) {
+      var v = String(keys[i] != null ? keys[i] : '')
+        .trim()
+        .toLowerCase();
+      if (v && v === q) return true;
+    }
+    return false;
+  }
+
+  function findExactItemInRows(rows, q) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    for (var i = 0; i < rows.length; i++) {
+      if (itemExactCodeMatch(rows[i], q)) return rows[i];
+    }
+    return null;
+  }
+
   function cleanBarcodeText(s) {
     s = String(s || '').trim();
     if (!s) return '';
@@ -602,7 +635,7 @@
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
         '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="rtl" ' +
-        'placeholder="باركود" data-nav="1" title="' +
+        'placeholder="باركود / رقم المادة" data-nav="1" title="' +
         escAttr(barcode) +
         '" value="' +
         escAttr(barcode) +
@@ -884,10 +917,11 @@
 
     var rows = data.rows || [];
     if (!rows.length) {
+      box._hxRows = [];
       var empty = document.createElement('div');
       empty.className = 'si-suggest-empty';
       empty.style.cssText = 'padding:.65rem .8rem;color:#64748b;font-size:.85rem';
-      empty.textContent = 'لا توجد مواد. أضف أصنافاً من المخزون → المواد والأصناف.';
+      empty.textContent = 'لا توجد مواد مطابقة. جرّب الباركود أو رقم المادة.';
       box.appendChild(empty);
       box.hidden = false;
       box.removeAttribute('hidden');
@@ -897,16 +931,19 @@
 
     var mode =
       anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
+    box._hxRows = rows;
     rows.slice(0, 40).forEach(function (it) {
       var b = document.createElement('button');
       b.type = 'button';
       var code = itemBarcodeOnly(it);
+      var sku = itemSkuOnly(it);
       var name = itemNameOnly(it);
       b.textContent =
         mode === 'name'
-          ? name + (code ? ' · ' + code : '') + ' · ' + fmt(it.sale_price)
-          : code + ' — ' + name + ' · ' + fmt(it.sale_price);
+          ? name + (sku || code ? ' · ' + (sku || code) : '') + ' · ' + fmt(it.sale_price)
+          : itemCodeSuggestLabel(it) + ' — ' + name + ' · ' + fmt(it.sale_price);
       b.setAttribute('data-barcode', code);
+      b.setAttribute('data-sku', sku);
       b.addEventListener('mousedown', function (e) {
         e.preventDefault();
       });
@@ -2097,6 +2134,32 @@
     return true;
   }
 
+  function pickExactCodeSuggest(box, q) {
+    if (!box || box.hidden) return false;
+    var it = findExactItemInRows(box._hxRows || [], q);
+    if (!it) return false;
+    var tr = box.closest('tr[data-idx]');
+    if (!tr) return false;
+    var idx = Number(tr.getAttribute('data-idx'));
+    box.dataset.hxUserNav = '1';
+    state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
+    closeFloatSuggest(box);
+    renderLines();
+    window.setTimeout(function () {
+      if (window.HxShortcuts && window.HxShortcuts.focusLineQty) {
+        window.HxShortcuts.focusLineQty(idx, '#si-lines-body');
+      } else {
+        var row = tbody && tbody.querySelector('tr[data-idx="' + idx + '"]');
+        var qtyEl = row && row.querySelector('.js-qty');
+        if (qtyEl) {
+          qtyEl.focus({ preventScroll: true });
+          if (qtyEl.select) qtyEl.select();
+        }
+      }
+    }, 40);
+    return true;
+  }
+
   function goNextField(fromEl) {
     if (posted || !fromEl) return;
     var itemSug =
@@ -2110,6 +2173,9 @@
       (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-name'))
     ) {
       if (pickActiveSuggest(itemSug)) return;
+      if (fromEl.classList.contains('js-item-code') && pickExactCodeSuggest(itemSug, fromEl.value)) {
+        return;
+      }
       closeFloatSuggest(itemSug);
     } else if (fromEl.id === 'inv_customer') {
       var cs = document.getElementById('cust_suggest');

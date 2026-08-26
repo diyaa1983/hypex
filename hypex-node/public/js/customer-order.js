@@ -340,6 +340,46 @@
     return cleanBarcodeText(c);
   }
 
+  /** رقم المادة (SKU) */
+  function itemSkuOnly(it) {
+    if (!it) return '';
+    return String(it.sku != null ? it.sku : '').trim();
+  }
+
+  /** نص القائمة لحقل الباركود/رقم المادة */
+  function itemCodeSuggestLabel(it) {
+    var sku = itemSkuOnly(it);
+    var bc = itemBarcodeOnly(it);
+    if (sku && bc && sku !== bc) return sku + ' · ' + bc;
+    return sku || bc || itemNameOnly(it);
+  }
+
+  /** تطابق تام لباركود أو رقم مادة أو oracle_key */
+  function itemExactCodeMatch(it, q) {
+    q = String(q || '').trim().toLowerCase();
+    if (!q || !it) return false;
+    var keys = [it.sku, it.barcode, it.code, it.oracle_key];
+    for (var i = 0; i < keys.length; i++) {
+      var v = String(keys[i] != null ? keys[i] : '')
+        .trim()
+        .toLowerCase();
+      if (v && v === q) return true;
+    }
+    return false;
+  }
+
+  function findExactItemInRows(rows, q) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    var exact = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (itemExactCodeMatch(rows[i], q)) {
+        exact = rows[i];
+        break;
+      }
+    }
+    return exact;
+  }
+
   function cleanBarcodeText(s) {
     s = String(s || '').trim();
     if (!s) return '';
@@ -791,7 +831,7 @@
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
         '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="rtl" ' +
-        'placeholder="باركود" data-nav="1" title="' +
+        'placeholder="باركود / رقم المادة" data-nav="1" title="' +
         escAttr(barcode) +
         '" value="' +
         escAttr(barcode) +
@@ -1059,6 +1099,19 @@
     return true;
   }
 
+  /** Enter على تطابق تام لرقم المادة أو الباركود — بدون أسهم */
+  function pickExactCodeSuggest(box, q) {
+    if (!box || box.hidden) return false;
+    var it = findExactItemInRows(box._hxRows || [], q);
+    if (!it) return false;
+    box.dataset.hxUserNav = '1';
+    var tr = box.closest('tr[data-idx]');
+    if (!tr) return false;
+    closeItemSuggest(box);
+    pickItemIntoRow(tr, it, true);
+    return true;
+  }
+
   function closeItemSuggest(box) {
     if (!box) return;
     box.hidden = true;
@@ -1131,6 +1184,10 @@
       (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-name'))
     ) {
       if (pickActiveSuggest(itemSug)) return;
+      // رقم مادة أو باركود مطابق تماماً → اختيار مباشر
+      if (fromEl.classList.contains('js-item-code') && pickExactCodeSuggest(itemSug, fromEl.value)) {
+        return;
+      }
       closeItemSuggest(itemSug);
       // تابع التنقل للحقل التالي بدون اختيار مادة
     } else {
@@ -1431,11 +1488,13 @@
         }
         box.innerHTML = '';
         box.dataset.hxUserNav = '';
+        box._hxRows = [];
         if (!data.ok) {
           closeItemSuggest(box);
           return;
         }
         var rows = data.rows || [];
+        box._hxRows = rows;
         if (!rows.length) {
           var empty = document.createElement('div');
           empty.className = 'si-suggest-empty';
@@ -1444,7 +1503,7 @@
             ? 'لا توجد نتائج مطابقة'
             : mode === 'name'
               ? 'اكتب اسم المادة…'
-              : 'اكتب الباركود…';
+              : 'اكتب الباركود أو رقم المادة…';
           box.appendChild(empty);
           box.hidden = false;
           box.removeAttribute('hidden');
@@ -1456,17 +1515,21 @@
           b.type = 'button';
           b.tabIndex = -1;
           var code = itemBarcodeOnly(it);
+          var sku = itemSkuOnly(it);
           var nm = itemNameOnly(it);
-          // قائمة الباركود → باركود فقط · قائمة الاسم → اسم فقط
+          // قائمة الباركود/رقم المادة · قائمة الاسم → اسم فقط
           if (mode === 'name') {
-            b.textContent = nm || code;
-            b.title = code ? 'باركود: ' + code : nm;
+            b.textContent = nm || code || sku;
+            b.title = sku || code ? 'رقم/باركود: ' + (sku || code) : nm;
           } else {
-            b.textContent = code || nm;
-            b.title = nm ? 'المادة: ' + nm : code;
+            b.textContent = itemCodeSuggestLabel(it);
+            b.title = nm
+              ? nm + (sku && code && sku !== code ? ' · رقم ' + sku : '')
+              : sku || code;
           }
           b.setAttribute('data-item-id', String(it.id || ''));
           b.setAttribute('data-barcode', code);
+          b.setAttribute('data-sku', sku);
           b.setAttribute('data-name', nm);
           b.addEventListener('mousedown', function (e) {
             e.preventDefault();

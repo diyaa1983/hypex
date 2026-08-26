@@ -652,11 +652,20 @@ async function searchCustomers(q, limit = 30) {
 }
 
 async function searchItems(q, limit = 30) {
-  const like = `%${String(q || '').trim()}%`;
+  const qTrim = String(q || '').trim();
+  const like = `%${qTrim}%`;
   // code المعروض = الباركود (ثم رقم المادة) · sale_price = أقل وحدة (غير شامل)
   const codeExpr = `COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code`;
+  // تطابق تام لرقم المادة / الباركود أولاً ثم البحث الجزئي
+  const rankExact = `CASE
+      WHEN TRIM(IFNULL(sku,'')) = ? THEN 0
+      WHEN TRIM(IFNULL(barcode,'')) = ? THEN 1
+      WHEN TRIM(IFNULL(oracle_key,'')) = ? THEN 2
+      WHEN TRIM(IFNULL(sku,'')) LIKE ? THEN 3
+      WHEN TRIM(IFNULL(barcode,'')) LIKE ? THEN 4
+      ELSE 5 END`;
   let rows;
-  if (String(q || '').trim() === '') {
+  if (qTrim === '') {
     try {
       rows = await db.query(
         `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
@@ -681,18 +690,39 @@ async function searchItems(q, limit = 30) {
                 tax_rate_id
          FROM inv_item
          WHERE is_active = 1 AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
-         ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
-        [like, like, like, like, like]
+         ORDER BY ${rankExact}, name_ar LIMIT ${Math.min(40, limit)}`,
+        [like, like, like, like, like, qTrim, qTrim, qTrim, like, like]
       );
     } catch {
-      rows = await db.query(
-        `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
-                COALESCE(default_sale, 0) AS sale_price
-         FROM inv_item
-         WHERE is_active = 1 AND (name_ar LIKE ? OR sku LIKE ? OR barcode LIKE ?)
-         ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
-        [like, like, like]
-      );
+      try {
+        rows = await db.query(
+          `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
+                  COALESCE(default_sale, 0) AS sale_price,
+                  COALESCE(default_wholesale, 0) AS wholesale_price,
+                  tax_rate_id
+           FROM inv_item
+           WHERE is_active = 1 AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
+           ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+          [like, like, like, like, like]
+        );
+      } catch {
+        rows = await db.query(
+          `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
+                  COALESCE(default_sale, 0) AS sale_price
+           FROM inv_item
+           WHERE is_active = 1 AND (name_ar LIKE ? OR sku LIKE ? OR barcode LIKE ?)
+           ORDER BY
+             CASE
+               WHEN TRIM(IFNULL(sku,'')) = ? THEN 0
+               WHEN TRIM(IFNULL(barcode,'')) = ? THEN 1
+               WHEN TRIM(IFNULL(sku,'')) LIKE ? THEN 2
+               WHEN TRIM(IFNULL(barcode,'')) LIKE ? THEN 3
+               ELSE 4 END,
+             name_ar
+           LIMIT ${Math.min(40, limit)}`,
+          [like, like, like, qTrim, qTrim, like, like]
+        );
+      }
     }
   }
   return itemPricing.attachUnitsToSearchRows(rows || []);

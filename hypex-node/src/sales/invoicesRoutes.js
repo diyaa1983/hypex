@@ -546,7 +546,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>الباركود</th>
+                  <th>باركود / رقم المادة</th>
                   <th>اسم المادة</th>
                   <th>الوحدة</th>
                   <th>الكمية</th>
