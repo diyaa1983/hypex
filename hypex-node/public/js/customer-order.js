@@ -1148,7 +1148,7 @@
     if (!box) return;
     box.hidden = true;
     box.setAttribute('hidden', '');
-    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name');
+    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
     box.style.left = '';
     box.style.right = '';
     box.style.top = '';
@@ -1175,31 +1175,32 @@
     }
     var r = anchor.getBoundingClientRect();
     var mode = box.getAttribute('data-mode') || 'barcode';
-    var minW = mode === 'name' ? 260 : 180;
+    var minW = mode === 'name' ? 260 : mode === 'sku' ? 120 : 140;
     var width = Math.max(r.width, minW);
-    if (mode === 'name') width = Math.min(Math.max(width, 280), Math.min(420, window.innerWidth - 16));
-    else width = Math.min(Math.max(width, 160), Math.min(280, window.innerWidth - 16));
-
-    // محاذاة من اليمين (RTL): حافة القائمة اليمنى مع حافة الحقل اليمنى
-    var right = window.innerWidth - r.right;
-    var left = r.right - width;
-    if (left < 8) {
-      left = 8;
-      right = 'auto';
+    if (mode === 'name') {
+      width = Math.min(Math.max(width, 280), Math.min(420, window.innerWidth - 16));
     } else {
-      right = Math.max(8, right);
-      left = 'auto';
+      // رقم المادة / الباركود: بنفس عرض الحقل تقريباً، مع حد أدنى صغير
+      width = Math.min(Math.max(r.width, minW), Math.min(320, window.innerWidth - 16));
     }
+
+    // محاذاة مباشرة تحت الحقل (حافة اليسار مع الحقل)
+    var left = r.left;
+    var maxLeft = window.innerWidth - width - 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+    if (left < 8) left = 8;
+
+    var top = r.bottom + 4;
+    var maxH = Math.min(16.5 * 16, window.innerHeight * 0.48);
+    if (top + 80 > window.innerHeight && r.top > maxH + 8) {
+      top = Math.max(8, r.top - 4 - Math.min(maxH, 220));
+    }
+
     box.classList.add('si-suggest--float');
     box.style.width = width + 'px';
-    if (left === 'auto') {
-      box.style.left = 'auto';
-      box.style.right = right + 'px';
-    } else {
-      box.style.left = left + 'px';
-      box.style.right = 'auto';
-    }
-    box.style.top = r.bottom + 4 + 'px';
+    box.style.left = left + 'px';
+    box.style.right = 'auto';
+    box.style.top = top + 'px';
   }
 
   function goNextField(fromEl) {

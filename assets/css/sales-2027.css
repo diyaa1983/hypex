@@ -1660,27 +1660,33 @@ label .si-field-key {
 
 /* ?????? + ???: ??????? ?????? ???? ?????? */
 .si-suggest.si-suggest--barcode,
+.si-suggest.si-suggest--sku,
 .si-suggest.si-suggest--name {
-  min-width: min(18rem, 90vw);
+  min-width: 0;
   direction: rtl;
   text-align: right;
 }
-.si-suggest.si-suggest--barcode {
-  min-width: min(13rem, 88vw);
+.si-suggest.si-suggest--barcode,
+.si-suggest.si-suggest--sku {
+  min-width: 0;
+  direction: ltr;
+  text-align: left;
 }
 .si-suggest.si-suggest--name {
   min-width: min(20rem, 92vw);
 }
 
 .si-suggest.si-suggest--barcode button,
+.si-suggest.si-suggest--sku button,
 .si-suggest.si-suggest--name button {
-  direction: rtl !important;
-  text-align: right !important;
+  direction: inherit !important;
+  text-align: inherit !important;
   justify-content: flex-start !important;
   unicode-bidi: plaintext;
 }
 
-.si-suggest.si-suggest--barcode button {
+.si-suggest.si-suggest--barcode button,
+.si-suggest.si-suggest--sku button {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.03em;
   font-size: 0.9rem;

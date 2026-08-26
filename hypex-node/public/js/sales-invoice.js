@@ -741,14 +741,8 @@
   function placeFloatSuggest(box, anchor) {
     if (!box || !anchor) return;
     var r = anchor.getBoundingClientRect();
-    var width = Math.max(r.width, 280);
-    var left = r.left;
-    if (left + width > window.innerWidth - 8) {
-      left = Math.max(8, window.innerWidth - width - 8);
-    }
-    box.classList.add('si-suggest--float');
     var mode = 'barcode';
-    if (anchor && anchor.classList) {
+    if (anchor.classList) {
       if (anchor.classList.contains('js-item-name')) mode = 'name';
       else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
     }
@@ -757,9 +751,28 @@
       mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
     );
     box.setAttribute('data-mode', mode);
+
+    var minW = mode === 'name' ? 260 : mode === 'sku' ? 120 : 140;
+    var width =
+      mode === 'name'
+        ? Math.min(Math.max(r.width, minW, 280), Math.min(420, window.innerWidth - 16))
+        : Math.min(Math.max(r.width, minW), Math.min(320, window.innerWidth - 16));
+
+    var left = r.left;
+    var maxLeft = window.innerWidth - width - 8;
+    if (left > maxLeft) left = Math.max(8, maxLeft);
+    if (left < 8) left = 8;
+
+    var top = r.bottom + 4;
+    var maxH = Math.min(16.5 * 16, window.innerHeight * 0.48);
+    if (top + 80 > window.innerHeight && r.top > maxH + 8) {
+      top = Math.max(8, r.top - 4 - Math.min(maxH, 220));
+    }
+
+    box.classList.add('si-suggest--float');
     box.style.width = width + 'px';
     box.style.left = left + 'px';
-    box.style.top = r.bottom + 3 + 'px';
+    box.style.top = top + 'px';
     box.style.right = 'auto';
   }
 
