@@ -1272,19 +1272,22 @@ label .si-field-key {
 
 /* ?????? + ??? ???? ? ????? ?????? ??? ???? */
 .si-lines .si-item-code-cell,
+.si-lines .si-item-sku-cell,
 .si-lines .si-item-name-cell {
   position: relative;
   vertical-align: middle;
   overflow: visible;
   white-space: nowrap;
 }
-.si-lines .si-item-code-cell {
+.si-lines .si-item-code-cell,
+.si-lines .si-item-sku-cell {
   width: 1%;
 }
 .si-lines .si-item-name-cell {
   min-width: 10rem;
 }
 .si-lines .si-item-code-cell input.js-item-code,
+.si-lines .si-item-sku-cell input.js-item-sku,
 .si-lines .si-item-name-cell input.js-item-name {
   display: inline-block;
   width: auto;
@@ -3116,6 +3119,7 @@ body.ic-pick-lock {
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 1.75rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-sku { width: 5.5rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 7rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-name { width: auto; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-unit { width: 6rem; }
@@ -3189,7 +3193,8 @@ body.ic-pick-lock {
   font-variant-numeric: tabular-nums;
 }
 
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell input.js-item-code {
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell input.js-item-code,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-sku-cell input.js-item-sku {
   text-align: start;
   direction: ltr;
 }
@@ -3199,6 +3204,7 @@ body.ic-pick-lock {
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-sku-cell,
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-name-cell {
   position: relative;
   min-width: 0;

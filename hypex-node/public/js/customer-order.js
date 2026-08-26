@@ -302,7 +302,7 @@
     setTimeout(function () {
       if (locked) return;
       if (!(state.lines || []).length) addEmptyLine();
-      focusLineField(0, '.js-item-code', true);
+      focusLineField(0, '.js-item-sku', true);
     }, 40);
   }
 
@@ -418,9 +418,9 @@
   function applyItemToLine(ln, it) {
     ln = ln || {};
     ln.item_id = it.id;
-    // حقل الباركود = باركود فقط · حقل الاسم = اسم فقط
+    ln.item_sku = itemSkuOnly(it);
     ln.item_barcode = itemBarcodeOnly(it);
-    ln.item_code = ln.item_barcode;
+    ln.item_code = ln.item_barcode || ln.item_sku;
     ln.name_ar = itemNameOnly(it);
     ln.base_list_sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
     ln.base_wholesale = Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
@@ -726,13 +726,15 @@
     var discEl = tr.querySelector('.js-disc');
     var taxEl = tr.querySelector('.js-tax');
     var codeEl = tr.querySelector('.js-item-code');
+    var skuEl = tr.querySelector('.js-item-sku');
     var nameEl = tr.querySelector('.js-item-name');
     if (qtyEl) ln.qty = qtyEl.value;
     if (qtyExtraEl) ln.qty_extra = qtyExtraEl.value;
+    if (skuEl) ln.item_sku = String(skuEl.value || '').trim();
     if (codeEl) {
       var bc = cleanBarcodeText(codeEl.value);
       ln.item_barcode = bc;
-      ln.item_code = bc;
+      ln.item_code = bc || ln.item_sku || '';
     }
     if (nameEl) {
       ln.name_ar = itemNameOnly({ name_ar: nameEl.value });
@@ -794,6 +796,7 @@
 
   function fitRowFields(tr) {
     if (!tr) return;
+    fitFieldToContent(tr.querySelector('.js-item-sku'));
     fitFieldToContent(tr.querySelector('.js-item-code'));
     fitFieldToContent(tr.querySelector('.js-item-name'));
     fitFieldToContent(tr.querySelector('.js-unit'));
@@ -809,23 +812,36 @@
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
-      // تنقية: حقل الباركود = باركود فقط · الاسم = اسم فقط
-      var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+      var barcode = cleanBarcodeText(ln.item_barcode || '');
+      var sku = String(ln.item_sku || '').trim();
+      if (!barcode && !sku) {
+        barcode = cleanBarcodeText(ln.item_code || '');
+      }
       var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
-      // استرجاع إن وُجد نص مركب قديم في الباركود
       if (!nameOnly && String(ln.item_code || '').indexOf(' — ') >= 0) {
         var raw = String(ln.item_code);
         barcode = cleanBarcodeText(raw);
         nameOnly = itemNameOnly({ name_ar: raw.split(' — ')[1] || '' });
       }
       ln.item_barcode = barcode;
-      ln.item_code = barcode;
+      ln.item_sku = sku;
+      ln.item_code = barcode || sku;
       ln.name_ar = nameOnly;
       var tr = document.createElement('tr');
       tr.setAttribute('data-idx', String(idx));
       tr.innerHTML =
         '<td dir="ltr" class="si-row-num">' +
         (idx + 1) +
+        '</td>' +
+        '<td class="si-item-sku-cell">' +
+        '<input class="js-item-sku" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="رقم المادة" data-nav="1" title="' +
+        escAttr(sku) +
+        '" value="' +
+        escAttr(sku) +
+        '" ' +
+        (locked ? 'readonly' : '') +
+        '>' +
         '</td>' +
         '<td class="si-item-code-cell">' +
         '<input type="hidden" class="js-item-id" value="' +
@@ -834,8 +850,8 @@
         '<input type="hidden" class="js-base-sale" value="' +
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
-        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="rtl" ' +
-        'placeholder="باركود / رقم المادة" data-nav="1" title="' +
+        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="الباركود" data-nav="1" title="' +
         escAttr(barcode) +
         '" value="' +
         escAttr(barcode) +
@@ -912,7 +928,7 @@
     }, 0);
     if (focusOpts && focusOpts.idx != null) {
       window.setTimeout(function () {
-        focusLineField(focusOpts.idx, focusOpts.cls || '.js-item-code', !!focusOpts.select);
+        focusLineField(focusOpts.idx, focusOpts.cls || '.js-item-sku', !!focusOpts.select);
       }, 0);
     }
   }
@@ -947,16 +963,23 @@
   /** تحديث صف موجود من بيانات البند دون إعادة بناء الجدول (يمنع الوميض). */
   function patchLineRow(tr, ln) {
     if (!tr || !ln) return;
-    var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+    var barcode = cleanBarcodeText(ln.item_barcode || '');
+    var sku = String(ln.item_sku || '').trim();
     var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
     ln.item_barcode = barcode;
-    ln.item_code = barcode;
+    ln.item_sku = sku;
+    ln.item_code = barcode || sku;
     ln.name_ar = nameOnly;
 
     var hid = tr.querySelector('.js-item-id');
     if (hid) hid.value = ln.item_id || '';
     var baseEl = tr.querySelector('.js-base-sale');
     if (baseEl) baseEl.value = ln.base_sale != null ? String(ln.base_sale) : '';
+    var skuEl = tr.querySelector('.js-item-sku');
+    if (skuEl) {
+      skuEl.value = sku;
+      skuEl.title = sku;
+    }
     var codeEl = tr.querySelector('.js-item-code');
     if (codeEl) {
       codeEl.value = barcode;
@@ -1009,7 +1032,7 @@
   }
 
   /** ترتيب حقول التنقل Enter / الأسهم داخل السطر */
-  var LINE_NAV = ['.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
+  var LINE_NAV = ['.js-item-sku', '.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
 
   function lineNavEls(tr) {
     var list = [];
@@ -1190,11 +1213,16 @@
       itemSug &&
       !itemSug.hidden &&
       itemSug.querySelector('button') &&
-      (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-name'))
+      (fromEl.classList.contains('js-item-sku') ||
+        fromEl.classList.contains('js-item-code') ||
+        fromEl.classList.contains('js-item-name'))
     ) {
       if (pickActiveSuggest(itemSug)) return;
       // رقم مادة أو باركود مطابق تماماً → اختيار مباشر
-      if (fromEl.classList.contains('js-item-code') && pickExactCodeSuggest(itemSug, fromEl.value)) {
+      if (
+        (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-sku')) &&
+        pickExactCodeSuggest(itemSug, fromEl.value)
+      ) {
         return;
       }
       closeItemSuggest(itemSug);
@@ -1225,16 +1253,16 @@
       var idx = Number(tr.getAttribute('data-idx'));
       var curLn = state.lines[idx];
       if (!lineHasItem(curLn)) {
-        focusLineField(idx, '.js-item-code', true);
+        focusLineField(idx, '.js-item-sku', true);
         setMsg('اختر المادة أولاً قبل الانتقال لسطر جديد.', 'error');
         return;
       }
       var nextIdx = idx + 1;
       if (nextIdx < (state.lines || []).length) {
-        focusLineField(nextIdx, '.js-item-code', true);
+        focusLineField(nextIdx, '.js-item-sku', true);
       } else {
         if (addEmptyLine()) {
-          focusLineField((state.lines || []).length - 1, '.js-item-code', true);
+          focusLineField((state.lines || []).length - 1, '.js-item-sku', true);
         }
       }
       return;
@@ -1249,7 +1277,7 @@
     if (hi === headers.length - 1 || fromEl.id === 'co_customer') {
       // إلى أول بند — لا تضف سطرًا إن وُجد بالفعل سطر فارغ
       if (!(state.lines || []).length) addEmptyLine({ force: true });
-      focusLineField(0, '.js-item-code', true);
+      focusLineField(0, '.js-item-sku', true);
     }
   }
 
@@ -1310,7 +1338,7 @@
         }
       }
     }
-    focusLineField(nextIdx, cls || '.js-item-code', true);
+    focusLineField(nextIdx, cls || '.js-item-sku', true);
   }
 
   function goHorizontalField(fromEl, dir) {
@@ -1385,26 +1413,60 @@
       });
     });
     bindUnitOnly(tr);
+    var skuInput = tr.querySelector('.js-item-sku');
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
     var suggest = tr.querySelector('.js-item-suggest');
+
+    function clearLineItemChoice(idx) {
+      var hid = tr.querySelector('.js-item-id');
+      if (hid) hid.value = '';
+      if (nameInput) {
+        nameInput.value = '';
+        nameInput.readOnly = false;
+      }
+      if (state.lines[idx]) {
+        state.lines[idx].item_id = 0;
+        state.lines[idx].name_ar = '';
+      }
+    }
+
+    if (skuInput && suggest && !locked) {
+      skuInput.addEventListener('input', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        clearLineItemChoice(idx);
+        if (codeInput) codeInput.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_sku = String(skuInput.value || '').trim();
+          state.lines[idx].item_barcode = '';
+          state.lines[idx].item_code = '';
+        }
+        clearTimeout(itemTimers['s' + idx]);
+        itemTimers['s' + idx] = setTimeout(function () {
+          if (isSystemItemModalOpen()) return;
+          searchItems(skuInput.value, suggest, tr, skuInput);
+        }, 160);
+      });
+      skuInput.addEventListener('focus', function () {
+        if (isSystemItemModalOpen()) return;
+        searchItems(skuInput.value || '', suggest, tr, skuInput);
+      });
+      skuInput.addEventListener('click', function () {
+        if (isSystemItemModalOpen()) return;
+        if (!suggest.hidden) placeFloatSuggest(suggest, skuInput);
+        else searchItems(skuInput.value || '', suggest, tr, skuInput);
+      });
+    }
+
     if (codeInput && suggest && !locked) {
       codeInput.addEventListener('input', function () {
-        fitFieldToContent(codeInput, { min: 100, max: 240, pad: 24 });
         var idx = Number(tr.getAttribute('data-idx'));
-        var hid = tr.querySelector('.js-item-id');
-        if (hid) hid.value = '';
-        if (nameInput && !nameInput.readOnly) nameInput.value = '';
-        else if (nameInput) {
-          nameInput.value = '';
-          nameInput.readOnly = false;
-          fitFieldToContent(nameInput, { min: 140, max: 640, pad: 28 });
-        }
+        clearLineItemChoice(idx);
+        if (skuInput) skuInput.value = '';
         if (state.lines[idx]) {
-          state.lines[idx].item_id = 0;
-          state.lines[idx].name_ar = '';
           state.lines[idx].item_code = cleanBarcodeText(codeInput.value);
           state.lines[idx].item_barcode = state.lines[idx].item_code;
+          state.lines[idx].item_sku = '';
         }
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
@@ -1476,11 +1538,16 @@
     }
     var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
     box._coSearchToken = token;
-    // وضع القائمة: باركود ← يعرض الباركود فقط · اسم ← يعرض اسم المادة فقط
-    var mode =
-      anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
-    box.classList.remove('si-suggest--barcode', 'si-suggest--name');
-    box.classList.add(mode === 'name' ? 'si-suggest--name' : 'si-suggest--barcode');
+    // وضع القائمة: رقم مادة / باركود / اسم
+    var mode = 'barcode';
+    if (anchor && anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
     box.setAttribute('data-mode', mode);
     box.dataset.hxUserNav = '';
 
@@ -1512,11 +1579,13 @@
             ? 'لا توجد نتائج مطابقة'
             : mode === 'name'
               ? 'اكتب اسم المادة…'
-              : 'اكتب الباركود أو رقم المادة…';
+              : mode === 'sku'
+                ? 'اكتب رقم المادة…'
+                : 'اكتب الباركود…';
           box.appendChild(empty);
           box.hidden = false;
           box.removeAttribute('hidden');
-          placeFloatSuggest(box, anchor || tr.querySelector('.js-item-code'));
+          placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
           return;
         }
         rows.slice(0, 30).forEach(function (it, i) {
@@ -1526,15 +1595,15 @@
           var code = itemBarcodeOnly(it);
           var sku = itemSkuOnly(it);
           var nm = itemNameOnly(it);
-          // قائمة الباركود/رقم المادة · قائمة الاسم → اسم فقط
           if (mode === 'name') {
-            b.textContent = nm || code || sku;
+            b.textContent = nm || sku || code;
             b.title = sku || code ? 'رقم/باركود: ' + (sku || code) : nm;
+          } else if (mode === 'sku') {
+            b.textContent = sku || code || nm;
+            b.title = nm ? nm + (code ? ' · باركود ' + code : '') : code || sku;
           } else {
-            b.textContent = itemCodeSuggestLabel(it);
-            b.title = nm
-              ? nm + (sku && code && sku !== code ? ' · رقم ' + sku : '')
-              : sku || code;
+            b.textContent = code || sku || nm;
+            b.title = nm ? nm + (sku ? ' · رقم ' + sku : '') : sku || code;
           }
           b.setAttribute('data-item-id', String(it.id || ''));
           b.setAttribute('data-barcode', code);
@@ -1579,7 +1648,7 @@
     for (var i = 0; i < lines.length; i++) {
       if (!lineHasItem(lines[i])) {
         if (!opts.silent) {
-          focusLineField(i, '.js-item-code', true);
+          focusLineField(i, '.js-item-sku', true);
           setMsg('اختر المادة في السطر الحالي قبل إضافة سطر جديد.', 'error');
         }
         return false;
@@ -1596,6 +1665,7 @@
     state.lines = state.lines || [];
     state.lines.push({
       item_id: 0,
+      item_sku: '',
       item_code: '',
       item_barcode: '',
       name_ar: '',
@@ -2133,28 +2203,46 @@
         (data.store || '—') +
         (data.warehouse_name ? ' — ' + data.warehouse_name : '');
     }
-    (data.lines || []).forEach(function (ln) {
+    (data.lines || []).forEach(function (ln, i) {
+      var batches = Array.isArray(ln.batches) ? ln.batches : [];
+      var noStock = !batches.length;
       var tr = document.createElement('tr');
+      if (noStock) tr.className = 'co-batch-row--nostock';
+
+      var tdIdx = document.createElement('td');
+      tdIdx.className = 'co-batch-col-idx';
+      tdIdx.textContent = String(i + 1);
+
       var tdName = document.createElement('td');
+      tdName.className = 'co-batch-col-item';
       tdName.innerHTML =
-        '<strong dir="ltr">' +
+        '<span class="co-batch-item-code">' +
         escAttr(String(ln.item || '')) +
-        '</strong><br><span>' +
+        '</span><span class="co-batch-item-name">' +
         escAttr(String(ln.name || '')) +
         '</span>';
+
       var tdNeed = document.createElement('td');
-      tdNeed.dir = 'ltr';
+      tdNeed.className = 'co-batch-col-need';
       tdNeed.textContent = fmtBatchQty(ln.need);
+
       var tdBatch = document.createElement('td');
+      tdBatch.className = 'co-batch-col-batch';
       var sel = document.createElement('select');
-      sel.className = 'si-field';
+      sel.className = 'si-field co-batch-select';
       sel.dataset.srl = String(ln.srl || '');
       sel.dataset.item = String(ln.item || '');
+      if (noStock) {
+        sel.disabled = true;
+        var warn = document.createElement('div');
+        warn.className = 'co-batch-warn';
+        warn.textContent = 'لا رصيد موجب في BALANCE لهذه المادة.';
+        tdBatch.appendChild(warn);
+      }
       var opt0 = document.createElement('option');
       opt0.value = '';
-      opt0.textContent = '— اختر التشغيلة —';
+      opt0.textContent = noStock ? '— لا توجد تشغيلات —' : '— اختر التشغيلة —';
       sel.appendChild(opt0);
-      var batches = Array.isArray(ln.batches) ? ln.batches : [];
       var best = '';
       batches.forEach(function (b) {
         var o = document.createElement('option');
@@ -2167,13 +2255,9 @@
       });
       if (batches.length === 1) best = batches[0].batch;
       if (best) sel.value = best;
-      if (!batches.length) {
-        var warn = document.createElement('div');
-        warn.className = 'co-batch-warn';
-        warn.textContent = 'لا رصيد موجب في STOCK لهذه المادة.';
-        tdBatch.appendChild(warn);
-      }
       tdBatch.appendChild(sel);
+
+      tr.appendChild(tdIdx);
       tr.appendChild(tdName);
       tr.appendChild(tdNeed);
       tr.appendChild(tdBatch);

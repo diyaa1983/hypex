@@ -222,7 +222,7 @@ function phpEmbedBlock(phpRoute, title = '') {
 /** أعمدة جدول بنود فاتورة البيع / طلب شراء العميل — العروض في sales-2027.css */
 function linesColgroup() {
   return `<colgroup>
-    <col class="co-c-idx"><col class="co-c-code"><col class="co-c-name"><col class="co-c-unit">
+    <col class="co-c-idx"><col class="co-c-sku"><col class="co-c-code"><col class="co-c-name"><col class="co-c-unit">
     <col class="co-c-qty"><col class="co-c-extra"><col class="co-c-price"><col class="co-c-disc">
     <col class="co-c-tax"><col class="co-c-net"><col class="co-c-total"><col class="co-c-del">
   </colgroup>`;

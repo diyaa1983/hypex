@@ -290,6 +290,8 @@ async function renderForm(req, res, orderId) {
             {
               item_id: 0,
               item_code: '',
+              item_sku: '',
+              item_barcode: '',
               name_ar: '',
               qty: '',
               qty_extra: '',
@@ -404,7 +406,8 @@ async function renderForm(req, res, orderId) {
             <thead>
               <tr>
                 <th>#</th>
-                <th>باركود / رقم المادة</th>
+                <th>رقم المادة</th>
+                <th>الباركود</th>
                 <th>اسم المادة</th>
                 <th>الوحدة</th>
                 <th>الكمية</th>
@@ -504,9 +507,10 @@ async function renderForm(req, res, orderId) {
             <table class="co-batch-table">
               <thead>
                 <tr>
+                  <th>#</th>
                   <th>المادة</th>
                   <th>المطلوب</th>
-                  <th>التشغيلة (الرصيد من BALANCE)</th>
+                  <th>التشغيلة (رصيد BALANCE)</th>
                 </tr>
               </thead>
               <tbody id="co-batch-rows"></tbody>

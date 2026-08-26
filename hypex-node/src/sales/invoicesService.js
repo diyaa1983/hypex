@@ -111,7 +111,11 @@ async function getInvoice(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT il.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name,
+    `SELECT il.*,
+            NULLIF(TRIM(it.barcode), '') AS item_barcode,
+            NULLIF(TRIM(it.sku), '') AS item_sku,
+            COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code,
+            it.name_ar AS item_name,
             COALESCE(NULLIF(TRIM(il.unit_name), ''), NULLIF(TRIM(it.unit_name), ''), 'قطعة') AS unit_name,
             COALESCE(it.default_sale, 0) AS base_sale
      FROM sal_invoice_line il
@@ -139,7 +143,9 @@ async function getInvoice(id) {
     }
     mappedLines.push({
       item_id: itemId,
-      item_code: ln.item_code,
+      item_sku: ln.item_sku || '',
+      item_barcode: ln.item_barcode || '',
+      item_code: ln.item_barcode || ln.item_sku || ln.item_code || '',
       name_ar: ln.line_desc || ln.item_name,
       qty: Number(ln.qty || 0),
       qty_extra: Number(ln.qty_extra || 0),

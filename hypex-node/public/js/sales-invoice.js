@@ -252,8 +252,9 @@
   function applyItemToLine(ln, it) {
     ln = ln || {};
     ln.item_id = it.id;
+    ln.item_sku = itemSkuOnly(it);
     ln.item_barcode = itemBarcodeOnly(it);
-    ln.item_code = ln.item_barcode;
+    ln.item_code = ln.item_barcode || ln.item_sku;
     ln.name_ar = itemNameOnly(it);
     ln.base_list_sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
     ln.base_wholesale = Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
@@ -466,10 +467,13 @@
     var hid = tr.querySelector('.js-item-id');
     if (hid && hid.value) ln.item_id = Number(hid.value) || 0;
     var codeEl = tr.querySelector('.js-item-code');
+    var skuEl = tr.querySelector('.js-item-sku');
     var nameEl = tr.querySelector('.js-item-name');
+    if (skuEl) ln.item_sku = String(skuEl.value || '').trim();
     if (codeEl) {
-      ln.item_barcode = cleanBarcodeText(codeEl.value);
-      ln.item_code = ln.item_barcode;
+      var bc = cleanBarcodeText(codeEl.value);
+      ln.item_barcode = bc;
+      ln.item_code = bc || ln.item_sku || '';
     }
     if (nameEl) ln.name_ar = itemNameOnly({ name_ar: nameEl.value });
     state.lines[idx] = ln;
@@ -611,7 +615,11 @@
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
-      var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+      var barcode = cleanBarcodeText(ln.item_barcode || '');
+      var sku = String(ln.item_sku || '').trim();
+      if (!barcode && !sku) {
+        barcode = cleanBarcodeText(ln.item_code || '');
+      }
       var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
       if (!nameOnly && String(ln.item_code || '').indexOf(' — ') >= 0) {
         var raw = String(ln.item_code);
@@ -619,13 +627,24 @@
         nameOnly = itemNameOnly({ name_ar: raw.split(' — ')[1] || '' });
       }
       ln.item_barcode = barcode;
-      ln.item_code = barcode;
+      ln.item_sku = sku;
+      ln.item_code = barcode || sku;
       ln.name_ar = nameOnly;
       var tr = document.createElement('tr');
       tr.setAttribute('data-idx', String(idx));
       tr.innerHTML =
         '<td dir="ltr" class="si-row-num">' +
         (idx + 1) +
+        '</td>' +
+        '<td class="si-item-sku-cell">' +
+        '<input class="js-item-sku" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="رقم المادة" data-nav="1" title="' +
+        escAttr(sku) +
+        '" value="' +
+        escAttr(sku) +
+        '" ' +
+        (posted ? 'readonly' : '') +
+        '>' +
         '</td>' +
         '<td class="si-item-code-cell">' +
         '<input type="hidden" class="js-item-id" value="' +
@@ -634,8 +653,8 @@
         '<input type="hidden" class="js-base-sale" value="' +
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
-        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="rtl" ' +
-        'placeholder="باركود / رقم المادة" data-nav="1" title="' +
+        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="الباركود" data-nav="1" title="' +
         escAttr(barcode) +
         '" value="' +
         escAttr(barcode) +
@@ -728,10 +747,15 @@
       left = Math.max(8, window.innerWidth - width - 8);
     }
     box.classList.add('si-suggest--float');
-    var mode =
-      anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
-    box.classList.remove('si-suggest--barcode', 'si-suggest--name');
-    box.classList.add(mode === 'name' ? 'si-suggest--name' : 'si-suggest--barcode');
+    var mode = 'barcode';
+    if (anchor && anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
     box.setAttribute('data-mode', mode);
     box.style.width = width + 'px';
     box.style.left = left + 'px';
@@ -743,7 +767,7 @@
     if (!box) return;
     box.hidden = true;
     box.setAttribute('hidden', '');
-    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name');
+    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
     box.style.left = '';
     box.style.top = '';
     box.style.width = '';
@@ -816,20 +840,58 @@
       });
     }
     // حذف البند — التفويض العام على tbody أدناه
+    var skuInput = tr.querySelector('.js-item-sku');
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
     var suggest = tr.querySelector('.js-item-suggest');
+
+    function clearLineItemChoice(idx) {
+      var hid = tr.querySelector('.js-item-id');
+      if (hid) hid.value = '';
+      if (nameInput) {
+        nameInput.value = '';
+        nameInput.readOnly = false;
+      }
+      if (state.lines[idx]) {
+        state.lines[idx].item_id = 0;
+        state.lines[idx].name_ar = '';
+      }
+    }
+
+    if (skuInput && suggest && !posted) {
+      skuInput.addEventListener('input', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        clearLineItemChoice(idx);
+        if (codeInput) codeInput.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_sku = String(skuInput.value || '').trim();
+          state.lines[idx].item_barcode = '';
+          state.lines[idx].item_code = '';
+        }
+        clearTimeout(itemTimers['s' + idx]);
+        itemTimers['s' + idx] = setTimeout(function () {
+          searchItems(skuInput.value, suggest, tr, skuInput);
+        }, 200);
+      });
+      skuInput.addEventListener('focus', function () {
+        searchItems(skuInput.value || '', suggest, tr, skuInput);
+      });
+      skuInput.addEventListener('click', function () {
+        if (!suggest.hidden) placeFloatSuggest(suggest, skuInput);
+        else searchItems(skuInput.value || '', suggest, tr, skuInput);
+      });
+    }
+
     if (codeInput && suggest && !posted) {
       codeInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
-        var hid = tr.querySelector('.js-item-id');
-        if (hid) hid.value = '';
+        clearLineItemChoice(idx);
+        if (skuInput) skuInput.value = '';
         if (state.lines[idx]) {
-          state.lines[idx].item_id = 0;
-          state.lines[idx].item_barcode = codeInput.value;
-          state.lines[idx].item_code = codeInput.value;
+          state.lines[idx].item_code = cleanBarcodeText(codeInput.value);
+          state.lines[idx].item_barcode = state.lines[idx].item_code;
+          state.lines[idx].item_sku = '';
         }
-        if (nameInput && !nameInput.readOnly) nameInput.value = '';
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
           searchItems(codeInput.value, suggest, tr, codeInput);
@@ -839,7 +901,8 @@
         searchItems(codeInput.value || '', suggest, tr, codeInput);
       });
       codeInput.addEventListener('click', function () {
-        searchItems(codeInput.value || '', suggest, tr, codeInput);
+        if (!suggest.hidden) placeFloatSuggest(suggest, codeInput);
+        else searchItems(codeInput.value || '', suggest, tr, codeInput);
       });
     }
     if (nameInput && suggest && !posted) {
@@ -865,6 +928,18 @@
   }
 
   function searchItems(q, box, tr, anchor) {
+    var mode = 'barcode';
+    if (anchor && anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    if (box) {
+      box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+      box.classList.add(
+        mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+      );
+      box.setAttribute('data-mode', mode);
+    }
     var urls = [
       '/api/items?q=' + encodeURIComponent(q || ''),
       '/api/lookup/items?q=' + encodeURIComponent(q || ''),
@@ -900,8 +975,16 @@
     box.innerHTML = '';
     var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell');
     if (cell) cell.classList.add('is-open');
+    var mode = 'barcode';
+    if (anchor && anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
     var fallback =
-      anchor || tr.querySelector('.js-item-code') || tr.querySelector('.js-item');
+      anchor ||
+      tr.querySelector('.js-item-sku') ||
+      tr.querySelector('.js-item-code') ||
+      tr.querySelector('.js-item');
 
     if (!data || !data.ok) {
       var err = document.createElement('div');
@@ -921,7 +1004,13 @@
       var empty = document.createElement('div');
       empty.className = 'si-suggest-empty';
       empty.style.cssText = 'padding:.65rem .8rem;color:#64748b;font-size:.85rem';
-      empty.textContent = 'لا توجد مواد مطابقة. جرّب الباركود أو رقم المادة.';
+      empty.textContent = (function () {
+        var qq = String((anchor && anchor.value) || '').trim();
+        if (qq) return 'لا توجد مواد مطابقة.';
+        if (mode === 'name') return 'اكتب اسم المادة…';
+        if (mode === 'sku') return 'اكتب رقم المادة…';
+        return 'اكتب الباركود…';
+      })();
       box.appendChild(empty);
       box.hidden = false;
       box.removeAttribute('hidden');
@@ -929,8 +1018,6 @@
       return;
     }
 
-    var mode =
-      anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
     box._hxRows = rows;
     rows.slice(0, 40).forEach(function (it) {
       var b = document.createElement('button');
@@ -938,10 +1025,16 @@
       var code = itemBarcodeOnly(it);
       var sku = itemSkuOnly(it);
       var name = itemNameOnly(it);
-      b.textContent =
-        mode === 'name'
-          ? name + (sku || code ? ' · ' + (sku || code) : '') + ' · ' + fmt(it.sale_price)
-          : itemCodeSuggestLabel(it) + ' — ' + name + ' · ' + fmt(it.sale_price);
+      if (mode === 'name') {
+        b.textContent =
+          name + (sku || code ? ' · ' + (sku || code) : '') + ' · ' + fmt(it.sale_price);
+      } else if (mode === 'sku') {
+        b.textContent = (sku || code || name) + ' — ' + name + ' · ' + fmt(it.sale_price);
+        b.title = name ? name + (code ? ' · باركود ' + code : '') : code || sku;
+      } else {
+        b.textContent = (code || sku || name) + ' — ' + name + ' · ' + fmt(it.sale_price);
+        b.title = name ? name + (sku ? ' · رقم ' + sku : '') : sku || code;
+      }
       b.setAttribute('data-barcode', code);
       b.setAttribute('data-sku', sku);
       b.addEventListener('mousedown', function (e) {
@@ -976,6 +1069,7 @@
     state.lines = state.lines || [];
     state.lines.push({
       item_id: 0,
+      item_sku: '',
       item_code: '',
       item_barcode: '',
       name_ar: '',
@@ -1187,7 +1281,7 @@
     setTimeout(function () {
       if (posted) return;
       if (!(state.lines || []).length) addEmptyLine();
-      focusLineField(0, '.js-item-code', true);
+      focusLineField(0, '.js-item-sku', true);
     }, 40);
   }
 
@@ -1277,15 +1371,18 @@
   document.addEventListener('click', function (e) {
     document.querySelectorAll('.js-item-suggest').forEach(function (box) {
       var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell') || box.parentElement;
-      var inp =
+      var tr = box.closest('tr');
+      var codeInp =
         (cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'))) || null;
-      var nameInp = cell && cell.parentElement && cell.parentElement.querySelector('.js-item-name');
+      var skuInp = tr && tr.querySelector('.js-item-sku');
+      var nameInp = tr && tr.querySelector('.js-item-name');
       if (
         !box.contains(e.target) &&
-        e.target !== inp &&
+        e.target !== codeInp &&
+        e.target !== skuInp &&
         e.target !== nameInp &&
         !(cell && cell.contains(e.target)) &&
-        !(nameInp && nameInp === e.target)
+        !(skuInp && skuInp === e.target)
       ) {
         closeFloatSuggest(box);
       }
@@ -1301,7 +1398,9 @@
         var inp =
           mode === 'name'
             ? tr && tr.querySelector('.js-item-name')
-            : cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'));
+            : mode === 'sku'
+              ? tr && tr.querySelector('.js-item-sku')
+              : cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'));
         if (inp && !box.hidden) placeFloatSuggest(box, inp);
       });
     },
@@ -1876,7 +1975,11 @@
     state.lines =
       inv.lines && inv.lines.length
         ? inv.lines.map(function (ln) {
-            var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+            var barcode = cleanBarcodeText(ln.item_barcode || '');
+            var sku = String(ln.item_sku || '').trim();
+            if (!barcode && !sku) {
+              barcode = cleanBarcodeText(ln.item_code || '');
+            }
             var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
             if (!nameOnly && String(ln.item_code || '').indexOf(' — ') >= 0) {
               var raw = String(ln.item_code);
@@ -1884,14 +1987,16 @@
               nameOnly = itemNameOnly({ name_ar: raw.split(' — ')[1] || '' });
             }
             return Object.assign({}, ln, {
+              item_sku: sku,
               item_barcode: barcode,
-              item_code: barcode,
+              item_code: barcode || sku,
               name_ar: nameOnly,
             });
           })
         : [
             {
               item_id: 0,
+              item_sku: '',
               item_code: '',
               item_barcode: '',
               name_ar: '',
@@ -2051,7 +2156,7 @@
     }
   }
 
-  var LINE_NAV = ['.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
+  var LINE_NAV = ['.js-item-sku', '.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
 
   function lineNavEls(tr) {
     var list = [];
@@ -2179,10 +2284,15 @@
       itemSug &&
       !itemSug.hidden &&
       itemSug.querySelector('button') &&
-      (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-name'))
+      (fromEl.classList.contains('js-item-sku') ||
+        fromEl.classList.contains('js-item-code') ||
+        fromEl.classList.contains('js-item-name'))
     ) {
       if (pickActiveSuggest(itemSug)) return;
-      if (fromEl.classList.contains('js-item-code') && pickExactCodeSuggest(itemSug, fromEl.value)) {
+      if (
+        (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-sku')) &&
+        pickExactCodeSuggest(itemSug, fromEl.value)
+      ) {
         return;
       }
       closeFloatSuggest(itemSug);

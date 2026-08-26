@@ -77,8 +77,9 @@ async function getOrder(id) {
   try {
     lines = await db.query(
       `SELECT l.*,
+              NULLIF(TRIM(i.barcode), '') AS item_barcode,
+              NULLIF(TRIM(i.sku), '') AS item_sku,
               COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_code,
-              COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_sku,
               COALESCE(NULLIF(TRIM(l.item_name), ''), i.name_ar, '') AS item_name_resolved,
               COALESCE(NULLIF(TRIM(l.unit_name), ''), NULLIF(TRIM(i.unit_name), ''), 'قطعة') AS unit_name_resolved,
               COALESCE(i.default_sale, 0) AS item_default_sale
@@ -91,8 +92,9 @@ async function getOrder(id) {
   } catch {
     lines = await db.query(
       `SELECT l.*,
+              NULLIF(TRIM(i.barcode), '') AS item_barcode,
+              NULLIF(TRIM(i.sku), '') AS item_sku,
               COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_code,
-              COALESCE(NULLIF(TRIM(i.barcode), ''), i.sku) AS item_sku,
               COALESCE(NULLIF(TRIM(l.item_name), ''), i.name_ar, '') AS item_name_resolved,
               COALESCE(NULLIF(TRIM(l.unit_name), ''), 'قطعة') AS unit_name_resolved,
               COALESCE(i.default_sale, 0) AS item_default_sale
@@ -123,8 +125,9 @@ async function getOrder(id) {
     }
     mappedLines.push({
       item_id: itemId,
-      item_code: ln.item_code || ln.item_sku || '',
-      item_barcode: ln.item_code || ln.item_sku || '',
+      item_sku: ln.item_sku || '',
+      item_barcode: ln.item_barcode || '',
+      item_code: ln.item_barcode || ln.item_sku || ln.item_code || '',
       name_ar: ln.item_name_resolved || ln.item_name || '',
       qty: Number(ln.qty || 0),
       qty_extra: Number(ln.qty_extra || 0),
