@@ -1736,7 +1736,132 @@ function oracle_order_stock_toad_exact_batches(
 }
 
 /**
- * قراءة رصيد STOCK — Toad أولاً ثم المسار الكامل مع إعادة محاولة.
+ * تشغيلات متوفرة من MAS.BALANCE (نفس مصدر قائمة INV00024).
+ * يعرض فقط التشغيلات ذات QTY_OH > 0 — بدون صفوف فارغة أو تواريخ في عمود BATCH.
+ *
+ * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count:int,positive_batches:int,qty_cols:list<string>,other_stores:list<array{store:int,qty:float}>,cat_used:string,source:string}|null
+ */
+function oracle_order_balance_batches(
+    array $conn,
+    int $store,
+    string $item,
+    string $cat,
+    string $owner = 'MAS'
+): ?array {
+    $item = trim($item);
+    $cat = trim($cat);
+    if ($item === '' || $store < 1) {
+        return null;
+    }
+    $from = oracle_order_quoted($owner, 'BALANCE');
+    $select = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH,'
+        . ' NVL(QTY_OH, 0) AS QTY_OH,'
+        . ' EXP_DATE,'
+        . ' TRIM(TO_CHAR(CAT)) AS CAT_X,'
+        . ' TRIM(TO_CHAR(ITEM)) AS ITEM_X,'
+        . ' TRIM(TO_CHAR(STORE)) AS STORE_X'
+        . ' FROM ' . $from
+        . ' WHERE (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+        . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
+        . ' AND NVL(QTY_OH, 0) > 0.0000001';
+
+    $bindsBase = ['item' => $item, 'store' => $store, 'store_txt' => (string) $store];
+    $storeSqls = [
+        ' AND STORE = :store',
+        ' AND TRIM(TO_CHAR(STORE)) = TRIM(:store_txt)',
+        ' AND TO_NUMBER(REGEXP_REPLACE(TO_CHAR(STORE), \'[^0-9]\', \'\')) = :store',
+    ];
+    $catSqls = [''];
+    if ($cat !== '') {
+        $bindsBase['cat'] = $cat;
+        $catSqls[] = ' AND (TRIM(TO_CHAR(CAT)) = TRIM(:cat)'
+            . ' OR LTRIM(TRIM(TO_CHAR(CAT)), \'0\') = LTRIM(TRIM(:cat), \'0\'))';
+    }
+
+    $raw = [];
+    foreach ($catSqls as $catSql) {
+        foreach ($storeSqls as $storeSql) {
+            try {
+                $got = oracle_query_all($conn, $select . $storeSql . $catSql . ' AND ROWNUM <= 500', $bindsBase);
+            } catch (Throwable $e) {
+                continue;
+            }
+            if (is_array($got) && $got !== []) {
+                $raw = $got;
+                break 2;
+            }
+        }
+    }
+    if ($raw === []) {
+        return null;
+    }
+
+    /** @var array<string,array{batch:string,qty:float,exp_date:string,sort_date:string}> $byBatch */
+    $byBatch = [];
+    foreach ($raw as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $rowItem = oracle_statement_row_val($r, 'ITEM_X');
+        $rowCat = oracle_statement_row_val($r, 'CAT_X');
+        if (!oracle_order_stock_keys_match($rowItem, $rowCat, $item, $cat)) {
+            continue;
+        }
+        $b = trim(oracle_statement_row_val($r, 'BATCH'));
+        if ($b === '' || oracle_order_batch_looks_like_date($b)) {
+            continue;
+        }
+        $norm = oracle_order_batch_norm_key($b);
+        if ($norm === '') {
+            continue;
+        }
+        $q = oracle_order_parse_qty($r['QTY_OH'] ?? oracle_statement_row_val($r, 'QTY_OH'));
+        if ($q <= 0.0000001) {
+            continue;
+        }
+        $expDate = oracle_order_parse_stock_date(oracle_statement_row_val($r, 'EXP_DATE')) ?? '';
+        $guess = oracle_order_batch_date_guess($b);
+        $sortDate = $expDate !== '' ? $expDate : (string) ($guess ?? '');
+        if (!isset($byBatch[$norm])) {
+            $byBatch[$norm] = [
+                'batch' => $b,
+                'qty' => 0.0,
+                'exp_date' => $expDate,
+                'sort_date' => $sortDate,
+            ];
+        }
+        $byBatch[$norm]['qty'] += $q;
+        if ($expDate !== '' && ($byBatch[$norm]['exp_date'] ?? '') === '') {
+            $byBatch[$norm]['exp_date'] = $expDate;
+            $byBatch[$norm]['sort_date'] = $expDate;
+        }
+    }
+
+    if ($byBatch === []) {
+        return null;
+    }
+
+    $rows = oracle_order_sort_batches_oldest_first(array_values($byBatch));
+    $total = 0.0;
+    foreach ($rows as $row) {
+        $total += (float) ($row['qty'] ?? 0);
+    }
+
+    return [
+        'ok' => true,
+        'rows' => $rows,
+        'total' => $total,
+        'raw_count' => count($raw),
+        'positive_batches' => count($rows),
+        'qty_cols' => ['QTY_OH'],
+        'other_stores' => [],
+        'cat_used' => $cat,
+        'source' => 'balance-qty-oh',
+    ];
+}
+
+/**
+ * قراءة رصيد التشغيلات — أولاً MAS.BALANCE (مثل INV00024)، ثم STOCK احتياطاً.
  *
  * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int,cat_used?:string,source?:string,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,debug_sample?:list<array<string,mixed>>}
  */
@@ -1755,6 +1880,12 @@ function oracle_order_resolve_stock_batches(
     }
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
+
+    // مصدر قائمة Forms: BALANCE.QTY_OH > 0 فقط (بدون تشغيلات فارغة)
+    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner);
+    if ($balance !== null && (float) ($balance['total'] ?? 0) > 0.0000001) {
+        return $balance;
+    }
 
     $exact = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
     if ($exact !== null && (float) ($exact['total'] ?? 0) > 0.0000001) {
@@ -2797,7 +2928,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v17-BATCH';
+    $version = 'STOCK-v18-BALANCE';
     $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
