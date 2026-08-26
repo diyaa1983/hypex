@@ -809,6 +809,14 @@
 
   function renderLines(focusOpts) {
     if (!tbody) return;
+    // أزل قوائم عالقة على body بعد إعادة رسم الأسطر
+    document.querySelectorAll('body > .js-item-suggest').forEach(function (el) {
+      try {
+        el.remove();
+      } catch (e) {
+        /* ignore */
+      }
+    });
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
@@ -1074,6 +1082,7 @@
     if (box) return box;
     var floating = document.querySelectorAll('body > .js-item-suggest');
     for (var i = 0; i < floating.length; i++) {
+      if (floating[i]._hxRow === tr) return floating[i];
       var home = floating[i]._hxHome;
       if (home && tr.contains(home)) return floating[i];
     }
@@ -1191,7 +1200,45 @@
 
   function isSystemItemModalOpen() {
     var m = document.getElementById('hx-lk');
-    return !!(m && !m.hidden);
+    if (!m) return false;
+    if (m.hidden || m.hasAttribute('hidden')) return false;
+    var st = window.getComputedStyle(m);
+    if (st.display === 'none' || st.visibility === 'hidden') return false;
+    return true;
+  }
+
+  function resolveSuggestBox(tr) {
+    if (!tr) return null;
+    return openSuggestForRow(tr) || tr.querySelector('.js-item-suggest');
+  }
+
+  function ensureSuggestHome(box, tr) {
+    if (!box) return;
+    if (tr) box._hxRow = tr;
+    if (!box._hxHome || !box._hxHome.parentNode || box._hxHome === document.body) {
+      var cell =
+        (tr && (tr.querySelector('.si-item-code-cell') || tr.querySelector('.si-item-sku-cell'))) ||
+        null;
+      box._hxHome = cell || box._hxHome;
+    }
+  }
+
+  function showSuggestLoading(box, tr, anchor) {
+    if (!box || !anchor) return;
+    ensureSuggestHome(box, tr);
+    var mode = 'barcode';
+    if (anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
+    box.setAttribute('data-mode', mode);
+    box.innerHTML =
+      '<div class="si-suggest-empty" style="padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right">جاري التحميل…</div>';
+    placeFloatSuggest(box, anchor);
   }
 
   function placeFloatSuggest(box, anchor) {
@@ -1201,11 +1248,16 @@
       closeItemSuggest(box);
       return;
     }
-    // انقل للقائمة إلى body حتى لا تتأثر بـ overflow/transform داخل الجدول
-    if (!box._hxHome) {
-      box._hxHome = box.parentNode;
-    }
+    var tr =
+      box._hxRow ||
+      (anchor.closest && anchor.closest('tr[data-idx]')) ||
+      null;
+    ensureSuggestHome(box, tr);
+    // انقل القائمة إلى body حتى لا تتأثر بـ overflow/transform داخل الجدول
     if (box.parentNode !== document.body) {
+      if (!box._hxHome || box._hxHome === document.body) {
+        box._hxHome = box.parentNode;
+      }
       document.body.appendChild(box);
     }
 
@@ -1213,11 +1265,10 @@
     var mode = box.getAttribute('data-mode') || 'barcode';
     var width;
     if (mode === 'name') {
-      width = Math.min(Math.max(r.width, 260), Math.min(420, window.innerWidth - 16));
+      width = Math.min(Math.max(r.width, 280), Math.min(440, window.innerWidth - 16));
     } else {
-      // نفس عرض الحقل تقريباً — تحت الحقل مباشرة
-      width = Math.max(Math.round(r.width), 96);
-      width = Math.min(width, window.innerWidth - 16);
+      // قائمة رقم/باركود أوسع من الحقل الضيق حتى تظهر بوضوح
+      width = Math.min(Math.max(Math.round(r.width), 200), Math.min(320, window.innerWidth - 16));
     }
 
     // في RTL: حقل رقم المادة على اليمين — نحاذي الحافة اليمنى للقائمة مع الحقل
@@ -1465,7 +1516,7 @@
     var skuInput = tr.querySelector('.js-item-sku');
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
-    var suggest = tr.querySelector('.js-item-suggest');
+    var suggest = resolveSuggestBox(tr);
 
     function clearLineItemChoice(idx) {
       var hid = tr.querySelector('.js-item-id');
@@ -1478,6 +1529,15 @@
         state.lines[idx].item_id = 0;
         state.lines[idx].name_ar = '';
       }
+    }
+
+    function openItemList(anchor) {
+      if (!anchor || locked || isSystemItemModalOpen()) return;
+      var box = resolveSuggestBox(tr);
+      if (!box) return;
+      ensureSuggestHome(box, tr);
+      showSuggestLoading(box, tr, anchor);
+      searchItems(anchor.value || '', box, tr, anchor);
     }
 
     if (skuInput && suggest && !locked) {
@@ -1493,17 +1553,16 @@
         clearTimeout(itemTimers['s' + idx]);
         itemTimers['s' + idx] = setTimeout(function () {
           if (isSystemItemModalOpen()) return;
-          searchItems(skuInput.value, suggest, tr, skuInput);
+          var box = resolveSuggestBox(tr);
+          if (!box) return;
+          searchItems(skuInput.value, box, tr, skuInput);
         }, 160);
       });
       skuInput.addEventListener('focus', function () {
-        if (isSystemItemModalOpen()) return;
-        searchItems(skuInput.value || '', suggest, tr, skuInput);
+        openItemList(skuInput);
       });
       skuInput.addEventListener('click', function () {
-        if (isSystemItemModalOpen()) return;
-        if (!suggest.hidden) placeFloatSuggest(suggest, skuInput);
-        else searchItems(skuInput.value || '', suggest, tr, skuInput);
+        openItemList(skuInput);
       });
     }
 
@@ -1520,17 +1579,16 @@
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
           if (isSystemItemModalOpen()) return;
-          searchItems(codeInput.value, suggest, tr, codeInput);
+          var box = resolveSuggestBox(tr);
+          if (!box) return;
+          searchItems(codeInput.value, box, tr, codeInput);
         }, 160);
       });
       codeInput.addEventListener('focus', function () {
-        if (isSystemItemModalOpen()) return;
-        searchItems(codeInput.value || '', suggest, tr, codeInput);
+        openItemList(codeInput);
       });
       codeInput.addEventListener('click', function () {
-        if (isSystemItemModalOpen()) return;
-        if (!suggest.hidden) placeFloatSuggest(suggest, codeInput);
-        else searchItems(codeInput.value || '', suggest, tr, codeInput);
+        openItemList(codeInput);
       });
     }
     if (nameInput && suggest && !locked) {
@@ -1548,19 +1606,17 @@
         clearTimeout(itemTimers['n' + idx]);
         itemTimers['n' + idx] = setTimeout(function () {
           if (isSystemItemModalOpen()) return;
-          searchItems(nameInput.value, suggest, tr, nameInput);
+          var box = resolveSuggestBox(tr);
+          if (!box) return;
+          searchItems(nameInput.value, box, tr, nameInput);
         }, 160);
       });
       nameInput.addEventListener('focus', function () {
-        if (nameInput.readOnly) return;
-        if (isSystemItemModalOpen()) return;
-        searchItems(nameInput.value || '', suggest, tr, nameInput);
+        // حتى لو كان الاسم للقراءة فقط — أظهر القائمة لتغيير المادة
+        openItemList(nameInput);
       });
       nameInput.addEventListener('click', function () {
-        if (nameInput.readOnly) return;
-        if (isSystemItemModalOpen()) return;
-        if (!suggest.hidden) placeFloatSuggest(suggest, nameInput);
-        else searchItems(nameInput.value || '', suggest, tr, nameInput);
+        openItemList(nameInput);
       });
     }
     // توسيع فوري عند ربط الصف
@@ -1585,6 +1641,7 @@
       closeItemSuggest(box);
       return;
     }
+    ensureSuggestHome(box, tr);
     var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
     box._coSearchToken = token;
     // وضع القائمة: رقم مادة / باركود / اسم
@@ -1600,84 +1657,99 @@
     box.setAttribute('data-mode', mode);
     box.dataset.hxUserNav = '';
 
-    fetch('/api/sales/customer-orders/items?q=' + encodeURIComponent(q || ''))
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (box._coSearchToken !== token) return;
-        // رد متأخر بعد فتح F3 → لا تُظهر القائمة المنسدلة
-        if (isSystemItemModalOpen()) {
-          closeItemSuggest(box);
-          return;
-        }
-        box.innerHTML = '';
-        box.dataset.hxUserNav = '';
-        box._hxRows = [];
-        if (!data.ok) {
-          closeItemSuggest(box);
-          return;
-        }
-        var rows = data.rows || [];
-        box._hxRows = rows;
-        if (!rows.length) {
-          var empty = document.createElement('div');
-          empty.className = 'si-suggest-empty';
-          empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
-          empty.textContent = q
-            ? 'لا توجد نتائج مطابقة'
-            : mode === 'name'
-              ? 'اكتب اسم المادة…'
-              : mode === 'sku'
-                ? 'اكتب رقم المادة…'
-                : 'اكتب الباركود…';
-          box.appendChild(empty);
-          box.hidden = false;
-          box.removeAttribute('hidden');
-          placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
-          return;
-        }
-        rows.slice(0, 30).forEach(function (it, i) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.tabIndex = -1;
-          var code = itemBarcodeOnly(it);
-          var sku = itemSkuOnly(it);
-          var nm = itemNameOnly(it);
-          if (mode === 'name') {
-            b.textContent = nm || sku || code;
-            b.title = sku || code ? 'رقم/باركود: ' + (sku || code) : nm;
-          } else if (mode === 'sku') {
-            b.textContent = sku || code || nm;
-            b.title = nm ? nm + (code ? ' · باركود ' + code : '') : code || sku;
-          } else {
-            b.textContent = code || sku || nm;
-            b.title = nm ? nm + (sku ? ' · رقم ' + sku : '') : sku || code;
-          }
-          b.setAttribute('data-item-id', String(it.id || ''));
-          b.setAttribute('data-barcode', code);
-          b.setAttribute('data-sku', sku);
-          b.setAttribute('data-name', nm);
-          b.addEventListener('mousedown', function (e) {
-            e.preventDefault();
-          });
-          b.addEventListener('click', function () {
-            // نقر الماوس = اختيار صريح
-            box.dataset.hxUserNav = '1';
-            closeItemSuggest(box);
-            pickItemIntoRow(tr, it, true);
-          });
-          // لا نفعّل is-active تلقائياً — حتى لا يختار Enter أول باركود
-          box.appendChild(b);
-        });
-        box.hidden = false;
-        box.removeAttribute('hidden');
-        placeFloatSuggest(box, anchor || tr.querySelector('.js-item-code'));
-      })
-      .catch(function () {
-        if (box._coSearchToken !== token) return;
+    var urls = [
+      '/api/sales/customer-orders/items?q=' + encodeURIComponent(q || ''),
+      '/api/items?q=' + encodeURIComponent(q || ''),
+      '/api/lookup/items?q=' + encodeURIComponent(q || ''),
+    ];
+
+    function finish(data) {
+      if (box._coSearchToken !== token) return;
+      if (isSystemItemModalOpen()) {
         closeItemSuggest(box);
+        return;
+      }
+      box.innerHTML = '';
+      box.dataset.hxUserNav = '';
+      box._hxRows = [];
+      if (!data || !data.ok) {
+        var err = document.createElement('div');
+        err.className = 'si-suggest-empty';
+        err.style.cssText = 'padding:.55rem .75rem;color:#b91c1c;font-size:.82rem;text-align:right';
+        err.textContent = (data && data.error) || 'تعذر تحميل المواد';
+        box.appendChild(err);
+        placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
+        return;
+      }
+      var rows = data.rows || data.items || [];
+      box._hxRows = rows;
+      if (!rows.length) {
+        var empty = document.createElement('div');
+        empty.className = 'si-suggest-empty';
+        empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
+        empty.textContent = q
+          ? 'لا توجد نتائج مطابقة'
+          : mode === 'name'
+            ? 'اكتب اسم المادة…'
+            : mode === 'sku'
+              ? 'اكتب رقم المادة…'
+              : 'اكتب الباركود…';
+        box.appendChild(empty);
+        placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
+        return;
+      }
+      rows.slice(0, 30).forEach(function (it) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.tabIndex = -1;
+        var code = itemBarcodeOnly(it);
+        var sku = itemSkuOnly(it);
+        var nm = itemNameOnly(it);
+        if (mode === 'name') {
+          b.textContent = nm || sku || code;
+          b.title = sku || code ? 'رقم/باركود: ' + (sku || code) : nm;
+        } else if (mode === 'sku') {
+          b.textContent = (sku || code || nm) + (nm && sku ? ' — ' + nm : '');
+          b.title = nm ? nm + (code ? ' · باركود ' + code : '') : code || sku;
+        } else {
+          b.textContent = (code || sku || nm) + (nm && code ? ' — ' + nm : '');
+          b.title = nm ? nm + (sku ? ' · رقم ' + sku : '') : sku || code;
+        }
+        b.setAttribute('data-item-id', String(it.id || ''));
+        b.setAttribute('data-barcode', code);
+        b.setAttribute('data-sku', sku);
+        b.setAttribute('data-name', nm);
+        b.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+        });
+        b.addEventListener('click', function () {
+          box.dataset.hxUserNav = '1';
+          closeItemSuggest(box);
+          pickItemIntoRow(tr, it, true);
+        });
+        box.appendChild(b);
       });
+      placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
+    }
+
+    function tryFetch(i) {
+      if (i >= urls.length) {
+        finish({ ok: false, error: 'تعذر تحميل المواد' });
+        return;
+      }
+      fetch(urls[i], { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          finish(data || { ok: false });
+        })
+        .catch(function () {
+          tryFetch(i + 1);
+        });
+    }
+    tryFetch(0);
   }
 
   /** هل تم اختيار مادة في السطر؟ */
@@ -1840,24 +1912,29 @@
         searchCustomers(custInput.value || '');
       }, 220);
     });
-    document.addEventListener('click', function (e) {
-      if (!custBox.contains(e.target) && e.target !== custInput) {
-        custBox.hidden = true;
-        custBox.setAttribute('hidden', '');
-      }
-      document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-        if (box.hidden) return;
-        var home = box._hxHome || box.parentNode;
-        var tr = (home && home.closest && home.closest('tr[data-idx]')) || box.closest('tr[data-idx]');
-        var skuEl = tr && tr.querySelector('.js-item-sku');
-        var codeEl = tr && tr.querySelector('.js-item-code');
-        var nameEl = tr && tr.querySelector('.js-item-name');
-        if (box.contains(e.target)) return;
-        if (e.target === skuEl || e.target === codeEl || e.target === nameEl) return;
-        closeItemSuggest(box);
-      });
-    });
   }
+
+  document.addEventListener('click', function (e) {
+    if (!document.getElementById('co-doc-bar')) return;
+    if (custBox && custInput && !custBox.contains(e.target) && e.target !== custInput) {
+      custBox.hidden = true;
+      custBox.setAttribute('hidden', '');
+    }
+    var field = e.target && e.target.closest
+      ? e.target.closest('.js-item-sku, .js-item-code, .js-item-name')
+      : null;
+    var fieldTr = field && field.closest ? field.closest('tr[data-idx]') : null;
+    document.querySelectorAll('.js-item-suggest').forEach(function (box) {
+      if (box.hidden) return;
+      if (box.contains(e.target)) return;
+      var tr =
+        box._hxRow ||
+        ((box._hxHome && box._hxHome.closest && box._hxHome.closest('tr[data-idx]')) ||
+          box.closest('tr[data-idx]'));
+      if (fieldTr && tr === fieldTr) return;
+      closeItemSuggest(box);
+    });
+  });
 
   window.addEventListener(
     'scroll',

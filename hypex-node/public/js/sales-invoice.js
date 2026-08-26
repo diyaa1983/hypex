@@ -612,6 +612,13 @@
 
   function renderLines() {
     if (!tbody) return;
+    document.querySelectorAll('body > .js-item-suggest').forEach(function (el) {
+      try {
+        el.remove();
+      } catch (e) {
+        /* ignore */
+      }
+    });
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
@@ -740,7 +747,13 @@
 
   function placeFloatSuggest(box, anchor) {
     if (!box || !anchor) return;
-    if (!box._hxHome) box._hxHome = box.parentNode;
+    var tr = (anchor.closest && anchor.closest('tr[data-idx]')) || box._hxRow || null;
+    if (tr) box._hxRow = tr;
+    if (!box._hxHome || box._hxHome === document.body || !box._hxHome.parentNode) {
+      box._hxHome =
+        (tr && (tr.querySelector('.si-item-code-cell') || tr.querySelector('.si-item-sku-cell'))) ||
+        box.parentNode;
+    }
     if (box.parentNode !== document.body) {
       document.body.appendChild(box);
     }
@@ -759,8 +772,8 @@
 
     var width =
       mode === 'name'
-        ? Math.min(Math.max(r.width, 260), Math.min(420, window.innerWidth - 16))
-        : Math.min(Math.max(Math.round(r.width), 96), window.innerWidth - 16);
+        ? Math.min(Math.max(r.width, 280), Math.min(440, window.innerWidth - 16))
+        : Math.min(Math.max(Math.round(r.width), 200), Math.min(320, window.innerWidth - 16));
 
     var left = Math.round(r.right - width);
     if (left < 8) left = 8;
@@ -909,6 +922,22 @@
       }
     }
 
+    function openItemList(anchor) {
+      if (!anchor || posted || !suggest) return;
+      boxPrepare(suggest, tr, anchor);
+      searchItems(anchor.value || '', suggest, tr, anchor);
+    }
+
+    function boxPrepare(box, row, anchor) {
+      box._hxRow = row;
+      if (!box._hxHome || box._hxHome === document.body) {
+        box._hxHome = row.querySelector('.si-item-code-cell') || box.parentNode;
+      }
+      box.innerHTML =
+        '<div class="si-suggest-empty" style="padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right">جاري التحميل…</div>';
+      placeFloatSuggest(box, anchor);
+    }
+
     if (skuInput && suggest && !posted) {
       skuInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
@@ -925,11 +954,10 @@
         }, 200);
       });
       skuInput.addEventListener('focus', function () {
-        searchItems(skuInput.value || '', suggest, tr, skuInput);
+        openItemList(skuInput);
       });
       skuInput.addEventListener('click', function () {
-        if (!suggest.hidden) placeFloatSuggest(suggest, skuInput);
-        else searchItems(skuInput.value || '', suggest, tr, skuInput);
+        openItemList(skuInput);
       });
     }
 
@@ -949,11 +977,10 @@
         }, 200);
       });
       codeInput.addEventListener('focus', function () {
-        searchItems(codeInput.value || '', suggest, tr, codeInput);
+        openItemList(codeInput);
       });
       codeInput.addEventListener('click', function () {
-        if (!suggest.hidden) placeFloatSuggest(suggest, codeInput);
-        else searchItems(codeInput.value || '', suggest, tr, codeInput);
+        openItemList(codeInput);
       });
     }
     if (nameInput && suggest && !posted) {
@@ -972,8 +999,10 @@
         }, 200);
       });
       nameInput.addEventListener('focus', function () {
-        if (nameInput.readOnly) return;
-        searchItems(nameInput.value || '', suggest, tr, nameInput);
+        openItemList(nameInput);
+      });
+      nameInput.addEventListener('click', function () {
+        openItemList(nameInput);
       });
     }
   }
@@ -1420,32 +1449,20 @@
   }
 
   document.addEventListener('click', function (e) {
+    if (!document.getElementById('si-doc-bar') && !document.getElementById('si-lines-body')) return;
+    var field = e.target && e.target.closest
+      ? e.target.closest('.js-item-sku, .js-item-code, .js-item-name')
+      : null;
+    var fieldTr = field && field.closest ? field.closest('tr[data-idx]') : null;
     document.querySelectorAll('.js-item-suggest').forEach(function (box) {
       if (box.hidden) return;
-      var home = box._hxHome || box.parentElement;
-      var cell =
-        (home && home.closest && (home.closest('.si-item-code-cell') || home.closest('.si-item-cell'))) ||
-        box.closest('.si-item-code-cell') ||
-        box.closest('.si-item-cell');
+      if (box.contains(e.target)) return;
       var tr =
-        (home && home.closest && home.closest('tr')) ||
-        box.closest('tr') ||
-        (cell && cell.closest('tr'));
-      var codeInp =
-        (cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'))) ||
-        (tr && tr.querySelector('.js-item-code'));
-      var skuInp = tr && tr.querySelector('.js-item-sku');
-      var nameInp = tr && tr.querySelector('.js-item-name');
-      if (
-        !box.contains(e.target) &&
-        e.target !== codeInp &&
-        e.target !== skuInp &&
-        e.target !== nameInp &&
-        !(cell && cell.contains(e.target)) &&
-        !(skuInp && skuInp === e.target)
-      ) {
-        closeFloatSuggest(box);
-      }
+        box._hxRow ||
+        ((box._hxHome && box._hxHome.closest && box._hxHome.closest('tr[data-idx]')) ||
+          box.closest('tr[data-idx]'));
+      if (fieldTr && tr === fieldTr) return;
+      closeFloatSuggest(box);
     });
   });
   window.addEventListener(
