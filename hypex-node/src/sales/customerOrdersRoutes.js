@@ -522,7 +522,7 @@ async function renderForm(req, res, orderId) {
                 <tr>
                   <th>المادة</th>
                   <th>المطلوب</th>
-                  <th>التشغيلة (الرصيد من STOCK)</th>
+                  <th>التشغيلة (الرصيد من BALANCE)</th>
                 </tr>
               </thead>
               <tbody id="co-batch-rows"></tbody>

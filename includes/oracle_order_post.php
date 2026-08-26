@@ -1739,6 +1739,8 @@ function oracle_order_stock_toad_exact_batches(
  * تشغيلات متوفرة من MAS.BALANCE (نفس مصدر قائمة INV00024).
  * يعرض فقط التشغيلات ذات QTY_OH > 0 — بدون صفوف فارغة أو تواريخ في عمود BATCH.
  *
+ * مهم: كل محاولة SQL تربط فقط المتغيرات المستخدمة في النص (PDO_OCI يفشل إن وُجد bind زائد).
+ *
  * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count:int,positive_batches:int,qty_cols:list<string>,other_stores:list<array{store:int,qty:float}>,cat_used:string,source:string}|null
  */
 function oracle_order_balance_batches(
@@ -1753,44 +1755,73 @@ function oracle_order_balance_batches(
     if ($item === '' || $store < 1) {
         return null;
     }
-    $from = oracle_order_quoted($owner, 'BALANCE');
-    $select = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH,'
-        . ' NVL(QTY_OH, 0) AS QTY_OH,'
-        . ' EXP_DATE,'
-        . ' TRIM(TO_CHAR(CAT)) AS CAT_X,'
-        . ' TRIM(TO_CHAR(ITEM)) AS ITEM_X,'
-        . ' TRIM(TO_CHAR(STORE)) AS STORE_X'
-        . ' FROM ' . $from
-        . ' WHERE (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
-        . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
-        . ' AND NVL(QTY_OH, 0) > 0.0000001';
 
-    $bindsBase = ['item' => $item, 'store' => $store, 'store_txt' => (string) $store];
-    $storeSqls = [
-        ' AND STORE = :store',
-        ' AND TRIM(TO_CHAR(STORE)) = TRIM(:store_txt)',
-        ' AND TO_NUMBER(REGEXP_REPLACE(TO_CHAR(STORE), \'[^0-9]\', \'\')) = :store',
-    ];
-    $catSqls = [''];
-    if ($cat !== '') {
-        $bindsBase['cat'] = $cat;
-        $catSqls[] = ' AND (TRIM(TO_CHAR(CAT)) = TRIM(:cat)'
-            . ' OR LTRIM(TRIM(TO_CHAR(CAT)), \'0\') = LTRIM(TRIM(:cat), \'0\'))';
+    $ownerSafe = preg_replace('/[^A-Za-z0-9_]/', '', $owner) ?: 'MAS';
+    $fromQuoted = oracle_order_quoted($ownerSafe, 'BALANCE');
+    $fromPlain = $ownerSafe . '.BALANCE';
+    $pos = 'NVL(QTY_OH, 0) > 0.0000001';
+
+    /** @var list<array{sql:string,binds:array<string,mixed>}> $attempts */
+    $attempts = [];
+    foreach ([$fromPlain, $fromQuoted] as $from) {
+        $selectFull = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH,'
+            . ' NVL(QTY_OH, 0) AS QTY_OH,'
+            . ' EXP_DATE,'
+            . ' TRIM(TO_CHAR(CAT)) AS CAT_X,'
+            . ' TRIM(TO_CHAR(ITEM)) AS ITEM_X,'
+            . ' TRIM(TO_CHAR(STORE)) AS STORE_X'
+            . ' FROM ' . $from . ' WHERE ';
+        $selectNoExp = 'SELECT TRIM(TO_CHAR(BATCH)) AS BATCH,'
+            . ' NVL(QTY_OH, 0) AS QTY_OH,'
+            . ' TRIM(TO_CHAR(CAT)) AS CAT_X,'
+            . ' TRIM(TO_CHAR(ITEM)) AS ITEM_X,'
+            . ' TRIM(TO_CHAR(STORE)) AS STORE_X'
+            . ' FROM ' . $from . ' WHERE ';
+
+        foreach ([$selectFull, $selectNoExp] as $select) {
+            // نفس نمط Toad/Forms: CAT + ITEM + STORE + QTY_OH > 0
+            if ($cat !== '' && is_numeric($cat) && is_numeric($item)) {
+                $attempts[] = [
+                    'sql' => $select . 'CAT = :cat AND ITEM = :item AND STORE = :store AND ' . $pos . ' AND ROWNUM <= 500',
+                    'binds' => ['cat' => (int) $cat, 'item' => (int) $item, 'store' => $store],
+                ];
+            }
+            if ($cat !== '') {
+                $attempts[] = [
+                    'sql' => $select . 'TRIM(TO_CHAR(CAT)) = TRIM(:cat) AND TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+                        . ' AND STORE = :store AND ' . $pos . ' AND ROWNUM <= 500',
+                    'binds' => ['cat' => $cat, 'item' => $item, 'store' => $store],
+                ];
+                $attempts[] = [
+                    'sql' => $select . 'TRIM(TO_CHAR(CAT)) = TRIM(:cat) AND TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+                        . ' AND TRIM(TO_CHAR(STORE)) = TRIM(:store_txt) AND ' . $pos . ' AND ROWNUM <= 500',
+                    'binds' => ['cat' => $cat, 'item' => $item, 'store_txt' => (string) $store],
+                ];
+            }
+            $attempts[] = [
+                'sql' => $select . 'TRIM(TO_CHAR(ITEM)) = TRIM(:item) AND STORE = :store AND ' . $pos . ' AND ROWNUM <= 500',
+                'binds' => ['item' => $item, 'store' => $store],
+            ];
+            $attempts[] = [
+                'sql' => $select . 'TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+                    . ' AND TRIM(TO_CHAR(STORE)) = TRIM(:store_txt) AND ' . $pos . ' AND ROWNUM <= 500',
+                'binds' => ['item' => $item, 'store_txt' => (string) $store],
+            ];
+        }
     }
 
     $raw = [];
-    foreach ($catSqls as $catSql) {
-        foreach ($storeSqls as $storeSql) {
-            try {
-                $got = oracle_query_all($conn, $select . $storeSql . $catSql . ' AND ROWNUM <= 500', $bindsBase);
-            } catch (Throwable $e) {
-                continue;
-            }
-            if (is_array($got) && $got !== []) {
-                $raw = $got;
-                break 2;
-            }
+    foreach ($attempts as $attempt) {
+        try {
+            $got = oracle_query_all($conn, $attempt['sql'], $attempt['binds']);
+        } catch (Throwable $e) {
+            continue;
         }
+        if (!is_array($got) || $got === []) {
+            continue;
+        }
+        $raw = $got;
+        break;
     }
     if ($raw === []) {
         return null;
@@ -1804,8 +1835,10 @@ function oracle_order_balance_batches(
         }
         $rowItem = oracle_statement_row_val($r, 'ITEM_X');
         $rowCat = oracle_statement_row_val($r, 'CAT_X');
-        if (!oracle_order_stock_keys_match($rowItem, $rowCat, $item, $cat)) {
-            continue;
+        if ($rowItem !== '' || $rowCat !== '') {
+            if (!oracle_order_stock_keys_match($rowItem, $rowCat, $item, $cat)) {
+                continue;
+            }
         }
         $b = trim(oracle_statement_row_val($r, 'BATCH'));
         if ($b === '' || oracle_order_batch_looks_like_date($b)) {
@@ -2928,7 +2961,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v18-BALANCE';
+    $version = 'STOCK-v19-BALANCE-BINDS';
     $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
@@ -3359,6 +3392,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
             'bonus' => $bonus,
             'batches' => $batchOpts,
             'stock_total' => (float) ($stock['total'] ?? 0),
+            'stock_source' => (string) ($stock['source'] ?? ''),
         ];
     }
 
