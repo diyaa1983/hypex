@@ -563,11 +563,6 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
             </table>
           </div>
           <div class="si-doc-foot">
-            <label class="si-notes">ملاحظات
-              <textarea id="inv_notes" rows="3" ${
-                initial.is_posted ? 'readonly' : ''
-              } placeholder="اختياري…">${esc(initial.notes)}</textarea>
-            </label>
             <div class="si-totals">
               <label>خصم مستوى الفاتورة
                 <input class="si-field" id="inv_discount" type="text" value="${esc(
@@ -579,6 +574,11 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
               <div class="si-tot-row"><span>الضريبة</span><strong id="sum_tax" dir="ltr">0.000</strong></div>
               <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong id="sum_grand" dir="ltr">0.000</strong></div>
             </div>
+            <label class="si-notes">ملاحظات
+              <textarea id="inv_notes" rows="3" ${
+                initial.is_posted ? 'readonly' : ''
+              } placeholder="اختياري…">${esc(initial.notes)}</textarea>
+            </label>
           </div>
         </section>
 

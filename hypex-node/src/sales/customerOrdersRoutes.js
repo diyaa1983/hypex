@@ -115,7 +115,8 @@ function toolbarHtml(caps, order) {
         )}
       </div>
       <div class="si-tb-group">
-        ${b('co-search', 'بحث', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
+        ${b('co-search', 'القائمة', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
+        ${b('co-new', 'جديد', 'si-tb--ghost', false, ' title="طلب جديد"')}
         ${b('co-pdf', 'PDF', '', !caps.canPdf)}
         ${b('co-print', 'طباعة', '', !caps.canPrint)}
         ${b('co-excel', 'Excel', '', !caps.canExcel)}
@@ -328,31 +329,14 @@ async function renderForm(req, res, orderId) {
     ? '<span class="si-pill si-pill--lock">معتمد — قراءة فقط</span>'
     : '<span class="si-pill si-pill--wait">مسودة</span>';
 
-  const titleLine = initial.order_no
-    ? `طلب ${esc(initial.order_no)}`
-    : 'طلب شراء عميل جديد';
-
   const bodyHtml = `
-    <div class="si-stage">
-      <header class="si-hero">
-        <div class="si-brand-lockup">
-          <div class="si-brand-text">
-            <h1>${titleLine}</h1>
-            ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
-          </div>
-        </div>
-        <div class="si-hero-actions">
-          <a class="si-btn" href="/sales/orders">القائمة</a>
-          <a class="si-btn" href="/sales/orders/new">جديد</a>
-        </div>
-      </header>
-
+    <div class="si-stage si-stage--toolbar-first">
       ${toolbarHtml(caps, initial)}
 
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>بيانات المستند</h2>
-          <span class="si-count">${esc(initial.status_label)}</span>
+          <div class="si-surface-head-meta">${badge}</div>
         </div>
         <div class="si-meta si-meta--invoice si-meta--order">
           <label class="si-f si-f--docno">
@@ -437,9 +421,6 @@ async function renderForm(req, res, orderId) {
           </table>
         </div>
         <div class="si-doc-foot">
-          <label class="si-notes">ملاحظات
-            <textarea id="co_notes" rows="3" ${locked ? 'readonly' : ''} placeholder="اختياري…">${esc(initial.notes)}</textarea>
-          </label>
           <div class="si-totals">
             <label>خصم مستوى الطلب
               <input class="si-field" id="co_discount" type="text" value="${esc(initial.invoice_discount)}"
@@ -449,6 +430,9 @@ async function renderForm(req, res, orderId) {
             <div class="si-tot-row"><span>الضريبة</span><strong id="sum_tax" dir="ltr">0.000</strong></div>
             <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong id="sum_grand" dir="ltr">0.000</strong></div>
           </div>
+          <label class="si-notes">ملاحظات
+            <textarea id="co_notes" rows="3" ${locked ? 'readonly' : ''} placeholder="اختياري…">${esc(initial.notes)}</textarea>
+          </label>
         </div>
       </section>
 

@@ -2317,6 +2317,13 @@
     });
   }
 
+  var newBtn = document.getElementById('co-new');
+  if (newBtn) {
+    newBtn.addEventListener('click', function () {
+      window.location.href = '/sales/orders/new';
+    });
+  }
+
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
   updateDocNoStyle();

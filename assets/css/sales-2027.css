@@ -75,7 +75,28 @@ body.si-2027 .si-main::before {
   position: relative;
   z-index: 1;
   padding: 1.1rem 1.25rem 2rem;
+  /* بدون أنيميشن دخول — كانت تسبب وميض/إعادة ظهور ملحوظة عند كل تنقل */
   animation: none;
+}
+
+/* شاشة المستند: الشريط العلوي أول عنصر بدون ترويسة بطل */
+.si-stage--toolbar-first {
+  padding-top: 0.85rem;
+}
+
+.si-stage--toolbar-first > .si-cmd.si-doc-toolbar {
+  margin-top: 0;
+  top: 0.35rem;
+}
+
+.si-surface-head-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.si-surface-head-meta .si-pill {
+  margin: 0;
 }
 
 @keyframes si-enter {
@@ -563,20 +584,23 @@ body.si-2027 .si-main::before {
   min-height: 2.2rem;
 }
 
-/* Capsule action buttons 2027 */
+/* Capsule action buttons 2027 — مقاس موحّد داخل شريط المستند */
 .si-tb {
-  --tb-bg: rgba(255, 255, 255, 0.07);
+  --tb-bg: rgba(255, 255, 255, 0.08);
   --tb-fg: #e9eef6;
-  --tb-bd: rgba(255, 255, 255, 0.1);
+  --tb-bd: rgba(255, 255, 255, 0.12);
   --tb-glow: transparent;
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.35rem;
-  min-height: 2.2rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: 11px;
+  box-sizing: border-box;
+  min-height: 2.35rem;
+  height: 2.35rem;
+  min-width: 5.75rem;
+  padding: 0 0.85rem;
+  border-radius: 10px;
   border: 1px solid var(--tb-bd);
   background: var(--tb-bg);
   color: var(--tb-fg);
@@ -593,6 +617,15 @@ body.si-2027 .si-main::before {
     border-color 0.18s ease,
     box-shadow 0.2s ease,
     color 0.15s ease;
+}
+
+.si-cmd .si-tb,
+.si-doc-toolbar .si-tb {
+  min-height: 2.35rem;
+  height: 2.35rem;
+  min-width: 5.75rem;
+  border-radius: 10px;
+  padding: 0 0.85rem;
 }
 
 .si-tb:hover:not(:disabled) {
@@ -707,62 +740,70 @@ label .si-field-key {
   box-shadow: none;
 }
 
-/* Primary actions */
+/* Primary actions — عائلة لونية واحدة مع الشريط الكحلي */
 .si-tb--save {
-  --tb-bg: linear-gradient(165deg, #38bdf8 0%, #0284c7 52%, #0369a1 100%);
+  --tb-bg: linear-gradient(165deg, #38bdf8 0%, #0284c7 55%, #0369a1 100%);
   --tb-fg: #fff;
-  --tb-bd: rgba(10, 79, 76, 0.9);
+  --tb-bd: rgba(3, 105, 161, 0.75);
   color: #fff;
   box-shadow:
-    0 10px 22px rgba(3, 105, 161, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-
-.si-tb--save:hover:not(:disabled) {
-  background: linear-gradient(165deg, #22c5bc 0%, #12837d 55%, #0c5c58 100%);
-  box-shadow:
-    0 12px 26px rgba(3, 105, 161, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
-}
-
-.si-tb--post {
-  --tb-bg: linear-gradient(165deg, #e8a03a 0%, #c06b0a 55%, #9a5208 100%);
-  --tb-fg: #fff;
-  --tb-bd: rgba(154, 82, 8, 0.85);
-  color: #fff;
-  box-shadow:
-    0 10px 22px rgba(180, 83, 9, 0.35),
+    0 8px 18px rgba(3, 105, 161, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
+.si-tb--save:hover:not(:disabled) {
+  background: linear-gradient(165deg, #7dd3fc 0%, #0ea5e9 50%, #0284c7 100%);
+  box-shadow:
+    0 10px 22px rgba(3, 105, 161, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.26);
+}
+
+.si-tb--post {
+  --tb-bg: linear-gradient(165deg, #0ea5e9 0%, #0369a1 55%, #0c4a6e 100%);
+  --tb-fg: #fff;
+  --tb-bd: rgba(12, 74, 110, 0.8);
+  color: #fff;
+  box-shadow:
+    0 8px 18px rgba(3, 105, 161, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
 .si-tb--post:hover:not(:disabled) {
-  background: linear-gradient(165deg, #f0ad4e 0%, #d07a12 55%, #a85a0a 100%);
+  background: linear-gradient(165deg, #38bdf8 0%, #0284c7 55%, #075985 100%);
 }
 
 .si-tb--danger {
-  --tb-bg: rgba(254, 226, 226, 0.12);
+  --tb-bg: rgba(180, 35, 24, 0.22);
   --tb-fg: #fecaca;
-  --tb-bd: rgba(248, 113, 113, 0.35);
+  --tb-bd: rgba(248, 113, 113, 0.4);
   color: #fecaca;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .si-tb--danger:hover:not(:disabled) {
-  background: rgba(248, 113, 113, 0.2);
+  background: rgba(180, 35, 24, 0.38);
   border-color: rgba(248, 113, 113, 0.55);
   color: #fff;
 }
 
+/* الحذف المعطَّل: مقروء ليُعرف مكانه، وباهت رمادي كي لا يبدو قابلاً للضغط */
+.si-tb--danger:disabled {
+  opacity: 0.55;
+  filter: grayscale(0.7);
+}
+
 .si-tb--ghost {
-  --tb-bg: transparent;
-  --tb-bd: transparent;
-  color: rgba(233, 238, 246, 0.78);
+  --tb-bg: rgba(255, 255, 255, 0.06);
+  --tb-bd: rgba(255, 255, 255, 0.12);
+  --tb-fg: rgba(233, 238, 246, 0.9);
+  color: rgba(233, 238, 246, 0.9);
 }
 
 .si-tb--accent {
-  --tb-bg: rgba(27, 176, 168, 0.16);
-  --tb-bd: rgba(27, 176, 168, 0.35);
-  --tb-fg: #9ef0ea;
-  color: #9ef0ea;
+  --tb-bg: rgba(14, 165, 233, 0.18);
+  --tb-bd: rgba(56, 189, 248, 0.35);
+  --tb-fg: #bae6fd;
+  color: #bae6fd;
 }
 
 /* Legacy buttons inside dark cmd bar */
@@ -794,6 +835,23 @@ label .si-field-key {
   color: rgba(233, 238, 246, 0.72);
   max-width: min(22rem, 100%);
   line-height: 1.35;
+}
+
+.si-btn--icon,
+.hx-doc-btn--icon {
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+  padding: 0.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+
+.si-btn--icon svg,
+.hx-doc-btn--icon svg {
+  display: block;
+  flex-shrink: 0;
 }
 
 .si-msg.is-ok {
@@ -1049,6 +1107,46 @@ label .si-field-key {
   }
 }
 
+#so-root .si-lines--so {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 64rem;
+}
+
+#so-root .si-lines--so .so-th-idx,
+#so-root .si-lines--so .si-row-num { width: 2.2rem; }
+#so-root .si-lines--so .so-th-code,
+#so-root .si-lines--so .so-col-code { width: 8.5rem; }
+#so-root .si-lines--so .so-th-name,
+#so-root .si-lines--so .so-col-name { width: auto; min-width: 11rem; }
+#so-root .si-lines--so .so-th-unit,
+#so-root .si-lines--so .so-col-unit,
+#so-root .si-lines--so .so-th-bunit,
+#so-root .si-lines--so .so-col-bunit { width: 7.2rem; }
+#so-root .si-lines--so .so-th-qty,
+#so-root .si-lines--so .so-col-qty,
+#so-root .si-lines--so .so-th-bonus,
+#so-root .si-lines--so .so-col-bonus,
+#so-root .si-lines--so .so-th-disc,
+#so-root .si-lines--so .so-col-disc { width: 6.2rem; }
+#so-root .si-lines--so .so-th-type,
+#so-root .si-lines--so .so-col-type { width: 7.5rem; }
+
+#so-root .si-lines--so .so-col-unit select,
+#so-root .si-lines--so .so-col-bunit select,
+#so-root .si-lines--so .so-col-type select {
+  min-width: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+}
+
+#so-root .si-lines--so .so-col-qty input,
+#so-root .si-lines--so .so-col-bonus input,
+#so-root .si-lines--so .so-col-disc input {
+  text-align: center;
+}
+
 /* ?????? ?????? ???????? ? ?? ???? ??????? */
 .si-docno-row {
   display: flex;
@@ -1223,18 +1321,14 @@ label .si-field-key {
   box-sizing: content-box;
   white-space: nowrap;
 }
-/* بنود طلب العميل — التفاصيل في آخر الملف (colgroup + عمود حذف ثابت) */
+/* تمرير أفقي لجداول البنود — التفاصيل أدناه مع .si-lines--co */
 .si-lines-wrap:has(.si-lines--co),
 .si-lines-wrap:has(#co-lines) {
   overflow-x: auto;
   overflow-y: visible;
   max-width: 100%;
-  -webkit-overflow-scrolling: touch;
 }
 .si-lines.si-lines--co {
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
   table-layout: fixed;
 }
 .si-lines.si-lines--co thead th {
@@ -1389,7 +1483,7 @@ label .si-field-key {
   filter: saturate(0.94);
 }
 .si-stage.is-nav-flash {
-  animation: si-nav-in 0.22s ease;
+  animation: none;
 }
 @keyframes si-nav-in {
   from {
@@ -1609,18 +1703,110 @@ label .si-field-key {
   max-height: none;
 }
 
-/* ??? ??????: ????? ???? ??? ????? ??? ?????? ???????? */
+/* بنود فاتورة البيع / طلب الشراء: كل الأعمدة ظاهرة + مسطرة أفقية */
 .si-lines-wrap:has(.si-lines--co),
-.si-lines-wrap:has(#co-lines) {
+.si-lines-wrap:has(#co-lines),
+.si-lines-wrap:has(#si-lines) {
   overflow-x: auto;
   overflow-y: visible;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.45rem;
+  margin-inline: 0;
 }
 
-.si-lines-wrap.is-scroll {
-  overflow: auto;
-  max-height: min(46vh, 480px);
+.si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar,
+.si-lines-wrap:has(#co-lines)::-webkit-scrollbar,
+.si-lines-wrap:has(#si-lines)::-webkit-scrollbar {
+  height: 14px;
+}
+
+.si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar-track,
+.si-lines-wrap:has(#co-lines)::-webkit-scrollbar-track,
+.si-lines-wrap:has(#si-lines)::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 8px;
+}
+
+.si-lines-wrap:has(.si-lines--co)::-webkit-scrollbar-thumb,
+.si-lines-wrap:has(#co-lines)::-webkit-scrollbar-thumb,
+.si-lines-wrap:has(#si-lines)::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+}
+
+.si-lines.si-lines--co {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  table-layout: fixed;
+  font-size: 0.78rem;
+}
+
+.si-lines.si-lines--co thead th {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co tbody td {
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+/* عرض أعمدة ثابت حتى لا تُضغط الحقول */
+.si-lines.si-lines--co th:nth-child(1),
+.si-lines.si-lines--co td:nth-child(1) {
+  width: 2.4rem;
+}
+.si-lines.si-lines--co th:nth-child(2),
+.si-lines.si-lines--co td:nth-child(2) {
+  width: 9.5rem;
+}
+.si-lines.si-lines--co th:nth-child(3),
+.si-lines.si-lines--co td:nth-child(3) {
+  width: 15rem;
+}
+.si-lines.si-lines--co th:nth-child(4),
+.si-lines.si-lines--co td:nth-child(4) {
+  width: 7.5rem;
+}
+.si-lines.si-lines--co th:nth-child(5),
+.si-lines.si-lines--co td:nth-child(5),
+.si-lines.si-lines--co th:nth-child(6),
+.si-lines.si-lines--co td:nth-child(6) {
+  width: 5.6rem;
+}
+.si-lines.si-lines--co th:nth-child(7),
+.si-lines.si-lines--co td:nth-child(7) {
+  width: 6.4rem;
+}
+.si-lines.si-lines--co th:nth-child(8),
+.si-lines.si-lines--co td:nth-child(8) {
+  width: 5.2rem;
+}
+.si-lines.si-lines--co th:nth-child(9),
+.si-lines.si-lines--co td:nth-child(9) {
+  width: 5.8rem;
+}
+.si-lines.si-lines--co th:nth-child(10),
+.si-lines.si-lines--co td:nth-child(10),
+.si-lines.si-lines--co th:nth-child(11),
+.si-lines.si-lines--co td:nth-child(11) {
+  width: 6.4rem;
+}
+.si-lines.si-lines--co th:nth-child(12),
+.si-lines.si-lines--co td:nth-child(12) {
+  width: 2.8rem;
+}
+
+.si-lines.si-lines--co input,
+.si-lines.si-lines--co select {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
 }
 
 .si-lines.si-lines--co input.js-item-code,
@@ -1628,6 +1814,22 @@ label .si-field-key {
 .si-lines.si-lines--co select.js-unit {
   width: 100% !important;
   max-width: 100% !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.si-lines.si-lines--co select.js-tax {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.si-lines.si-lines--co .si-num-out {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .si-lines {
@@ -1754,21 +1956,30 @@ label .si-field-key {
   justify-content: flex-start !important;
   pointer-events: auto !important;
 }
-.si-lines--pa .si-item-code-cell,
-.si-lines--pa .si-item-name-cell {
-  overflow: visible !important;
-  position: relative;
-  z-index: 2;
+/* ════════ تعديل أسعار البيع — تنسيق مستقل عن فاتورة البيع ════════ */
+#pa-root .si-surface:not(.si-surface--pa-lines) {
+  overflow: hidden;
 }
-.si-lines-wrap:has(.si-lines--pa) {
-  overflow: visible !important;
+#pa-root .si-surface:not(.si-surface--pa-lines) .si-meta {
+  padding: 0.7rem 1rem 0.85rem;
+}
+#pa-root .si-meta--pa {
+  grid-template-columns: minmax(9.5rem, 0.9fr) minmax(8.5rem, 0.7fr) minmax(14rem, 1.8fr);
+  gap: 0.4rem 0.7rem;
+  align-items: end;
+}
+#pa-root .si-meta--pa > .si-f {
+  grid-template-rows: auto auto;
+}
+#pa-root .si-meta--pa .si-field {
+  min-height: 2rem;
+  height: 2rem;
 }
 
-/* ??? ????? ???????: ??? ????? + ????? ???/???? ??? */
 .si-surface--pa-lines .pa-lines-head {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.12rem;
   min-width: 0;
 }
 .si-surface--pa-lines .pa-lines-head h2 {
@@ -1776,53 +1987,76 @@ label .si-field-key {
 }
 .si-surface--pa-lines .pa-lines-hint {
   margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
+  font-size: 0.76rem;
+  line-height: 1.35;
   font-weight: 500;
+}
+
+.pa-lines-wrap {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  padding: 0.15rem 0.65rem 0.7rem;
+}
+
+.si-lines.si-lines--pa {
+  width: 100%;
+  min-width: 52rem;
+  max-width: none;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.si-lines--pa col.pa-c-idx { width: 2.4rem; }
+.si-lines--pa col.pa-c-code { width: 9.2rem; }
+.si-lines--pa col.pa-c-name { width: auto; }
+.si-lines--pa col.pa-c-sale-old,
+.si-lines--pa col.pa-c-sale-new,
+.si-lines--pa col.pa-c-wh-old,
+.si-lines--pa col.pa-c-wh-new { width: 6.6rem; }
+.si-lines--pa col.pa-c-act { width: 2.8rem; }
+
+.si-lines--pa thead th,
+.si-lines--pa tbody td {
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 
 .si-lines--pa thead .pa-th-group th,
 .si-lines--pa thead .pa-th-sub th {
   text-align: center;
-  vertical-align: middle;
   white-space: nowrap;
+  padding: 0.38rem 0.4rem;
 }
-.si-lines--pa thead .pa-th-idx {
-  width: 2.1rem;
-}
-.si-lines--pa thead .pa-th-code {
-  width: 8.5rem;
-  text-align: start;
-}
+.si-lines--pa thead .pa-th-idx,
+.si-lines--pa thead .pa-th-code,
 .si-lines--pa thead .pa-th-name {
-  min-width: 12rem;
   text-align: start;
-}
-.si-lines--pa thead .pa-th-act {
-  width: 2.6rem;
 }
 .si-lines--pa thead .pa-th-grp {
-  font-size: 0.72rem;
-  letter-spacing: 0.04em;
+  font-size: 0.74rem;
+  letter-spacing: 0.03em;
   font-weight: 800;
   border-bottom: 1px solid rgba(15, 23, 42, 0.08);
 }
 .si-lines--pa thead .pa-th-grp--sale {
-  background: rgba(15, 110, 106, 0.1);
+  background: rgba(15, 110, 106, 0.12);
   color: #0f5c58;
 }
 .si-lines--pa thead .pa-th-grp--wh {
-  background: rgba(30, 64, 175, 0.09);
+  background: rgba(30, 64, 175, 0.1);
   color: #1e3a8a;
 }
 .si-lines--pa thead .pa-th-sub th {
   font-size: 0.68rem;
   font-weight: 700;
-  width: 7.2rem;
+  text-transform: none;
+  letter-spacing: 0;
 }
 .si-lines--pa thead .pa-col-sale-old,
 .si-lines--pa thead .pa-col-sale-new {
-  background: rgba(15, 110, 106, 0.05);
+  background: rgba(15, 110, 106, 0.06);
 }
 .si-lines--pa thead .pa-col-wh-old,
 .si-lines--pa thead .pa-col-wh-new {
@@ -1832,9 +2066,65 @@ label .si-field-key {
   color: #0f172a;
 }
 
+.si-lines--pa tbody td {
+  padding: 0.3rem 0.35rem;
+  height: 2.65rem;
+  line-height: 2rem;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.si-lines--pa tbody td.si-row-num {
+  text-align: center;
+  color: var(--si-muted);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+
+/* كل حقول السطر بارتفاع واحد وبلا محاذاة على خط الأساس */
+.si-lines--pa tbody input:not([type='hidden']) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 2rem;
+  min-height: 2rem;
+  line-height: 1.3;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.si-lines--pa .si-item-code-cell,
+.si-lines--pa .si-item-name-cell {
+  overflow: visible !important;
+  position: relative;
+  z-index: 2;
+}
+
+.si-lines--pa .si-item-code-cell input.js-item-code,
+.si-lines--pa .si-item-name-cell input.js-item-name {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 7px;
+  padding: 0.2rem 0.4rem;
+}
+.si-lines--pa .si-item-name-cell input.js-item-name[readonly] {
+  background: #f8fafc;
+  border-color: transparent;
+  color: var(--si-ink, #0f172a);
+  cursor: default;
+  font-weight: 700;
+}
+
 .si-lines--pa tbody td.pa-col-sale-old,
 .si-lines--pa tbody td.pa-col-sale-new {
-  background: rgba(15, 110, 106, 0.035);
+  background: rgba(15, 110, 106, 0.04);
 }
 .si-lines--pa tbody td.pa-col-wh-old,
 .si-lines--pa tbody td.pa-col-wh-new {
@@ -1845,63 +2135,69 @@ label .si-field-key {
 .si-lines--pa tbody td.pa-col-wh-old {
   text-align: center;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: #475569;
-  padding-inline: 0.45rem;
+  font-weight: 700;
+  color: #334155;
+  font-family: var(--si-mono);
+  font-size: 0.84rem;
+  line-height: 2rem;
+  padding: 0.3rem 0.35rem;
 }
 
 .si-lines--pa tbody td.pa-col-sale-new,
 .si-lines--pa tbody td.pa-col-wh-new {
-  padding: 0.28rem 0.35rem;
-  vertical-align: middle;
+  padding: 0.3rem 0.3rem;
 }
 
 .si-lines--pa .pa-input-new {
   width: 100%;
-  min-width: 5.5rem;
-  max-width: 8rem;
-  margin-inline: auto;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
   display: block;
+  box-sizing: border-box;
   text-align: center;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  border: 1px solid rgba(15, 23, 42, 0.14);
-  border-radius: 8px;
+  font-family: var(--si-mono);
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 7px;
   background: #fff;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
-  min-height: 2.05rem;
-  padding: 0.25rem 0.4rem;
+  padding: 0.2rem 0.35rem;
 }
 .si-lines--pa .pa-col-sale-new .pa-input-new:focus {
   outline: 2px solid rgba(15, 110, 106, 0.35);
-  outline-offset: 1px;
-  border-color: rgba(15, 110, 106, 0.45);
+  outline-offset: 0;
+  border-color: rgba(15, 110, 106, 0.5);
 }
 .si-lines--pa .pa-col-wh-new .pa-input-new:focus {
   outline: 2px solid rgba(30, 64, 175, 0.35);
-  outline-offset: 1px;
-  border-color: rgba(30, 64, 175, 0.45);
+  outline-offset: 0;
+  border-color: rgba(30, 64, 175, 0.5);
 }
 .si-lines--pa tbody td.pa-col-act {
   text-align: center;
+  overflow: visible;
+  padding: 0.3rem 0.15rem;
+}
+.si-lines--pa tbody td.pa-col-act .si-del {
+  margin: 0 auto;
+  height: 1.8rem;
+  width: 1.8rem;
   vertical-align: middle;
 }
 
 @media (max-width: 900px) {
-  .si-lines--pa thead .pa-th-sub th,
-  .si-lines--pa tbody td.pa-col-sale-old,
-  .si-lines--pa tbody td.pa-col-sale-new,
-  .si-lines--pa tbody td.pa-col-wh-old,
-  .si-lines--pa tbody td.pa-col-wh-new {
-    width: 6.2rem;
+  .si-lines.si-lines--pa {
+    min-width: 46rem;
   }
-  .si-lines--pa .pa-input-new {
-    min-width: 4.8rem;
-    max-width: 6.5rem;
+  .si-lines--pa col.pa-c-sale-old,
+  .si-lines--pa col.pa-c-sale-new,
+  .si-lines--pa col.pa-c-wh-old,
+  .si-lines--pa col.pa-c-wh-new {
+    width: 5.8rem;
   }
 }
 
-/* ?? ???? ????? ?????? ??? ????? */
 body.si-2027:has(#pa-root) .main.si-main {
   overflow-x: auto;
   overflow-y: auto;
@@ -1960,11 +2256,49 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
   outline-offset: 2px;
 }
 
+/* عمود الحذف ثابت على حافة الجدول — يظهر دون تمرير أفقي */
+.si-lines th.si-col-del,
+.si-lines td.si-col-del {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 6;
+  width: 2.8rem;
+  min-width: 2.8rem;
+  max-width: 2.8rem;
+  text-align: center;
+  vertical-align: middle;
+  background: #fff;
+  box-shadow: -6px 0 12px -8px rgba(15, 23, 42, 0.28);
+  overflow: visible;
+}
+
+.si-lines thead th.si-col-del {
+  z-index: 8;
+  background: rgba(3, 105, 161, 0.1);
+  color: var(--si-muted);
+  font-size: 0.65rem;
+}
+
+.si-lines tbody tr:hover td.si-col-del {
+  background: rgba(3, 105, 161, 0.06);
+}
+
 .si-lines-wrap:has(#si-lines) {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow-x: scroll;
+  overflow-y: hidden;
   max-width: 100%;
   -webkit-overflow-scrolling: touch;
+}
+
+/* إخفاء أسهم number داخل جداول المبيعات أيضاً */
+.si-lines input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.si-lines input[type='number']::-webkit-outer-spin-button,
+.si-lines input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 /* ???? ???????? ? ???? ?????? ?????? */
@@ -2028,10 +2362,10 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
   }
 }
 
-/* Footer composition */
+/* Footer composition — مجاميع ثم ملاحظات (في RTL: مجاميع يمين، ملاحظات يسار) */
 .si-doc-foot {
   display: grid;
-  grid-template-columns: 1.2fr 0.9fr;
+  grid-template-columns: 0.9fr 1.2fr;
   gap: 0;
   border-top: 1px solid var(--si-line);
   background:
@@ -2053,7 +2387,7 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--si-muted);
-  border-inline-end: 1px solid var(--si-line);
+  border-inline-end: 0;
 }
 
 .si-notes textarea {
@@ -2076,6 +2410,14 @@ body.si-2027:has(#pa-root) .si-surface:has(.js-item-name:focus) {
   display: grid;
   gap: 0.45rem;
   align-content: start;
+  border-inline-end: 1px solid var(--si-line);
+}
+
+@media (max-width: 840px) {
+  .si-totals {
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--si-line);
+  }
 }
 
 .si-totals > label {
@@ -2185,83 +2527,7 @@ body.si-2027 .si-tile-kind {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* تقارير المندوبين: جدول مضغوط — كل خلية سطر واحد */
-.si-report-page .si-table-wrap {
-  overflow-x: auto !important;
-  max-height: min(70vh, 820px);
-}
-
-.si-report-page .si-table {
-  width: max-content !important;
-  min-width: 100%;
-  border-collapse: collapse;
-  table-layout: auto !important;
-  font-size: 0.78rem;
-}
-
-.si-report-page .si-table thead th,
-.si-report-page .si-table tbody td,
-.si-report-page .si-table tbody td * {
-  white-space: nowrap !important;
-  word-break: keep-all !important;
-  overflow-wrap: normal !important;
-  padding: 0.42rem 0.55rem;
-  vertical-align: middle;
-  border: 1px solid rgba(15, 23, 42, 0.1);
-  line-height: 1.25;
-}
-
-.si-report-page .si-table tbody td * {
-  padding: 0 !important;
-  border: none !important;
-}
-
-.si-report-page .si-table thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: #eef2f7;
-  color: #334155;
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: none;
-  letter-spacing: 0;
-  text-align: center;
-}
-
-.si-report-page .si-table tbody td {
-  text-align: center;
-  background: #fff;
-}
-
-.si-report-page .si-table tbody tr:nth-child(even) td {
-  background: #f8fafc;
-}
-
-.si-report-page .si-table tbody tr:hover td {
-  background: rgba(3, 105, 161, 0.06);
-}
-
-.si-report-page .si-table .si-pill,
-.si-report-page .si-table .muted {
-  white-space: nowrap;
-  display: inline;
-}
-
-.si-report-page .si-table .empty {
-  white-space: normal;
-  text-align: center;
-}
-
-.si-report-page .si-rep-group-row td {
-  background: #e2e8f0 !important;
-  text-align: start !important;
-  font-weight: 700;
-  white-space: nowrap;
-  padding: 0.5rem 0.65rem !important;
-}
-
-/* -- طباعة -- */
+/* -- ????? ???????? -- */
 .print-only { display: none !important; }
 
 @media print {
@@ -2371,39 +2637,6 @@ body.si-2027 .si-tile-kind {
   body.si-2027 .si-surface-head .si-count {
     font-family: Arial, Helvetica, sans-serif;
   }
-
-  /* تقارير الجولات/الزيارات: سطر واحد + طباعة أفقية مضغوطة */
-  body.si-2027 .si-report-page .si-table {
-    width: 100% !important;
-    font-size: 7.5pt !important;
-  }
-
-  body.si-2027 .si-report-page .si-table thead th,
-  body.si-2027 .si-report-page .si-table tbody td {
-    white-space: nowrap !important;
-    padding: 0.18rem 0.28rem !important;
-    border: 1px solid #94a3b8 !important;
-    font-size: 7.5pt !important;
-    line-height: 1.2 !important;
-  }
-
-  body.si-2027 .si-report-page .si-table thead th {
-    background: #e2e8f0 !important;
-    font-weight: 800 !important;
-  }
-
-  body.si-2027 .si-report-page .si-pill {
-    border: none !important;
-    padding: 0 !important;
-    background: transparent !important;
-    color: #000 !important;
-    font-size: 7.5pt !important;
-  }
-
-  body.si-2027 .si-report-page .si-hero-sub,
-  body.si-2027 .si-report-page .si-surface-head {
-    display: none !important;
-  }
 }
 
 /* ??? ?????? ???? ?????? ?????? (???? ?????) ??? */
@@ -2438,9 +2671,56 @@ body.si-2027 .si-tile-kind {
   overflow: hidden;
 }
 
+/* نافذة قائمة المواد فوق بطاقة المادة */
+.ic-pick-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.ic-pick-overlay.is-open {
+  display: flex;
+}
+
+.ic-pick-overlay .ic-pick {
+  margin: 0;
+  width: min(560px, 96vw);
+  max-height: min(82vh, 620px);
+}
+
+body.ic-pick-lock {
+  overflow: hidden;
+}
+
 .ic-pick__head {
+  position: relative;
   padding: 1rem 1.1rem 0.65rem;
   border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+}
+
+.ic-pick__close {
+  position: absolute;
+  inset-inline-end: 0.6rem;
+  inset-block-start: 0.55rem;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 0.5rem;
+  background: rgba(15, 23, 42, 0.04);
+  color: #0f172a;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.ic-pick__close:hover {
+  background: rgba(248, 113, 113, 0.16);
+  border-color: rgba(248, 113, 113, 0.4);
 }
 
 .ic-pick__head h2 {
@@ -2549,16 +2829,283 @@ body.si-2027 .si-tile-kind {
   }
 }
 
-/* ════════ بنود فاتورة البيع / طلب شراء العميل — ملائمة 100% + حذف ظاهر ════════ */
-.si-lines-wrap:has(#co-lines),
-.si-lines-wrap:has(#si-lines) {
-  overflow-x: auto;
-  overflow-y: visible;
-  max-width: 100%;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 0.25rem;
+/* —— كشف حركات مادة —— */
+.imv-page .imv-filters {
+  margin-bottom: 0.85rem;
+  overflow: visible;
 }
 
+.imv-form {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.15fr) minmax(16rem, 2.3fr) minmax(7.5rem, 0.7fr) auto;
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+  padding: 0.85rem 1rem 1rem;
+}
+
+.imv-field {
+  display: grid;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.imv-field__lab {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+.imv-field--item {
+  position: relative;
+  z-index: 30;
+}
+
+.imv-item-wrap {
+  position: relative;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: stretch;
+}
+
+.imv-item-wrap #imv-item-search {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+}
+
+.imv-item-open {
+  min-width: 2.4rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-inline-start: 0;
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: 10px;
+  border-end-end-radius: 10px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.imv-item-open:hover {
+  background: #e2e8f0;
+}
+
+.imv-field--actions {
+  display: flex;
+  align-items: end;
+  padding-bottom: 1px;
+}
+
+.imv-field--actions .si-btn {
+  min-height: 2.35rem;
+  padding-inline: 1.15rem;
+  white-space: nowrap;
+}
+
+.imv-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.imv-summary__item {
+  display: grid;
+  gap: 0.18rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 252, 250, 0.95);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.imv-summary__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.imv-summary__item strong {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imv-summary__meta {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.imv-summary__item--in strong {
+  color: #047857;
+}
+
+.imv-summary__item--out strong {
+  color: #b91c1c;
+}
+
+.imv-summary__item--bal {
+  background: linear-gradient(145deg, rgba(14, 165, 233, 0.1), rgba(255, 255, 255, 0.95));
+  border-color: rgba(14, 165, 233, 0.28);
+}
+
+.imv-summary__item--bal strong {
+  color: #0369a1;
+  font-size: 1.05rem;
+}
+
+.imv-table-wrap .si-table td,
+.imv-table-wrap .si-table th {
+  vertical-align: middle;
+}
+
+.imv-type {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+.imv-qty {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.imv-qty--in {
+  color: #047857;
+}
+
+.imv-qty--out {
+  color: #b91c1c;
+}
+
+.imv-bal {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.imv-doc-link {
+  color: #0369a1;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.imv-doc-link:hover {
+  text-decoration: underline;
+}
+
+.imv-party {
+  font-size: 0.72rem;
+  margin-top: 0.12rem;
+  max-width: 14rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.imv-suggest {
+  position: absolute !important;
+  inset-inline: 0 !important;
+  top: calc(100% + 4px) !important;
+  z-index: 99999 !important;
+  max-height: min(22rem, 55vh) !important;
+  padding: 0.35rem !important;
+  width: auto !important;
+}
+
+.imv-suggest.imv-suggest--open,
+.imv-suggest:not([hidden]) {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+
+.imv-suggest button {
+  display: grid !important;
+  grid-template-columns: minmax(6.5rem, auto) 1fr;
+  gap: 0.45rem 0.65rem;
+  align-items: center;
+  text-align: right !important;
+  min-height: 2.45rem;
+  padding: 0.45rem 0.7rem !important;
+}
+
+.imv-sug-code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0369a1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.imv-sug-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 900px) {
+  .imv-form {
+    grid-template-columns: 1fr 1fr;
+  }
+  .imv-field--wh {
+    grid-column: 1 / -1;
+  }
+  .imv-field--item {
+    grid-column: 1 / -1;
+  }
+  .imv-field--actions {
+    grid-column: 1 / -1;
+    justify-content: start;
+  }
+  .imv-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .imv-form {
+    grid-template-columns: 1fr;
+  }
+  .imv-summary {
+    grid-template-columns: 1fr;
+  }
+  .imv-suggest button {
+    grid-template-columns: 1fr;
+    gap: 0.1rem;
+  }
+}
+
+@media print {
+  .imv-summary {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+  .imv-summary__item {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    padding: 0.35rem 0.45rem;
+  }
+}
+
+/* ════════ بنود فاتورة البيع وطلب شراء العميل — تنسيق موحّد ════════
+   الأعمدة بعرض ثابت عبر colgroup، وكل حقل داخل خليته بحدود واضحة. */
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) {
   width: 100%;
   min-width: 0;
@@ -2591,9 +3138,8 @@ body.si-2027 .si-tile-kind {
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th {
-  padding: 0.45rem 0.3rem;
+  padding: 0.5rem 0.4rem;
   text-align: center;
-  font-size: 0.66rem;
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th:nth-child(2),
@@ -2602,9 +3148,10 @@ body.si-2027 .si-tile-kind {
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) tbody td {
-  padding: 0.22rem 0.25rem;
+  padding: 0.28rem 0.3rem;
 }
 
+/* الحقول: صندوق واضح داخل الخلية بدل حقول ملتصقة/متداخلة */
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input:not([type='hidden']),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) select {
   display: block;
@@ -2612,24 +3159,59 @@ body.si-2027 .si-tile-kind {
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  min-height: 1.85rem;
+  min-height: 2rem;
   margin: 0;
-  padding: 0.2rem 0.35rem;
+  padding: 0.25rem 0.45rem;
   border: 1px solid #dbe3ec;
-  border-radius: 7px;
+  border-radius: 8px;
   background: #fff;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 600;
   text-overflow: ellipsis;
 }
 
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input:focus,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) select:focus {
+  border-color: #0284c7;
+  background: #fff;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.14);
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input[readonly] {
+  background: #f6f8fb;
+  color: #475569;
+  border-color: #e6ebf2;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input[type='number'] {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell input.js-item-code {
+  text-align: start;
+  direction: ltr;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-name-cell input.js-item-name {
+  text-align: start;
+}
+
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-code-cell,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) .si-item-name-cell {
+  position: relative;
+  min-width: 0;
+}
+
+/* خلايا الأرقام المحسوبة — تبقى خلايا جدول (display:block كان يُسقطها من الصف) */
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-num-out {
   display: table-cell;
+  width: auto;
   text-align: center;
   font-family: var(--si-mono, inherit);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 0.78rem;
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-row-num {
@@ -2638,38 +3220,26 @@ body.si-2027 .si-tile-kind {
   font-weight: 700;
 }
 
-/* عمود الحذف — ثابت على حافة الجدول (RTL: يسار) حتى عند التمرير الأفقي */
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th.si-col-del,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del {
+/* عمود الحذف ضمن الجدول (كان لاصقاً فيغطي عمود الصافي عند التمرير) */
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th.si-col-del {
   position: sticky;
   inset-inline-end: 0;
   z-index: 6;
+  box-shadow: -5px 0 10px -6px rgba(15, 23, 42, 0.22);
   width: 2.35rem;
   min-width: 2.35rem;
   max-width: 2.5rem;
   padding: 0.15rem;
   overflow: visible;
-  text-align: center;
-  vertical-align: middle;
   background: #fff;
-  box-shadow: -5px 0 10px -6px rgba(15, 23, 42, 0.22);
-}
-
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th.si-col-del {
-  z-index: 8;
-  background: rgba(3, 105, 161, 0.1);
-  color: var(--si-muted);
-  font-size: 0.62rem;
-  font-weight: 700;
-}
-
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) tbody tr:hover td.si-col-del {
-  background: rgba(3, 105, 161, 0.06);
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del .si-del {
-  width: 1.75rem;
-  height: 1.75rem;
+  width: 1.9rem;
+  height: 1.9rem;
   padding: 0;
   margin: 0 auto;
 }
+
+
