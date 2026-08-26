@@ -342,9 +342,28 @@
       try {
         el.hidden = true;
         el.setAttribute('hidden', '');
-        el.style.display = 'none';
         el.innerHTML = '';
-        el.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--pa');
+        el.classList.remove(
+          'si-suggest--float',
+          'si-suggest--barcode',
+          'si-suggest--name',
+          'si-suggest--sku',
+          'si-suggest--pa'
+        );
+        // لا تستخدم display:none — تبقى بعد إغلاق F3 وتمنع ظهور قائمة الحقل لاحقاً
+        el.style.display = '';
+        el.style.position = '';
+        el.style.left = '';
+        el.style.right = '';
+        el.style.top = '';
+        el.style.width = '';
+        el.style.minWidth = '';
+        el.style.maxWidth = '';
+        el.style.zIndex = '';
+        el.style.inset = '';
+        if (el._hxHome && el._hxHome.parentNode && el.parentNode === document.body) {
+          el._hxHome.appendChild(el);
+        }
       } catch (e) {
         /* ignore */
       }

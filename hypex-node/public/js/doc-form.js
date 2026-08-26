@@ -251,23 +251,111 @@
         var idx = Number(tr.getAttribute('data-idx'));
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          searchItems(itemInput.value, suggest, tr);
+          searchItems(itemInput.value, suggest, tr, itemInput);
         }, 220);
+      });
+      itemInput.addEventListener('focus', function () {
+        searchItems(itemInput.value || '', suggest, tr, itemInput);
+      });
+      itemInput.addEventListener('click', function () {
+        if (!suggest.hidden) placeFloatSuggest(suggest, itemInput);
+        else searchItems(itemInput.value || '', suggest, tr, itemInput);
       });
     }
   }
-  function searchItems(q, box, tr) {
+
+  function placeFloatSuggest(box, anchor) {
+    if (!box || !anchor) return;
+    if (!box._hxHome) box._hxHome = box.parentNode;
+    if (box.parentNode !== document.body) {
+      document.body.appendChild(box);
+    }
+    var r = anchor.getBoundingClientRect();
+    var width = Math.min(Math.max(Math.round(r.width), 220), Math.min(420, window.innerWidth - 16));
+    var left = Math.round(r.right - width);
+    if (left < 8) left = 8;
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
+    }
+    var top = Math.round(r.bottom + 3);
+    var approxH = Math.min(260, window.innerHeight * 0.45);
+    if (top + 100 > window.innerHeight && r.top > approxH + 8) {
+      top = Math.max(8, Math.round(r.top - 3 - approxH));
+    }
+    box.hidden = false;
+    box.removeAttribute('hidden');
+    box.classList.add('si-suggest--float');
+    box.style.display = 'block';
+    box.style.position = 'fixed';
+    box.style.zIndex = '12050';
+    box.style.width = width + 'px';
+    box.style.minWidth = width + 'px';
+    box.style.maxWidth = width + 'px';
+    box.style.left = left + 'px';
+    box.style.right = 'auto';
+    box.style.top = top + 'px';
+    box.style.inset = 'auto';
+    box.style.visibility = 'visible';
+    box.style.opacity = '1';
+    box.style.pointerEvents = 'auto';
+  }
+
+  function closeItemSuggest(box) {
+    if (!box) return;
+    box.hidden = true;
+    box.setAttribute('hidden', '');
+    box.classList.remove('si-suggest--float');
+    box.style.display = '';
+    box.style.position = '';
+    box.style.left = '';
+    box.style.right = '';
+    box.style.top = '';
+    box.style.width = '';
+    box.style.minWidth = '';
+    box.style.maxWidth = '';
+    box.style.zIndex = '';
+    box.style.inset = '';
+    if (box._hxHome && box._hxHome.parentNode && box.parentNode === document.body) {
+      try {
+        box._hxHome.appendChild(box);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+
+  function searchItems(q, box, tr, anchor) {
+    if (!box) return;
+    var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
+    box._dfSearchToken = token;
     fetch('/api/purchases/items?q=' + encodeURIComponent(q || ''))
       .then(function (r) {
         return r.json();
       })
       .then(function (data) {
-        if (!data.ok) return;
+        if (box._dfSearchToken !== token) return;
         box.innerHTML = '';
-        (data.rows || []).slice(0, 25).forEach(function (it) {
+        if (!data.ok) {
+          closeItemSuggest(box);
+          return;
+        }
+        var rows = data.rows || [];
+        if (!rows.length) {
+          var empty = document.createElement('div');
+          empty.className = 'si-suggest-empty';
+          empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
+          empty.textContent = q ? 'لا توجد نتائج مطابقة' : 'اكتب رمز أو اسم المادة…';
+          box.appendChild(empty);
+          placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+          return;
+        }
+        rows.slice(0, 25).forEach(function (it) {
           var b = document.createElement('button');
           b.type = 'button';
           b.textContent = (it.code || '') + ' — ' + (it.name_ar || '') + ' · ' + fmt(it.sale_price);
+          b.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+          });
           b.addEventListener('click', function () {
             var idx = Number(tr.getAttribute('data-idx'));
             state.lines[idx] = state.lines[idx] || {};
@@ -278,7 +366,7 @@
             if (!state.lines[idx].qty) state.lines[idx].qty = 1;
             if (state.lines[idx].tax_rate_percent == null)
               state.lines[idx].tax_rate_percent = defaultTax;
-            box.hidden = true;
+            closeItemSuggest(box);
             renderLines();
             if (window.HxShortcuts && window.HxShortcuts.focusLineQty) {
               window.HxShortcuts.focusLineQty(idx, '#df-lines-body');
@@ -286,7 +374,11 @@
           });
           box.appendChild(b);
         });
-        box.hidden = !(data.rows && data.rows.length);
+        placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+      })
+      .catch(function () {
+        if (box._dfSearchToken !== token) return;
+        closeItemSuggest(box);
       });
   }
   function addEmptyLine() {
@@ -382,6 +474,18 @@
       if (!partyBox.contains(e.target) && e.target !== partyInput) partyBox.hidden = true;
     });
   }
+
+  document.addEventListener('click', function (e) {
+    if (!document.getElementById('df-lines-body')) return;
+    document.querySelectorAll('.js-item-suggest').forEach(function (box) {
+      if (box.hidden) return;
+      var home = box._hxHome || box.parentNode;
+      var tr = (home && home.closest && home.closest('tr[data-idx]')) || box.closest('tr[data-idx]');
+      var itemEl = tr && tr.querySelector('.js-item');
+      if (box.contains(e.target) || e.target === itemEl) return;
+      closeItemSuggest(box);
+    });
+  });
 
   var addBtn = document.getElementById('df-add-line');
   if (addBtn) addBtn.addEventListener('click', addEmptyLine);

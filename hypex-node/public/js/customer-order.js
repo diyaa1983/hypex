@@ -1145,7 +1145,11 @@
     var it = findExactItemInRows(box._hxRows || [], q);
     if (!it) return false;
     box.dataset.hxUserNav = '1';
-    var tr = box.closest('tr[data-idx]');
+    var home = box._hxHome;
+    var tr =
+      box.closest('tr[data-idx]') ||
+      (home && home.closest && home.closest('tr[data-idx]')) ||
+      null;
     if (!tr) return false;
     closeItemSuggest(box);
     pickItemIntoRow(tr, it, true);
@@ -1164,6 +1168,12 @@
     box.style.minWidth = '';
     box.style.maxWidth = '';
     box.style.display = '';
+    box.style.position = '';
+    box.style.zIndex = '';
+    box.style.inset = '';
+    box.style.visibility = '';
+    box.style.opacity = '';
+    box.style.pointerEvents = '';
     box.removeAttribute('data-mode');
     box.dataset.hxUserNav = '';
     box.querySelectorAll('button.is-active').forEach(function (b) {
@@ -1226,6 +1236,7 @@
     box.hidden = false;
     box.removeAttribute('hidden');
     box.classList.add('si-suggest--float');
+    box.style.display = 'block';
     box.style.position = 'fixed';
     box.style.zIndex = '12050';
     box.style.width = width + 'px';
@@ -1235,6 +1246,9 @@
     box.style.right = 'auto';
     box.style.top = top + 'px';
     box.style.inset = 'auto';
+    box.style.visibility = 'visible';
+    box.style.opacity = '1';
+    box.style.pointerEvents = 'auto';
   }
 
   function goNextField(fromEl) {

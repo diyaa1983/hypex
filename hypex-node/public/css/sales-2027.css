@@ -2008,6 +2008,10 @@ label .si-field-key {
   position: fixed !important;
   inset: auto !important;
   z-index: 12050 !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
   max-height: min(16.5rem, 48vh);
   overflow-x: hidden;
   overflow-y: auto;
@@ -2020,6 +2024,9 @@ label .si-field-key {
     0 4px 6px rgba(15, 23, 42, 0.04),
     0 18px 40px rgba(15, 23, 42, 0.16);
   padding: 0.28rem;
+}
+.si-suggest.si-suggest--float[hidden] {
+  display: none !important;
 }
 
 /* ????? ??????? ? ????? ??? ?????? + ???? */

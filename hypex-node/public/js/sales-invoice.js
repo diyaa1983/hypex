@@ -777,6 +777,7 @@
     box.hidden = false;
     box.removeAttribute('hidden');
     box.classList.add('si-suggest--float');
+    box.style.display = 'block';
     box.style.position = 'fixed';
     box.style.zIndex = '12050';
     box.style.width = width + 'px';
@@ -786,6 +787,9 @@
     box.style.top = top + 'px';
     box.style.right = 'auto';
     box.style.inset = 'auto';
+    box.style.visibility = 'visible';
+    box.style.opacity = '1';
+    box.style.pointerEvents = 'auto';
   }
 
   function closeFloatSuggest(box) {
@@ -801,6 +805,11 @@
     box.style.right = '';
     box.style.position = '';
     box.style.zIndex = '';
+    box.style.display = '';
+    box.style.inset = '';
+    box.style.visibility = '';
+    box.style.opacity = '';
+    box.style.pointerEvents = '';
     if (box._hxHome && box._hxHome.parentNode && box.parentNode === document.body) {
       try {
         box._hxHome.appendChild(box);
@@ -808,7 +817,12 @@
         /* ignore */
       }
     }
-    var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-sku-cell') || box.closest('.si-item-cell');
+    var home = box._hxHome || box.parentElement;
+    var cell =
+      (home && home.closest && (home.closest('.si-item-code-cell') || home.closest('.si-item-sku-cell') || home.closest('.si-item-cell'))) ||
+      box.closest('.si-item-code-cell') ||
+      box.closest('.si-item-sku-cell') ||
+      box.closest('.si-item-cell');
     if (cell) cell.classList.remove('is-open');
   }
 
