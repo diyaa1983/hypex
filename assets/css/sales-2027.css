@@ -1342,7 +1342,7 @@ label .si-field-key {
 }
 .si-lines .si-item-code-cell .si-suggest,
 .si-lines .js-item-suggest {
-  min-width: 12rem;
+  min-width: 0;
 }
 
 /* ?????: ??? | ????? | ??? | ?????? | ???? (??????) */
@@ -1511,6 +1511,85 @@ label .si-field-key {
   margin-top: 0.25rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--si-line);
+}
+
+/* نموذج رئيسي للمندوبين / البطاقات — شبكة مرتبة بدل صف واحد مزدحم */
+.si-surface--master {
+  max-width: 52rem;
+}
+
+.si-master-form {
+  padding: 1.05rem 1.15rem 1.25rem;
+}
+
+.si-master-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.15rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .si-master-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.si-mf {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  align-content: start;
+}
+
+.si-mf--full {
+  grid-column: 1 / -1;
+}
+
+.si-mf-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--si-ink, #0f172a);
+  letter-spacing: 0.01em;
+}
+
+.si-mf-label em {
+  color: var(--si-danger, #b42318);
+  font-style: normal;
+  font-weight: 800;
+}
+
+.si-mf-hint {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--si-muted, #5c6578);
+  line-height: 1.35;
+}
+
+.si-mf-note {
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--si-muted, #64748b);
+  line-height: 1.45;
+  margin-top: 0.15rem;
+}
+
+.si-master-form .si-field,
+.si-master-form textarea.si-field {
+  width: 100%;
+  min-height: 2.45rem;
+  box-sizing: border-box;
+}
+
+.si-master-form textarea.si-field {
+  min-height: 5.5rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.si-master-form .si-form-actions {
+  margin-top: 1.15rem;
+  padding-top: 1rem;
 }
 
 /* Button rows inside si-meta must not inherit the row height of tall neighbors */
@@ -1924,22 +2003,22 @@ label .si-field-key {
   z-index: 90;
 }
 
-/* ????? ????? ??? ????? */
+/* قائمة عائمة — الاتجاه من وضع sku/barcode/name؛ الإحداثيات من JS */
 .si-suggest.si-suggest--float {
   position: fixed !important;
   inset: auto !important;
-  z-index: 12000;
+  z-index: 12050 !important;
   max-height: min(16.5rem, 48vh);
   overflow-x: hidden;
   overflow-y: auto;
-  direction: rtl !important;
-  text-align: right !important;
+  margin: 0 !important;
+  box-sizing: border-box;
   background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(15, 23, 42, 0.12);
   border-radius: 10px;
   box-shadow:
     0 4px 6px rgba(15, 23, 42, 0.04),
-    0 18px 40px rgba(15, 23, 42, 0.14);
+    0 18px 40px rgba(15, 23, 42, 0.16);
   padding: 0.28rem;
 }
 

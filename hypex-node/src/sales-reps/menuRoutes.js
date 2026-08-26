@@ -159,32 +159,49 @@ async function repForm(req, res, id) {
         actions: [{ label: 'رجوع للقائمة', href: '/sales-reps/list' }],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <section class="si-surface">
-        <div class="si-surface-head"><h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2></div>
-        <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
+      <section class="si-surface si-surface--master">
+        <div class="si-surface-head">
+          <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
+          ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
+        </div>
+        <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form">
           <input type="hidden" name="id" value="${row ? row.id : 0}">
-          <label>الرمز <span style="font-weight:500;color:#5c6578">(رقم البائع في أوراكل مثل 12 — فارغ = تلقائي)</span>
-            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off">
-            <span class="muted" style="display:block;margin-top:.25rem;font-size:.8rem">للترحيل إلى INV00024 استخدم رقم البائع في أوراكل. الرموز مثل REP-0001 تُرحَّل كبائع 1.</span>
-          </label>
-          <label>اسم المندوب *
-            <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off">
-          </label>
-          <label>الهاتف
-            <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr">
-          </label>
-          <label>مستودع العهدة
-            <select class="si-field" name="warehouse_id">
-              <option value="0">— بدون —</option>
-              ${whOpts}
-            </select>
-          </label>
-          <label class="si-span-2">العنوان
-            <textarea class="si-field" name="address_ar" rows="2" style="min-height:3.5rem">${esc(
-              row?.address_ar || ''
-            )}</textarea>
-          </label>
-          <div class="si-span-2" style="display:flex;gap:.5rem;margin-top:.35rem">
+
+          <div class="si-master-grid">
+            <label class="si-mf">
+              <span class="si-mf-label">الرمز</span>
+              <span class="si-mf-hint">رقم البائع في أوراكل (مثل 12) — فارغ = تلقائي</span>
+              <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off">
+              <span class="si-mf-note">للترحيل إلى INV00024 استخدم رقم البائع في أوراكل. الرموز مثل REP-0001 تُرحَّل كبائع 1.</span>
+            </label>
+
+            <label class="si-mf">
+              <span class="si-mf-label">اسم المندوب <em>*</em></span>
+              <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="الاسم الكامل">
+            </label>
+
+            <label class="si-mf">
+              <span class="si-mf-label">الهاتف</span>
+              <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" placeholder="07xxxxxxxx" autocomplete="off">
+            </label>
+
+            <label class="si-mf">
+              <span class="si-mf-label">مستودع العهدة</span>
+              <select class="si-field" name="warehouse_id">
+                <option value="0">— بدون —</option>
+                ${whOpts}
+              </select>
+            </label>
+
+            <label class="si-mf si-mf--full">
+              <span class="si-mf-label">العنوان</span>
+              <textarea class="si-field" name="address_ar" rows="3" placeholder="اختياري…">${esc(
+                row?.address_ar || ''
+              )}</textarea>
+            </label>
+          </div>
+
+          <div class="si-form-actions">
             <button class="si-btn si-btn--primary" type="submit">حفظ</button>
             <a class="si-btn" href="/sales-reps/list">إلغاء</a>
           </div>

@@ -740,6 +740,11 @@
 
   function placeFloatSuggest(box, anchor) {
     if (!box || !anchor) return;
+    if (!box._hxHome) box._hxHome = box.parentNode;
+    if (box.parentNode !== document.body) {
+      document.body.appendChild(box);
+    }
+
     var r = anchor.getBoundingClientRect();
     var mode = 'barcode';
     if (anchor.classList) {
@@ -752,28 +757,35 @@
     );
     box.setAttribute('data-mode', mode);
 
-    var minW = mode === 'name' ? 260 : mode === 'sku' ? 120 : 140;
     var width =
       mode === 'name'
-        ? Math.min(Math.max(r.width, minW, 280), Math.min(420, window.innerWidth - 16))
-        : Math.min(Math.max(r.width, minW), Math.min(320, window.innerWidth - 16));
+        ? Math.min(Math.max(r.width, 260), Math.min(420, window.innerWidth - 16))
+        : Math.min(Math.max(Math.round(r.width), 96), window.innerWidth - 16);
 
-    var left = r.left;
-    var maxLeft = window.innerWidth - width - 8;
-    if (left > maxLeft) left = Math.max(8, maxLeft);
+    var left = Math.round(r.right - width);
     if (left < 8) left = 8;
-
-    var top = r.bottom + 4;
-    var maxH = Math.min(16.5 * 16, window.innerHeight * 0.48);
-    if (top + 80 > window.innerHeight && r.top > maxH + 8) {
-      top = Math.max(8, r.top - 4 - Math.min(maxH, 220));
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
     }
 
+    var top = Math.round(r.bottom + 3);
+    var approxH = Math.min(260, window.innerHeight * 0.45);
+    if (top + 100 > window.innerHeight && r.top > approxH + 8) {
+      top = Math.max(8, Math.round(r.top - 3 - approxH));
+    }
+
+    box.hidden = false;
+    box.removeAttribute('hidden');
     box.classList.add('si-suggest--float');
+    box.style.position = 'fixed';
+    box.style.zIndex = '12050';
     box.style.width = width + 'px';
+    box.style.minWidth = width + 'px';
+    box.style.maxWidth = width + 'px';
     box.style.left = left + 'px';
     box.style.top = top + 'px';
     box.style.right = 'auto';
+    box.style.inset = 'auto';
   }
 
   function closeFloatSuggest(box) {
@@ -784,7 +796,19 @@
     box.style.left = '';
     box.style.top = '';
     box.style.width = '';
-    var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell');
+    box.style.minWidth = '';
+    box.style.maxWidth = '';
+    box.style.right = '';
+    box.style.position = '';
+    box.style.zIndex = '';
+    if (box._hxHome && box._hxHome.parentNode && box.parentNode === document.body) {
+      try {
+        box._hxHome.appendChild(box);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-sku-cell') || box.closest('.si-item-cell');
     if (cell) cell.classList.remove('is-open');
   }
 
@@ -1383,10 +1407,19 @@
 
   document.addEventListener('click', function (e) {
     document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-      var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell') || box.parentElement;
-      var tr = box.closest('tr');
+      if (box.hidden) return;
+      var home = box._hxHome || box.parentElement;
+      var cell =
+        (home && home.closest && (home.closest('.si-item-code-cell') || home.closest('.si-item-cell'))) ||
+        box.closest('.si-item-code-cell') ||
+        box.closest('.si-item-cell');
+      var tr =
+        (home && home.closest && home.closest('tr')) ||
+        box.closest('tr') ||
+        (cell && cell.closest('tr'));
       var codeInp =
-        (cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'))) || null;
+        (cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'))) ||
+        (tr && tr.querySelector('.js-item-code'));
       var skuInp = tr && tr.querySelector('.js-item-sku');
       var nameInp = tr && tr.querySelector('.js-item-name');
       if (
@@ -1405,15 +1438,22 @@
     'scroll',
     function () {
       document.querySelectorAll('.js-item-suggest:not([hidden])').forEach(function (box) {
-        var cell = box.closest('.si-item-code-cell') || box.closest('.si-item-cell');
+        var home = box._hxHome || box.parentElement;
+        var cell =
+          (home && home.closest && (home.closest('.si-item-code-cell') || home.closest('.si-item-cell'))) ||
+          null;
         var mode = box.getAttribute('data-mode') || 'barcode';
-        var tr = box.closest('tr');
+        var tr =
+          (home && home.closest && home.closest('tr')) ||
+          (cell && cell.closest('tr')) ||
+          box.closest('tr');
         var inp =
           mode === 'name'
             ? tr && tr.querySelector('.js-item-name')
             : mode === 'sku'
               ? tr && tr.querySelector('.js-item-sku')
-              : cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item'));
+              : (tr && tr.querySelector('.js-item-code')) ||
+                (cell && (cell.querySelector('.js-item-code') || cell.querySelector('.js-item')));
         if (inp && !box.hidden) placeFloatSuggest(box, inp);
       });
     },
@@ -2204,10 +2244,22 @@
     }
   }
 
+  function findRowSuggest(tr) {
+    if (!tr) return null;
+    var box = tr.querySelector('.js-item-suggest');
+    if (box) return box;
+    var floating = document.querySelectorAll('body > .js-item-suggest');
+    for (var i = 0; i < floating.length; i++) {
+      var home = floating[i]._hxHome;
+      if (home && tr.contains(home)) return floating[i];
+    }
+    return null;
+  }
+
   function getOpenSuggest(fromEl) {
     if (!fromEl) return null;
     var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
-    var box = tr && tr.querySelector('.js-item-suggest');
+    var box = findRowSuggest(tr);
     if (box && !box.hidden && box.querySelector('button')) return box;
     if (fromEl.id === 'inv_customer') {
       var cs = document.getElementById('cust_suggest');
@@ -2291,7 +2343,7 @@
     if (posted || !fromEl) return;
     var itemSug =
       fromEl.closest && fromEl.closest('tr[data-idx]')
-        ? fromEl.closest('tr[data-idx]').querySelector('.js-item-suggest')
+        ? findRowSuggest(fromEl.closest('tr[data-idx]'))
         : null;
     if (
       itemSug &&

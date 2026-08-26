@@ -1022,7 +1022,7 @@
   function pickItemIntoRow(tr, it, focusNext) {
     var idx = Number(tr.getAttribute('data-idx'));
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
-    closeItemSuggest(tr.querySelector('.js-item-suggest'));
+    closeItemSuggest(openSuggestForRow(tr));
     patchLineRow(tr, state.lines[idx]);
     if (focusNext) {
       window.setTimeout(function () {
@@ -1069,7 +1069,15 @@
   }
 
   function openSuggestForRow(tr) {
-    return tr ? tr.querySelector('.js-item-suggest') : null;
+    if (!tr) return null;
+    var box = tr.querySelector('.js-item-suggest');
+    if (box) return box;
+    var floating = document.querySelectorAll('body > .js-item-suggest');
+    for (var i = 0; i < floating.length; i++) {
+      var home = floating[i]._hxHome;
+      if (home && tr.contains(home)) return floating[i];
+    }
+    return null;
   }
 
   function getOpenItemSuggest(fromEl) {
@@ -1153,12 +1161,22 @@
     box.style.right = '';
     box.style.top = '';
     box.style.width = '';
+    box.style.minWidth = '';
+    box.style.maxWidth = '';
     box.style.display = '';
     box.removeAttribute('data-mode');
     box.dataset.hxUserNav = '';
     box.querySelectorAll('button.is-active').forEach(function (b) {
       b.classList.remove('is-active');
     });
+    // أعد القائمة لخليتها الأصلية
+    if (box._hxHome && box._hxHome.parentNode && box.parentNode === document.body) {
+      try {
+        box._hxHome.appendChild(box);
+      } catch (e) {
+        /* ignore */
+      }
+    }
   }
 
   function isSystemItemModalOpen() {
@@ -1173,34 +1191,50 @@
       closeItemSuggest(box);
       return;
     }
+    // انقل للقائمة إلى body حتى لا تتأثر بـ overflow/transform داخل الجدول
+    if (!box._hxHome) {
+      box._hxHome = box.parentNode;
+    }
+    if (box.parentNode !== document.body) {
+      document.body.appendChild(box);
+    }
+
     var r = anchor.getBoundingClientRect();
     var mode = box.getAttribute('data-mode') || 'barcode';
-    var minW = mode === 'name' ? 260 : mode === 'sku' ? 120 : 140;
-    var width = Math.max(r.width, minW);
+    var width;
     if (mode === 'name') {
-      width = Math.min(Math.max(width, 280), Math.min(420, window.innerWidth - 16));
+      width = Math.min(Math.max(r.width, 260), Math.min(420, window.innerWidth - 16));
     } else {
-      // رقم المادة / الباركود: بنفس عرض الحقل تقريباً، مع حد أدنى صغير
-      width = Math.min(Math.max(r.width, minW), Math.min(320, window.innerWidth - 16));
+      // نفس عرض الحقل تقريباً — تحت الحقل مباشرة
+      width = Math.max(Math.round(r.width), 96);
+      width = Math.min(width, window.innerWidth - 16);
     }
 
-    // محاذاة مباشرة تحت الحقل (حافة اليسار مع الحقل)
-    var left = r.left;
-    var maxLeft = window.innerWidth - width - 8;
-    if (left > maxLeft) left = Math.max(8, maxLeft);
+    // في RTL: حقل رقم المادة على اليمين — نحاذي الحافة اليمنى للقائمة مع الحقل
+    var left = Math.round(r.right - width);
     if (left < 8) left = 8;
-
-    var top = r.bottom + 4;
-    var maxH = Math.min(16.5 * 16, window.innerHeight * 0.48);
-    if (top + 80 > window.innerHeight && r.top > maxH + 8) {
-      top = Math.max(8, r.top - 4 - Math.min(maxH, 220));
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
     }
 
+    var top = Math.round(r.bottom + 3);
+    var approxH = Math.min(260, window.innerHeight * 0.45);
+    if (top + 100 > window.innerHeight && r.top > approxH + 8) {
+      top = Math.max(8, Math.round(r.top - 3 - approxH));
+    }
+
+    box.hidden = false;
+    box.removeAttribute('hidden');
     box.classList.add('si-suggest--float');
+    box.style.position = 'fixed';
+    box.style.zIndex = '12050';
     box.style.width = width + 'px';
+    box.style.minWidth = width + 'px';
+    box.style.maxWidth = width + 'px';
     box.style.left = left + 'px';
     box.style.right = 'auto';
     box.style.top = top + 'px';
+    box.style.inset = 'auto';
   }
 
   function goNextField(fromEl) {
@@ -1799,11 +1833,13 @@
       }
       document.querySelectorAll('.js-item-suggest').forEach(function (box) {
         if (box.hidden) return;
-        var tr = box.closest('tr[data-idx]');
+        var home = box._hxHome || box.parentNode;
+        var tr = (home && home.closest && home.closest('tr[data-idx]')) || box.closest('tr[data-idx]');
+        var skuEl = tr && tr.querySelector('.js-item-sku');
         var codeEl = tr && tr.querySelector('.js-item-code');
         var nameEl = tr && tr.querySelector('.js-item-name');
         if (box.contains(e.target)) return;
-        if (e.target === codeEl || e.target === nameEl) return;
+        if (e.target === skuEl || e.target === codeEl || e.target === nameEl) return;
         closeItemSuggest(box);
       });
     });
@@ -1814,13 +1850,18 @@
     function () {
       if (!document.getElementById('co-doc-bar')) return;
       document.querySelectorAll('.js-item-suggest:not([hidden])').forEach(function (box) {
-        var tr = box.closest('tr[data-idx]');
+        var home = box._hxHome || box.parentNode;
+        var tr = (home && home.closest && home.closest('tr[data-idx]')) || box.closest('tr[data-idx]');
         if (!tr) return;
         var ae = document.activeElement;
         var anchor =
-          ae && tr.contains(ae) && (ae.classList.contains('js-item-code') || ae.classList.contains('js-item-name'))
+          ae &&
+          tr.contains(ae) &&
+          (ae.classList.contains('js-item-sku') ||
+            ae.classList.contains('js-item-code') ||
+            ae.classList.contains('js-item-name'))
             ? ae
-            : tr.querySelector('.js-item-code');
+            : tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code');
         if (anchor) placeFloatSuggest(box, anchor);
       });
     },
