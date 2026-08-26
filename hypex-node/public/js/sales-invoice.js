@@ -1094,7 +1094,8 @@
     });
   }
 
-  function loadCustomerAr(customerId) {
+  function loadCustomerAr(customerId, opts) {
+    opts = opts || {};
     var panel = document.getElementById('inv-ora-ar-panel');
     var summary = document.getElementById('inv-ora-ar-summary');
     if (!panel) return;
@@ -1154,10 +1155,12 @@
           }
         }
         renderOraCheques(x.cheques || []);
-        try {
-          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } catch (e) {
-          /* ignore */
+        if (opts.scroll) {
+          try {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {
+            /* ignore */
+          }
         }
       })
       .catch(function () {
@@ -1176,7 +1179,7 @@
       custBox.hidden = true;
       custBox.setAttribute('hidden', '');
     }
-    loadCustomerAr(c.id);
+    loadCustomerAr(c.id, { scroll: true });
     focusFirstItemBarcode();
   }
 
@@ -1965,7 +1968,7 @@
       /* ignore */
     }
 
-    loadCustomerAr(state.customer_id);
+    loadCustomerAr(state.customer_id, { scroll: false });
   }
 
   var docNavApi = null;
@@ -2011,16 +2014,22 @@
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
 
+  try {
+    window.scrollTo(0, 0);
+  } catch (e) {
+    /* ignore */
+  }
+
   var initialCustomerId =
     Number((document.getElementById('inv_customer_id') || {}).value || state.customer_id || 0) || 0;
   if (initialCustomerId > 0) {
-    loadCustomerAr(initialCustomerId);
+    loadCustomerAr(initialCustomerId, { scroll: false });
   }
   var refreshArBtn = document.getElementById('inv-ora-ar-refresh');
   if (refreshArBtn) {
     refreshArBtn.addEventListener('click', function () {
       var cid = Number((document.getElementById('inv_customer_id') || {}).value || 0) || 0;
-      loadCustomerAr(cid);
+      loadCustomerAr(cid, { scroll: false });
     });
   }
 

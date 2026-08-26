@@ -210,7 +210,8 @@
     });
   }
 
-  function loadCustomerAr(customerId) {
+  function loadCustomerAr(customerId, opts) {
+    opts = opts || {};
     var panel = document.getElementById('co-ora-ar-panel');
     var summary = document.getElementById('co-ora-ar-summary');
     if (!panel) return;
@@ -271,10 +272,13 @@
           }
         }
         renderOraCheques(x.cheques || []);
-        try {
-          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } catch (e) {
-          /* ignore */
+        // لا نمرّر للأسفل عند فتح المستند — فقط عند اختيار عميل يدوياً
+        if (opts.scroll) {
+          try {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {
+            /* ignore */
+          }
         }
       })
       .catch(function () {
@@ -290,7 +294,7 @@
     if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
     setCustomerPriceMode(c);
     if (custBox) custBox.hidden = true;
-    loadCustomerAr(c.id);
+    loadCustomerAr(c.id, { scroll: true });
     focusFirstItemBarcode();
   }
 
@@ -928,10 +932,15 @@
       return;
     }
     try {
-      el.focus();
+      el.focus({ preventScroll: true });
       if (doSelect && typeof el.select === 'function' && el.tagName === 'INPUT') el.select();
     } catch (e) {
-      /* ignore */
+      try {
+        el.focus();
+        if (doSelect && typeof el.select === 'function' && el.tagName === 'INPUT') el.select();
+      } catch (e2) {
+        /* ignore */
+      }
     }
   }
 
@@ -2328,10 +2337,18 @@
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
   updateDocNoStyle();
 
+  try {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  } catch (e) {
+    /* ignore */
+  }
+
   var initialCustomerId =
     Number((document.getElementById('co_customer_id') || {}).value || state.customer_id || 0) || 0;
   if (initialCustomerId > 0) {
-    loadCustomerAr(initialCustomerId);
+    loadCustomerAr(initialCustomerId, { scroll: false });
   }
 
   var refreshArBtn = document.getElementById('co-ora-ar-refresh');
@@ -2339,7 +2356,7 @@
     refreshArBtn.addEventListener('click', function () {
       var cid =
         Number((document.getElementById('co_customer_id') || {}).value || 0) || 0;
-      loadCustomerAr(cid);
+      loadCustomerAr(cid, { scroll: false });
     });
   }
 
