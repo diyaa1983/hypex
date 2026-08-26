@@ -108,19 +108,25 @@
 
   function repriceOpenLines() {
     if (!state || !Array.isArray(state.lines)) return;
-    state.lines.forEach(function (ln) {
+    state.lines.forEach(function (ln, idx) {
       if (!ln || !ln.item_id) return;
       var base = activeBaseOfLine(ln);
       ln.base_sale = base;
       ln.unit_price = unitSalePrice(base, ln.unit_factor);
+      var tr =
+        tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
+      if (!tr) return;
+      var baseEl = tr.querySelector('.js-base-sale');
+      if (baseEl) baseEl.value = String(base);
+      var pe = tr.querySelector('.js-price');
+      if (pe) pe.value = String(ln.unit_price);
+      var t = lineTotals(ln);
+      var subEl = tr.querySelector('.js-sub');
+      var grossEl = tr.querySelector('.js-gross');
+      if (subEl) subEl.textContent = fmt(t.sub);
+      if (grossEl) grossEl.textContent = fmt(t.gross);
     });
-    if (typeof renderLines === 'function') {
-      try {
-        renderLines();
-      } catch (e) {
-        /* */
-      }
-    }
+    recomputeFooter();
   }
 
   function setCustomerPriceMode(c, opts) {
@@ -204,7 +210,8 @@
     });
   }
 
-  function loadCustomerAr(customerId) {
+  function loadCustomerAr(customerId, opts) {
+    opts = opts || {};
     var panel = document.getElementById('co-ora-ar-panel');
     var summary = document.getElementById('co-ora-ar-summary');
     if (!panel) return;
@@ -265,10 +272,13 @@
           }
         }
         renderOraCheques(x.cheques || []);
-        try {
-          panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        } catch (e) {
-          /* ignore */
+        // لا نمرّر للأسفل عند فتح المستند — فقط عند اختيار عميل يدوياً
+        if (opts.scroll) {
+          try {
+            panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          } catch (e) {
+            /* ignore */
+          }
         }
       })
       .catch(function () {
@@ -284,7 +294,16 @@
     if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
     setCustomerPriceMode(c);
     if (custBox) custBox.hidden = true;
-    loadCustomerAr(c.id);
+    loadCustomerAr(c.id, { scroll: true });
+    focusFirstItemBarcode();
+  }
+
+  function focusFirstItemBarcode() {
+    setTimeout(function () {
+      if (locked) return;
+      if (!(state.lines || []).length) addEmptyLine();
+      focusLineField(0, '.js-item-sku', true);
+    }, 40);
   }
 
   function priceStep() {
@@ -325,6 +344,46 @@
     return cleanBarcodeText(c);
   }
 
+  /** رقم المادة (SKU) */
+  function itemSkuOnly(it) {
+    if (!it) return '';
+    return String(it.sku != null ? it.sku : '').trim();
+  }
+
+  /** نص القائمة لحقل الباركود/رقم المادة */
+  function itemCodeSuggestLabel(it) {
+    var sku = itemSkuOnly(it);
+    var bc = itemBarcodeOnly(it);
+    if (sku && bc && sku !== bc) return sku + ' · ' + bc;
+    return sku || bc || itemNameOnly(it);
+  }
+
+  /** تطابق تام لباركود أو رقم مادة أو oracle_key */
+  function itemExactCodeMatch(it, q) {
+    q = String(q || '').trim().toLowerCase();
+    if (!q || !it) return false;
+    var keys = [it.sku, it.barcode, it.code, it.oracle_key];
+    for (var i = 0; i < keys.length; i++) {
+      var v = String(keys[i] != null ? keys[i] : '')
+        .trim()
+        .toLowerCase();
+      if (v && v === q) return true;
+    }
+    return false;
+  }
+
+  function findExactItemInRows(rows, q) {
+    if (!Array.isArray(rows) || !rows.length) return null;
+    var exact = null;
+    for (var i = 0; i < rows.length; i++) {
+      if (itemExactCodeMatch(rows[i], q)) {
+        exact = rows[i];
+        break;
+      }
+    }
+    return exact;
+  }
+
   function cleanBarcodeText(s) {
     s = String(s || '').trim();
     if (!s) return '';
@@ -348,12 +407,20 @@
     return n;
   }
 
+  /** عرض حقل رقمي يُدخلها المستخدم — فارغ بدل صفر تلقائي */
+  function userNumAttr(v) {
+    if (v === '' || v == null) return '';
+    var n = Number(v);
+    if (!Number.isFinite(n) || n === 0) return '';
+    return String(v);
+  }
+
   function applyItemToLine(ln, it) {
     ln = ln || {};
     ln.item_id = it.id;
-    // حقل الباركود = باركود فقط · حقل الاسم = اسم فقط
+    ln.item_sku = itemSkuOnly(it);
     ln.item_barcode = itemBarcodeOnly(it);
-    ln.item_code = ln.item_barcode;
+    ln.item_code = ln.item_barcode || ln.item_sku;
     ln.name_ar = itemNameOnly(it);
     ln.base_list_sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
     ln.base_wholesale = Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
@@ -370,7 +437,9 @@
     } else {
       ln.unit_price = unitSalePrice(ln.base_sale, ln.unit_factor);
     }
-    if (!ln.qty) ln.qty = 1;
+    if (ln.qty == null) ln.qty = '';
+    if (ln.qty_extra == null) ln.qty_extra = '';
+    if (ln.discount_pct == null) ln.discount_pct = '';
     if (it.tax_rate_percent != null && it.tax_rate_percent !== '') {
       ln.tax_rate_percent = Number(it.tax_rate_percent);
     } else if (ln.tax_rate_percent == null) {
@@ -383,8 +452,21 @@
           if (updated) {
             ln.qty_extra = updated.qty_extra;
             ln.discount_pct = updated.discount_pct;
+            ln._offer_driven = updated._offer_driven;
+            ln._offer_driven_type = updated._offer_driven_type;
+            ln._offer_hint = updated._offer_hint;
           }
-          if (typeof renderLines === 'function') renderLines();
+          // تحديث السطر الحالي فقط — بدون إعادة بناء الجدول بالكامل
+          if (tbody) {
+            var rows = tbody.querySelectorAll('tr[data-idx]');
+            for (var ri = 0; ri < rows.length; ri++) {
+              var hid = rows[ri].querySelector('.js-item-id');
+              if (hid && Number(hid.value) === Number(ln.item_id)) {
+                patchLineRow(rows[ri], ln);
+                break;
+              }
+            }
+          }
         },
       });
     }
@@ -476,48 +558,44 @@
         cancelLabel: opts.cancelLabel || 'إلغاء',
       });
     }
-    if (window.AppDialog && window.AppDialog.confirm) {
-      return window.AppDialog.confirm(msg, {
-        title: opts.title || 'تأكيد',
-        okText: opts.okLabel || 'موافق',
-        cancelText: opts.cancelLabel || 'إلغاء',
-      });
-    }
     return Promise.resolve(window.confirm(msg));
   }
 
   function hxAlert(msg, opts) {
     opts = opts || {};
-    var title = opts.title || 'تنبيه النظام';
-    var kind = opts.kind || 'error';
-    if (window.AppDialog && typeof window.AppDialog.error === 'function' && kind === 'error') {
-      return Promise.resolve(
-        window.AppDialog.error(msg || '', { title: title, type: 'error' })
-      );
-    }
-    if (window.AppDialog && typeof window.AppDialog.alert === 'function') {
-      return Promise.resolve(
-        window.AppDialog.alert(msg || '', { title: title, type: kind })
-      );
-    }
     if (window.HypexUI && window.HypexUI.dialog) {
       return window.HypexUI.dialog({
-        title: title,
+        title: opts.title || 'تنبيه النظام',
         message: msg || '',
-        kind: kind,
+        kind: opts.kind || 'error',
         closeOnBackdrop: true,
         buttons: [{ label: 'حسناً', value: true, primary: true }],
       });
     }
     if (window.HypexUI && window.HypexUI.alert) {
-      return window.HypexUI.alert(title + '\n' + (msg || ''), kind);
+      return window.HypexUI.alert(
+        (opts.title ? opts.title + '\n' : '') + (msg || ''),
+        opts.kind || 'error'
+      );
     }
-    window.alert(title + '\n' + (msg || ''));
+    window.alert((opts.title ? opts.title + '\n' : '') + (msg || ''));
     return Promise.resolve(true);
   }
 
   function showActionError(data) {
     var text = (data && (data.error || data.message)) || 'فشل الإجراء';
+    var items = data && Array.isArray(data.items)
+      ? data.items
+          .map(function (n) {
+            return String(n || '').trim();
+          })
+          .filter(Boolean)
+      : [];
+    var isUndef =
+      (data && data.code === 'item_undefined') ||
+      items.length > 0 ||
+      String(text).indexOf('المادة غير معرفة على النظام') === 0;
+
     var stockIssues = data && Array.isArray(data.stock_issues) ? data.stock_issues : [];
     var isStock =
       stockIssues.length > 0 ||
@@ -532,9 +610,7 @@
       if (stockIssues.length) {
         stockBody = stockIssues
           .map(function (iss) {
-            if (iss && iss._line) {
-              return String(iss._line).replace(/\s*\[STOCK-v3\]\s*$/, '');
-            }
+            if (iss && iss._line) return String(iss._line).replace(/\s*\[STOCK-v3\]\s*$/, '');
             var code = (iss && iss.item) || '';
             var name = (iss && iss.name) || '';
             var need = iss && iss.need != null ? iss.need : '';
@@ -553,7 +629,7 @@
           .join('\n\n');
       } else {
         stockBody = String(text)
-          .replace(/^تعذر الترحيل إلى Oracle[^\n]*\n?/u, '')
+          .replace(/^تعذر الترحيل إلى Oracle[^\n]*\n?/, '')
           .replace(/^[•\s]+/gm, '')
           .replace(/\s*\[STOCK-v3\]\s*/g, '')
           .trim();
@@ -564,7 +640,14 @@
     }
 
     setMsg(text, 'error');
-    if (String(text).length > 90 || String(text).indexOf('\n') >= 0) {
+    if (isUndef) {
+      var body = items.length
+        ? items.join('\n')
+        : String(text)
+            .replace(/^المادة غير معرفة على النظام\s*/, '')
+            .trim();
+      hxAlert(body, { title: 'المادة غير معرفة على النظام', kind: 'error' });
+    } else if (String(text).length > 80 || String(text).indexOf('\n') >= 0) {
       hxAlert(text, { title: 'تنبيه النظام', kind: 'error' });
     }
   }
@@ -643,13 +726,15 @@
     var discEl = tr.querySelector('.js-disc');
     var taxEl = tr.querySelector('.js-tax');
     var codeEl = tr.querySelector('.js-item-code');
+    var skuEl = tr.querySelector('.js-item-sku');
     var nameEl = tr.querySelector('.js-item-name');
     if (qtyEl) ln.qty = qtyEl.value;
     if (qtyExtraEl) ln.qty_extra = qtyExtraEl.value;
+    if (skuEl) ln.item_sku = String(skuEl.value || '').trim();
     if (codeEl) {
       var bc = cleanBarcodeText(codeEl.value);
       ln.item_barcode = bc;
-      ln.item_code = bc;
+      ln.item_code = bc || ln.item_sku || '';
     }
     if (nameEl) {
       ln.name_ar = itemNameOnly({ name_ar: nameEl.value });
@@ -702,32 +787,19 @@
     return Math.ceil(el.getBoundingClientRect().width);
   }
 
-  /** توسيع الحقل تلقائياً حسب طول الكتابة/النص */
-  function fitFieldToContent(el, opts) {
+  /** توسيع الحقل تلقائياً حسب طول الكتابة/النص — معطّل لجداول البنود (عرض ثابت + تمرير أفقي) */
+  function fitFieldToContent(el) {
     if (!el) return;
-    opts = opts || {};
-    var min = opts.min != null ? opts.min : 72;
-    var max = opts.max != null ? opts.max : 560;
-    var pad = opts.pad != null ? opts.pad : 26;
-    var text = '';
-    if (el.tagName === 'SELECT') {
-      var opt = el.selectedOptions && el.selectedOptions[0];
-      text = opt ? String(opt.textContent || '').trim() : '';
-      if (opts.pad == null) pad = 44;
-    } else {
-      text = String(el.value != null && el.value !== '' ? el.value : el.placeholder || '');
-    }
-    var w = measureTextWidth(text, el) + pad;
-    if (w < min) w = min;
-    if (w > max) w = max;
-    el.style.width = w + 'px';
+    el.style.width = '';
+    el.style.maxWidth = '';
   }
 
   function fitRowFields(tr) {
     if (!tr) return;
-    fitFieldToContent(tr.querySelector('.js-item-code'), { min: 100, max: 240, pad: 24 });
-    fitFieldToContent(tr.querySelector('.js-item-name'), { min: 140, max: 640, pad: 28 });
-    fitFieldToContent(tr.querySelector('.js-unit'), { min: 88, max: 260, pad: 44 });
+    fitFieldToContent(tr.querySelector('.js-item-sku'));
+    fitFieldToContent(tr.querySelector('.js-item-code'));
+    fitFieldToContent(tr.querySelector('.js-item-name'));
+    fitFieldToContent(tr.querySelector('.js-unit'));
   }
 
   function fitAllLineFields() {
@@ -737,26 +809,40 @@
 
   function renderLines(focusOpts) {
     if (!tbody) return;
+    closeItemSuggest(getCoItemSuggest());
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
-      // تنقية: حقل الباركود = باركود فقط · الاسم = اسم فقط
-      var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+      var barcode = cleanBarcodeText(ln.item_barcode || '');
+      var sku = String(ln.item_sku || '').trim();
+      if (!barcode && !sku) {
+        barcode = cleanBarcodeText(ln.item_code || '');
+      }
       var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
-      // استرجاع إن وُجد نص مركب قديم في الباركود
       if (!nameOnly && String(ln.item_code || '').indexOf(' — ') >= 0) {
         var raw = String(ln.item_code);
         barcode = cleanBarcodeText(raw);
         nameOnly = itemNameOnly({ name_ar: raw.split(' — ')[1] || '' });
       }
       ln.item_barcode = barcode;
-      ln.item_code = barcode;
+      ln.item_sku = sku;
+      ln.item_code = barcode || sku;
       ln.name_ar = nameOnly;
       var tr = document.createElement('tr');
       tr.setAttribute('data-idx', String(idx));
       tr.innerHTML =
         '<td dir="ltr" class="si-row-num">' +
         (idx + 1) +
+        '</td>' +
+        '<td class="si-item-sku-cell">' +
+        '<input class="js-item-sku" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="رقم المادة" data-nav="1" title="' +
+        escAttr(sku) +
+        '" value="' +
+        escAttr(sku) +
+        '" ' +
+        (locked ? 'readonly' : '') +
+        '>' +
         '</td>' +
         '<td class="si-item-code-cell">' +
         '<input type="hidden" class="js-item-id" value="' +
@@ -765,8 +851,8 @@
         '<input type="hidden" class="js-base-sale" value="' +
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
-        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="rtl" ' +
-        'placeholder="باركود" data-nav="1" title="' +
+        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="الباركود" data-nav="1" title="' +
         escAttr(barcode) +
         '" value="' +
         escAttr(barcode) +
@@ -787,13 +873,13 @@
         '<td class="si-unit-cell">' +
         unitSelectHtml(ln, locked).replace('<select class="js-unit"', '<select class="js-unit" data-nav="1"') +
         '</td>' +
-        '<td><input class="js-qty" type="number" step="1" min="0" data-nav="1" value="' +
-        escAttr(ln.qty) +
+        '<td><input class="js-qty" type="number" step="1" min="0" data-nav="1" placeholder="كمية" value="' +
+        escAttr(userNumAttr(ln.qty)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
-        '<td><input class="js-qty-extra" type="number" step="1" min="0" data-nav="1" value="' +
-        escAttr(ln.qty_extra || 0) +
+        '<td><input class="js-qty-extra" type="number" step="1" min="0" data-nav="1" placeholder="إضافية" value="' +
+        escAttr(userNumAttr(ln.qty_extra)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
@@ -805,8 +891,8 @@
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
-        '" min="0" max="100" data-nav="1" value="' +
-        escAttr(ln.discount_pct || 0) +
+        '" min="0" max="100" data-nav="1" placeholder="خصم %" value="' +
+        escAttr(userNumAttr(ln.discount_pct)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
@@ -843,7 +929,7 @@
     }, 0);
     if (focusOpts && focusOpts.idx != null) {
       window.setTimeout(function () {
-        focusLineField(focusOpts.idx, focusOpts.cls || '.js-item-code', !!focusOpts.select);
+        focusLineField(focusOpts.idx, focusOpts.cls || '.js-item-sku', !!focusOpts.select);
       }, 0);
     }
   }
@@ -863,26 +949,91 @@
       return;
     }
     try {
-      el.focus();
+      el.focus({ preventScroll: true });
       if (doSelect && typeof el.select === 'function' && el.tagName === 'INPUT') el.select();
     } catch (e) {
-      /* ignore */
+      try {
+        el.focus();
+        if (doSelect && typeof el.select === 'function' && el.tagName === 'INPUT') el.select();
+      } catch (e2) {
+        /* ignore */
+      }
     }
+  }
+
+  /** تحديث صف موجود من بيانات البند دون إعادة بناء الجدول (يمنع الوميض). */
+  function patchLineRow(tr, ln) {
+    if (!tr || !ln) return;
+    var barcode = cleanBarcodeText(ln.item_barcode || '');
+    var sku = String(ln.item_sku || '').trim();
+    var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
+    ln.item_barcode = barcode;
+    ln.item_sku = sku;
+    ln.item_code = barcode || sku;
+    ln.name_ar = nameOnly;
+
+    var hid = tr.querySelector('.js-item-id');
+    if (hid) hid.value = ln.item_id || '';
+    var baseEl = tr.querySelector('.js-base-sale');
+    if (baseEl) baseEl.value = ln.base_sale != null ? String(ln.base_sale) : '';
+    var skuEl = tr.querySelector('.js-item-sku');
+    if (skuEl) {
+      skuEl.value = sku;
+      skuEl.title = sku;
+    }
+    var codeEl = tr.querySelector('.js-item-code');
+    if (codeEl) {
+      codeEl.value = barcode;
+      codeEl.title = barcode;
+    }
+    var nameEl = tr.querySelector('.js-item-name');
+    if (nameEl) {
+      nameEl.value = nameOnly;
+      nameEl.title = nameOnly;
+      if (ln.item_id) nameEl.readOnly = true;
+    }
+    var unitCell = tr.querySelector('.si-unit-cell');
+    if (unitCell) {
+      unitCell.innerHTML = unitSelectHtml(ln, locked).replace(
+        '<select class="js-unit"',
+        '<select class="js-unit" data-nav="1"'
+      );
+    }
+    var qtyEl = tr.querySelector('.js-qty');
+    if (qtyEl && ln.qty != null) qtyEl.value = userNumAttr(ln.qty);
+    var qtyEx = tr.querySelector('.js-qty-extra');
+    if (qtyEx && ln.qty_extra != null) qtyEx.value = userNumAttr(ln.qty_extra);
+    var pe = tr.querySelector('.js-price');
+    if (pe) pe.value = String(ln.unit_price != null ? ln.unit_price : 0);
+    var discEl = tr.querySelector('.js-disc');
+    if (discEl && ln.discount_pct != null) discEl.value = userNumAttr(ln.discount_pct);
+    var taxEl = tr.querySelector('.js-tax');
+    if (taxEl && ln.tax_rate_percent != null) taxEl.value = userNumAttr(ln.tax_rate_percent);
+    var t = lineTotals(ln);
+    var subEl = tr.querySelector('.js-sub');
+    var grossEl = tr.querySelector('.js-gross');
+    if (subEl) subEl.textContent = fmt(t.sub);
+    if (grossEl) grossEl.textContent = fmt(t.gross);
+    // إعادة ربط أحداث الصف بعد استبدال قائمة الوحدات
+    bindRow(tr);
+    fitRowFields(tr);
+    recomputeFooter();
   }
 
   function pickItemIntoRow(tr, it, focusNext) {
     var idx = Number(tr.getAttribute('data-idx'));
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
-    closeItemSuggest(tr.querySelector('.js-item-suggest'));
-    renderLines({
-      idx: idx,
-      cls: focusNext ? '.js-unit' : '.js-item-code',
-      select: !focusNext,
-    });
+    closeItemSuggest(openSuggestForRow(tr));
+    patchLineRow(tr, state.lines[idx]);
+    if (focusNext) {
+      window.setTimeout(function () {
+        focusLineField(idx, '.js-qty', true);
+      }, 0);
+    }
   }
 
   /** ترتيب حقول التنقل Enter / الأسهم داخل السطر */
-  var LINE_NAV = ['.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
+  var LINE_NAV = ['.js-item-sku', '.js-item-code', '.js-item-name', '.js-unit', '.js-qty', '.js-qty-extra', '.js-disc', '.js-tax'];
 
   function lineNavEls(tr) {
     var list = [];
@@ -898,7 +1049,7 @@
   }
 
   function headerNavEls() {
-    var ids = ['co_date', 'co_rep', 'co_wh', 'co_customer'];
+    var ids = ['co_date', 'co_pay', 'co_rep', 'co_wh', 'co_customer'];
     var list = [];
     ids.forEach(function (id) {
       var el = document.getElementById(id);
@@ -906,6 +1057,25 @@
       list.push(el);
     });
     return list;
+  }
+
+  var coGlobalSuggest = null;
+  var coSuggestGuardUntil = 0;
+
+  function getCoItemSuggest() {
+    if (coGlobalSuggest && coGlobalSuggest.isConnected) return coGlobalSuggest;
+    var existing = document.getElementById('co-global-item-suggest');
+    if (existing) {
+      coGlobalSuggest = existing;
+      return coGlobalSuggest;
+    }
+    coGlobalSuggest = document.createElement('div');
+    coGlobalSuggest.id = 'co-global-item-suggest';
+    coGlobalSuggest.className = 'si-suggest js-item-suggest';
+    coGlobalSuggest.hidden = true;
+    coGlobalSuggest.setAttribute('hidden', '');
+    document.body.appendChild(coGlobalSuggest);
+    return coGlobalSuggest;
   }
 
   function focusElement(el, doSelect) {
@@ -919,14 +1089,23 @@
   }
 
   function openSuggestForRow(tr) {
-    return tr ? tr.querySelector('.js-item-suggest') : null;
+    if (!tr) return null;
+    var box = getCoItemSuggest();
+    box._hxRow = tr;
+    return box;
+  }
+
+  function resolveSuggestBox(tr) {
+    return openSuggestForRow(tr);
   }
 
   function getOpenItemSuggest(fromEl) {
     if (!fromEl) return null;
-    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
-    var box = openSuggestForRow(tr);
-    if (box && !box.hidden && box.querySelector('button')) return box;
+    var box = getCoItemSuggest();
+    if (!box.hidden && box.querySelector('button')) {
+      var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+      if (!tr || box._hxRow === tr) return box;
+    }
     if (fromEl.id === 'co_customer') {
       var cs = document.getElementById('cust_suggest');
       if (cs && !cs.hidden && cs.querySelector('button')) return cs;
@@ -981,18 +1160,46 @@
     return true;
   }
 
+  /** Enter على تطابق تام لرقم المادة أو الباركود — بدون أسهم */
+  function pickExactCodeSuggest(box, q) {
+    if (!box || box.hidden) return false;
+    var it = findExactItemInRows(box._hxRows || [], q);
+    if (!it) return false;
+    box.dataset.hxUserNav = '1';
+    var tr =
+      box._hxRow ||
+      box.closest('tr[data-idx]') ||
+      (box._hxHome && box._hxHome.closest && box._hxHome.closest('tr[data-idx]')) ||
+      null;
+    if (!tr) return false;
+    closeItemSuggest(box);
+    pickItemIntoRow(tr, it, true);
+    return true;
+  }
+
   function closeItemSuggest(box) {
+    box = box || coGlobalSuggest;
     if (!box) return;
     box.hidden = true;
     box.setAttribute('hidden', '');
-    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name');
+    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
     box.style.left = '';
     box.style.right = '';
     box.style.top = '';
     box.style.width = '';
+    box.style.minWidth = '';
+    box.style.maxWidth = '';
     box.style.display = '';
+    box.style.position = '';
+    box.style.zIndex = '';
+    box.style.inset = '';
+    box.style.visibility = '';
+    box.style.opacity = '';
+    box.style.pointerEvents = '';
     box.removeAttribute('data-mode');
     box.dataset.hxUserNav = '';
+    box._hxRows = [];
+    box.innerHTML = '';
     box.querySelectorAll('button.is-active').forEach(function (b) {
       b.classList.remove('is-active');
     });
@@ -1000,43 +1207,106 @@
 
   function isSystemItemModalOpen() {
     var m = document.getElementById('hx-lk');
-    return !!(m && !m.hidden);
+    if (!m) return false;
+    if (m.hidden || m.hasAttribute('hidden')) return false;
+    var st = window.getComputedStyle(m);
+    if (st.display === 'none' || st.visibility === 'hidden') return false;
+    return true;
+  }
+
+  function ensureSuggestHome(box, tr) {
+    if (!box) return;
+    if (tr) box._hxRow = tr;
+    box._hxHome = document.body;
+  }
+
+  function showSuggestLoading(box, tr, anchor) {
+    if (!box || !anchor) return;
+    ensureSuggestHome(box, tr);
+    var mode = 'barcode';
+    if (anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
+    box.setAttribute('data-mode', mode);
+    box.innerHTML =
+      '<div class="si-suggest-empty" style="padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right">جاري التحميل…</div>';
+    placeFloatSuggest(box, anchor);
   }
 
   function placeFloatSuggest(box, anchor) {
     if (!box || !anchor) return;
-    // لا تُظهر قائمة الحقل فوق نافذة F3
     if (isSystemItemModalOpen()) {
       closeItemSuggest(box);
       return;
     }
+    var tr =
+      box._hxRow ||
+      (anchor.closest && anchor.closest('tr[data-idx]')) ||
+      null;
+    ensureSuggestHome(box, tr);
+    if (box.parentNode !== document.body) {
+      document.body.appendChild(box);
+    }
+
     var r = anchor.getBoundingClientRect();
     var mode = box.getAttribute('data-mode') || 'barcode';
-    var minW = mode === 'name' ? 260 : 180;
-    var width = Math.max(r.width, minW);
-    if (mode === 'name') width = Math.min(Math.max(width, 280), Math.min(420, window.innerWidth - 16));
-    else width = Math.min(Math.max(width, 160), Math.min(280, window.innerWidth - 16));
+    var width =
+      mode === 'name'
+        ? Math.min(Math.max(r.width, 280), Math.min(440, window.innerWidth - 16))
+        : Math.min(Math.max(Math.round(r.width), 220), Math.min(340, window.innerWidth - 16));
 
-    // محاذاة من اليمين (RTL): حافة القائمة اليمنى مع حافة الحقل اليمنى
-    var right = window.innerWidth - r.right;
-    var left = r.right - width;
-    if (left < 8) {
-      left = 8;
-      right = 'auto';
-    } else {
-      right = Math.max(8, right);
-      left = 'auto';
+    var left = Math.round(r.right - width);
+    if (left < 8) left = 8;
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8);
     }
+
+    var top = Math.round(r.bottom + 3);
+    var approxH = Math.min(260, window.innerHeight * 0.45);
+    if (top + 100 > window.innerHeight && r.top > approxH + 8) {
+      top = Math.max(8, Math.round(r.top - 3 - approxH));
+    }
+
+    coSuggestGuardUntil = Date.now() + 450;
+    box.hidden = false;
+    box.removeAttribute('hidden');
     box.classList.add('si-suggest--float');
+    box.style.display = 'block';
+    box.style.position = 'fixed';
+    box.style.zIndex = '99999';
     box.style.width = width + 'px';
-    if (left === 'auto') {
-      box.style.left = 'auto';
-      box.style.right = right + 'px';
-    } else {
-      box.style.left = left + 'px';
-      box.style.right = 'auto';
+    box.style.minWidth = width + 'px';
+    box.style.maxWidth = width + 'px';
+    box.style.left = left + 'px';
+    box.style.right = 'auto';
+    box.style.top = top + 'px';
+    box.style.inset = 'auto';
+    box.style.visibility = 'visible';
+    box.style.opacity = '1';
+    box.style.pointerEvents = 'auto';
+  }
+
+  function openItemListForField(anchor) {
+    if (!anchor || locked || isSystemItemModalOpen()) return;
+    if (
+      !anchor.classList.contains('js-item-sku') &&
+      !anchor.classList.contains('js-item-code') &&
+      !anchor.classList.contains('js-item-name')
+    ) {
+      return;
     }
-    box.style.top = r.bottom + 4 + 'px';
+    var tr = anchor.closest('tr[data-idx]');
+    if (!tr || !tbody || !tbody.contains(tr)) return;
+    var box = getCoItemSuggest();
+    ensureSuggestHome(box, tr);
+    coSuggestGuardUntil = Date.now() + 450;
+    showSuggestLoading(box, tr, anchor);
+    searchItems(anchor.value || '', box, tr, anchor);
   }
 
   function goNextField(fromEl) {
@@ -1050,9 +1320,18 @@
       itemSug &&
       !itemSug.hidden &&
       itemSug.querySelector('button') &&
-      (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-name'))
+      (fromEl.classList.contains('js-item-sku') ||
+        fromEl.classList.contains('js-item-code') ||
+        fromEl.classList.contains('js-item-name'))
     ) {
       if (pickActiveSuggest(itemSug)) return;
+      // رقم مادة أو باركود مطابق تماماً → اختيار مباشر
+      if (
+        (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-sku')) &&
+        pickExactCodeSuggest(itemSug, fromEl.value)
+      ) {
+        return;
+      }
       closeItemSuggest(itemSug);
       // تابع التنقل للحقل التالي بدون اختيار مادة
     } else {
@@ -1081,16 +1360,16 @@
       var idx = Number(tr.getAttribute('data-idx'));
       var curLn = state.lines[idx];
       if (!lineHasItem(curLn)) {
-        focusLineField(idx, '.js-item-code', true);
+        focusLineField(idx, '.js-item-sku', true);
         setMsg('اختر المادة أولاً قبل الانتقال لسطر جديد.', 'error');
         return;
       }
       var nextIdx = idx + 1;
       if (nextIdx < (state.lines || []).length) {
-        focusLineField(nextIdx, '.js-item-code', true);
+        focusLineField(nextIdx, '.js-item-sku', true);
       } else {
         if (addEmptyLine()) {
-          focusLineField((state.lines || []).length - 1, '.js-item-code', true);
+          focusLineField((state.lines || []).length - 1, '.js-item-sku', true);
         }
       }
       return;
@@ -1105,7 +1384,7 @@
     if (hi === headers.length - 1 || fromEl.id === 'co_customer') {
       // إلى أول بند — لا تضف سطرًا إن وُجد بالفعل سطر فارغ
       if (!(state.lines || []).length) addEmptyLine({ force: true });
-      focusLineField(0, '.js-item-code', true);
+      focusLineField(0, '.js-item-sku', true);
     }
   }
 
@@ -1166,7 +1445,7 @@
         }
       }
     }
-    focusLineField(nextIdx, cls || '.js-item-code', true);
+    focusLineField(nextIdx, cls || '.js-item-sku', true);
   }
 
   function goHorizontalField(fromEl, dir) {
@@ -1175,7 +1454,51 @@
     else goPrevField(fromEl);
   }
 
+  function onUnitChange(tr) {
+    var unitEl = tr.querySelector('.js-unit');
+    if (!unitEl) return;
+    var idx = Number(tr.getAttribute('data-idx'));
+    var ln = state.lines[idx] || {};
+    var opt = unitEl.selectedOptions && unitEl.selectedOptions[0];
+    if (opt) {
+      ln.unit_id = Number(unitEl.value) || 0;
+      ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
+      ln.unit_name = opt.getAttribute('data-name') || '';
+      ln.unit_price = unitSalePrice(activeBaseOfLine(ln), ln.unit_factor);
+      state.lines[idx] = ln;
+      var pe = tr.querySelector('.js-price');
+      if (pe) pe.value = String(ln.unit_price);
+    }
+    readLineFromRow(tr);
+    fitRowFields(tr);
+    if (window.HxOffers && Number((state.lines[idx] || {}).item_id)) {
+      window.HxOffers.refreshLine({
+        idx: idx,
+        ln: state.lines[idx],
+        tr: tr,
+        onDone: function () {
+          readLineFromRow(tr);
+        },
+      });
+    }
+  }
+
+  function bindUnitOnly(tr) {
+    var unitEl = tr.querySelector('.js-unit');
+    if (!unitEl || unitEl.getAttribute('data-hx-bound') === '1') return;
+    unitEl.setAttribute('data-hx-bound', '1');
+    unitEl.addEventListener('change', function () {
+      onUnitChange(tr);
+    });
+  }
+
   function bindRow(tr) {
+    if (!tr) return;
+    if (tr.getAttribute('data-hx-bound') === '1') {
+      bindUnitOnly(tr);
+      return;
+    }
+    tr.setAttribute('data-hx-bound', '1');
     ['js-qty', 'js-qty-extra', 'js-disc', 'js-tax'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
       if (!el) return;
@@ -1196,63 +1519,58 @@
         }
       });
     });
-    var unitEl = tr.querySelector('.js-unit');
-    if (unitEl) {
-      unitEl.addEventListener('change', function () {
-        var idx = Number(tr.getAttribute('data-idx'));
-        var ln = state.lines[idx] || {};
-        var opt = unitEl.selectedOptions && unitEl.selectedOptions[0];
-        if (opt) {
-          ln.unit_id = Number(unitEl.value) || 0;
-          ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
-          ln.unit_name = opt.getAttribute('data-name') || '';
-          ln.unit_price = unitSalePrice(activeBaseOfLine(ln), ln.unit_factor);
-          state.lines[idx] = ln;
-          var pe = tr.querySelector('.js-price');
-          if (pe) pe.value = String(ln.unit_price);
-        }
-        readLineFromRow(tr);
-        fitRowFields(tr);
-      });
-    }
+    bindUnitOnly(tr);
+    var skuInput = tr.querySelector('.js-item-sku');
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
-    var suggest = tr.querySelector('.js-item-suggest');
-    if (codeInput && suggest && !locked) {
-      codeInput.addEventListener('input', function () {
-        fitFieldToContent(codeInput, { min: 100, max: 240, pad: 24 });
+
+    function clearLineItemChoice(idx) {
+      var hid = tr.querySelector('.js-item-id');
+      if (hid) hid.value = '';
+      if (nameInput) {
+        nameInput.value = '';
+        nameInput.readOnly = false;
+      }
+      if (state.lines[idx]) {
+        state.lines[idx].item_id = 0;
+        state.lines[idx].name_ar = '';
+      }
+    }
+
+    if (skuInput && !locked) {
+      skuInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
-        var hid = tr.querySelector('.js-item-id');
-        if (hid) hid.value = '';
-        if (nameInput && !nameInput.readOnly) nameInput.value = '';
-        else if (nameInput) {
-          nameInput.value = '';
-          nameInput.readOnly = false;
-          fitFieldToContent(nameInput, { min: 140, max: 640, pad: 28 });
-        }
+        clearLineItemChoice(idx);
+        if (codeInput) codeInput.value = '';
         if (state.lines[idx]) {
-          state.lines[idx].item_id = 0;
-          state.lines[idx].name_ar = '';
+          state.lines[idx].item_sku = String(skuInput.value || '').trim();
+          state.lines[idx].item_barcode = '';
+          state.lines[idx].item_code = '';
+        }
+        clearTimeout(itemTimers['s' + idx]);
+        itemTimers['s' + idx] = setTimeout(function () {
+          openItemListForField(skuInput);
+        }, 160);
+      });
+    }
+
+    if (codeInput && !locked) {
+      codeInput.addEventListener('input', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        clearLineItemChoice(idx);
+        if (skuInput) skuInput.value = '';
+        if (state.lines[idx]) {
           state.lines[idx].item_code = cleanBarcodeText(codeInput.value);
           state.lines[idx].item_barcode = state.lines[idx].item_code;
+          state.lines[idx].item_sku = '';
         }
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          if (isSystemItemModalOpen()) return;
-          searchItems(codeInput.value, suggest, tr, codeInput);
+          openItemListForField(codeInput);
         }, 160);
       });
-      codeInput.addEventListener('focus', function () {
-        if (isSystemItemModalOpen()) return;
-        searchItems(codeInput.value || '', suggest, tr, codeInput);
-      });
-      codeInput.addEventListener('click', function () {
-        if (isSystemItemModalOpen()) return;
-        if (!suggest.hidden) placeFloatSuggest(suggest, codeInput);
-        else searchItems(codeInput.value || '', suggest, tr, codeInput);
-      });
     }
-    if (nameInput && suggest && !locked) {
+    if (nameInput && !locked) {
       nameInput.addEventListener('input', function () {
         if (nameInput.readOnly) return;
         fitFieldToContent(nameInput, { min: 140, max: 640, pad: 28 });
@@ -1266,20 +1584,8 @@
         }
         clearTimeout(itemTimers['n' + idx]);
         itemTimers['n' + idx] = setTimeout(function () {
-          if (isSystemItemModalOpen()) return;
-          searchItems(nameInput.value, suggest, tr, nameInput);
+          openItemListForField(nameInput);
         }, 160);
-      });
-      nameInput.addEventListener('focus', function () {
-        if (nameInput.readOnly) return;
-        if (isSystemItemModalOpen()) return;
-        searchItems(nameInput.value || '', suggest, tr, nameInput);
-      });
-      nameInput.addEventListener('click', function () {
-        if (nameInput.readOnly) return;
-        if (isSystemItemModalOpen()) return;
-        if (!suggest.hidden) placeFloatSuggest(suggest, nameInput);
-        else searchItems(nameInput.value || '', suggest, tr, nameInput);
       });
     }
     // توسيع فوري عند ربط الصف
@@ -1304,86 +1610,115 @@
       closeItemSuggest(box);
       return;
     }
+    ensureSuggestHome(box, tr);
     var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
     box._coSearchToken = token;
-    // وضع القائمة: باركود ← يعرض الباركود فقط · اسم ← يعرض اسم المادة فقط
-    var mode =
-      anchor && anchor.classList && anchor.classList.contains('js-item-name') ? 'name' : 'barcode';
-    box.classList.remove('si-suggest--barcode', 'si-suggest--name');
-    box.classList.add(mode === 'name' ? 'si-suggest--name' : 'si-suggest--barcode');
+    // وضع القائمة: رقم مادة / باركود / اسم
+    var mode = 'barcode';
+    if (anchor && anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
     box.setAttribute('data-mode', mode);
     box.dataset.hxUserNav = '';
 
-    fetch('/api/sales/customer-orders/items?q=' + encodeURIComponent(q || ''))
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (data) {
-        if (box._coSearchToken !== token) return;
-        // رد متأخر بعد فتح F3 → لا تُظهر القائمة المنسدلة
-        if (isSystemItemModalOpen()) {
-          closeItemSuggest(box);
-          return;
-        }
-        box.innerHTML = '';
-        box.dataset.hxUserNav = '';
-        if (!data.ok) {
-          closeItemSuggest(box);
-          return;
-        }
-        var rows = data.rows || [];
-        if (!rows.length) {
-          var empty = document.createElement('div');
-          empty.className = 'si-suggest-empty';
-          empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
-          empty.textContent = q
-            ? 'لا توجد نتائج مطابقة'
-            : mode === 'name'
-              ? 'اكتب اسم المادة…'
-              : 'اكتب الباركود…';
-          box.appendChild(empty);
-          box.hidden = false;
-          box.removeAttribute('hidden');
-          placeFloatSuggest(box, anchor || tr.querySelector('.js-item-code'));
-          return;
-        }
-        rows.slice(0, 30).forEach(function (it, i) {
-          var b = document.createElement('button');
-          b.type = 'button';
-          b.tabIndex = -1;
-          var code = itemBarcodeOnly(it);
-          var nm = itemNameOnly(it);
-          // قائمة الباركود → باركود فقط · قائمة الاسم → اسم فقط
-          if (mode === 'name') {
-            b.textContent = nm || code;
-            b.title = code ? 'باركود: ' + code : nm;
-          } else {
-            b.textContent = code || nm;
-            b.title = nm ? 'المادة: ' + nm : code;
-          }
-          b.setAttribute('data-item-id', String(it.id || ''));
-          b.setAttribute('data-barcode', code);
-          b.setAttribute('data-name', nm);
-          b.addEventListener('mousedown', function (e) {
-            e.preventDefault();
-          });
-          b.addEventListener('click', function () {
-            // نقر الماوس = اختيار صريح
-            box.dataset.hxUserNav = '1';
-            closeItemSuggest(box);
-            pickItemIntoRow(tr, it, true);
-          });
-          // لا نفعّل is-active تلقائياً — حتى لا يختار Enter أول باركود
-          box.appendChild(b);
-        });
-        box.hidden = false;
-        box.removeAttribute('hidden');
-        placeFloatSuggest(box, anchor || tr.querySelector('.js-item-code'));
-      })
-      .catch(function () {
-        if (box._coSearchToken !== token) return;
+    var urls = [
+      '/api/sales/customer-orders/items?q=' + encodeURIComponent(q || ''),
+      '/api/items?q=' + encodeURIComponent(q || ''),
+      '/api/lookup/items?q=' + encodeURIComponent(q || ''),
+    ];
+
+    function finish(data) {
+      if (box._coSearchToken !== token) return;
+      if (isSystemItemModalOpen()) {
         closeItemSuggest(box);
+        return;
+      }
+      box.innerHTML = '';
+      box.dataset.hxUserNav = '';
+      box._hxRows = [];
+      if (!data || !data.ok) {
+        var err = document.createElement('div');
+        err.className = 'si-suggest-empty';
+        err.style.cssText = 'padding:.55rem .75rem;color:#b91c1c;font-size:.82rem;text-align:right';
+        err.textContent = (data && data.error) || 'تعذر تحميل المواد';
+        box.appendChild(err);
+        placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
+        return;
+      }
+      var rows = data.rows || data.items || [];
+      box._hxRows = rows;
+      if (!rows.length) {
+        var empty = document.createElement('div');
+        empty.className = 'si-suggest-empty';
+        empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
+        empty.textContent = q
+          ? 'لا توجد نتائج مطابقة'
+          : mode === 'name'
+            ? 'اكتب اسم المادة…'
+            : mode === 'sku'
+              ? 'اكتب رقم المادة…'
+              : 'اكتب الباركود…';
+        box.appendChild(empty);
+        placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
+        return;
+      }
+      rows.slice(0, 30).forEach(function (it) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.tabIndex = -1;
+        var code = itemBarcodeOnly(it);
+        var sku = itemSkuOnly(it);
+        var nm = itemNameOnly(it);
+        if (mode === 'name') {
+          b.textContent = nm || sku || code;
+          b.title = sku || code ? 'رقم/باركود: ' + (sku || code) : nm;
+        } else if (mode === 'sku') {
+          b.textContent = (sku || code || nm) + (nm && sku ? ' — ' + nm : '');
+          b.title = nm ? nm + (code ? ' · باركود ' + code : '') : code || sku;
+        } else {
+          b.textContent = (code || sku || nm) + (nm && code ? ' — ' + nm : '');
+          b.title = nm ? nm + (sku ? ' · رقم ' + sku : '') : sku || code;
+        }
+        b.setAttribute('data-item-id', String(it.id || ''));
+        b.setAttribute('data-barcode', code);
+        b.setAttribute('data-sku', sku);
+        b.setAttribute('data-name', nm);
+        b.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+        });
+        b.addEventListener('click', function () {
+          box.dataset.hxUserNav = '1';
+          closeItemSuggest(box);
+          pickItemIntoRow(tr, it, true);
+        });
+        box.appendChild(b);
       });
+      placeFloatSuggest(box, anchor || tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code'));
+    }
+
+    function tryFetch(i) {
+      if (i >= urls.length) {
+        finish({ ok: false, error: 'تعذر تحميل المواد' });
+        return;
+      }
+      fetch(urls[i], { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) {
+          if (!r.ok) throw new Error('http ' + r.status);
+          return r.json();
+        })
+        .then(function (data) {
+          finish(data || { ok: false });
+        })
+        .catch(function () {
+          tryFetch(i + 1);
+        });
+    }
+    tryFetch(0);
   }
 
   /** هل تم اختيار مادة في السطر؟ */
@@ -1403,7 +1738,7 @@
     for (var i = 0; i < lines.length; i++) {
       if (!lineHasItem(lines[i])) {
         if (!opts.silent) {
-          focusLineField(i, '.js-item-code', true);
+          focusLineField(i, '.js-item-sku', true);
           setMsg('اختر المادة في السطر الحالي قبل إضافة سطر جديد.', 'error');
         }
         return false;
@@ -1420,18 +1755,19 @@
     state.lines = state.lines || [];
     state.lines.push({
       item_id: 0,
+      item_sku: '',
       item_code: '',
       item_barcode: '',
       name_ar: '',
-      qty: 1,
-      qty_extra: 0,
+      qty: '',
+      qty_extra: '',
       unit_price: 0,
       base_sale: 0,
       unit_id: 0,
       unit_name: 'قطعة',
       unit_factor: 1,
       units: [],
-      discount_pct: 0,
+      discount_pct: '',
       tax_rate_percent: defaultTax,
     });
     renderLines();
@@ -1455,7 +1791,15 @@
       idx = state.lines.length - 1;
     }
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
-    renderLines({ idx: idx, cls: '.js-unit', select: false });
+    var tr = tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
+    if (tr) {
+      patchLineRow(tr, state.lines[idx]);
+      window.setTimeout(function () {
+        focusLineField(idx, '.js-qty', true);
+      }, 0);
+    } else {
+      renderLines({ idx: idx, cls: '.js-qty', select: true });
+    }
   });
 
   document.addEventListener('hx:customer-picked', function (e) {
@@ -1475,58 +1819,137 @@
   var custInput = document.getElementById('co_customer');
   var custId = document.getElementById('co_customer_id');
   var custBox = document.getElementById('cust_suggest');
+
+  function searchCustomers(q) {
+    if (!custBox || locked) return;
+    fetch('/api/sales/customer-orders/customers?q=' + encodeURIComponent(q || ''))
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          custBox.innerHTML =
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b91c1c;font-size:.85rem">' +
+            ((data && (data.error || data.message)) || 'تعذر تحميل العملاء') +
+            '</div>';
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+          return;
+        }
+        custBox.innerHTML = '';
+        var rows = data.rows || [];
+        if (!rows.length) {
+          custBox.innerHTML =
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا يوجد عملاء مطابقون.</div>';
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+          return;
+        }
+        rows.slice(0, 25).forEach(function (c) {
+          var b = document.createElement('button');
+          b.type = 'button';
+          b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
+          b.addEventListener('click', function () {
+            onCustomerSelected(c);
+          });
+          custBox.appendChild(b);
+        });
+        custBox.hidden = false;
+        custBox.removeAttribute('hidden');
+      })
+      .catch(function () {
+        custBox.innerHTML =
+          '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b91c1c;font-size:.85rem">تعذر الاتصال بخدمة العملاء</div>';
+        custBox.hidden = false;
+        custBox.removeAttribute('hidden');
+      });
+  }
+
   if (custInput && custBox && !locked) {
+    custInput.addEventListener('focus', function () {
+      searchCustomers(custInput.value || '');
+    });
+    custInput.addEventListener('click', function () {
+      if (custBox.hidden) searchCustomers(custInput.value || '');
+    });
     custInput.addEventListener('input', function () {
+      if (custId) custId.value = '';
+      setCustomerPriceMode({ use_wholesale_price: 0 });
+      loadCustomerAr(0);
       clearTimeout(custTimer);
       custTimer = setTimeout(function () {
-        fetch('/api/sales/customer-orders/customers?q=' + encodeURIComponent(custInput.value || ''))
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            if (!data.ok) return;
-            custBox.innerHTML = '';
-            (data.rows || []).slice(0, 25).forEach(function (c) {
-              var b = document.createElement('button');
-              b.type = 'button';
-              b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
-              b.addEventListener('click', function () {
-                onCustomerSelected(c);
-              });
-              custBox.appendChild(b);
-            });
-            custBox.hidden = !(data.rows && data.rows.length);
-          });
+        searchCustomers(custInput.value || '');
       }, 220);
     });
-    document.addEventListener('click', function (e) {
-      if (!custBox.contains(e.target) && e.target !== custInput) custBox.hidden = true;
-      document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-        if (box.hidden) return;
-        var tr = box.closest('tr[data-idx]');
-        var codeEl = tr && tr.querySelector('.js-item-code');
-        var nameEl = tr && tr.querySelector('.js-item-name');
-        if (box.contains(e.target)) return;
-        if (e.target === codeEl || e.target === nameEl) return;
-        closeItemSuggest(box);
-      });
-    });
   }
+
+  document.addEventListener(
+    'focusin',
+    function (e) {
+      if (!document.getElementById('co-doc-bar') || locked) return;
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (
+        t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name')
+      ) {
+        openItemListForField(t);
+      }
+    },
+    true
+  );
+
+  document.addEventListener(
+    'pointerdown',
+    function (e) {
+      if (!document.getElementById('co-doc-bar') || locked) return;
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (
+        t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name')
+      ) {
+        // قبل focus/click — افتح القائمة حتى لا يسبقها مستمع الإغلاق
+        openItemListForField(t);
+      }
+    },
+    true
+  );
+
+  document.addEventListener('click', function (e) {
+    if (!document.getElementById('co-doc-bar')) return;
+    if (custBox && custInput && !custBox.contains(e.target) && e.target !== custInput) {
+      custBox.hidden = true;
+      custBox.setAttribute('hidden', '');
+    }
+    if (Date.now() < coSuggestGuardUntil) return;
+    var box = getCoItemSuggest();
+    if (box.hidden) return;
+    if (box.contains(e.target)) return;
+    var field = e.target && e.target.closest
+      ? e.target.closest('.js-item-sku, .js-item-code, .js-item-name')
+      : null;
+    if (field && box._hxRow && box._hxRow.contains(field)) return;
+    closeItemSuggest(box);
+  });
 
   window.addEventListener(
     'scroll',
     function () {
       if (!document.getElementById('co-doc-bar')) return;
-      document.querySelectorAll('.js-item-suggest:not([hidden])').forEach(function (box) {
-        var tr = box.closest('tr[data-idx]');
-        if (!tr) return;
-        var ae = document.activeElement;
-        var anchor =
-          ae && tr.contains(ae) && (ae.classList.contains('js-item-code') || ae.classList.contains('js-item-name'))
-            ? ae
-            : tr.querySelector('.js-item-code');
-        if (anchor) placeFloatSuggest(box, anchor);
-      });
+      var box = getCoItemSuggest();
+      if (box.hidden) return;
+      var ae = document.activeElement;
+      if (
+        ae &&
+        (ae.classList.contains('js-item-sku') ||
+          ae.classList.contains('js-item-code') ||
+          ae.classList.contains('js-item-name'))
+      ) {
+        placeFloatSuggest(box, ae);
+      }
     },
     true
   );
@@ -1635,6 +2058,26 @@
   var disc = document.getElementById('co_discount');
   if (disc) disc.addEventListener('input', recomputeFooter);
 
+  var coDateEl = document.getElementById('co_date');
+  if (coDateEl && window.HxOffers) {
+    coDateEl.addEventListener('change', function () {
+      state.lines.forEach(function (ln, idx) {
+        if (!ln || !Number(ln.item_id)) return;
+        var tr = document.querySelector('#co-lines-body tr[data-idx="' + idx + '"]') ||
+          document.querySelector('tr[data-idx="' + idx + '"]');
+        window.HxOffers.refreshLine({
+          idx: idx,
+          ln: ln,
+          tr: tr,
+          onDone: function () {
+            if (tr) readLineFromRow(tr);
+            else if (typeof renderLines === 'function') renderLines();
+          },
+        });
+      });
+    });
+  }
+
   function collectPayload() {
     syncLinesFromDom();
     return {
@@ -1643,6 +2086,7 @@
       customer_id: Number((document.getElementById('co_customer_id') || {}).value || 0),
       sales_rep_id: Number((document.getElementById('co_rep') || {}).value || 0) || null,
       warehouse_id: Number((document.getElementById('co_wh') || {}).value || 0) || null,
+      payment_type: (document.getElementById('co_pay') || {}).value || 'credit',
       notes: (document.getElementById('co_notes') || {}).value || '',
       invoice_discount: (document.getElementById('co_discount') || {}).value || '',
       lines: (state.lines || []).filter(function (ln) {
@@ -1856,6 +2300,214 @@
     });
   }
 
+  var oracleBtn = document.getElementById('co-oracle');
+  var batchModal = document.getElementById('co-batch-modal');
+  var batchRows = document.getElementById('co-batch-rows');
+  var batchSub = document.getElementById('co-batch-sub');
+  var batchCancel = document.getElementById('co-batch-cancel');
+  var batchConfirm = document.getElementById('co-batch-confirm');
+  var pickerData = null;
+
+  function fmtBatchQty(n) {
+    n = Number(n) || 0;
+    return String(n).indexOf('.') >= 0 ? n.toFixed(3).replace(/\.?0+$/, '') : String(n);
+  }
+
+  function closeBatchModal() {
+    if (batchModal) {
+      batchModal.hidden = true;
+      batchModal.setAttribute('aria-hidden', 'true');
+    }
+    pickerData = null;
+  }
+
+  function openBatchModal(data) {
+    pickerData = data;
+    if (!batchRows || !batchModal) return;
+    batchRows.innerHTML = '';
+    if (batchSub) {
+      batchSub.textContent =
+        'مستودع Oracle: ' +
+        (data.store || '—') +
+        (data.warehouse_name ? ' — ' + data.warehouse_name : '');
+    }
+    (data.lines || []).forEach(function (ln, i) {
+      var batches = Array.isArray(ln.batches) ? ln.batches : [];
+      var noStock = !batches.length;
+      var tr = document.createElement('tr');
+      if (noStock) tr.className = 'co-batch-row--nostock';
+
+      var tdIdx = document.createElement('td');
+      tdIdx.className = 'co-batch-col-idx';
+      tdIdx.textContent = String(i + 1);
+
+      var tdName = document.createElement('td');
+      tdName.className = 'co-batch-col-item';
+      tdName.innerHTML =
+        '<span class="co-batch-item-code">' +
+        escAttr(String(ln.item || '')) +
+        '</span><span class="co-batch-item-name">' +
+        escAttr(String(ln.name || '')) +
+        '</span>';
+
+      var tdNeed = document.createElement('td');
+      tdNeed.className = 'co-batch-col-need';
+      tdNeed.textContent = fmtBatchQty(ln.need);
+
+      var tdBatch = document.createElement('td');
+      tdBatch.className = 'co-batch-col-batch';
+      var sel = document.createElement('select');
+      sel.className = 'si-field co-batch-select';
+      sel.dataset.srl = String(ln.srl || '');
+      sel.dataset.item = String(ln.item || '');
+      if (noStock) {
+        sel.disabled = true;
+        var warn = document.createElement('div');
+        warn.className = 'co-batch-warn';
+        warn.textContent = 'لا رصيد موجب في BALANCE لهذه المادة.';
+        tdBatch.appendChild(warn);
+      }
+      var opt0 = document.createElement('option');
+      opt0.value = '';
+      opt0.textContent = noStock ? '— لا توجد تشغيلات —' : '— اختر التشغيلة —';
+      sel.appendChild(opt0);
+      var best = '';
+      batches.forEach(function (b) {
+        var o = document.createElement('option');
+        o.value = b.batch || '';
+        var label = (b.batch || '?') + ' — رصيد ' + fmtBatchQty(b.qty);
+        if (b.exp_date) label += ' — ' + b.exp_date;
+        o.textContent = label;
+        sel.appendChild(o);
+        if (!best && Number(b.qty) >= Number(ln.need)) best = b.batch;
+      });
+      if (batches.length === 1) best = batches[0].batch;
+      if (best) sel.value = best;
+      tdBatch.appendChild(sel);
+
+      tr.appendChild(tdIdx);
+      tr.appendChild(tdName);
+      tr.appendChild(tdNeed);
+      tr.appendChild(tdBatch);
+      batchRows.appendChild(tr);
+    });
+    batchModal.hidden = false;
+    batchModal.setAttribute('aria-hidden', 'false');
+  }
+
+  function collectBatchPicks() {
+    var picks = [];
+    if (!batchRows) return picks;
+    batchRows.querySelectorAll('select').forEach(function (sel) {
+      var b = (sel.value || '').trim();
+      if (!b) return;
+      picks.push({
+        srl: parseInt(sel.dataset.srl || '0', 10),
+        item: sel.dataset.item || '',
+        batch: b,
+      });
+    });
+    return picks;
+  }
+
+  function postOracleWithBatches(batchPicks) {
+    if (!state.id) return;
+    setMsg('جاري الترحيل إلى Oracle…');
+    setBusy(true);
+    fetch('/api/sales/customer-orders/' + state.id + '/post-oracle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch_picks: batchPicks || [] }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        setBusy(false);
+        if (!data.ok) {
+          showActionError(data);
+          return;
+        }
+        closeBatchModal();
+        window.location.reload();
+      })
+      .catch(function () {
+        setBusy(false);
+        setMsg('تعذر الاتصال بالخادم', 'error');
+      });
+  }
+
+  function startOraclePost() {
+    if (!state.id) {
+      setMsg('احفظ واعتمد الطلب أولاً.', 'error');
+      return;
+    }
+    if (busy || !state.is_approved) {
+      setMsg('اعتمد الطلب أولاً ثم رحّله إلى Oracle.', 'error');
+      return;
+    }
+    setMsg('جاري جلب التشغيلات من Oracle…');
+    setBusy(true);
+    fetch('/api/sales/customer-orders/' + state.id + '/oracle-batches', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        setBusy(false);
+        if (!data.ok) {
+          setMsg(data.message || data.error || 'تعذر جلب التشغيلات.', 'error');
+          return;
+        }
+        setMsg('');
+        openBatchModal(data);
+      })
+      .catch(function () {
+        setBusy(false);
+        setMsg('تعذر الاتصال بالخادم', 'error');
+      });
+  }
+
+  if (batchCancel) batchCancel.addEventListener('click', closeBatchModal);
+  if (batchConfirm) {
+    batchConfirm.addEventListener('click', function () {
+      if (!pickerData || !pickerData.lines) return;
+      var picks = collectBatchPicks();
+      if (picks.length < pickerData.lines.length) {
+        hxAlert('اختر تشغيلة لكل مادة قبل الترحيل.', { title: 'اختيار التشغيلة', kind: 'warn' });
+        return;
+      }
+      hxConfirm('ترحيل الطلب إلى Oracle بالتشغيلات المختارة؟', {
+        title: 'ترحيل إلى Oracle',
+        okLabel: 'ترحيل',
+      }).then(function (ok) {
+        if (!ok) return;
+        postOracleWithBatches(picks);
+      });
+    });
+  }
+
+  if (oracleBtn) {
+    oracleBtn.addEventListener('click', function () {
+      if (!state.id) {
+        setMsg('احفظ واعتمد الطلب أولاً.', 'error');
+        return;
+      }
+      var vnum = Number(state.oracle_v_num || 0);
+      var vyear = Number(state.oracle_vyear || 0);
+      if (vnum > 0) {
+        var q = '/sales/reports/oracle-sales-invoice?invoice_no=' + vnum;
+        if (vyear > 0) q += '&year=' + vyear;
+        window.open(q, '_blank');
+        return;
+      }
+      startOraclePost();
+    });
+  }
+
   var delBtn = document.getElementById('co-delete');
   if (delBtn) {
     delBtn.addEventListener('click', function () {
@@ -1886,14 +2538,29 @@
     });
   }
 
+  var newBtn = document.getElementById('co-new');
+  if (newBtn) {
+    newBtn.addEventListener('click', function () {
+      window.location.href = '/sales/orders/new';
+    });
+  }
+
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
   updateDocNoStyle();
 
+  try {
+    window.scrollTo(0, 0);
+    if (document.documentElement) document.documentElement.scrollTop = 0;
+    if (document.body) document.body.scrollTop = 0;
+  } catch (e) {
+    /* ignore */
+  }
+
   var initialCustomerId =
     Number((document.getElementById('co_customer_id') || {}).value || state.customer_id || 0) || 0;
   if (initialCustomerId > 0) {
-    loadCustomerAr(initialCustomerId);
+    loadCustomerAr(initialCustomerId, { scroll: false });
   }
 
   var refreshArBtn = document.getElementById('co-ora-ar-refresh');
@@ -1901,7 +2568,7 @@
     refreshArBtn.addEventListener('click', function () {
       var cid =
         Number((document.getElementById('co_customer_id') || {}).value || 0) || 0;
-      loadCustomerAr(cid);
+      loadCustomerAr(cid, { scroll: false });
     });
   }
 

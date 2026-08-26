@@ -2007,7 +2007,7 @@ label .si-field-key {
 .si-suggest.si-suggest--float {
   position: fixed !important;
   inset: auto !important;
-  z-index: 12050 !important;
+  z-index: 99999 !important;
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
@@ -2027,6 +2027,11 @@ label .si-field-key {
 }
 .si-suggest.si-suggest--float[hidden] {
   display: none !important;
+}
+
+#co-global-item-suggest,
+#si-global-item-suggest {
+  z-index: 99999 !important;
 }
 
 /* ????? ??????? ? ????? ??? ?????? + ???? */

@@ -795,7 +795,7 @@
       if (
         t &&
         t.matches &&
-        t.matches('input.js-item, input[data-hx-item-input], input.js-item-code, input.js-item-name')
+        t.matches('input.js-item, input[data-hx-item-input], input.js-item-sku, input.js-item-code, input.js-item-name')
       ) {
         lastFocusItem = t;
       }

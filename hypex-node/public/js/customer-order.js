@@ -809,14 +809,7 @@
 
   function renderLines(focusOpts) {
     if (!tbody) return;
-    // أزل قوائم عالقة على body بعد إعادة رسم الأسطر
-    document.querySelectorAll('body > .js-item-suggest').forEach(function (el) {
-      try {
-        el.remove();
-      } catch (e) {
-        /* ignore */
-      }
-    });
+    closeItemSuggest(getCoItemSuggest());
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
@@ -1066,6 +1059,25 @@
     return list;
   }
 
+  var coGlobalSuggest = null;
+  var coSuggestGuardUntil = 0;
+
+  function getCoItemSuggest() {
+    if (coGlobalSuggest && coGlobalSuggest.isConnected) return coGlobalSuggest;
+    var existing = document.getElementById('co-global-item-suggest');
+    if (existing) {
+      coGlobalSuggest = existing;
+      return coGlobalSuggest;
+    }
+    coGlobalSuggest = document.createElement('div');
+    coGlobalSuggest.id = 'co-global-item-suggest';
+    coGlobalSuggest.className = 'si-suggest js-item-suggest';
+    coGlobalSuggest.hidden = true;
+    coGlobalSuggest.setAttribute('hidden', '');
+    document.body.appendChild(coGlobalSuggest);
+    return coGlobalSuggest;
+  }
+
   function focusElement(el, doSelect) {
     if (!el) return;
     try {
@@ -1078,22 +1090,22 @@
 
   function openSuggestForRow(tr) {
     if (!tr) return null;
-    var box = tr.querySelector('.js-item-suggest');
-    if (box) return box;
-    var floating = document.querySelectorAll('body > .js-item-suggest');
-    for (var i = 0; i < floating.length; i++) {
-      if (floating[i]._hxRow === tr) return floating[i];
-      var home = floating[i]._hxHome;
-      if (home && tr.contains(home)) return floating[i];
-    }
-    return null;
+    var box = getCoItemSuggest();
+    box._hxRow = tr;
+    return box;
+  }
+
+  function resolveSuggestBox(tr) {
+    return openSuggestForRow(tr);
   }
 
   function getOpenItemSuggest(fromEl) {
     if (!fromEl) return null;
-    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
-    var box = openSuggestForRow(tr);
-    if (box && !box.hidden && box.querySelector('button')) return box;
+    var box = getCoItemSuggest();
+    if (!box.hidden && box.querySelector('button')) {
+      var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+      if (!tr || box._hxRow === tr) return box;
+    }
     if (fromEl.id === 'co_customer') {
       var cs = document.getElementById('cust_suggest');
       if (cs && !cs.hidden && cs.querySelector('button')) return cs;
@@ -1154,10 +1166,10 @@
     var it = findExactItemInRows(box._hxRows || [], q);
     if (!it) return false;
     box.dataset.hxUserNav = '1';
-    var home = box._hxHome;
     var tr =
+      box._hxRow ||
       box.closest('tr[data-idx]') ||
-      (home && home.closest && home.closest('tr[data-idx]')) ||
+      (box._hxHome && box._hxHome.closest && box._hxHome.closest('tr[data-idx]')) ||
       null;
     if (!tr) return false;
     closeItemSuggest(box);
@@ -1166,6 +1178,7 @@
   }
 
   function closeItemSuggest(box) {
+    box = box || coGlobalSuggest;
     if (!box) return;
     box.hidden = true;
     box.setAttribute('hidden', '');
@@ -1185,17 +1198,11 @@
     box.style.pointerEvents = '';
     box.removeAttribute('data-mode');
     box.dataset.hxUserNav = '';
+    box._hxRows = [];
+    box.innerHTML = '';
     box.querySelectorAll('button.is-active').forEach(function (b) {
       b.classList.remove('is-active');
     });
-    // أعد القائمة لخليتها الأصلية
-    if (box._hxHome && box._hxHome.parentNode && box.parentNode === document.body) {
-      try {
-        box._hxHome.appendChild(box);
-      } catch (e) {
-        /* ignore */
-      }
-    }
   }
 
   function isSystemItemModalOpen() {
@@ -1207,20 +1214,10 @@
     return true;
   }
 
-  function resolveSuggestBox(tr) {
-    if (!tr) return null;
-    return openSuggestForRow(tr) || tr.querySelector('.js-item-suggest');
-  }
-
   function ensureSuggestHome(box, tr) {
     if (!box) return;
     if (tr) box._hxRow = tr;
-    if (!box._hxHome || !box._hxHome.parentNode || box._hxHome === document.body) {
-      var cell =
-        (tr && (tr.querySelector('.si-item-code-cell') || tr.querySelector('.si-item-sku-cell'))) ||
-        null;
-      box._hxHome = cell || box._hxHome;
-    }
+    box._hxHome = document.body;
   }
 
   function showSuggestLoading(box, tr, anchor) {
@@ -1243,7 +1240,6 @@
 
   function placeFloatSuggest(box, anchor) {
     if (!box || !anchor) return;
-    // لا تُظهر قائمة الحقل فوق نافذة F3
     if (isSystemItemModalOpen()) {
       closeItemSuggest(box);
       return;
@@ -1253,25 +1249,17 @@
       (anchor.closest && anchor.closest('tr[data-idx]')) ||
       null;
     ensureSuggestHome(box, tr);
-    // انقل القائمة إلى body حتى لا تتأثر بـ overflow/transform داخل الجدول
     if (box.parentNode !== document.body) {
-      if (!box._hxHome || box._hxHome === document.body) {
-        box._hxHome = box.parentNode;
-      }
       document.body.appendChild(box);
     }
 
     var r = anchor.getBoundingClientRect();
     var mode = box.getAttribute('data-mode') || 'barcode';
-    var width;
-    if (mode === 'name') {
-      width = Math.min(Math.max(r.width, 280), Math.min(440, window.innerWidth - 16));
-    } else {
-      // قائمة رقم/باركود أوسع من الحقل الضيق حتى تظهر بوضوح
-      width = Math.min(Math.max(Math.round(r.width), 200), Math.min(320, window.innerWidth - 16));
-    }
+    var width =
+      mode === 'name'
+        ? Math.min(Math.max(r.width, 280), Math.min(440, window.innerWidth - 16))
+        : Math.min(Math.max(Math.round(r.width), 220), Math.min(340, window.innerWidth - 16));
 
-    // في RTL: حقل رقم المادة على اليمين — نحاذي الحافة اليمنى للقائمة مع الحقل
     var left = Math.round(r.right - width);
     if (left < 8) left = 8;
     if (left + width > window.innerWidth - 8) {
@@ -1284,12 +1272,13 @@
       top = Math.max(8, Math.round(r.top - 3 - approxH));
     }
 
+    coSuggestGuardUntil = Date.now() + 450;
     box.hidden = false;
     box.removeAttribute('hidden');
     box.classList.add('si-suggest--float');
     box.style.display = 'block';
     box.style.position = 'fixed';
-    box.style.zIndex = '12050';
+    box.style.zIndex = '99999';
     box.style.width = width + 'px';
     box.style.minWidth = width + 'px';
     box.style.maxWidth = width + 'px';
@@ -1300,6 +1289,24 @@
     box.style.visibility = 'visible';
     box.style.opacity = '1';
     box.style.pointerEvents = 'auto';
+  }
+
+  function openItemListForField(anchor) {
+    if (!anchor || locked || isSystemItemModalOpen()) return;
+    if (
+      !anchor.classList.contains('js-item-sku') &&
+      !anchor.classList.contains('js-item-code') &&
+      !anchor.classList.contains('js-item-name')
+    ) {
+      return;
+    }
+    var tr = anchor.closest('tr[data-idx]');
+    if (!tr || !tbody || !tbody.contains(tr)) return;
+    var box = getCoItemSuggest();
+    ensureSuggestHome(box, tr);
+    coSuggestGuardUntil = Date.now() + 450;
+    showSuggestLoading(box, tr, anchor);
+    searchItems(anchor.value || '', box, tr, anchor);
   }
 
   function goNextField(fromEl) {
@@ -1516,7 +1523,6 @@
     var skuInput = tr.querySelector('.js-item-sku');
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
-    var suggest = resolveSuggestBox(tr);
 
     function clearLineItemChoice(idx) {
       var hid = tr.querySelector('.js-item-id');
@@ -1531,16 +1537,7 @@
       }
     }
 
-    function openItemList(anchor) {
-      if (!anchor || locked || isSystemItemModalOpen()) return;
-      var box = resolveSuggestBox(tr);
-      if (!box) return;
-      ensureSuggestHome(box, tr);
-      showSuggestLoading(box, tr, anchor);
-      searchItems(anchor.value || '', box, tr, anchor);
-    }
-
-    if (skuInput && suggest && !locked) {
+    if (skuInput && !locked) {
       skuInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
         clearLineItemChoice(idx);
@@ -1552,21 +1549,12 @@
         }
         clearTimeout(itemTimers['s' + idx]);
         itemTimers['s' + idx] = setTimeout(function () {
-          if (isSystemItemModalOpen()) return;
-          var box = resolveSuggestBox(tr);
-          if (!box) return;
-          searchItems(skuInput.value, box, tr, skuInput);
+          openItemListForField(skuInput);
         }, 160);
-      });
-      skuInput.addEventListener('focus', function () {
-        openItemList(skuInput);
-      });
-      skuInput.addEventListener('click', function () {
-        openItemList(skuInput);
       });
     }
 
-    if (codeInput && suggest && !locked) {
+    if (codeInput && !locked) {
       codeInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
         clearLineItemChoice(idx);
@@ -1578,20 +1566,11 @@
         }
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          if (isSystemItemModalOpen()) return;
-          var box = resolveSuggestBox(tr);
-          if (!box) return;
-          searchItems(codeInput.value, box, tr, codeInput);
+          openItemListForField(codeInput);
         }, 160);
       });
-      codeInput.addEventListener('focus', function () {
-        openItemList(codeInput);
-      });
-      codeInput.addEventListener('click', function () {
-        openItemList(codeInput);
-      });
     }
-    if (nameInput && suggest && !locked) {
+    if (nameInput && !locked) {
       nameInput.addEventListener('input', function () {
         if (nameInput.readOnly) return;
         fitFieldToContent(nameInput, { min: 140, max: 640, pad: 28 });
@@ -1605,18 +1584,8 @@
         }
         clearTimeout(itemTimers['n' + idx]);
         itemTimers['n' + idx] = setTimeout(function () {
-          if (isSystemItemModalOpen()) return;
-          var box = resolveSuggestBox(tr);
-          if (!box) return;
-          searchItems(nameInput.value, box, tr, nameInput);
+          openItemListForField(nameInput);
         }, 160);
-      });
-      nameInput.addEventListener('focus', function () {
-        // حتى لو كان الاسم للقراءة فقط — أظهر القائمة لتغيير المادة
-        openItemList(nameInput);
-      });
-      nameInput.addEventListener('click', function () {
-        openItemList(nameInput);
       });
     }
     // توسيع فوري عند ربط الصف
@@ -1914,47 +1883,73 @@
     });
   }
 
+  document.addEventListener(
+    'focusin',
+    function (e) {
+      if (!document.getElementById('co-doc-bar') || locked) return;
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (
+        t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name')
+      ) {
+        openItemListForField(t);
+      }
+    },
+    true
+  );
+
+  document.addEventListener(
+    'pointerdown',
+    function (e) {
+      if (!document.getElementById('co-doc-bar') || locked) return;
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (
+        t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name')
+      ) {
+        // قبل focus/click — افتح القائمة حتى لا يسبقها مستمع الإغلاق
+        openItemListForField(t);
+      }
+    },
+    true
+  );
+
   document.addEventListener('click', function (e) {
     if (!document.getElementById('co-doc-bar')) return;
     if (custBox && custInput && !custBox.contains(e.target) && e.target !== custInput) {
       custBox.hidden = true;
       custBox.setAttribute('hidden', '');
     }
+    if (Date.now() < coSuggestGuardUntil) return;
+    var box = getCoItemSuggest();
+    if (box.hidden) return;
+    if (box.contains(e.target)) return;
     var field = e.target && e.target.closest
       ? e.target.closest('.js-item-sku, .js-item-code, .js-item-name')
       : null;
-    var fieldTr = field && field.closest ? field.closest('tr[data-idx]') : null;
-    document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-      if (box.hidden) return;
-      if (box.contains(e.target)) return;
-      var tr =
-        box._hxRow ||
-        ((box._hxHome && box._hxHome.closest && box._hxHome.closest('tr[data-idx]')) ||
-          box.closest('tr[data-idx]'));
-      if (fieldTr && tr === fieldTr) return;
-      closeItemSuggest(box);
-    });
+    if (field && box._hxRow && box._hxRow.contains(field)) return;
+    closeItemSuggest(box);
   });
 
   window.addEventListener(
     'scroll',
     function () {
       if (!document.getElementById('co-doc-bar')) return;
-      document.querySelectorAll('.js-item-suggest:not([hidden])').forEach(function (box) {
-        var home = box._hxHome || box.parentNode;
-        var tr = (home && home.closest && home.closest('tr[data-idx]')) || box.closest('tr[data-idx]');
-        if (!tr) return;
-        var ae = document.activeElement;
-        var anchor =
-          ae &&
-          tr.contains(ae) &&
-          (ae.classList.contains('js-item-sku') ||
-            ae.classList.contains('js-item-code') ||
-            ae.classList.contains('js-item-name'))
-            ? ae
-            : tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code');
-        if (anchor) placeFloatSuggest(box, anchor);
-      });
+      var box = getCoItemSuggest();
+      if (box.hidden) return;
+      var ae = document.activeElement;
+      if (
+        ae &&
+        (ae.classList.contains('js-item-sku') ||
+          ae.classList.contains('js-item-code') ||
+          ae.classList.contains('js-item-name'))
+      ) {
+        placeFloatSuggest(box, ae);
+      }
     },
     true
   );
