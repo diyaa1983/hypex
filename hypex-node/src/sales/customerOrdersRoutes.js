@@ -331,14 +331,30 @@ async function renderForm(req, res, orderId) {
     ? '<span class="si-pill si-pill--lock">معتمد — قراءة فقط</span>'
     : '<span class="si-pill si-pill--wait">مسودة</span>';
 
+  const titleLine = initial.order_no
+    ? `طلب ${esc(initial.order_no)}`
+    : 'طلب شراء عميل جديد';
+
   const bodyHtml = `
-    <div class="si-stage si-stage--toolbar-first">
+    <div class="si-stage">
+      <header class="si-hero">
+        <div class="si-brand-lockup">
+          <div class="si-brand-text">
+            <h1>${titleLine}</h1>
+            ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
+          </div>
+        </div>
+        <div class="si-hero-actions">
+          <a class="si-btn" href="/sales/orders">القائمة</a>
+          <a class="si-btn" href="/sales/orders/new">جديد</a>
+        </div>
+      </header>
+
       ${toolbarHtml(caps, initial)}
 
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>بيانات المستند</h2>
-          <div class="si-surface-head-meta">${badge}</div>
         </div>
         <div class="si-meta si-meta--invoice si-meta--order">
           <label class="si-f si-f--docno">

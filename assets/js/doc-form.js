@@ -14,6 +14,157 @@
   var tbody = document.getElementById('df-lines-body');
   var partyTimer = null;
   var itemTimers = {};
+  var dfGlobalSuggest = null;
+  var dfSuggestGuardUntil = 0;
+
+  function cleanBarcodeText(s) {
+    s = String(s || '').trim();
+    if (!s) return '';
+    if (s.indexOf(' — ') >= 0) s = s.split(' — ')[0].trim();
+    return s;
+  }
+
+  function itemSkuOnly(it) {
+    return String(it && it.sku != null ? it.sku : '').trim();
+  }
+
+  function itemBarcodeOnly(it) {
+    if (!it) return '';
+    var b = String(it.barcode != null ? it.barcode : '').trim();
+    if (b) return cleanBarcodeText(b);
+    return cleanBarcodeText(it.code != null ? it.code : '');
+  }
+
+  function itemNameOnly(it) {
+    if (!it) return '';
+    return String(it.name_ar != null ? it.name_ar : it.name != null ? it.name : '').trim();
+  }
+
+  function itemPickPrice(it) {
+    return Number(it.default_cost || it.sale_price || it.default_sale || 0) || 0;
+  }
+
+  function getDfItemSuggest() {
+    if (dfGlobalSuggest && dfGlobalSuggest.isConnected) return dfGlobalSuggest;
+    var existing = document.getElementById('df-global-item-suggest');
+    if (existing) {
+      dfGlobalSuggest = existing;
+      return dfGlobalSuggest;
+    }
+    dfGlobalSuggest = document.createElement('div');
+    dfGlobalSuggest.id = 'df-global-item-suggest';
+    dfGlobalSuggest.className = 'si-suggest js-item-suggest';
+    dfGlobalSuggest.hidden = true;
+    dfGlobalSuggest.setAttribute('hidden', '');
+    document.body.appendChild(dfGlobalSuggest);
+    return dfGlobalSuggest;
+  }
+
+  function closeItemSuggest(box) {
+    box = box || dfGlobalSuggest;
+    if (!box) return;
+    box.hidden = true;
+    box.setAttribute('hidden', '');
+    box.classList.remove('si-suggest--float', 'si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.style.cssText = '';
+    box.innerHTML = '';
+    box._hxRows = [];
+    box.dataset.hxUserNav = '';
+  }
+
+  function placeFloatSuggest(box, anchor) {
+    if (!box || !anchor) return;
+    var tr = (anchor.closest && anchor.closest('tr[data-idx]')) || box._hxRow || null;
+    if (tr) box._hxRow = tr;
+    if (box.parentNode !== document.body) document.body.appendChild(box);
+
+    var r = anchor.getBoundingClientRect();
+    var mode = box.getAttribute('data-mode') || 'barcode';
+    var width =
+      mode === 'name'
+        ? Math.min(Math.max(r.width, 280), Math.min(440, window.innerWidth - 16))
+        : Math.min(Math.max(Math.round(r.width), 220), Math.min(340, window.innerWidth - 16));
+
+    var left = Math.round(r.right - width);
+    if (left < 8) left = 8;
+    if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+
+    var top = Math.round(r.bottom + 3);
+    var approxH = Math.min(260, window.innerHeight * 0.45);
+    if (top + 100 > window.innerHeight && r.top > approxH + 8) {
+      top = Math.max(8, Math.round(r.top - 3 - approxH));
+    }
+
+    dfSuggestGuardUntil = Date.now() + 450;
+    box.hidden = false;
+    box.removeAttribute('hidden');
+    box.classList.add('si-suggest--float');
+    box.style.display = 'block';
+    box.style.position = 'fixed';
+    box.style.zIndex = '99999';
+    box.style.width = width + 'px';
+    box.style.minWidth = width + 'px';
+    box.style.maxWidth = width + 'px';
+    box.style.left = left + 'px';
+    box.style.right = 'auto';
+    box.style.top = top + 'px';
+    box.style.visibility = 'visible';
+    box.style.opacity = '1';
+    box.style.pointerEvents = 'auto';
+  }
+
+  function showSuggestLoading(box, tr, anchor) {
+    if (!box || !anchor) return;
+    var mode = 'barcode';
+    if (anchor.classList.contains('js-item-name')) mode = 'name';
+    else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    box._hxRow = tr;
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
+    box.setAttribute('data-mode', mode);
+    box.innerHTML =
+      '<div class="si-suggest-empty" style="padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right">جاري التحميل…</div>';
+    placeFloatSuggest(box, anchor);
+  }
+
+  function pickItemIntoRow(tr, it) {
+    if (!tr || !it || !it.id) return;
+    var idx = Number(tr.getAttribute('data-idx'));
+    var sku = itemSkuOnly(it);
+    var barcode = itemBarcodeOnly(it);
+    state.lines[idx] = state.lines[idx] || {};
+    state.lines[idx].item_id = it.id;
+    state.lines[idx].item_sku = sku;
+    state.lines[idx].item_barcode = barcode;
+    state.lines[idx].item_code = barcode || sku;
+    state.lines[idx].name_ar = itemNameOnly(it);
+    state.lines[idx].unit_price = itemPickPrice(it);
+    if (!state.lines[idx].qty) state.lines[idx].qty = 1;
+    if (state.lines[idx].tax_rate_percent == null) state.lines[idx].tax_rate_percent = defaultTax;
+    closeItemSuggest(getDfItemSuggest());
+    renderLines();
+    if (window.HxShortcuts && window.HxShortcuts.focusLineQty) {
+      window.HxShortcuts.focusLineQty(idx, '#df-lines-body');
+    }
+  }
+
+  function openItemListForField(anchor) {
+    if (!anchor || locked) return;
+    if (
+      !anchor.classList.contains('js-item-sku') &&
+      !anchor.classList.contains('js-item-code') &&
+      !anchor.classList.contains('js-item-name')
+    ) {
+      return;
+    }
+    var tr = anchor.closest('tr[data-idx]');
+    if (!tr || !tbody || !tbody.contains(tr)) return;
+    var box = getDfItemSuggest();
+    showSuggestLoading(box, tr, anchor);
+    searchItems(anchor.value || '', box, tr, anchor);
+  }
 
   function rateClose(a, b) {
     return Math.abs(Number(a) - Number(b)) < 0.0001;
@@ -170,21 +321,55 @@
   }
   function renderLines() {
     if (!tbody) return;
+    closeItemSuggest(getDfItemSuggest());
     tbody.innerHTML = '';
     (state.lines || []).forEach(function (ln, idx) {
       var t = lineTotals(ln);
+      var sku = String(ln.item_sku || '').trim();
+      var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+      var nameOnly = String(ln.name_ar || '').trim();
+      ln.item_sku = sku;
+      ln.item_barcode = barcode;
+      ln.item_code = barcode || sku;
+      ln.name_ar = nameOnly;
       var tr = document.createElement('tr');
       tr.setAttribute('data-idx', String(idx));
       tr.innerHTML =
-        '<td dir="ltr">' +
+        '<td dir="ltr" class="si-row-num">' +
         (idx + 1) +
-        '</td><td class="si-item-cell"><input type="hidden" class="js-item-id" value="' +
-        (ln.item_id || '') +
-        '"><input class="js-item" type="search" placeholder="رمز / اسم" value="' +
-        escAttr((ln.item_code ? ln.item_code + ' — ' : '') + (ln.name_ar || '')) +
+        '</td>' +
+        '<td class="si-item-sku-cell">' +
+        '<input class="js-item-sku" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="رقم المادة" title="' +
+        escAttr(sku) +
+        '" value="' +
+        escAttr(sku) +
         '" ' +
         (locked ? 'readonly' : '') +
-        '><div class="si-suggest js-item-suggest" hidden></div></td>' +
+        '>' +
+        '</td>' +
+        '<td class="si-item-code-cell">' +
+        '<input type="hidden" class="js-item-id" value="' +
+        (ln.item_id || '') +
+        '">' +
+        '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
+        'placeholder="الباركود" title="' +
+        escAttr(barcode) +
+        '" value="' +
+        escAttr(barcode) +
+        '" ' +
+        (locked ? 'readonly' : '') +
+        '>' +
+        '</td>' +
+        '<td class="si-item-name-cell">' +
+        '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" placeholder="اسم المادة" title="' +
+        escAttr(nameOnly) +
+        '" value="' +
+        escAttr(nameOnly) +
+        '" ' +
+        (locked || ln.item_id ? 'readonly' : '') +
+        '>' +
+        '</td>' +
         '<td><input class="js-qty" type="number" step="' +
         qtyStep() +
         '" min="0" value="' +
@@ -220,8 +405,8 @@
         fmt(t.sub) +
         '</td><td class="js-gross si-num-out" dir="ltr">' +
         fmt(t.gross) +
-        '</td><td>' +
-        (locked ? '' : '<button type="button" class="si-del js-del">×</button>') +
+        '</td><td class="si-col-del">' +
+        (locked ? '' : '<button type="button" class="si-del js-del" title="حذف">×</button>') +
         '</td>';
       tbody.appendChild(tr);
       bindRow(tr);
@@ -244,137 +429,148 @@
         if (!state.lines.length) addEmptyLine();
         else renderLines();
       });
-    var itemInput = tr.querySelector('.js-item');
-    var suggest = tr.querySelector('.js-item-suggest');
-    if (itemInput && suggest && !locked) {
-      itemInput.addEventListener('input', function () {
+    var skuInput = tr.querySelector('.js-item-sku');
+    var codeInput = tr.querySelector('.js-item-code');
+    var nameInput = tr.querySelector('.js-item-name');
+
+    function clearLineItemChoice(idx) {
+      var hid = tr.querySelector('.js-item-id');
+      if (hid) hid.value = '';
+      if (nameInput) {
+        nameInput.value = '';
+        nameInput.readOnly = false;
+      }
+      if (state.lines[idx]) {
+        state.lines[idx].item_id = 0;
+        state.lines[idx].name_ar = '';
+      }
+    }
+
+    if (skuInput && !locked) {
+      skuInput.addEventListener('input', function () {
         var idx = Number(tr.getAttribute('data-idx'));
+        clearLineItemChoice(idx);
+        if (codeInput) codeInput.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_sku = String(skuInput.value || '').trim();
+          state.lines[idx].item_barcode = '';
+          state.lines[idx].item_code = '';
+        }
+        clearTimeout(itemTimers['s' + idx]);
+        itemTimers['s' + idx] = setTimeout(function () {
+          openItemListForField(skuInput);
+        }, 160);
+      });
+    }
+
+    if (codeInput && !locked) {
+      codeInput.addEventListener('input', function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        clearLineItemChoice(idx);
+        if (skuInput) skuInput.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_code = cleanBarcodeText(codeInput.value);
+          state.lines[idx].item_barcode = state.lines[idx].item_code;
+          state.lines[idx].item_sku = '';
+        }
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          searchItems(itemInput.value, suggest, tr, itemInput);
-        }, 220);
-      });
-      itemInput.addEventListener('focus', function () {
-        searchItems(itemInput.value || '', suggest, tr, itemInput);
-      });
-      itemInput.addEventListener('click', function () {
-        if (!suggest.hidden) placeFloatSuggest(suggest, itemInput);
-        else searchItems(itemInput.value || '', suggest, tr, itemInput);
+          openItemListForField(codeInput);
+        }, 160);
       });
     }
-  }
 
-  function placeFloatSuggest(box, anchor) {
-    if (!box || !anchor) return;
-    if (!box._hxHome) box._hxHome = box.parentNode;
-    if (box.parentNode !== document.body) {
-      document.body.appendChild(box);
-    }
-    var r = anchor.getBoundingClientRect();
-    var width = Math.min(Math.max(Math.round(r.width), 220), Math.min(420, window.innerWidth - 16));
-    var left = Math.round(r.right - width);
-    if (left < 8) left = 8;
-    if (left + width > window.innerWidth - 8) {
-      left = Math.max(8, window.innerWidth - width - 8);
-    }
-    var top = Math.round(r.bottom + 3);
-    var approxH = Math.min(260, window.innerHeight * 0.45);
-    if (top + 100 > window.innerHeight && r.top > approxH + 8) {
-      top = Math.max(8, Math.round(r.top - 3 - approxH));
-    }
-    box.hidden = false;
-    box.removeAttribute('hidden');
-    box.classList.add('si-suggest--float');
-    box.style.display = 'block';
-    box.style.position = 'fixed';
-    box.style.zIndex = '12050';
-    box.style.width = width + 'px';
-    box.style.minWidth = width + 'px';
-    box.style.maxWidth = width + 'px';
-    box.style.left = left + 'px';
-    box.style.right = 'auto';
-    box.style.top = top + 'px';
-    box.style.inset = 'auto';
-    box.style.visibility = 'visible';
-    box.style.opacity = '1';
-    box.style.pointerEvents = 'auto';
-  }
-
-  function closeItemSuggest(box) {
-    if (!box) return;
-    box.hidden = true;
-    box.setAttribute('hidden', '');
-    box.classList.remove('si-suggest--float');
-    box.style.display = '';
-    box.style.position = '';
-    box.style.left = '';
-    box.style.right = '';
-    box.style.top = '';
-    box.style.width = '';
-    box.style.minWidth = '';
-    box.style.maxWidth = '';
-    box.style.zIndex = '';
-    box.style.inset = '';
-    if (box._hxHome && box._hxHome.parentNode && box.parentNode === document.body) {
-      try {
-        box._hxHome.appendChild(box);
-      } catch (e) {
-        /* ignore */
-      }
+    if (nameInput && !locked) {
+      nameInput.addEventListener('input', function () {
+        if (nameInput.readOnly) return;
+        var idx = Number(tr.getAttribute('data-idx'));
+        var hid = tr.querySelector('.js-item-id');
+        if (hid) hid.value = '';
+        if (state.lines[idx]) {
+          state.lines[idx].item_id = 0;
+          state.lines[idx].name_ar = nameInput.value;
+        }
+        clearTimeout(itemTimers['n' + idx]);
+        itemTimers['n' + idx] = setTimeout(function () {
+          openItemListForField(nameInput);
+        }, 160);
+      });
     }
   }
 
   function searchItems(q, box, tr, anchor) {
     if (!box) return;
+    box._hxRow = tr;
     var token = String((searchItems._seq = (searchItems._seq || 0) + 1));
     box._dfSearchToken = token;
-    fetch('/api/purchases/items?q=' + encodeURIComponent(q || ''))
+    var mode = 'barcode';
+    if (anchor && anchor.classList) {
+      if (anchor.classList.contains('js-item-name')) mode = 'name';
+      else if (anchor.classList.contains('js-item-sku')) mode = 'sku';
+    }
+    box.classList.remove('si-suggest--barcode', 'si-suggest--name', 'si-suggest--sku');
+    box.classList.add(
+      mode === 'name' ? 'si-suggest--name' : mode === 'sku' ? 'si-suggest--sku' : 'si-suggest--barcode'
+    );
+    box.setAttribute('data-mode', mode);
+
+    fetch('/api/purchases/items?q=' + encodeURIComponent(q || ''), { credentials: 'same-origin' })
       .then(function (r) {
         return r.json();
       })
       .then(function (data) {
         if (box._dfSearchToken !== token) return;
         box.innerHTML = '';
-        if (!data.ok) {
-          closeItemSuggest(box);
+        box._hxRows = [];
+        if (!data || !data.ok) {
+          var err = document.createElement('div');
+          err.className = 'si-suggest-empty';
+          err.style.cssText = 'padding:.55rem .75rem;color:#b91c1c;font-size:.82rem;text-align:right';
+          err.textContent = (data && data.error) || 'تعذر تحميل المواد';
+          box.appendChild(err);
+          placeFloatSuggest(box, anchor);
           return;
         }
         var rows = data.rows || [];
+        box._hxRows = rows;
         if (!rows.length) {
           var empty = document.createElement('div');
           empty.className = 'si-suggest-empty';
           empty.style.cssText = 'padding:.55rem .75rem;color:#64748b;font-size:.82rem;text-align:right';
-          empty.textContent = q ? 'لا توجد نتائج مطابقة' : 'اكتب رمز أو اسم المادة…';
+          empty.textContent = q
+            ? 'لا توجد نتائج مطابقة'
+            : mode === 'name'
+              ? 'اكتب اسم المادة…'
+              : mode === 'sku'
+                ? 'اكتب رقم المادة…'
+                : 'اكتب الباركود…';
           box.appendChild(empty);
-          placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+          placeFloatSuggest(box, anchor);
           return;
         }
-        rows.slice(0, 25).forEach(function (it) {
+        rows.slice(0, 30).forEach(function (it) {
           var b = document.createElement('button');
           b.type = 'button';
-          b.textContent = (it.code || '') + ' — ' + (it.name_ar || '') + ' · ' + fmt(it.sale_price);
+          b.tabIndex = -1;
+          var code = itemBarcodeOnly(it);
+          var sku = itemSkuOnly(it);
+          var nm = itemNameOnly(it);
+          if (mode === 'name') {
+            b.textContent = nm || sku || code;
+          } else if (mode === 'sku') {
+            b.textContent = (sku || code || nm) + (nm && sku ? ' — ' + nm : '');
+          } else {
+            b.textContent = (code || sku || nm) + (nm && code ? ' — ' + nm : '');
+          }
           b.addEventListener('mousedown', function (e) {
             e.preventDefault();
           });
           b.addEventListener('click', function () {
-            var idx = Number(tr.getAttribute('data-idx'));
-            state.lines[idx] = state.lines[idx] || {};
-            state.lines[idx].item_id = it.id;
-            state.lines[idx].item_code = it.code;
-            state.lines[idx].name_ar = it.name_ar;
-            state.lines[idx].unit_price = Number(it.sale_price) || 0;
-            if (!state.lines[idx].qty) state.lines[idx].qty = 1;
-            if (state.lines[idx].tax_rate_percent == null)
-              state.lines[idx].tax_rate_percent = defaultTax;
-            closeItemSuggest(box);
-            renderLines();
-            if (window.HxShortcuts && window.HxShortcuts.focusLineQty) {
-              window.HxShortcuts.focusLineQty(idx, '#df-lines-body');
-            }
+            pickItemIntoRow(tr, it);
           });
           box.appendChild(b);
         });
-        placeFloatSuggest(box, anchor || tr.querySelector('.js-item'));
+        placeFloatSuggest(box, anchor);
       })
       .catch(function () {
         if (box._dfSearchToken !== token) return;
@@ -385,6 +581,8 @@
     state.lines = state.lines || [];
     state.lines.push({
       item_id: 0,
+      item_sku: '',
+      item_barcode: '',
       item_code: '',
       name_ar: '',
       qty: 1,
@@ -414,9 +612,11 @@
     }
     state.lines[idx] = state.lines[idx] || {};
     state.lines[idx].item_id = it.id;
-    state.lines[idx].item_code = it.code || it.sku || '';
-    state.lines[idx].name_ar = it.name_ar || '';
-    state.lines[idx].unit_price = Number(it.sale_price || it.default_sale || it.default_cost) || 0;
+    state.lines[idx].item_sku = itemSkuOnly(it) || String(it.sku || '').trim();
+    state.lines[idx].item_barcode = itemBarcodeOnly(it);
+    state.lines[idx].item_code = state.lines[idx].item_barcode || state.lines[idx].item_sku;
+    state.lines[idx].name_ar = itemNameOnly(it) || it.name_ar || '';
+    state.lines[idx].unit_price = itemPickPrice(it);
     if (!state.lines[idx].qty) state.lines[idx].qty = 1;
     if (state.lines[idx].tax_rate_percent == null) state.lines[idx].tax_rate_percent = defaultTax;
     renderLines();
@@ -475,17 +675,71 @@
     });
   }
 
+  document.addEventListener(
+    'focusin',
+    function (e) {
+      if (!document.getElementById('df-lines-body') || locked) return;
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (
+        t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name')
+      ) {
+        openItemListForField(t);
+      }
+    },
+    true
+  );
+
+  document.addEventListener(
+    'pointerdown',
+    function (e) {
+      if (!document.getElementById('df-lines-body') || locked) return;
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (
+        t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name')
+      ) {
+        openItemListForField(t);
+      }
+    },
+    true
+  );
+
   document.addEventListener('click', function (e) {
     if (!document.getElementById('df-lines-body')) return;
-    document.querySelectorAll('.js-item-suggest').forEach(function (box) {
-      if (box.hidden) return;
-      var home = box._hxHome || box.parentNode;
-      var tr = (home && home.closest && home.closest('tr[data-idx]')) || box.closest('tr[data-idx]');
-      var itemEl = tr && tr.querySelector('.js-item');
-      if (box.contains(e.target) || e.target === itemEl) return;
-      closeItemSuggest(box);
-    });
+    if (Date.now() < dfSuggestGuardUntil) return;
+    var box = getDfItemSuggest();
+    if (box.hidden) return;
+    if (box.contains(e.target)) return;
+    var field = e.target && e.target.closest
+      ? e.target.closest('.js-item-sku, .js-item-code, .js-item-name')
+      : null;
+    if (field && box._hxRow && box._hxRow.contains(field)) return;
+    closeItemSuggest(box);
   });
+
+  window.addEventListener(
+    'scroll',
+    function () {
+      if (!document.getElementById('df-lines-body')) return;
+      var box = getDfItemSuggest();
+      if (box.hidden) return;
+      var ae = document.activeElement;
+      if (
+        ae &&
+        (ae.classList.contains('js-item-sku') ||
+          ae.classList.contains('js-item-code') ||
+          ae.classList.contains('js-item-name'))
+      ) {
+        placeFloatSuggest(box, ae);
+      }
+    },
+    true
+  );
 
   var addBtn = document.getElementById('df-add-line');
   if (addBtn) addBtn.addEventListener('click', addEmptyLine);

@@ -60,7 +60,8 @@ async function getOrder(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT l.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name
+    `SELECT l.*, it.sku AS item_sku, it.barcode AS item_barcode,
+            COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name
      FROM pur_order_line l
      LEFT JOIN inv_item it ON it.id = l.item_id
      WHERE l.order_id = ?
@@ -93,9 +94,13 @@ async function getOrder(id) {
 }
 
 function mapLine(ln) {
+  const sku = String(ln.item_sku || '').trim();
+  const barcode = String(ln.item_barcode || '').trim();
   return {
     item_id: Number(ln.item_id),
-    item_code: ln.item_code || '',
+    item_sku: sku,
+    item_barcode: barcode,
+    item_code: barcode || sku || ln.item_code || '',
     name_ar: ln.line_desc || ln.item_name || '',
     qty: Number(ln.qty || 0),
     qty_extra: Number(ln.qty_extra || 0),
@@ -253,7 +258,8 @@ async function getInvoice(id) {
   if (!headers[0]) return null;
   const h = headers[0];
   const lines = await db.query(
-    `SELECT l.*, COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name
+    `SELECT l.*, it.sku AS item_sku, it.barcode AS item_barcode,
+            COALESCE(NULLIF(TRIM(it.barcode), ''), it.sku) AS item_code, it.name_ar AS item_name
      FROM pur_invoice_line l
      LEFT JOIN inv_item it ON it.id = l.item_id
      WHERE l.invoice_id = ?

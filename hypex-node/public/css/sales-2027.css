@@ -2030,7 +2030,8 @@ label .si-field-key {
 }
 
 #co-global-item-suggest,
-#si-global-item-suggest {
+#si-global-item-suggest,
+#df-global-item-suggest {
   z-index: 99999 !important;
 }
 

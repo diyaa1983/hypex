@@ -95,6 +95,8 @@ async function renderDocForm(req, res, conf) {
         : [
             {
               item_id: 0,
+              item_sku: '',
+              item_barcode: '',
               item_code: '',
               name_ar: '',
               qty: 1,
@@ -191,21 +193,36 @@ async function renderDocForm(req, res, conf) {
       </section>
 
       <section class="si-surface">
-        <div class="si-surface-head"><h2>تفاصيل المواد</h2></div>
+        <div class="si-surface-head">
+          <h2>بنود الطلب</h2>
+          <span class="si-count si-count--keys">
+            <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+            <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+            <span class="si-key-hint" title="حذف بند"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+            <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
+          </span>
+        </div>
         <div class="si-lines-wrap">
-          <table class="si-lines">
+          <table class="si-lines si-lines--co">
+            <colgroup>
+              <col class="co-c-idx"><col class="co-c-sku"><col class="co-c-code"><col class="co-c-name">
+              <col class="co-c-qty"><col class="co-c-extra"><col class="co-c-price"><col class="co-c-disc">
+              <col class="co-c-tax"><col class="co-c-net"><col class="co-c-total"><col class="co-c-del">
+            </colgroup>
             <thead>
               <tr>
-                <th style="width:2.2rem">#</th>
-                <th>المادة</th>
-                <th style="width:6.2rem">الكمية</th>
-                <th style="width:6.2rem">إضافية</th>
-                <th style="width:7rem">السعر</th>
-                <th style="width:5.2rem">خصم %</th>
-                <th style="width:5.2rem">ضريبة %</th>
-                <th style="width:7rem">الصافي</th>
-                <th style="width:7rem">الإجمالي</th>
-                <th style="width:2.6rem"></th>
+                <th>#</th>
+                <th>رقم المادة</th>
+                <th>الباركود</th>
+                <th>اسم المادة</th>
+                <th>الكمية</th>
+                <th>إضافية</th>
+                <th>السعر</th>
+                <th>خصم %</th>
+                <th>ضريبة %</th>
+                <th>الصافي</th>
+                <th>الإجمالي</th>
+                <th class="si-col-del" title="حذف">حذف</th>
               </tr>
             </thead>
             <tbody id="df-lines-body"></tbody>

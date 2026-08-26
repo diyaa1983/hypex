@@ -94,6 +94,7 @@ router.get('/sales', (req, res) => {
 function listPage(res, user, opts) {
   const {
     title,
+    tableTitle,
     mark,
     subtitle,
     headers,
@@ -112,7 +113,7 @@ function listPage(res, user, opts) {
     <div class="si-stage">
       ${ui.hero({ mark, title, subtitle, actions })}
       ${searchPath ? ui.railSearch(searchPath, qVal) : ''}
-      ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml)}
+      ${ui.tableSurface(tableTitle || title, `${count} صف`, headers, rowsHtml)}
     </div>`;
   res.send(ui.salesPage({ user, title, bodyHtml: body }));
 }
@@ -264,15 +265,16 @@ router.get('/sales/orders', guard('sales_customer_orders'), async (req, res) => 
       .join('') || ui.emptyRow(6);
   listPage(res, req.session.user, {
     title: 'طلبات شراء العملاء',
+    tableTitle: 'سجل الطلبات',
     mark: 'PO',
-    subtitle: 'قائمة الطلبات — فتح وتعديل داخل Node',
+    subtitle: 'قائمة الطلبات — فتح وتعديل',
     headers: ['الرقم', 'التاريخ', 'العميل', 'الحالة', 'الإجمالي', ''],
     rowsHtml,
     count: rows.length,
     searchPath: '/sales/orders',
     qVal: qv,
     phpRoute: 'sales_customer_orders',
-    extraActions: [{ label: 'طلب جديد', href: '/sales/orders/new', primary: true }],
+    extraActions: [{ label: '＋ طلب جديد', href: '/sales/orders/new', primary: true }],
   });
 });
 
