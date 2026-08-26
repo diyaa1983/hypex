@@ -871,6 +871,37 @@
     }
   }
 
+  function bindItemSuggestField(input, tr) {
+    if (!input || posted) return;
+    if (input.getAttribute('data-si-suggest-open') === '1') return;
+    input.setAttribute('data-si-suggest-open', '1');
+
+    function canOpen() {
+      if (posted) return false;
+      if (input.classList.contains('js-item-name') && input.readOnly) return false;
+      return true;
+    }
+
+    function openOrRefresh() {
+      if (!canOpen()) return;
+      var box = getSiItemSuggest();
+      if (
+        box &&
+        !box.hidden &&
+        box._hxRow === tr &&
+        (box.querySelector('button') || box.querySelector('.si-suggest-empty'))
+      ) {
+        siSuggestGuardUntil = Date.now() + 450;
+        placeFloatSuggest(box, input);
+        return;
+      }
+      openItemListForField(input);
+    }
+
+    input.addEventListener('focus', openOrRefresh);
+    input.addEventListener('click', openOrRefresh);
+  }
+
   function bindRow(tr) {
     ['js-qty', 'js-qty-extra', 'js-disc', 'js-tax'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
@@ -987,6 +1018,9 @@
         }, 200);
       });
     }
+    bindItemSuggestField(skuInput, tr);
+    bindItemSuggestField(codeInput, tr);
+    bindItemSuggestField(nameInput, tr);
   }
 
   function searchItems(q, box, tr, anchor) {
@@ -1432,53 +1466,39 @@
     });
   }
 
-  document.addEventListener(
-    'focusin',
-    function (e) {
-      if ((!document.getElementById('si-doc-bar') && !document.getElementById('si-lines-body')) || posted)
-        return;
-      var t = e.target;
-      if (!t || !t.classList) return;
-      if (
-        t.classList.contains('js-item-sku') ||
-        t.classList.contains('js-item-code') ||
-        t.classList.contains('js-item-name')
-      ) {
-        openItemListForField(t);
-      }
-    },
-    true
-  );
-
-  document.addEventListener(
-    'pointerdown',
-    function (e) {
-      if ((!document.getElementById('si-doc-bar') && !document.getElementById('si-lines-body')) || posted)
-        return;
-      var t = e.target;
-      if (!t || !t.classList) return;
-      if (
-        t.classList.contains('js-item-sku') ||
-        t.classList.contains('js-item-code') ||
-        t.classList.contains('js-item-name')
-      ) {
-        openItemListForField(t);
-      }
-    },
-    true
-  );
-
-  document.addEventListener('click', function (e) {
+  document.addEventListener('mousedown', function (e) {
     if (!document.getElementById('si-doc-bar') && !document.getElementById('si-lines-body')) return;
-    if (Date.now() < siSuggestGuardUntil) return;
     var box = getSiItemSuggest();
-    if (box.hidden) return;
+    if (!box || box.hidden) return;
     if (box.contains(e.target)) return;
-    var field = e.target && e.target.closest
-      ? e.target.closest('.js-item-sku, .js-item-code, .js-item-name')
-      : null;
-    if (field && box._hxRow && box._hxRow.contains(field)) return;
-    closeFloatSuggest(box);
+    var t = e.target;
+    if (
+      t &&
+      t.classList &&
+      (t.classList.contains('js-item-sku') ||
+        t.classList.contains('js-item-code') ||
+        t.classList.contains('js-item-name'))
+    ) {
+      return;
+    }
+    window.setTimeout(function () {
+      if (!box || box.hidden) return;
+      if (Date.now() < siSuggestGuardUntil) return;
+      var ae = document.activeElement;
+      if (
+        ae &&
+        ae.classList &&
+        (ae.classList.contains('js-item-sku') ||
+          ae.classList.contains('js-item-code') ||
+          ae.classList.contains('js-item-name')) &&
+        box._hxRow &&
+        box._hxRow.contains(ae)
+      ) {
+        return;
+      }
+      if (box.contains(ae)) return;
+      closeFloatSuggest(box);
+    }, 20);
   });
   window.addEventListener(
     'scroll',

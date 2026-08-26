@@ -160,7 +160,7 @@
     if (!box) return [];
     return Array.prototype.slice.call(
       box.querySelectorAll(
-        'button[data-id], button.report-cust-pick-item, button.report-cust-pick-opt, .report-cust-pick-item[data-id], [role="option"]'
+        'button[data-id], button[data-item-id], button.report-cust-pick-item, button.report-cust-pick-opt, .report-cust-pick-item[data-id], [role="option"]'
       )
     ).filter(function (b) {
       return isVisible(b);
@@ -253,7 +253,7 @@
       e.preventDefault();
       openSug.hidden = true;
       openSug.setAttribute('hidden', '');
-      openSug.style.display = 'none';
+      openSug.style.display = '';
       return;
     }
 
