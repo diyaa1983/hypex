@@ -114,19 +114,25 @@
 
   function repriceOpenLines() {
     if (!state || !Array.isArray(state.lines)) return;
-    state.lines.forEach(function (ln) {
+    state.lines.forEach(function (ln, idx) {
       if (!ln || !ln.item_id) return;
       var base = activeBaseOfLine(ln);
       ln.base_sale = base;
       ln.unit_price = unitSalePrice(base, ln.unit_factor);
+      var tr =
+        tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
+      if (!tr) return;
+      var baseEl = tr.querySelector('.js-base-sale');
+      if (baseEl) baseEl.value = String(base);
+      var pe = tr.querySelector('.js-price');
+      if (pe) pe.value = String(ln.unit_price);
+      var t = lineTotals(ln);
+      var subEl = tr.querySelector('.js-sub');
+      var grossEl = tr.querySelector('.js-gross');
+      if (subEl) subEl.textContent = fmt(t.sub);
+      if (grossEl) grossEl.textContent = fmt(t.gross);
     });
-    if (typeof renderLines === 'function') {
-      try {
-        renderLines();
-      } catch (e) {
-        /* */
-      }
-    }
+    recomputeFooter();
   }
 
   function setCustomerPriceMode(c, opts) {
@@ -250,7 +256,26 @@
             ln._offer_driven_type = updated._offer_driven_type;
             ln._offer_hint = updated._offer_hint;
           }
-          if (typeof renderLines === 'function') renderLines();
+          if (!tbody) return;
+          var rows = tbody.querySelectorAll('tr[data-idx]');
+          for (var ri = 0; ri < rows.length; ri++) {
+            var hid = rows[ri].querySelector('.js-item-id');
+            if (!hid || Number(hid.value) !== Number(ln.item_id)) continue;
+            var tr = rows[ri];
+            var qtyEx = tr.querySelector('.js-qty-extra');
+            if (qtyEx && ln.qty_extra != null) qtyEx.value = String(ln.qty_extra);
+            var discEl = tr.querySelector('.js-disc');
+            if (discEl && ln.discount_pct != null) discEl.value = String(ln.discount_pct);
+            var pe = tr.querySelector('.js-price');
+            if (pe) pe.value = String(ln.unit_price != null ? ln.unit_price : 0);
+            var t = lineTotals(ln);
+            var subEl = tr.querySelector('.js-sub');
+            var grossEl = tr.querySelector('.js-gross');
+            if (subEl) subEl.textContent = fmt(t.sub);
+            if (grossEl) grossEl.textContent = fmt(t.gross);
+            recomputeFooter();
+            break;
+          }
         },
       });
     }

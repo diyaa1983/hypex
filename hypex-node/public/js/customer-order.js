@@ -108,19 +108,25 @@
 
   function repriceOpenLines() {
     if (!state || !Array.isArray(state.lines)) return;
-    state.lines.forEach(function (ln) {
+    state.lines.forEach(function (ln, idx) {
       if (!ln || !ln.item_id) return;
       var base = activeBaseOfLine(ln);
       ln.base_sale = base;
       ln.unit_price = unitSalePrice(base, ln.unit_factor);
+      var tr =
+        tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
+      if (!tr) return;
+      var baseEl = tr.querySelector('.js-base-sale');
+      if (baseEl) baseEl.value = String(base);
+      var pe = tr.querySelector('.js-price');
+      if (pe) pe.value = String(ln.unit_price);
+      var t = lineTotals(ln);
+      var subEl = tr.querySelector('.js-sub');
+      var grossEl = tr.querySelector('.js-gross');
+      if (subEl) subEl.textContent = fmt(t.sub);
+      if (grossEl) grossEl.textContent = fmt(t.gross);
     });
-    if (typeof renderLines === 'function') {
-      try {
-        renderLines();
-      } catch (e) {
-        /* */
-      }
-    }
+    recomputeFooter();
   }
 
   function setCustomerPriceMode(c, opts) {
@@ -406,7 +412,17 @@
             ln._offer_driven_type = updated._offer_driven_type;
             ln._offer_hint = updated._offer_hint;
           }
-          if (typeof renderLines === 'function') renderLines();
+          // تحديث السطر الحالي فقط — بدون إعادة بناء الجدول بالكامل
+          if (tbody) {
+            var rows = tbody.querySelectorAll('tr[data-idx]');
+            for (var ri = 0; ri < rows.length; ri++) {
+              var hid = rows[ri].querySelector('.js-item-id');
+              if (hid && Number(hid.value) === Number(ln.item_id)) {
+                patchLineRow(rows[ri], ln);
+                break;
+              }
+            }
+          }
         },
       });
     }
@@ -879,15 +895,68 @@
     }
   }
 
+  /** تحديث صف موجود من بيانات البند دون إعادة بناء الجدول (يمنع الوميض). */
+  function patchLineRow(tr, ln) {
+    if (!tr || !ln) return;
+    var barcode = cleanBarcodeText(ln.item_barcode || ln.item_code || '');
+    var nameOnly = itemNameOnly({ name_ar: ln.name_ar || '' });
+    ln.item_barcode = barcode;
+    ln.item_code = barcode;
+    ln.name_ar = nameOnly;
+
+    var hid = tr.querySelector('.js-item-id');
+    if (hid) hid.value = ln.item_id || '';
+    var baseEl = tr.querySelector('.js-base-sale');
+    if (baseEl) baseEl.value = ln.base_sale != null ? String(ln.base_sale) : '';
+    var codeEl = tr.querySelector('.js-item-code');
+    if (codeEl) {
+      codeEl.value = barcode;
+      codeEl.title = barcode;
+    }
+    var nameEl = tr.querySelector('.js-item-name');
+    if (nameEl) {
+      nameEl.value = nameOnly;
+      nameEl.title = nameOnly;
+      if (ln.item_id) nameEl.readOnly = true;
+    }
+    var unitCell = tr.querySelector('.si-unit-cell');
+    if (unitCell) {
+      unitCell.innerHTML = unitSelectHtml(ln, locked).replace(
+        '<select class="js-unit"',
+        '<select class="js-unit" data-nav="1"'
+      );
+    }
+    var qtyEl = tr.querySelector('.js-qty');
+    if (qtyEl && ln.qty != null) qtyEl.value = userNumAttr(ln.qty);
+    var qtyEx = tr.querySelector('.js-qty-extra');
+    if (qtyEx && ln.qty_extra != null) qtyEx.value = userNumAttr(ln.qty_extra);
+    var pe = tr.querySelector('.js-price');
+    if (pe) pe.value = String(ln.unit_price != null ? ln.unit_price : 0);
+    var discEl = tr.querySelector('.js-disc');
+    if (discEl && ln.discount_pct != null) discEl.value = userNumAttr(ln.discount_pct);
+    var taxEl = tr.querySelector('.js-tax');
+    if (taxEl && ln.tax_rate_percent != null) taxEl.value = userNumAttr(ln.tax_rate_percent);
+    var t = lineTotals(ln);
+    var subEl = tr.querySelector('.js-sub');
+    var grossEl = tr.querySelector('.js-gross');
+    if (subEl) subEl.textContent = fmt(t.sub);
+    if (grossEl) grossEl.textContent = fmt(t.gross);
+    // إعادة ربط أحداث الصف بعد استبدال قائمة الوحدات
+    bindRow(tr);
+    fitRowFields(tr);
+    recomputeFooter();
+  }
+
   function pickItemIntoRow(tr, it, focusNext) {
     var idx = Number(tr.getAttribute('data-idx'));
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
     closeItemSuggest(tr.querySelector('.js-item-suggest'));
-    renderLines({
-      idx: idx,
-      cls: focusNext ? '.js-qty' : '.js-item-code',
-      select: !focusNext,
-    });
+    patchLineRow(tr, state.lines[idx]);
+    if (focusNext) {
+      window.setTimeout(function () {
+        focusLineField(idx, '.js-qty', true);
+      }, 0);
+    }
   }
 
   /** ترتيب حقول التنقل Enter / الأسهم داخل السطر */
@@ -1184,7 +1253,51 @@
     else goPrevField(fromEl);
   }
 
+  function onUnitChange(tr) {
+    var unitEl = tr.querySelector('.js-unit');
+    if (!unitEl) return;
+    var idx = Number(tr.getAttribute('data-idx'));
+    var ln = state.lines[idx] || {};
+    var opt = unitEl.selectedOptions && unitEl.selectedOptions[0];
+    if (opt) {
+      ln.unit_id = Number(unitEl.value) || 0;
+      ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
+      ln.unit_name = opt.getAttribute('data-name') || '';
+      ln.unit_price = unitSalePrice(activeBaseOfLine(ln), ln.unit_factor);
+      state.lines[idx] = ln;
+      var pe = tr.querySelector('.js-price');
+      if (pe) pe.value = String(ln.unit_price);
+    }
+    readLineFromRow(tr);
+    fitRowFields(tr);
+    if (window.HxOffers && Number((state.lines[idx] || {}).item_id)) {
+      window.HxOffers.refreshLine({
+        idx: idx,
+        ln: state.lines[idx],
+        tr: tr,
+        onDone: function () {
+          readLineFromRow(tr);
+        },
+      });
+    }
+  }
+
+  function bindUnitOnly(tr) {
+    var unitEl = tr.querySelector('.js-unit');
+    if (!unitEl || unitEl.getAttribute('data-hx-bound') === '1') return;
+    unitEl.setAttribute('data-hx-bound', '1');
+    unitEl.addEventListener('change', function () {
+      onUnitChange(tr);
+    });
+  }
+
   function bindRow(tr) {
+    if (!tr) return;
+    if (tr.getAttribute('data-hx-bound') === '1') {
+      bindUnitOnly(tr);
+      return;
+    }
+    tr.setAttribute('data-hx-bound', '1');
     ['js-qty', 'js-qty-extra', 'js-disc', 'js-tax'].forEach(function (cls) {
       var el = tr.querySelector('.' + cls);
       if (!el) return;
@@ -1205,35 +1318,7 @@
         }
       });
     });
-    var unitEl = tr.querySelector('.js-unit');
-    if (unitEl) {
-      unitEl.addEventListener('change', function () {
-        var idx = Number(tr.getAttribute('data-idx'));
-        var ln = state.lines[idx] || {};
-        var opt = unitEl.selectedOptions && unitEl.selectedOptions[0];
-        if (opt) {
-          ln.unit_id = Number(unitEl.value) || 0;
-          ln.unit_factor = Number(opt.getAttribute('data-factor')) || 1;
-          ln.unit_name = opt.getAttribute('data-name') || '';
-          ln.unit_price = unitSalePrice(activeBaseOfLine(ln), ln.unit_factor);
-          state.lines[idx] = ln;
-          var pe = tr.querySelector('.js-price');
-          if (pe) pe.value = String(ln.unit_price);
-        }
-        readLineFromRow(tr);
-        fitRowFields(tr);
-        if (window.HxOffers && Number((state.lines[idx] || {}).item_id)) {
-          window.HxOffers.refreshLine({
-            idx: idx,
-            ln: state.lines[idx],
-            tr: tr,
-            onDone: function () {
-              readLineFromRow(tr);
-            },
-          });
-        }
-      });
-    }
+    bindUnitOnly(tr);
     var codeInput = tr.querySelector('.js-item-code');
     var nameInput = tr.querySelector('.js-item-name');
     var suggest = tr.querySelector('.js-item-suggest');
@@ -1474,7 +1559,15 @@
       idx = state.lines.length - 1;
     }
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
-    renderLines({ idx: idx, cls: '.js-qty', select: true });
+    var tr = tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
+    if (tr) {
+      patchLineRow(tr, state.lines[idx]);
+      window.setTimeout(function () {
+        focusLineField(idx, '.js-qty', true);
+      }, 0);
+    } else {
+      renderLines({ idx: idx, cls: '.js-qty', select: true });
+    }
   });
 
   document.addEventListener('hx:customer-picked', function (e) {

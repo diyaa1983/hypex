@@ -71,7 +71,7 @@ body.si-2027 .si-main::before {
   position: relative;
   z-index: 1;
   padding: 1.1rem 1.25rem 2rem;
-  animation: si-enter 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: none;
 }
 
 @keyframes si-enter {
@@ -411,7 +411,7 @@ body.si-2027 .si-main::before {
 }
 
 .si-table tbody tr {
-  animation: si-row 0.4s ease both;
+  animation: none;
 }
 
 .si-table tbody tr:nth-child(1) { animation-delay: 0.02s; }
@@ -493,7 +493,7 @@ body.si-2027 .si-main::before {
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.28);
   backdrop-filter: blur(16px);
-  animation: si-cmd-in 0.5s 0.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: none;
 }
 
 @keyframes si-cmd-in {
