@@ -507,17 +507,19 @@ async function renderForm(req, res, orderId) {
       <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
           <div class="co-batch-head">
-            <h3 id="co-batch-title">اختيار التشغيلة — ترحيل إلى Oracle</h3>
+            <h3 id="co-batch-title">توزيع التشغيلات — ترحيل إلى Oracle</h3>
             <p id="co-batch-sub" class="muted"></p>
           </div>
           <div class="co-batch-body-wrap">
-            <table class="co-batch-table">
+            <table class="co-batch-table co-batch-table--alloc">
               <thead>
                 <tr>
                   <th>#</th>
                   <th>المادة</th>
                   <th>المطلوب</th>
-                  <th>التشغيلة (رصيد BALANCE)</th>
+                  <th>الكمية من التشغيلة</th>
+                  <th>التشغيلة</th>
+                  <th>رصيد التشغيلة</th>
                 </tr>
               </thead>
               <tbody id="co-batch-rows"></tbody>
@@ -525,7 +527,7 @@ async function renderForm(req, res, orderId) {
           </div>
           <div class="co-batch-foot">
             <button type="button" id="co-batch-cancel" class="si-btn">إلغاء</button>
-            <button type="button" id="co-batch-confirm" class="si-btn si-tb--post">ترحيل إلى Oracle</button>
+            <button type="button" id="co-batch-confirm" class="si-btn si-tb--post">تأكيد وترحيل إلى Oracle</button>
           </div>
         </div>
       </div>`

@@ -178,16 +178,19 @@ sales_ora12_enqueue_assets();
     <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
             <div class="co-batch-head">
-                <h3 id="co-batch-title">اختيار التشغيلة — ترحيل إلى Oracle</h3>
+                <h3 id="co-batch-title">توزيع التشغيلات — ترحيل إلى Oracle</h3>
                 <p id="co-batch-sub" class="muted"></p>
             </div>
             <div class="co-batch-body-wrap">
-                <table class="co-batch-table">
+                <table class="co-batch-table co-batch-table--alloc">
                     <thead>
                     <tr>
+                        <th>#</th>
                         <th>المادة</th>
                         <th>المطلوب</th>
-                        <th>التشغيلة (الرصيد من STOCK)</th>
+                        <th>الكمية من التشغيلة</th>
+                        <th>التشغيلة</th>
+                        <th>رصيد التشغيلة</th>
                     </tr>
                     </thead>
                     <tbody id="co-batch-rows"></tbody>
@@ -195,22 +198,27 @@ sales_ora12_enqueue_assets();
             </div>
             <div class="co-batch-foot">
                 <button type="button" id="co-batch-cancel" class="btn btn-secondary">إلغاء</button>
-                <button type="button" id="co-batch-confirm" class="btn btn-primary">ترحيل إلى Oracle</button>
+                <button type="button" id="co-batch-confirm" class="btn btn-primary">تأكيد وترحيل إلى Oracle</button>
             </div>
         </div>
     </div>
     <style>
     .co-batch-modal { position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:1rem; }
     .co-batch-modal[hidden] { display:none !important; }
-    .co-batch-panel { background:#fff; border-radius:10px; max-width:820px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.18); }
+    .co-batch-panel { background:#fff; border-radius:10px; max-width:960px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.18); }
     .co-batch-head { padding:1rem 1.25rem .5rem; border-bottom:1px solid #e8ecf1; }
     .co-batch-head h3 { margin:0 0 .35rem; font-size:1.1rem; }
     .co-batch-body-wrap { padding:.75rem 1.25rem; overflow:auto; flex:1; }
     .co-batch-table { width:100%; border-collapse:collapse; font-size:.92rem; }
     .co-batch-table th, .co-batch-table td { padding:.5rem .4rem; border-bottom:1px solid #eef1f5; text-align:right; vertical-align:middle; }
-    .co-batch-table select { width:100%; min-width:12rem; max-width:100%; padding:.35rem .5rem; }
+    .co-batch-col-need, .co-batch-col-take, .co-batch-col-bal, .co-batch-col-idx { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:700; }
+    .co-batch-item-code { display:block; font-weight:700; direction:ltr; }
+    .co-batch-item-name { display:block; color:#475569; font-size:.86rem; margin-top:.15rem; }
+    .co-batch-item-cont { color:#64748b; font-size:.84rem; }
     .co-batch-foot { padding:.75rem 1.25rem; border-top:1px solid #e8ecf1; display:flex; gap:.5rem; justify-content:flex-end; }
-    .co-batch-warn { color:#b45309; font-size:.85rem; margin-top:.25rem; }
+    .co-batch-warn { color:#b45309; font-size:.85rem; margin-top:.25rem; font-weight:700; }
+    .co-batch-row--nostock td { background:#fff7ed !important; }
+    #co-batch-confirm:disabled { opacity:.55; cursor:not-allowed; }
     </style>
     <?php endif; ?>
     <?php if (!empty($order['notes'])): ?>
@@ -347,65 +355,74 @@ sales_ora12_enqueue_assets();
             batchRows.innerHTML = '';
             if (batchSub) {
               batchSub.textContent = 'مستودع Oracle: ' + (data.store || '—')
-                + (data.warehouse_name ? (' — ' + data.warehouse_name) : '');
+                + (data.warehouse_name ? (' — ' + data.warehouse_name) : '')
+                + ' · توزيع تلقائي: خصم كامل من التشغيلة الأولى ثم التالية عند الحاجة';
             }
+            var rowNo = 0;
+            var anyBad = false;
             (data.lines || []).forEach(function (ln) {
-              var tr = document.createElement('tr');
-              var tdName = document.createElement('td');
-              tdName.innerHTML = '<strong dir="ltr">' + (ln.item || '') + '</strong><br><span>' + (ln.name || '') + '</span>';
-              var tdNeed = document.createElement('td');
-              tdNeed.dir = 'ltr';
-              tdNeed.textContent = fmtQty(ln.need);
-              var tdBatch = document.createElement('td');
-              var sel = document.createElement('select');
-              sel.dataset.srl = String(ln.srl || '');
-              sel.dataset.item = String(ln.item || '');
-              var opt0 = document.createElement('option');
-              opt0.value = '';
-              opt0.textContent = '— اختر التشغيلة —';
-              sel.appendChild(opt0);
-              var batches = Array.isArray(ln.batches) ? ln.batches : [];
-              var best = '';
-              batches.forEach(function (b) {
-                var o = document.createElement('option');
-                o.value = b.batch || '';
-                var label = (b.batch || '?') + ' — رصيد ' + fmtQty(b.qty);
-                if (b.exp_date) label += ' — ' + b.exp_date;
-                o.textContent = label;
-                sel.appendChild(o);
-                if (!best && Number(b.qty) >= Number(ln.need)) best = b.batch;
-              });
-              if (batches.length === 1) best = batches[0].batch;
-              if (best) sel.value = best;
-              if (!batches.length) {
-                var warn = document.createElement('div');
-                warn.className = 'co-batch-warn';
-                warn.textContent = 'لا رصيد موجب في STOCK لهذه المادة.';
-                tdBatch.appendChild(warn);
+              var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
+              var ok = !!ln.allocation_ok && allocs.length > 0;
+              if (!ok) anyBad = true;
+              if (!allocs.length) {
+                rowNo += 1;
+                var tr0 = document.createElement('tr');
+                tr0.className = 'co-batch-row--nostock';
+                tr0.innerHTML = '<td class="co-batch-col-idx">' + rowNo + '</td>'
+                  + '<td><strong class="co-batch-item-code" dir="ltr">' + (ln.item || '') + '</strong>'
+                  + '<span class="co-batch-item-name">' + (ln.name || '') + '</span></td>'
+                  + '<td class="co-batch-col-need">' + fmtQty(ln.need) + '</td>'
+                  + '<td class="co-batch-col-take">—</td>'
+                  + '<td colspan="2"><div class="co-batch-warn">لا يكفي الرصيد أو لا توجد تشغيلات'
+                  + (Number(ln.shortfall) > 0 ? (' (نقص ' + fmtQty(ln.shortfall) + ')') : '')
+                  + '.</div></td>';
+                batchRows.appendChild(tr0);
+                return;
               }
-              tdBatch.appendChild(sel);
-              tr.appendChild(tdName);
-              tr.appendChild(tdNeed);
-              tr.appendChild(tdBatch);
-              batchRows.appendChild(tr);
+              allocs.forEach(function (a, ai) {
+                rowNo += 1;
+                var tr = document.createElement('tr');
+                if (!ok) tr.className = 'co-batch-row--nostock';
+                var tdIdx = document.createElement('td');
+                tdIdx.className = 'co-batch-col-idx';
+                tdIdx.textContent = String(rowNo);
+                var tdName = document.createElement('td');
+                if (ai === 0) {
+                  tdName.innerHTML = '<strong class="co-batch-item-code" dir="ltr">' + (ln.item || '') + '</strong>'
+                    + '<span class="co-batch-item-name">' + (ln.name || '') + '</span>';
+                } else {
+                  tdName.innerHTML = '<span class="co-batch-item-cont">↳ استمرار نفس المادة</span>';
+                }
+                var tdNeed = document.createElement('td');
+                tdNeed.className = 'co-batch-col-need';
+                tdNeed.textContent = ai === 0 ? fmtQty(ln.need) : '';
+                var tdTake = document.createElement('td');
+                tdTake.className = 'co-batch-col-take';
+                tdTake.textContent = fmtQty(a.take);
+                var tdBatch = document.createElement('td');
+                tdBatch.textContent = (a.batch || '—') + (a.exp_date ? (' · ' + a.exp_date) : '');
+                var tdBal = document.createElement('td');
+                tdBal.className = 'co-batch-col-bal';
+                tdBal.textContent = fmtQty(a.batch_qty);
+                tr.appendChild(tdIdx);
+                tr.appendChild(tdName);
+                tr.appendChild(tdNeed);
+                tr.appendChild(tdTake);
+                tr.appendChild(tdBatch);
+                tr.appendChild(tdBal);
+                batchRows.appendChild(tr);
+              });
+              if (!ok && Number(ln.shortfall) > 0) {
+                var trW = document.createElement('tr');
+                trW.className = 'co-batch-row--nostock';
+                trW.innerHTML = '<td></td><td colspan="5"><div class="co-batch-warn">الرصيد لا يكفي — نقص '
+                  + fmtQty(ln.shortfall) + ' من المطلوب ' + fmtQty(ln.need) + '.</div></td>';
+                batchRows.appendChild(trW);
+              }
             });
+            if (batchConfirm) batchConfirm.disabled = anyBad || data.can_post === false;
             batchModal.hidden = false;
             batchModal.setAttribute('aria-hidden', 'false');
-          }
-
-          function collectBatchPicks() {
-            var picks = [];
-            if (!batchRows) return picks;
-            batchRows.querySelectorAll('select').forEach(function (sel) {
-              var b = (sel.value || '').trim();
-              if (!b) return;
-              picks.push({
-                srl: parseInt(sel.dataset.srl || '0', 10),
-                item: sel.dataset.item || '',
-                batch: b
-              });
-            });
-            return picks;
           }
 
           function postOracle(batchPicks) {
@@ -470,23 +487,21 @@ sales_ora12_enqueue_assets();
           if (batchCancel) batchCancel.onclick = closeBatchModal;
           if (batchConfirm) batchConfirm.onclick = function () {
             if (!pickerData || !pickerData.lines) return;
-            var picks = collectBatchPicks();
-            if (picks.length < pickerData.lines.length) {
-              alert('اختر تشغيلة لكل مادة قبل الترحيل.');
+            if (pickerData.can_post === false || batchConfirm.disabled) {
+              alert('لا يمكن الترحيل: رصيد التشغيلات لا يكفي لبعض المواد.');
               return;
             }
-            for (var i = 0; i < pickerData.lines.length; i++) {
-              var ln = pickerData.lines[i];
-              var pick = picks.find(function (p) { return p.srl === ln.srl; });
-              if (!pick) continue;
-              var batch = (ln.batches || []).find(function (b) { return b.batch === pick.batch; });
-              if (batch && Number(batch.qty) < Number(ln.need) - 0.0001) {
-                alert('التشغيلة ' + pick.batch + ' لا تكفي للمادة ' + ln.item + ' (المطلوب ' + fmtQty(ln.need) + ').');
-                return;
-              }
+            var bad = (pickerData.lines || []).some(function (ln) { return !ln.allocation_ok; });
+            if (bad) {
+              alert('لا يمكن الترحيل: رصيد التشغيلات لا يكفي لبعض المواد.');
+              return;
+            }
+            if (!confirm('سيتم ترحيل الطلب إلى Oracle بالتوزيع المعروض (خصم تلقائي من التشغيلات).\nهل تريد التأكيد؟')) {
+              return;
             }
             closeBatchModal();
-            postOracle(picks);
+            // بدون batch_picks: الخادم يوزّع ويقسّم السطر على أكثر من تشغيلة تلقائياً
+            postOracle([]);
           };
           if (batchModal) {
             batchModal.addEventListener('click', function (e) {

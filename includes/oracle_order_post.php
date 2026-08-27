@@ -3298,9 +3298,55 @@ function oracle_order_apply_batch_picks(array $mappedLines, array $picks): array
 }
 
 /**
- * قوائم التشغيلات المتوفرة لبنود طلب عميل (لاختيار المستخدم قبل الترحيل).
+ * توزيع كمية مطلوبة على تشغيلات من الأقدم → الأحدث (خصم كامل من الأولى ثم التالية…).
  *
- * @return array{ok:bool,message?:string,store?:int,warehouse_name?:string,lines?:list<array<string,mixed>>}
+ * @param list<array{batch?:string,qty?:float|int|string,exp_date?:string}> $batches
+ * @return array{
+ *   ok:bool,
+ *   shortfall:float,
+ *   allocations:list<array{batch:string,take:float,batch_qty:float,exp_date:string}>
+ * }
+ */
+function oracle_order_fifo_allocate(float $need, array $batches): array
+{
+    $needLeft = max(0.0, $need);
+    $allocations = [];
+    foreach ($batches as $br) {
+        if ($needLeft <= 0.0000001) {
+            break;
+        }
+        if (!is_array($br)) {
+            continue;
+        }
+        $bq = (float) ($br['qty'] ?? 0);
+        if ($bq <= 0.0000001) {
+            continue;
+        }
+        $bName = trim((string) ($br['batch'] ?? ''));
+        if ($bName === '') {
+            $bName = '0';
+        }
+        $take = min($bq, $needLeft);
+        $allocations[] = [
+            'batch' => $bName,
+            'take' => $take,
+            'batch_qty' => $bq,
+            'exp_date' => (string) ($br['exp_date'] ?? ''),
+        ];
+        $needLeft -= $take;
+    }
+
+    return [
+        'ok' => $needLeft <= 0.0000001 && $allocations !== [],
+        'shortfall' => max(0.0, $needLeft),
+        'allocations' => $allocations,
+    ];
+}
+
+/**
+ * قوائم التشغيلات المتوفرة لبنود طلب عميل (معاينة التوزيع التلقائي قبل الترحيل).
+ *
+ * @return array{ok:bool,message?:string,store?:int,warehouse_name?:string,lines?:list<array<string,mixed>>,can_post?:bool}
  */
 function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
 {
@@ -3382,6 +3428,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
             ];
         }
 
+        $fifo = oracle_order_fifo_allocate($need, $batchOpts);
         $pickerLines[] = [
             'srl' => $srl,
             'item' => (string) $card['item'],
@@ -3391,6 +3438,9 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
             'qty' => $qty,
             'bonus' => $bonus,
             'batches' => $batchOpts,
+            'allocations' => $fifo['allocations'],
+            'allocation_ok' => !empty($fifo['ok']),
+            'shortfall' => (float) ($fifo['shortfall'] ?? 0),
             'stock_total' => (float) ($stock['total'] ?? 0),
             'stock_source' => (string) ($stock['source'] ?? ''),
         ];
@@ -3403,12 +3453,22 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
         return ['ok' => false, 'message' => 'لا كميات صالحة.'];
     }
 
+    $canPost = true;
+    foreach ($pickerLines as $pl) {
+        if (empty($pl['allocation_ok'])) {
+            $canPost = false;
+            break;
+        }
+    }
+
     return [
         'ok' => true,
         'store' => $store,
         'warehouse_name' => (string) ($order['warehouse_name'] ?? ''),
         'oracle_conn' => oracle_order_oracle_conn_label(),
         'lines' => $pickerLines,
+        'can_post' => $canPost,
+        'auto_allocate' => true,
     ];
 }
 

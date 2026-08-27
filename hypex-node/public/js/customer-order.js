@@ -2525,85 +2525,107 @@
       batchSub.textContent =
         'مستودع Oracle: ' +
         (data.store || '—') +
-        (data.warehouse_name ? ' — ' + data.warehouse_name : '');
+        (data.warehouse_name ? ' — ' + data.warehouse_name : '') +
+        ' · توزيع تلقائي: خصم كامل من التشغيلة الأولى ثم التالية عند الحاجة';
     }
-    (data.lines || []).forEach(function (ln, i) {
-      var batches = Array.isArray(ln.batches) ? ln.batches : [];
-      var noStock = !batches.length;
-      var tr = document.createElement('tr');
-      if (noStock) tr.className = 'co-batch-row--nostock';
+    var rowNo = 0;
+    var anyBad = false;
+    (data.lines || []).forEach(function (ln) {
+      var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
+      var ok = !!ln.allocation_ok && allocs.length > 0;
+      if (!ok) anyBad = true;
 
-      var tdIdx = document.createElement('td');
-      tdIdx.className = 'co-batch-col-idx';
-      tdIdx.textContent = String(i + 1);
-
-      var tdName = document.createElement('td');
-      tdName.className = 'co-batch-col-item';
-      tdName.innerHTML =
-        '<span class="co-batch-item-code">' +
-        escAttr(String(ln.item || '')) +
-        '</span><span class="co-batch-item-name">' +
-        escAttr(String(ln.name || '')) +
-        '</span>';
-
-      var tdNeed = document.createElement('td');
-      tdNeed.className = 'co-batch-col-need';
-      tdNeed.textContent = fmtBatchQty(ln.need);
-
-      var tdBatch = document.createElement('td');
-      tdBatch.className = 'co-batch-col-batch';
-      var sel = document.createElement('select');
-      sel.className = 'si-field co-batch-select';
-      sel.dataset.srl = String(ln.srl || '');
-      sel.dataset.item = String(ln.item || '');
-      if (noStock) {
-        sel.disabled = true;
-        var warn = document.createElement('div');
-        warn.className = 'co-batch-warn';
-        warn.textContent = 'لا رصيد موجب في BALANCE لهذه المادة.';
-        tdBatch.appendChild(warn);
+      if (!allocs.length) {
+        rowNo += 1;
+        var tr0 = document.createElement('tr');
+        tr0.className = 'co-batch-row--nostock';
+        tr0.innerHTML =
+          '<td class="co-batch-col-idx">' +
+          rowNo +
+          '</td>' +
+          '<td class="co-batch-col-item"><span class="co-batch-item-code">' +
+          escAttr(String(ln.item || '')) +
+          '</span><span class="co-batch-item-name">' +
+          escAttr(String(ln.name || '')) +
+          '</span></td>' +
+          '<td class="co-batch-col-need">' +
+          fmtBatchQty(ln.need) +
+          '</td>' +
+          '<td class="co-batch-col-take">—</td>' +
+          '<td class="co-batch-col-batch" colspan="2"><div class="co-batch-warn">لا يكفي الرصيد أو لا توجد تشغيلات' +
+          (Number(ln.shortfall) > 0 ? ' (نقص ' + fmtBatchQty(ln.shortfall) + ')' : '') +
+          '.</div></td>';
+        batchRows.appendChild(tr0);
+        return;
       }
-      var opt0 = document.createElement('option');
-      opt0.value = '';
-      opt0.textContent = noStock ? '— لا توجد تشغيلات —' : '— اختر التشغيلة —';
-      sel.appendChild(opt0);
-      var best = '';
-      batches.forEach(function (b) {
-        var o = document.createElement('option');
-        o.value = b.batch || '';
-        var label = (b.batch || '?') + ' — رصيد ' + fmtBatchQty(b.qty);
-        if (b.exp_date) label += ' — ' + b.exp_date;
-        o.textContent = label;
-        sel.appendChild(o);
-        if (!best && Number(b.qty) >= Number(ln.need)) best = b.batch;
-      });
-      if (batches.length === 1) best = batches[0].batch;
-      if (best) sel.value = best;
-      tdBatch.appendChild(sel);
 
-      tr.appendChild(tdIdx);
-      tr.appendChild(tdName);
-      tr.appendChild(tdNeed);
-      tr.appendChild(tdBatch);
-      batchRows.appendChild(tr);
+      allocs.forEach(function (a, ai) {
+        rowNo += 1;
+        var tr = document.createElement('tr');
+        if (!ok) tr.className = 'co-batch-row--nostock';
+        var tdIdx = document.createElement('td');
+        tdIdx.className = 'co-batch-col-idx';
+        tdIdx.textContent = String(rowNo);
+
+        var tdName = document.createElement('td');
+        tdName.className = 'co-batch-col-item';
+        if (ai === 0) {
+          tdName.innerHTML =
+            '<span class="co-batch-item-code">' +
+            escAttr(String(ln.item || '')) +
+            '</span><span class="co-batch-item-name">' +
+            escAttr(String(ln.name || '')) +
+            '</span>';
+        } else {
+          tdName.innerHTML =
+            '<span class="co-batch-item-cont muted">↳ استمرار نفس المادة</span>';
+        }
+
+        var tdNeed = document.createElement('td');
+        tdNeed.className = 'co-batch-col-need';
+        tdNeed.textContent = ai === 0 ? fmtBatchQty(ln.need) : '';
+
+        var tdTake = document.createElement('td');
+        tdTake.className = 'co-batch-col-take';
+        tdTake.textContent = fmtBatchQty(a.take);
+
+        var tdBatch = document.createElement('td');
+        tdBatch.className = 'co-batch-col-batch';
+        var batchLabel = String(a.batch || '—');
+        if (a.exp_date) batchLabel += ' · ' + a.exp_date;
+        tdBatch.textContent = batchLabel;
+
+        var tdBal = document.createElement('td');
+        tdBal.className = 'co-batch-col-bal';
+        tdBal.textContent = fmtBatchQty(a.batch_qty);
+
+        tr.appendChild(tdIdx);
+        tr.appendChild(tdName);
+        tr.appendChild(tdNeed);
+        tr.appendChild(tdTake);
+        tr.appendChild(tdBatch);
+        tr.appendChild(tdBal);
+        batchRows.appendChild(tr);
+      });
+
+      if (!ok && Number(ln.shortfall) > 0) {
+        var trW = document.createElement('tr');
+        trW.className = 'co-batch-row--nostock';
+        trW.innerHTML =
+          '<td></td><td colspan="5"><div class="co-batch-warn">الرصيد لا يكفي — نقص ' +
+          fmtBatchQty(ln.shortfall) +
+          ' من المطلوب ' +
+          fmtBatchQty(ln.need) +
+          '.</div></td>';
+        batchRows.appendChild(trW);
+      }
     });
+
+    if (batchConfirm) {
+      batchConfirm.disabled = anyBad || data.can_post === false;
+    }
     batchModal.hidden = false;
     batchModal.setAttribute('aria-hidden', 'false');
-  }
-
-  function collectBatchPicks() {
-    var picks = [];
-    if (!batchRows) return picks;
-    batchRows.querySelectorAll('select').forEach(function (sel) {
-      var b = (sel.value || '').trim();
-      if (!b) return;
-      picks.push({
-        srl: parseInt(sel.dataset.srl || '0', 10),
-        item: sel.dataset.item || '',
-        batch: b,
-      });
-    });
-    return picks;
   }
 
   function postOracleWithBatches(batchPicks) {
@@ -2671,17 +2693,33 @@
   if (batchConfirm) {
     batchConfirm.addEventListener('click', function () {
       if (!pickerData || !pickerData.lines) return;
-      var picks = collectBatchPicks();
-      if (picks.length < pickerData.lines.length) {
-        hxAlert('اختر تشغيلة لكل مادة قبل الترحيل.', { title: 'اختيار التشغيلة', kind: 'warn' });
+      if (pickerData.can_post === false || batchConfirm.disabled) {
+        hxAlert('لا يمكن الترحيل: رصيد التشغيلات لا يكفي لبعض المواد.', {
+          title: 'رصيد غير كافٍ',
+          kind: 'warning',
+        });
         return;
       }
-      hxConfirm('ترحيل الطلب إلى Oracle بالتشغيلات المختارة؟', {
-        title: 'ترحيل إلى Oracle',
-        okLabel: 'ترحيل',
-      }).then(function (ok) {
+      var bad = (pickerData.lines || []).some(function (ln) {
+        return !ln.allocation_ok;
+      });
+      if (bad) {
+        hxAlert('لا يمكن الترحيل: رصيد التشغيلات لا يكفي لبعض المواد.', {
+          title: 'رصيد غير كافٍ',
+          kind: 'warning',
+        });
+        return;
+      }
+      hxConfirm(
+        'سيتم ترحيل الطلب إلى Oracle بالتوزيع المعروض (خصم تلقائي من التشغيلات).\nهل تريد التأكيد؟',
+        {
+          title: 'ترحيل إلى Oracle',
+          okLabel: 'تأكيد وترحيل',
+        }
+      ).then(function (ok) {
         if (!ok) return;
-        postOracleWithBatches(picks);
+        // بدون batch_picks: الخادم يوزّع تلقائياً ويقسّم السطر على أكثر من تشغيلة
+        postOracleWithBatches([]);
       });
     });
   }
