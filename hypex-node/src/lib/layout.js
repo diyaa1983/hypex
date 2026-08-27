@@ -145,6 +145,9 @@ function renderApp({
   const fmtVer = assetVersion('js/app-format.js');
   const dateJsVer = assetVersion('js/app-date-picker.js');
   const dateCssVer = assetVersion('css/app-date-picker.css');
+  const uiDlgJsVer = assetVersion('js/ui-dialog.js');
+  const uiDlgCssVer = assetVersion('css/ui-dialog.css');
+  const exitGuardVer = assetVersion('js/screen-exit-guard.js');
   const allCss = [...css];
   const allJs = [...js];
   if (printChrome && user) {
@@ -159,6 +162,13 @@ function renderApp({
     if (!hasUi) allJs.unshift(`/assets/js/hx-ui.js?v=${uiVer}`);
     const hasUiCss = allCss.some((c) => String(c).indexOf('hx-ui.css') !== -1);
     if (!hasUiCss) allCss.unshift(`/assets/css/hx-ui.css?v=${uiCssVer}`);
+    // حوار حفظ/عدم حفظ عند مغادرة شاشة بها تعديلات — قبل سكربتات الصفحات
+    const hasDlgCss = allCss.some((c) => String(c).indexOf('ui-dialog.css') !== -1);
+    if (!hasDlgCss) allCss.unshift(`/assets/css/ui-dialog.css?v=${uiDlgCssVer}`);
+    const hasExitGuard = allJs.some((j) => String(j).indexOf('screen-exit-guard.js') !== -1);
+    if (!hasExitGuard) allJs.unshift(`/assets/js/screen-exit-guard.js?v=${exitGuardVer}`);
+    const hasDlgJs = allJs.some((j) => String(j).indexOf('ui-dialog.js') !== -1);
+    if (!hasDlgJs) allJs.unshift(`/assets/js/ui-dialog.js?v=${uiDlgJsVer}`);
     const hasSc = allJs.some((j) => String(j).indexOf('hx-shortcuts.js') !== -1);
     if (!hasSc) allJs.push(`/assets/js/hx-shortcuts.js?v=${scVer}`);
     const hasScCss = allCss.some((c) => String(c).indexOf('hx-shortcuts.css') !== -1);

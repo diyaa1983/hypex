@@ -336,21 +336,12 @@ async function renderForm(req, res, orderId) {
     : 'طلب شراء عميل جديد';
 
   const bodyHtml = `
-    <div class="si-stage">
-      <header class="si-hero">
-        <div class="si-brand-lockup">
-          <div class="si-brand-text">
-            <h1>${titleLine}</h1>
-            ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
-          </div>
-        </div>
-        <div class="si-hero-actions">
-          <a class="si-btn" href="/sales/orders">القائمة</a>
-          <a class="si-btn" href="/sales/orders/new">جديد</a>
-        </div>
-      </header>
-
+    <div class="si-stage si-stage--toolbar-first">
       ${toolbarHtml(caps, initial)}
+      <div class="si-doc-screen-head">
+        <h1 class="si-doc-screen-title" id="co-screen-title">${titleLine}</h1>
+        <div class="si-doc-screen-badge">${badge}</div>
+      </div>
 
       <section class="si-surface">
         <div class="si-surface-head">

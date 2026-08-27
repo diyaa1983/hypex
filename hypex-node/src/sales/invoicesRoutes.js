@@ -110,7 +110,8 @@ function toolbarHtml(caps, inv) {
         ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id), ' title="ترحيل"')}
       </div>
       <div class="si-tb-group">
-        ${b('si-search', 'بحث', 'si-tb--ghost', false, ' title="قائمة الفواتير"')}
+        ${b('si-search', 'القائمة', 'si-tb--ghost', false, ' title="قائمة الفواتير"')}
+        ${b('si-new', 'جديد', 'si-tb--ghost', false, ' title="فاتورة جديدة"')}
         ${b('si-pdf', 'PDF', '', !caps.canPdf)}
         ${b('si-print', 'طباعة', '', !caps.canPrint)}
         ${b('si-excel', 'Excel', '', !caps.canExcel)}
@@ -453,21 +454,12 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       : 'فاتورة مبيعات جديدة';
 
     const bodyHtml = `
-      <div class="si-stage">
-        <header class="si-hero">
-          <div class="si-brand-lockup">
-            <div class="si-brand-text">
-              <h1>${titleLine}</h1>
-              ${badge ? `<div class="si-hero-badge">${badge}</div>` : ''}
-            </div>
-          </div>
-          <div class="si-hero-actions">
-            <a class="si-btn" href="/sales/invoices">القائمة</a>
-            <a class="si-btn" href="/sales/invoices/new">جديد</a>
-          </div>
-        </header>
-
+      <div class="si-stage si-stage--toolbar-first">
         ${toolbarHtml(caps, initial)}
+        <div class="si-doc-screen-head">
+          <h1 class="si-doc-screen-title" id="si-screen-title">${titleLine}</h1>
+          <div class="si-doc-screen-badge" id="si-screen-badge">${badge}</div>
+        </div>
 
         <section class="si-surface">
           <div class="si-surface-head">

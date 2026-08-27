@@ -89,6 +89,32 @@ body.si-2027 .si-main::before {
   top: 0.35rem;
 }
 
+/* عنوان الشاشة أسفل شريط الأدوات — خط أصغر من الترويسة القديمة */
+.si-doc-screen-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  margin: 0.55rem 0 0.85rem;
+  padding: 0 0.15rem;
+}
+.si-doc-screen-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--si-ink, #0f172a);
+  letter-spacing: 0.01em;
+}
+.si-doc-screen-badge {
+  display: inline-flex;
+  align-items: center;
+}
+.si-doc-screen-badge .si-pill {
+  margin: 0;
+  font-size: 0.72rem;
+}
+
 .si-surface-head-meta {
   display: inline-flex;
   align-items: center;
@@ -1278,6 +1304,48 @@ label .si-field-key {
   vertical-align: middle;
   overflow: visible;
   white-space: nowrap;
+}
+.si-item-sku-wrap {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  gap: 0;
+  vertical-align: middle;
+}
+.si-item-sku-wrap input.js-item-sku {
+  flex: 1 1 auto;
+  min-width: 4.5rem;
+}
+.si-item-pick {
+  flex: 0 0 auto;
+  align-self: stretch;
+  min-width: 1.35rem;
+  margin: 0;
+  padding: 0 0.15rem;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-inline-start: 0;
+  border-radius: 0 6px 6px 0;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.65rem;
+  line-height: 1;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.si-item-pick:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+.si-item-sku-wrap input.js-item-sku {
+  border-radius: 6px 0 0 6px;
+}
+[dir='rtl'] .si-item-pick {
+  border-inline-start: 0;
+  border-inline-end: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 6px 0 0 6px;
+}
+[dir='rtl'] .si-item-sku-wrap input.js-item-sku {
+  border-radius: 0 6px 6px 0;
 }
 .si-lines .si-item-code-cell,
 .si-lines .si-item-sku-cell {

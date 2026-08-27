@@ -15,6 +15,39 @@
   var custTimer = null;
   var itemTimers = {};
   var busy = false;
+  var formDirty = false;
+  var suppressDirtyMark = 0;
+
+  function isSearchOnlyField(el) {
+    if (!el || !el.id) return false;
+    return el.id === 'co_no';
+  }
+
+  function markFormDirty() {
+    if (suppressDirtyMark > 0 || locked) return;
+    formDirty = true;
+  }
+
+  function markFormDirtyFromEvent(e) {
+    if (e && e.target && isSearchOnlyField(e.target)) return;
+    if (e && e.target && e.target.closest && e.target.closest('.js-item-pick, .si-del, .si-tb, .si-docno-btn')) {
+      /* أزرار — dirty يُعلَّم من المنطق البرمجي عند الحاجة */
+    }
+    markFormDirty();
+  }
+
+  function clearFormDirty() {
+    formDirty = false;
+  }
+
+  function runWithoutDirtyMark(fn) {
+    suppressDirtyMark++;
+    try {
+      fn();
+    } finally {
+      suppressDirtyMark--;
+    }
+  }
 
   function rateClose(a, b) {
     return Math.abs(Number(a) - Number(b)) < 0.0001;
@@ -549,8 +582,41 @@
     });
   }
 
+  function hxAlert(msg, opts) {
+    opts = opts || {};
+    var kind = opts.kind || 'warning';
+    var title = opts.title || (kind === 'error' ? 'تعذّر الإكمال' : kind === 'ok' ? 'تم' : 'تحذير');
+    setMsg(msg || '', kind === 'ok' ? 'ok' : 'error');
+    if (window.AppDialog) {
+      if (kind === 'error' && typeof window.AppDialog.error === 'function') {
+        return window.AppDialog.error(String(msg || ''), { title: title, theme: 'oracle' });
+      }
+      if (typeof window.AppDialog.alert === 'function') {
+        return window.AppDialog.alert(String(msg || ''), {
+          title: title,
+          type: kind === 'ok' ? 'success' : kind === 'error' ? 'error' : 'warning',
+          theme: 'oracle',
+        });
+      }
+    }
+    if (window.HypexUI && window.HypexUI.alert) {
+      return window.HypexUI.alert(String(msg || ''), kind === 'ok' ? 'ok' : kind === 'error' ? 'error' : 'warning');
+    }
+    window.alert((title ? title + '\n' : '') + (msg || ''));
+    return Promise.resolve(true);
+  }
+
   function hxConfirm(msg, opts) {
     opts = opts || {};
+    if (window.AppDialog && typeof window.AppDialog.confirm === 'function') {
+      return window.AppDialog.confirm(String(msg || ''), {
+        title: opts.title || 'تأكيد',
+        okText: opts.okLabel || 'موافق',
+        cancelText: opts.cancelLabel || 'إلغاء',
+        danger: !!opts.danger,
+        theme: 'oracle',
+      });
+    }
     if (window.HypexUI && window.HypexUI.confirm) {
       return window.HypexUI.confirm(msg, {
         title: opts.title || 'تأكيد',
@@ -559,27 +625,6 @@
       });
     }
     return Promise.resolve(window.confirm(msg));
-  }
-
-  function hxAlert(msg, opts) {
-    opts = opts || {};
-    if (window.HypexUI && window.HypexUI.dialog) {
-      return window.HypexUI.dialog({
-        title: opts.title || 'تنبيه النظام',
-        message: msg || '',
-        kind: opts.kind || 'error',
-        closeOnBackdrop: true,
-        buttons: [{ label: 'حسناً', value: true, primary: true }],
-      });
-    }
-    if (window.HypexUI && window.HypexUI.alert) {
-      return window.HypexUI.alert(
-        (opts.title ? opts.title + '\n' : '') + (msg || ''),
-        opts.kind || 'error'
-      );
-    }
-    window.alert((opts.title ? opts.title + '\n' : '') + (msg || ''));
-    return Promise.resolve(true);
   }
 
   function showActionError(data) {
@@ -835,6 +880,7 @@
         (idx + 1) +
         '</td>' +
         '<td class="si-item-sku-cell">' +
+        '<div class="si-item-sku-wrap">' +
         '<input class="js-item-sku" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
         'placeholder="رقم المادة" data-nav="1" title="' +
         escAttr(sku) +
@@ -843,6 +889,10 @@
         '" ' +
         (locked ? 'readonly' : '') +
         '>' +
+        (locked
+          ? ''
+          : '<button type="button" class="si-item-pick js-item-pick" tabindex="-1" title="قائمة المواد (F3)" aria-label="قائمة المواد">▾</button>') +
+        '</div>' +
         '</td>' +
         '<td class="si-item-code-cell">' +
         '<input type="hidden" class="js-item-id" value="' +
@@ -1025,6 +1075,7 @@
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
     closeItemSuggest(openSuggestForRow(tr));
     patchLineRow(tr, state.lines[idx]);
+    markFormDirty();
     if (focusNext) {
       window.setTimeout(function () {
         focusLineField(idx, '.js-qty', true);
@@ -1162,17 +1213,17 @@
 
   /** Enter على تطابق تام لرقم المادة أو الباركود — بدون أسهم */
   function pickExactCodeSuggest(box, q) {
-    if (!box || box.hidden) return false;
-    var it = findExactItemInRows(box._hxRows || [], q);
+    var it = findExactItemInRows((box && box._hxRows) || [], q);
     if (!it) return false;
-    box.dataset.hxUserNav = '1';
     var tr =
-      box._hxRow ||
-      box.closest('tr[data-idx]') ||
-      (box._hxHome && box._hxHome.closest && box._hxHome.closest('tr[data-idx]')) ||
+      (box && box._hxRow) ||
+      (box && box.closest && box.closest('tr[data-idx]')) ||
       null;
     if (!tr) return false;
-    closeItemSuggest(box);
+    if (box) {
+      box.dataset.hxUserNav = '1';
+      closeItemSuggest(box);
+    }
     pickItemIntoRow(tr, it, true);
     return true;
   }
@@ -1309,9 +1360,148 @@
     searchItems(anchor.value || '', box, tr, anchor);
   }
 
+  function goToNextLineSku(fromIdx) {
+    var idx = Number(fromIdx);
+    if (!Number.isFinite(idx)) return false;
+    var nextIdx = idx + 1;
+    if (nextIdx < (state.lines || []).length) {
+      window.setTimeout(function () {
+        focusLineField(nextIdx, '.js-item-sku', true);
+      }, 0);
+      return true;
+    }
+    if (!addEmptyLine()) return false;
+    var newIdx = (state.lines || []).length - 1;
+    window.setTimeout(function () {
+      focusLineField(newIdx, '.js-item-sku', true);
+    }, 0);
+    return true;
+  }
+
+  function lineMatchesTypedCode(ln, fromEl, q) {
+    if (!ln || !Number(ln.item_id)) return false;
+    q = String(q || '').trim().toLowerCase();
+    if (!q) return false;
+    if (fromEl.classList.contains('js-item-sku')) {
+      return String(ln.item_sku || '').trim().toLowerCase() === q;
+    }
+    if (fromEl.classList.contains('js-item-code')) {
+      var bc = String(ln.item_barcode || ln.item_code || '')
+        .trim()
+        .toLowerCase();
+      return bc === q;
+    }
+    return false;
+  }
+
+  /**
+   * عند Enter على رقم مادة/باركود: اختيار إن وُجدت، وإلا تحذير موحّد
+   * @param {function(string)} done — empty|ok|picked|missing|error
+   */
+  function resolveItemCodeOnEnter(fromEl, tr, done) {
+    var q = String(fromEl.value || '').trim();
+    if (!q) {
+      done('empty');
+      return;
+    }
+    var idx = Number(tr.getAttribute('data-idx'));
+    var ln = state.lines[idx];
+    if (lineMatchesTypedCode(ln, fromEl, q)) {
+      done('ok');
+      return;
+    }
+    var box = getCoItemSuggest();
+    if (pickExactCodeSuggest(box, q)) {
+      done('picked');
+      return;
+    }
+    setMsg('جاري التحقق من المادة…');
+    fetch('/api/lookup/items?q=' + encodeURIComponent(q), {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        var rows = (data && data.ok && data.rows) || [];
+        var exact = findExactItemInRows(rows, q);
+        if (exact) {
+          pickItemIntoRow(tr, exact, true);
+          setMsg('', '');
+          done('picked');
+          return;
+        }
+        var msg = 'المادة غير موجودة في بطاقة المواد.\nالرقم المدخل: ' + q;
+        hxAlert(msg, { title: 'مادة غير موجودة', kind: 'warning' }).then(function () {
+          try {
+            fromEl.focus();
+            if (typeof fromEl.select === 'function') fromEl.select();
+          } catch (e) {
+            /* ignore */
+          }
+        });
+        done('missing');
+      })
+      .catch(function () {
+        hxAlert('تعذر التحقق من المادة. حاول مرة أخرى.', {
+          title: 'تنبيه',
+          kind: 'error',
+        });
+        done('error');
+      });
+  }
+
+  function continueGoNextField(fromEl) {
+    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+    if (tr && tbody && tbody.contains(tr)) {
+      var idx = Number(tr.getAttribute('data-idx'));
+      var curLn = state.lines[idx];
+      try {
+        readLineFromRow(tr);
+      } catch (e) {
+        /* ignore */
+      }
+      var rowEls = lineNavEls(tr);
+      var i = rowEls.indexOf(fromEl);
+      if (i < 0) {
+        for (var ri = 0; ri < rowEls.length; ri++) {
+          if (rowEls[ri] === fromEl || (fromEl.contains && fromEl.contains(rowEls[ri]))) {
+            i = ri;
+            break;
+          }
+        }
+      }
+      if (i >= 0 && i < rowEls.length - 1) {
+        focusElement(rowEls[i + 1], true);
+        return;
+      }
+      if (!lineHasItem(curLn)) {
+        focusLineField(idx, '.js-item-sku', true);
+        hxAlert('اختر المادة أولاً قبل الانتقال لسطر جديد.', {
+          title: 'تنبيه',
+          kind: 'warning',
+        });
+        return;
+      }
+      goToNextLineSku(idx);
+      return;
+    }
+
+    var headers = headerNavEls();
+    var hi = headers.indexOf(fromEl);
+    if (hi >= 0 && hi < headers.length - 1) {
+      focusElement(headers[hi + 1], true);
+      return;
+    }
+    if (hi === headers.length - 1 || fromEl.id === 'co_customer') {
+      if (!(state.lines || []).length) addEmptyLine({ force: true });
+      focusLineField(0, '.js-item-sku', true);
+    }
+  }
+
   function goNextField(fromEl) {
     if (locked || !fromEl) return;
-    // قائمة مواد: Enter يختار فقط بعد الأسهم؛ وإلا أغلق وانتقل للحقل التالي
     var itemSug =
       fromEl.closest && fromEl.closest('tr[data-idx]')
         ? openSuggestForRow(fromEl.closest('tr[data-idx]'))
@@ -1325,19 +1515,9 @@
         fromEl.classList.contains('js-item-name'))
     ) {
       if (pickActiveSuggest(itemSug)) return;
-      // رقم مادة أو باركود مطابق تماماً → اختيار مباشر
-      if (
-        (fromEl.classList.contains('js-item-code') || fromEl.classList.contains('js-item-sku')) &&
-        pickExactCodeSuggest(itemSug, fromEl.value)
-      ) {
-        return;
-      }
-      closeItemSuggest(itemSug);
-      // تابع التنقل للحقل التالي بدون اختيار مادة
-    } else {
-      // عميل وغيره: السلوك السابق (Enter يختار النشط إن وُجد)
+    } else if (fromEl.id === 'co_customer') {
       var suggest = getOpenItemSuggest(fromEl);
-      if (suggest && fromEl.id === 'co_customer') {
+      if (suggest && !suggest.hidden && suggest.querySelector('button')) {
         if (pickActiveSuggest(suggest) || suggest.querySelector('button')) {
           var btn = suggest.querySelector('button.is-active') || suggest.querySelector('button');
           if (btn) {
@@ -1348,44 +1528,23 @@
       }
     }
 
-    var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
-    if (tr && tbody && tbody.contains(tr)) {
-      var rowEls = lineNavEls(tr);
-      var i = rowEls.indexOf(fromEl);
-      if (i >= 0 && i < rowEls.length - 1) {
-        focusElement(rowEls[i + 1], true);
-        return;
-      }
-      // آخر حقل في السطر → سطر تالٍ (إن وُجد مادة) أو جديد بعد اختيار المادة
-      var idx = Number(tr.getAttribute('data-idx'));
-      var curLn = state.lines[idx];
-      if (!lineHasItem(curLn)) {
-        focusLineField(idx, '.js-item-sku', true);
-        setMsg('اختر المادة أولاً قبل الانتقال لسطر جديد.', 'error');
-        return;
-      }
-      var nextIdx = idx + 1;
-      if (nextIdx < (state.lines || []).length) {
-        focusLineField(nextIdx, '.js-item-sku', true);
-      } else {
-        if (addEmptyLine()) {
-          focusLineField((state.lines || []).length - 1, '.js-item-sku', true);
+    var trItem = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
+    if (
+      trItem &&
+      (fromEl.classList.contains('js-item-sku') || fromEl.classList.contains('js-item-code'))
+    ) {
+      resolveItemCodeOnEnter(fromEl, trItem, function (result) {
+        if (result === 'empty' || result === 'ok') {
+          if (itemSug && !itemSug.hidden) closeItemSuggest(itemSug);
+          continueGoNextField(fromEl);
         }
-      }
+        // picked / missing / error — لا تنتقل
+      });
       return;
     }
 
-    var headers = headerNavEls();
-    var hi = headers.indexOf(fromEl);
-    if (hi >= 0 && hi < headers.length - 1) {
-      focusElement(headers[hi + 1], true);
-      return;
-    }
-    if (hi === headers.length - 1 || fromEl.id === 'co_customer') {
-      // إلى أول بند — لا تضف سطرًا إن وُجد بالفعل سطر فارغ
-      if (!(state.lines || []).length) addEmptyLine({ force: true });
-      focusLineField(0, '.js-item-sku', true);
-    }
+    if (itemSug && !itemSug.hidden) closeItemSuggest(itemSug);
+    continueGoNextField(fromEl);
   }
 
   function goPrevField(fromEl) {
@@ -1492,41 +1651,42 @@
     });
   }
 
-  function bindItemSuggestField(input, tr) {
-    if (!input || locked) return;
-    if (input.getAttribute('data-co-suggest-open') === '1') return;
-    input.setAttribute('data-co-suggest-open', '1');
-
-    function canOpen() {
-      if (locked || isSystemItemModalOpen()) return false;
-      if (input.classList.contains('js-item-name') && input.readOnly) return false;
-      return true;
+  function openItemsPickerForRow(tr) {
+    if (locked || !tr) return;
+    var field = tr.querySelector('.js-item-sku') || tr.querySelector('.js-item-code');
+    if (field) {
+      try {
+        field.focus();
+      } catch (e) {
+        /* ignore */
+      }
     }
-
-    function openOrRefresh() {
-      if (!canOpen()) return;
-      var box = getCoItemSuggest();
-      if (
-        box &&
-        !box.hidden &&
-        box._hxRow === tr &&
-        (box.querySelector('button') || box.querySelector('.si-suggest-empty'))
-      ) {
-        coSuggestGuardUntil = Date.now() + 450;
-        placeFloatSuggest(box, input);
+    window.setTimeout(function () {
+      if (window.HypexShortcuts && typeof window.HypexShortcuts.items === 'function') {
+        window.HypexShortcuts.items();
         return;
       }
-      openItemListForField(input);
-    }
+      if (field) openItemListForField(field);
+    }, 0);
+  }
 
-    input.addEventListener('focus', openOrRefresh);
-    input.addEventListener('click', openOrRefresh);
+  function bindItemPickButton(tr) {
+    if (!tr || locked) return;
+    var btn = tr.querySelector('.js-item-pick');
+    if (!btn || btn.getAttribute('data-co-pick') === '1') return;
+    btn.setAttribute('data-co-pick', '1');
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      openItemsPickerForRow(tr);
+    });
   }
 
   function bindRow(tr) {
     if (!tr) return;
     if (tr.getAttribute('data-hx-bound') === '1') {
       bindUnitOnly(tr);
+      bindItemPickButton(tr);
       return;
     }
     tr.setAttribute('data-hx-bound', '1');
@@ -1580,7 +1740,8 @@
         }
         clearTimeout(itemTimers['s' + idx]);
         itemTimers['s' + idx] = setTimeout(function () {
-          openItemListForField(skuInput);
+          if (String(skuInput.value || '').trim()) openItemListForField(skuInput);
+          else closeItemSuggest(getCoItemSuggest());
         }, 160);
       });
     }
@@ -1597,7 +1758,8 @@
         }
         clearTimeout(itemTimers[idx]);
         itemTimers[idx] = setTimeout(function () {
-          openItemListForField(codeInput);
+          if (String(codeInput.value || '').trim()) openItemListForField(codeInput);
+          else closeItemSuggest(getCoItemSuggest());
         }, 160);
       });
     }
@@ -1615,13 +1777,12 @@
         }
         clearTimeout(itemTimers['n' + idx]);
         itemTimers['n' + idx] = setTimeout(function () {
-          openItemListForField(nameInput);
+          if (String(nameInput.value || '').trim()) openItemListForField(nameInput);
+          else closeItemSuggest(getCoItemSuggest());
         }, 160);
       });
     }
-    bindItemSuggestField(skuInput, tr);
-    bindItemSuggestField(codeInput, tr);
-    bindItemSuggestField(nameInput, tr);
+    bindItemPickButton(tr);
     // توسيع فوري عند ربط الصف
     fitRowFields(tr);
   }
@@ -1636,6 +1797,7 @@
     if (!state.lines.length) addEmptyLine({ force: true, silent: true });
     else renderLines();
     setMsg('تم حذف البند من الجدول.', 'ok');
+    markFormDirty();
   }
 
   function searchItems(q, box, tr, anchor) {
@@ -1825,6 +1987,7 @@
       idx = state.lines.length - 1;
     }
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
+    markFormDirty();
     var tr = tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
     if (tr) {
       patchLineRow(tr, state.lines[idx]);
@@ -2124,20 +2287,23 @@
     if (locked || busy) return Promise.resolve(null);
     var payload = collectPayload();
     if (!payload.customer_id) {
-      setMsg('اختر العميل.', 'error');
+      hxAlert('اختر العميل.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
     if (!payload.warehouse_id) {
-      setMsg('اختر المستودع.', 'error');
+      hxAlert('اختر المستودع.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
     if (!payload.lines.length) {
-      setMsg('أضف بنداً واحداً على الأقل.', 'error');
+      hxAlert('أضف بنداً واحداً على الأقل.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
     for (var pi = 0; pi < payload.lines.length; pi++) {
       if (!(Number(payload.lines[pi].unit_price) > 0)) {
-        setMsg('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', 'error');
+        hxAlert('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', {
+          title: 'تنبيه',
+          kind: 'warning',
+        });
         return Promise.resolve(null);
       }
     }
@@ -2158,6 +2324,11 @@
           return null;
         }
         setMsg('تم الحفظ · ' + (data.order_no || ''), 'ok');
+        clearFormDirty();
+        if (data.order_no) {
+          var titleEl = document.getElementById('co-screen-title');
+          if (titleEl) titleEl.textContent = 'طلب ' + data.order_no;
+        }
         if (data.id && Number(data.id) !== Number(state.id || 0)) {
           if (window.history && window.history.replaceState) {
             state.id = data.id;
@@ -2559,19 +2730,95 @@
   var searchBtn = document.getElementById('co-search');
   if (searchBtn) {
     searchBtn.addEventListener('click', function () {
-      window.location.href = '/sales/orders';
+      leaveTo('/sales/orders');
     });
   }
 
   var newBtn = document.getElementById('co-new');
   if (newBtn) {
     newBtn.addEventListener('click', function () {
-      window.location.href = '/sales/orders/new';
+      leaveTo('/sales/orders/new');
     });
+  }
+
+  function leaveTo(href) {
+    if (!href) return;
+    if (window.ScreenExitGuard && typeof window.ScreenExitGuard.confirmLeave === 'function') {
+      window.ScreenExitGuard.confirmLeave(function () {
+        if (window.ScreenExitGuard.navigateExit) window.ScreenExitGuard.navigateExit(href);
+        else window.location.href = href;
+      });
+      return;
+    }
+    window.location.href = href;
+  }
+
+  function confirmUnsavedChanges(onProceed, onCancel) {
+    if (window.ScreenExitGuard && typeof window.ScreenExitGuard.confirmSaveDiscardLeave === 'function') {
+      window.ScreenExitGuard.confirmSaveDiscardLeave({
+        when: function () {
+          return formDirty && !locked;
+        },
+        onSave: function (proceed) {
+          saveOrder().then(function (data) {
+            if (data && data.ok) {
+              clearFormDirty();
+              if (proceed) proceed();
+            }
+          });
+        },
+        onDiscard: function () {
+          clearFormDirty();
+        },
+        onProceed: onProceed,
+        onCancel: onCancel,
+      });
+      return;
+    }
+    if (!formDirty || locked) {
+      if (onProceed) onProceed();
+      return;
+    }
+    if (window.confirm('هناك تعديلات غير محفوظة. المتابعة بدون حفظ؟')) {
+      clearFormDirty();
+      if (onProceed) onProceed();
+    } else if (onCancel) {
+      onCancel();
+    }
+  }
+
+  if (window.ScreenExitGuard && typeof window.ScreenExitGuard.registerScreenExitDeferred === 'function') {
+    window.ScreenExitGuard.registerScreenExitDeferred({
+      hasUnsaved: function () {
+        return formDirty && !locked;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  } else if (window.ScreenExitGuard && typeof window.ScreenExitGuard.registerScreenExit === 'function') {
+    window.ScreenExitGuard.registerScreenExit({
+      hasUnsaved: function () {
+        return formDirty && !locked;
+      },
+      confirmLeave: confirmUnsavedChanges,
+    });
+  }
+
+  window.addEventListener('beforeunload', function (e) {
+    if (window.__managerAllowUnload) return;
+    if (!formDirty || locked) return;
+    e.preventDefault();
+    e.returnValue = '';
+  });
+
+  var stageEl = document.querySelector('.si-stage');
+  if (stageEl && !locked) {
+    stageEl.addEventListener('input', markFormDirtyFromEvent, true);
+    stageEl.addEventListener('change', markFormDirtyFromEvent, true);
   }
 
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });
+  clearFormDirty();
   updateDocNoStyle();
 
   (function bindItemsHintClick() {
@@ -2579,26 +2826,12 @@
     if (!hint || locked) return;
     hint.style.cursor = 'pointer';
     hint.addEventListener('click', function () {
-      var ae = document.activeElement;
-      var field =
-        ae &&
-        ae.classList &&
-        (ae.classList.contains('js-item-sku') ||
-          ae.classList.contains('js-item-code') ||
-          ae.classList.contains('js-item-name'))
-          ? ae
-          : null;
-      if (!field && tbody) {
-        var tr0 = tbody.querySelector('tr[data-idx]');
-        if (tr0) field = tr0.querySelector('.js-item-sku') || tr0.querySelector('.js-item-code');
-      }
-      if (!field) return;
-      try {
-        field.focus();
-      } catch (e) {
-        /* ignore */
-      }
-      openItemListForField(field);
+      var tr =
+        (document.activeElement &&
+          document.activeElement.closest &&
+          document.activeElement.closest('tr[data-idx]')) ||
+        (tbody && tbody.querySelector('tr[data-idx]'));
+      if (tr) openItemsPickerForRow(tr);
     });
   })();
 
