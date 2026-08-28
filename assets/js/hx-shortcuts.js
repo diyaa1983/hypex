@@ -287,6 +287,9 @@
       '<button type="button" class="hx-lk__x" data-hx-lk-close="1" aria-label="إغلاق">×</button>' +
       '</header>' +
       '<div class="hx-lk__search">' +
+      '<select id="hx-lk-cat" class="hx-lk__input hx-lk__cat" hidden title="فئة Oracle">' +
+      '<option value="">— كل الفئات —</option>' +
+      '</select>' +
       '<input type="search" id="hx-lk-q" class="hx-lk__input" placeholder="ابحث…" autocomplete="off">' +
       '</div>' +
       '<div class="hx-lk__list" id="hx-lk-list"></div>' +
@@ -396,11 +399,65 @@
     }
     var qEl = modal.querySelector('#hx-lk-q');
     qEl.value = '';
+    var catEl = modal.querySelector('#hx-lk-cat');
+    if (catEl) {
+      if (kind === 'items') {
+        catEl.hidden = false;
+        catEl.removeAttribute('hidden');
+        ensureItemCategories(catEl).then(function () {
+          loadList(qEl.value || '');
+        });
+      } else {
+        catEl.hidden = true;
+        catEl.setAttribute('hidden', '');
+        catEl.value = '';
+      }
+    }
     modal.hidden = false;
     setTimeout(function () {
       qEl.focus();
     }, 30);
-    loadList('');
+    if (kind !== 'items') loadList('');
+  }
+
+  function ensureItemCategories(catEl) {
+    if (!catEl) return Promise.resolve();
+    if (catEl.dataset.loaded === '1') {
+      var coCat = document.getElementById('co-oracle-cat-filter');
+      if (coCat && coCat.value) catEl.value = coCat.value;
+      return Promise.resolve();
+    }
+    return fetch(baseUrl('/api/lookup/item-categories'), {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        var cur = catEl.value || '';
+        catEl.innerHTML = '<option value="">— كل الفئات —</option>';
+        (data.rows || []).forEach(function (row) {
+          var o = document.createElement('option');
+          o.value = String(row.cat || '');
+          var code = String(row.cat || '');
+          var name = String(row.name || '');
+          o.textContent = code && name && name.indexOf(code) < 0 ? code + ' — ' + name : name || code;
+          catEl.appendChild(o);
+        });
+        catEl.value = cur;
+        catEl.dataset.loaded = '1';
+        if (!catEl._hxCatBound) {
+          catEl._hxCatBound = true;
+          catEl.addEventListener('change', function () {
+            var q = (modal.querySelector('#hx-lk-q') || {}).value || '';
+            loadList(q);
+          });
+        }
+      })
+      .catch(function () {
+        /* ignore */
+      });
   }
 
   function loadList(q) {
@@ -414,6 +471,9 @@
       url = baseUrl('/api/purchases/suppliers?q=') + encodeURIComponent(q || '');
     } else {
       url = baseUrl('/api/lookup/items?q=') + encodeURIComponent(q || '');
+      var catEl = modal && modal.querySelector('#hx-lk-cat');
+      var cat = catEl ? String(catEl.value || '').trim() : '';
+      if (cat) url += '&cat=' + encodeURIComponent(cat);
     }
     fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) {

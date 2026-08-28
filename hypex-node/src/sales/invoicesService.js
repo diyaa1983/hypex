@@ -657,11 +657,30 @@ async function searchCustomers(q, limit = 30) {
   }
 }
 
-async function searchItems(q, limit = 30) {
+async function searchItems(q, limit = 30, opts = {}) {
   const qTrim = String(q || '').trim();
   const like = `%${qTrim}%`;
+  const cat = String(opts.cat || opts.category || '').trim();
+  const catFilter = cat
+    ? ` AND (
+         EXISTS (
+           SELECT 1 FROM inv_item_category c
+           WHERE c.id = inv_item.category_id
+             AND (
+               TRIM(IFNULL(c.oracle_key,'')) = ?
+               OR TRIM(IFNULL(c.code,'')) = ?
+               OR TRIM(LEADING '0' FROM IFNULL(c.oracle_key,'')) = TRIM(LEADING '0' FROM ?)
+               OR TRIM(LEADING '0' FROM IFNULL(c.code,'')) = TRIM(LEADING '0' FROM ?)
+             )
+         )
+       )`
+    : '';
+  const catParams = cat ? [cat, cat, cat, cat] : [];
   // code المعروض = الباركود (ثم رقم المادة) · sale_price = أقل وحدة (غير شامل)
   const codeExpr = `COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code`;
+  const catCols = `, category_id,
+      (SELECT TRIM(IFNULL(c.oracle_key, c.code)) FROM inv_item_category c WHERE c.id = inv_item.category_id LIMIT 1) AS oracle_cat,
+      (SELECT c.name_ar FROM inv_item_category c WHERE c.id = inv_item.category_id LIMIT 1) AS category_name`;
   // تطابق تام لرقم المادة / الباركود أولاً ثم البحث الجزئي
   const rankExact = `CASE
       WHEN TRIM(IFNULL(sku,'')) = ? THEN 0
@@ -677,27 +696,9 @@ async function searchItems(q, limit = 30) {
         `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
                 COALESCE(default_sale, 0) AS sale_price,
                 COALESCE(default_wholesale, 0) AS wholesale_price,
-                tax_rate_id
-         FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
-      );
-    } catch {
-      rows = await db.query(
-        `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
-                COALESCE(default_sale, 0) AS sale_price
-         FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
-      );
-    }
-  } else {
-    try {
-      rows = await db.query(
-        `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
-                COALESCE(default_sale, 0) AS sale_price,
-                COALESCE(default_wholesale, 0) AS wholesale_price,
-                tax_rate_id
-         FROM inv_item
-         WHERE is_active = 1 AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
-         ORDER BY ${rankExact}, name_ar LIMIT ${Math.min(40, limit)}`,
-        [like, like, like, like, like, qTrim, qTrim, qTrim, like, like]
+                tax_rate_id${catCols}
+         FROM inv_item WHERE is_active = 1${catFilter} ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+        catParams
       );
     } catch {
       try {
@@ -705,11 +706,43 @@ async function searchItems(q, limit = 30) {
           `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
                   COALESCE(default_sale, 0) AS sale_price,
                   COALESCE(default_wholesale, 0) AS wholesale_price,
-                  tax_rate_id
+                  tax_rate_id, category_id
+           FROM inv_item WHERE is_active = 1${catFilter} ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+          catParams
+        );
+      } catch {
+        rows = await db.query(
+          `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
+                  COALESCE(default_sale, 0) AS sale_price
+           FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
+        );
+      }
+    }
+  } else {
+    try {
+      rows = await db.query(
+        `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
+                COALESCE(default_sale, 0) AS sale_price,
+                COALESCE(default_wholesale, 0) AS wholesale_price,
+                tax_rate_id${catCols}
+         FROM inv_item
+         WHERE is_active = 1${catFilter}
+           AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
+         ORDER BY ${rankExact}, name_ar LIMIT ${Math.min(40, limit)}`,
+        [...catParams, like, like, like, like, like, qTrim, qTrim, qTrim, like, like]
+      );
+    } catch {
+      try {
+        rows = await db.query(
+          `SELECT id, ${codeExpr}, barcode, sku, name_ar, name_en, unit_id, unit_name,
+                  COALESCE(default_sale, 0) AS sale_price,
+                  COALESCE(default_wholesale, 0) AS wholesale_price,
+                  tax_rate_id, category_id
            FROM inv_item
-           WHERE is_active = 1 AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
+           WHERE is_active = 1${catFilter}
+             AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
            ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
-          [like, like, like, like, like]
+          [...catParams, like, like, like, like, like]
         );
       } catch {
         rows = await db.query(
@@ -732,6 +765,68 @@ async function searchItems(q, limit = 30) {
     }
   }
   return itemPricing.attachUnitsToSearchRows(rows || []);
+}
+
+async function listItemCategoriesOracle() {
+  const fallbackNames = {
+    1: 'فئة أولى',
+    2: 'فئة ثانية',
+    3: 'فئة ثالثة',
+    4: 'فئة رابعة',
+    5: 'فئة خامسة',
+    6: 'فئة سادسة',
+    7: 'فئة سابعة',
+    8: 'فئة ثامنة',
+    11: 'فئة حادي عشر',
+    12: 'فئة ثاني عشر',
+    13: 'فئة ثالث عشر',
+  };
+  try {
+    const rows = await db.query(
+      `SELECT id,
+              TRIM(IFNULL(NULLIF(oracle_key,''), code)) AS cat,
+              name_ar AS name
+       FROM inv_item_category
+       WHERE is_active = 1
+         AND (
+           (oracle_key IS NOT NULL AND TRIM(oracle_key) <> '')
+           OR (code REGEXP '^[0-9]{1,3}$')
+         )
+       ORDER BY CAST(TRIM(IFNULL(NULLIF(oracle_key,''), code)) AS UNSIGNED), name_ar
+       LIMIT 200`
+    );
+    const mapped = (rows || [])
+      .map((r) => ({
+        cat: String(r.cat || '').trim(),
+        name: String(r.name || '').trim() || fallbackNames[String(r.cat || '').trim()] || ('فئة ' + String(r.cat || '').trim()),
+        id: Number(r.id || 0),
+      }))
+      .filter((r) => r.cat);
+    if (mapped.length) return mapped;
+  } catch {
+    /* fall through */
+  }
+  try {
+    const rows = await db.query(
+      `SELECT id, code AS cat, name_ar AS name
+       FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 200`
+    );
+    const mapped = (rows || [])
+      .map((r) => ({
+        cat: String(r.cat || '').trim(),
+        name: String(r.name || '').trim(),
+        id: Number(r.id || 0),
+      }))
+      .filter((r) => r.cat);
+    if (mapped.length) return mapped;
+  } catch {
+    /* fall through */
+  }
+  return Object.keys(fallbackNames).map((k) => ({
+    cat: k,
+    name: fallbackNames[k],
+    id: 0,
+  }));
 }
 
 async function lookups() {
@@ -963,6 +1058,7 @@ module.exports = {
   getCustomerEmail,
   searchCustomers,
   searchItems,
+  listItemCategoriesOracle,
   lookups,
   isPosted,
   nextInvoiceNo,

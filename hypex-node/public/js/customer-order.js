@@ -1854,6 +1854,19 @@
       '/api/items?q=' + encodeURIComponent(q || ''),
       '/api/lookup/items?q=' + encodeURIComponent(q || ''),
     ];
+    var catFilter = '';
+    try {
+      var catSel = document.getElementById('co-oracle-cat-filter');
+      if (catSel && catSel.value) catFilter = String(catSel.value).trim();
+    } catch (e) {}
+    if (!catFilter && window.__coOracleCatFilter) {
+      catFilter = String(window.__coOracleCatFilter || '').trim();
+    }
+    if (catFilter) {
+      urls = urls.map(function (u) {
+        return u + '&cat=' + encodeURIComponent(catFilter);
+      });
+    }
 
     function finish(data) {
       if (box._coSearchToken !== token) return;
@@ -3278,6 +3291,48 @@
     stageEl.addEventListener('input', markFormDirtyFromEvent, true);
     stageEl.addEventListener('change', markFormDirtyFromEvent, true);
   }
+
+  (function initOracleCatFilter() {
+    var sel = document.getElementById('co-oracle-cat-filter');
+    if (!sel) return;
+    function label(opt) {
+      var code = String(opt.cat || '');
+      var name = String(opt.name || '');
+      if (code && name && name.indexOf(code) < 0) return code + ' — ' + name;
+      return name || code || '—';
+    }
+    fetch('/api/sales/customer-orders/item-categories', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) return;
+        var cur = sel.value;
+        sel.innerHTML = '<option value="">— كل الفئات —</option>';
+        (data.rows || []).forEach(function (row) {
+          var o = document.createElement('option');
+          o.value = String(row.cat || '');
+          o.textContent = label(row);
+          sel.appendChild(o);
+        });
+        if (cur) sel.value = cur;
+      })
+      .catch(function () {});
+    sel.addEventListener('change', function () {
+      window.__coOracleCatFilter = (sel.value || '').trim();
+      var f3 = document.getElementById('hx-lk-cat');
+      if (f3) f3.value = sel.value || '';
+      setMsg(
+        sel.value
+          ? 'تصفية المواد على الفئة: ' + (sel.options[sel.selectedIndex].textContent || sel.value)
+          : 'عرض كل المواد',
+        'ok'
+      );
+    });
+  })();
 
   renderLines();
   setCustomerPriceMode({ use_wholesale_price: state.use_wholesale_price }, { reprice: false });

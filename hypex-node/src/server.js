@@ -131,7 +131,19 @@ app.get('/api/lookup/customers', auth.requireAuth, async (req, res) => {
 app.get('/api/lookup/items', auth.requireAuth, async (req, res) => {
   try {
     const inv = require('./sales/invoicesService');
-    const rows = await inv.searchItems(String(req.query.q || ''), 50);
+    const rows = await inv.searchItems(String(req.query.q || ''), 50, {
+      cat: String(req.query.cat || req.query.category || ''),
+    });
+    res.json({ ok: true, rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message || 'خطأ' });
+  }
+});
+
+app.get('/api/lookup/item-categories', auth.requireAuth, async (req, res) => {
+  try {
+    const inv = require('./sales/invoicesService');
+    const rows = await inv.listItemCategoriesOracle();
     res.json({ ok: true, rows });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message || 'خطأ' });

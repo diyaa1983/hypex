@@ -4561,6 +4561,141 @@ function oracle_order_categories_catalog(array $nameMap, array $extraCodes = [])
 }
 
 /**
+ * ربط كل مواد Hypex بفئة Oracle من MASCARD (حسب sku / oracle_key).
+ */
+function oracle_order_link_all_items_from_mascard(PDO $mysql, array $conn): int
+{
+    $cfg = oracle_config();
+    $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $owner = strtoupper(trim((string) ($si['item_card_owner'] ?? 'MAS'))) ?: 'MAS';
+    $table = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
+    $from = oracle_order_quoted($owner, $table);
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT TRIM(TO_CHAR(ITEM)) AS ITEM, TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $from
+            . ' WHERE ITEM IS NOT NULL AND CAT IS NOT NULL AND ROWNUM <= 5000'
+        );
+    } catch (Throwable $e) {
+        return 0;
+    }
+    $n = 0;
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $item = trim(oracle_statement_row_val($r, 'ITEM'));
+        $cat = trim(oracle_statement_row_val($r, 'CAT'));
+        if ($item === '' || $cat === '') {
+            continue;
+        }
+        try {
+            $st = $mysql->prepare(
+                'SELECT id FROM inv_item WHERE oracle_key = ? OR sku = ? OR barcode = ? LIMIT 1'
+            );
+            $st->execute([$item, $item, $item]);
+            $id = (int) ($st->fetchColumn() ?: 0);
+            if ($id > 0) {
+                oracle_order_link_item_to_oracle_cat($mysql, $id, $cat);
+                $n++;
+            }
+        } catch (Throwable $e) {
+            // ignore
+        }
+    }
+
+    return $n;
+}
+
+/**
+ * مزامنة فئات Oracle (CAT) إلى inv_item_category بأسمائها العربية.
+ *
+ * @param array<string,string> $nameMap
+ * @return int عدد الفئات التي ضُمنت
+ */
+function oracle_order_sync_categories_to_hypex(PDO $mysql, array $nameMap): int
+{
+    $n = 0;
+    foreach ($nameMap as $code => $name) {
+        $code = trim((string) $code);
+        $name = trim((string) $name);
+        if ($code === '' || $name === '') {
+            continue;
+        }
+        try {
+            $st = $mysql->prepare(
+                'SELECT id, name_ar FROM inv_item_category WHERE oracle_key = ? OR code = ? LIMIT 1'
+            );
+            $st->execute([$code, $code]);
+            $row = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+            if ($row) {
+                $id = (int) ($row['id'] ?? 0);
+                if ($id > 0) {
+                    $mysql->prepare(
+                        'UPDATE inv_item_category SET oracle_key = ?, name_ar = ?, is_active = 1 WHERE id = ?'
+                    )->execute([$code, $name, $id]);
+                    $n++;
+                }
+                continue;
+            }
+            $mysql->prepare(
+                'INSERT INTO inv_item_category (code, name_ar, oracle_key, is_active) VALUES (?,?,?,1)'
+            )->execute([$code, $name, $code]);
+            $n++;
+        } catch (Throwable $e) {
+            try {
+                $mysql->prepare(
+                    'INSERT INTO inv_item_category (code, name_ar, is_active) VALUES (?,?,1)'
+                )->execute([$code, $name]);
+                $n++;
+            } catch (Throwable $e2) {
+                // ignore
+            }
+        }
+    }
+
+    return $n;
+}
+
+/**
+ * ربط مادة Hypex بفئة Oracle (CAT) تلقائياً.
+ */
+function oracle_order_link_item_to_oracle_cat(PDO $mysql, int $itemId, string $oracleCat): void
+{
+    $itemId = (int) $itemId;
+    $oracleCat = trim($oracleCat);
+    if ($itemId < 1 || $oracleCat === '') {
+        return;
+    }
+    try {
+        $st = $mysql->prepare(
+            'SELECT id FROM inv_item_category WHERE oracle_key = ? OR code = ? LIMIT 1'
+        );
+        $st->execute([$oracleCat, $oracleCat]);
+        $catId = (int) ($st->fetchColumn() ?: 0);
+        if ($catId < 1) {
+            $name = oracle_order_cat_arabic_label($oracleCat);
+            try {
+                $mysql->prepare(
+                    'INSERT INTO inv_item_category (code, name_ar, oracle_key, is_active) VALUES (?,?,?,1)'
+                )->execute([$oracleCat, $name, $oracleCat]);
+            } catch (Throwable $e) {
+                $mysql->prepare(
+                    'INSERT INTO inv_item_category (code, name_ar, is_active) VALUES (?,?,1)'
+                )->execute([$oracleCat, $name]);
+            }
+            $st->execute([$oracleCat, $oracleCat]);
+            $catId = (int) ($st->fetchColumn() ?: 0);
+        }
+        if ($catId > 0) {
+            $mysql->prepare('UPDATE inv_item SET category_id = ? WHERE id = ?')->execute([$catId, $itemId]);
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+}
+
+/**
  * فئات Oracle التي لها رصيد للمادة في المستودع (BALANCE أولاً مثل Forms، ثم STOCK).
  *
  * @return list<string>
@@ -4851,6 +4986,13 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
     }
 
     $catNameMap = oracle_order_categories_name_map($mysql, $conn);
+    oracle_order_sync_categories_to_hypex($mysql, $catNameMap);
+    // مرة واحدة لكل جلسة PHP: ربط المواد بفئاتها من MASCARD
+    static $linkedAll = false;
+    if (!$linkedAll) {
+        oracle_order_link_all_items_from_mascard($mysql, $conn);
+        $linkedAll = true;
+    }
     $categoriesCatalog = oracle_order_categories_catalog($catNameMap);
 
     $pickerLines = [];
@@ -4879,8 +5021,12 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         $hypexCat = trim((string) ($keys['cat'] ?? ''));
         // الربط التلقائي: فئة بطاقة Oracle أولاً، ثم Hypex إن وُجدت
         $defaultCat = $oracleCat !== '' ? $oracleCat : $hypexCat;
+        $itemId = (int) ($ln['item_id'] ?? 0);
+        if ($itemId > 0 && $defaultCat !== '') {
+            oracle_order_link_item_to_oracle_cat($mysql, $itemId, $defaultCat);
+        }
         $stockCatCodes = oracle_order_item_stock_cats($conn, $store, (string) $card['item']);
-        // اعرض كل فئات Oracle بأسمائها + فئات الرصيد للمادة
+        // القائمة: كل فئات Oracle بأسمائها العربية؛ افتراضياً فئة المادة من MASCARD
         $catOptions = oracle_order_categories_catalog($catNameMap, $stockCatCodes);
         if ($defaultCat !== '') {
             $catOptions = oracle_order_cat_options_prefer($catOptions, $defaultCat, $catNameMap);

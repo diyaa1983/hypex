@@ -400,6 +400,12 @@ async function renderForm(req, res, orderId) {
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>بنود الطلب</h2>
+          <label class="si-f si-f--cat-filter" style="margin:0;display:flex;align-items:center;gap:.4rem;min-width:14rem">
+            <span class="si-f-head" style="margin:0;white-space:nowrap">فئة Oracle</span>
+            <select class="si-field" id="co-oracle-cat-filter" ${locked ? 'disabled' : ''} title="تصفية قائمة المواد حسب فئة Oracle">
+              <option value="">— كل الفئات —</option>
+            </select>
+          </label>
           <span class="si-count si-count--keys">
             <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
             <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
@@ -614,7 +620,18 @@ router.get('/api/sales/customer-orders/customers', async (req, res) => {
 
 router.get('/api/sales/customer-orders/items', async (req, res) => {
   try {
-    const rows = await invSvc.searchItems(String(req.query.q || ''));
+    const rows = await invSvc.searchItems(String(req.query.q || ''), 50, {
+      cat: String(req.query.cat || req.query.category || ''),
+    });
+    res.json({ ok: true, rows });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.get('/api/sales/customer-orders/item-categories', async (req, res) => {
+  try {
+    const rows = await invSvc.listItemCategoriesOracle();
     res.json({ ok: true, rows });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

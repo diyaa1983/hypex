@@ -77,6 +77,13 @@
 
 .hx-lk__search {
   padding: 0.65rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.hx-lk__cat {
+  background: #f8fafc;
 }
 
 .hx-lk__input {
