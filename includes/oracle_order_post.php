@@ -4916,16 +4916,16 @@ function oracle_order_item_keys(PDO $pdo, array $ln): array
             $skuRow = trim((string) ($row['sku'] ?? ''));
             $barRow = trim((string) ($row['barcode'] ?? ''));
             $cat = trim((string) ($row['cat_okey'] ?? ''));
-            if ($skuProp !== '') {
-                $sku = $skuProp;
+            if ($skuRow !== '') {
+                $sku = $skuRow;
             }
             if ($barRow !== '') {
                 $barcode = $barRow;
             }
             if ($okey !== '') {
                 $item = $okey;
-            } elseif ($skuProp !== '') {
-                $item = $skuProp;
+            } elseif ($skuRow !== '') {
+                $item = $skuRow;
             }
         } catch (Throwable $e) {
             try {
@@ -4965,6 +4965,8 @@ function oracle_order_item_keys(PDO $pdo, array $ln): array
         }
     }
     if ($item === null || $item === '') {
+        $sku = trim((string) $sku);
+        $fallback = trim((string) $fallback);
         $item = $sku !== '' ? $sku : $fallback;
     }
     $item = trim((string) $item);
