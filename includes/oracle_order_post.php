@@ -4964,10 +4964,13 @@ function oracle_order_item_keys(PDO $pdo, array $ln): array
             }
         }
     }
-    if ($item === '') {
+    if ($item === null || $item === '') {
         $item = $sku !== '' ? $sku : $fallback;
     }
-    if (oracle_order_looks_like_ean($item)) {
+    $item = trim((string) $item);
+    $barcode = trim((string) $barcode);
+    $cat = trim((string) $cat);
+    if ($item !== '' && oracle_order_looks_like_ean($item)) {
         if ($sku !== '' && !oracle_order_looks_like_ean($sku)) {
             $item = $sku;
         } elseif ($barcode === '' || oracle_order_looks_like_ean($barcode)) {
