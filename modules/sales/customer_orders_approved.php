@@ -205,30 +205,28 @@ sales_ora12_enqueue_assets();
         </div>
     </div>
     <style>
-    .co-batch-modal { position:fixed; inset:0; z-index:10050; background:rgba(64,64,64,.55); display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Tahoma,"Segoe UI",Arial,sans-serif; }
+    .co-batch-modal { position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:1rem; }
     .co-batch-modal[hidden] { display:none !important; }
-    .co-batch-panel { background:#f0f0f0; border-radius:2px; max-width:1040px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:2px 2px 8px rgba(0,0,0,.35); border:1px solid #808080; overflow:hidden; }
-    .co-batch-head { padding:.45rem .65rem; border-bottom:1px solid #a0a0a0; background:linear-gradient(180deg,#fafafa 0%,#e4e4e4 100%); }
-    .co-batch-head h3 { margin:0; font-size:.95rem; font-weight:700; color:#000; }
-    .co-batch-head .muted { margin:.2rem 0 0; font-size:.75rem; color:#404040; font-family:Consolas,"Courier New",monospace; }
-    .co-batch-body-wrap { padding:.4rem; overflow:auto; flex:1; background:#d4d0c8; }
-    .co-batch-table { width:100%; border-collapse:collapse; font-size:.8rem; border:1px solid #808080; background:#fff; }
-    .co-batch-table th, .co-batch-table td { padding:.2rem .35rem; border:1px solid #c0c0c0; text-align:right; vertical-align:middle; }
-    .co-batch-table thead th { background:linear-gradient(180deg,#ece9d8 0%,#d4d0c8 100%); color:#000; font-weight:700; font-size:.75rem; border:1px solid #a0a0a0; white-space:nowrap; }
-    .co-batch-col-need, .co-batch-col-take, .co-batch-col-bal, .co-batch-col-idx { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:700; font-family:Consolas,"Courier New",monospace; }
-    .co-batch-item-code { display:block; font-weight:700; direction:ltr; font-family:Consolas,"Courier New",monospace; }
-    .co-batch-item-name { display:block; color:#404040; font-size:.74rem; margin-top:.1rem; }
-    .co-batch-item-cont { color:#606060; font-size:.74rem; }
-    .co-batch-foot { padding:.4rem .55rem; border-top:1px solid #a0a0a0; display:flex; gap:.4rem; justify-content:flex-end; align-items:center; background:linear-gradient(180deg,#fafafa 0%,#e4e4e4 100%); }
-    .co-batch-status { flex:1; text-align:right; font-size:.75rem; color:#404040; font-family:Consolas,"Courier New",monospace; }
-    .co-batch-status.is-error { color:#8b0000; font-weight:700; }
-    .co-batch-status.is-ok { color:#006400; font-weight:700; }
-    .co-batch-warn { color:#8b0000; font-size:.74rem; margin:0; font-weight:700; }
-    .co-batch-row--nostock td { background:#fff3cd !important; }
-    .co-batch-row--invalid td { background:#ffdddd !important; }
-    .co-batch-table select { width:100%; min-width:10rem; padding:.15rem .3rem; border:1px solid #7a7a7a; border-radius:0; font-family:Consolas,"Courier New",monospace; font-size:.78rem; }
-    .co-batch-take-input { width:100%; max-width:6.5rem; min-height:1.7rem; border:1px solid #7a7a7a; border-radius:0; padding:.15rem .3rem; text-align:center; direction:ltr; font-family:Consolas,"Courier New",monospace; font-size:.8rem; font-weight:700; background:#ffffe1; }
-    .co-batch-take-input.co-batch-take--bad { background:#ffe4e1; border-color:#c00000; color:#8b0000; }
+    .co-batch-panel { background:#fff; border-radius:10px; max-width:960px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.18); }
+    .co-batch-head { padding:1rem 1.25rem .5rem; border-bottom:1px solid #e8ecf1; }
+    .co-batch-head h3 { margin:0 0 .35rem; font-size:1.1rem; }
+    .co-batch-body-wrap { padding:.75rem 1.25rem; overflow:auto; flex:1; }
+    .co-batch-table { width:100%; border-collapse:collapse; font-size:.92rem; }
+    .co-batch-table th, .co-batch-table td { padding:.5rem .4rem; border-bottom:1px solid #eef1f5; text-align:right; vertical-align:middle; }
+    .co-batch-col-need, .co-batch-col-take, .co-batch-col-bal, .co-batch-col-idx { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:700; }
+    .co-batch-item-code { display:block; font-weight:700; direction:ltr; }
+    .co-batch-item-name { display:block; color:#475569; font-size:.86rem; margin-top:.15rem; }
+    .co-batch-item-cont { color:#64748b; font-size:.84rem; }
+    .co-batch-foot { padding:.75rem 1.25rem; border-top:1px solid #e8ecf1; display:flex; gap:.5rem; justify-content:flex-end; align-items:center; }
+    .co-batch-status { flex:1; text-align:right; font-size:.85rem; color:#64748b; }
+    .co-batch-status.is-error { color:#b91c1c; font-weight:700; }
+    .co-batch-status.is-ok { color:#15803d; font-weight:700; }
+    .co-batch-warn { color:#b45309; font-size:.85rem; margin-top:.25rem; font-weight:700; }
+    .co-batch-row--nostock td { background:#fff7ed !important; }
+    .co-batch-row--invalid td { background:#fef2f2 !important; }
+    .co-batch-table select { width:100%; min-width:10rem; padding:.35rem .5rem; border-radius:8px; }
+    .co-batch-take-input { width:100%; max-width:6.5rem; min-height:2.2rem; padding:.35rem .5rem; text-align:center; direction:ltr; font-weight:700; border:1px solid #cbd5e1; border-radius:8px; }
+    .co-batch-take-input.co-batch-take--bad { background:#fef2f2; border-color:#f87171; color:#b91c1c; }
     #co-batch-confirm:disabled { opacity:.55; cursor:not-allowed; }
     </style>
     <?php endif; ?>
@@ -624,8 +622,8 @@ sales_ora12_enqueue_assets();
             if (!batchRows || !batchModal) return;
             batchRows.innerHTML = '';
             if (batchSub) {
-              batchSub.textContent = 'STORE=' + (data.store || '—')
-                + (data.warehouse_name ? (' · ' + data.warehouse_name) : '')
+              batchSub.textContent = 'مستودع ' + (data.store || '—')
+                + (data.warehouse_name ? (' — Oracle: ' + data.warehouse_name) : '')
                 + ' · عدّل الكمية من كل تشغيلة ثم رحّل — لن يُسمح بالترحيل إن لم يُغطَّ المطلوب.';
             }
             var rowNo = 0;

@@ -2888,9 +2888,9 @@
     batchRows.innerHTML = '';
     if (batchSub) {
       batchSub.textContent =
-        'STORE=' +
+        'مستودع ' +
         (data.store || '—') +
-        (data.warehouse_name ? ' · ' + data.warehouse_name : '') +
+        (data.warehouse_name ? ' — Oracle: ' + data.warehouse_name : '') +
         ' · عدّل الكمية من كل تشغيلة ثم رحّل — لن يُسمح بالترحيل إن لم يُغطَّ المطلوب.';
     }
     var rowNo = 0;
