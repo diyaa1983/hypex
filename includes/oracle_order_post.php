@@ -1338,10 +1338,10 @@ function oracle_order_oracle_num_norm(string $s): string
 /**
  * مطابقة رقم فئة Oracle (CAT) مع تجاهل الأصفار البادئة.
  */
-function oracle_order_cat_keys_match(string $a, string $b): bool
+function oracle_order_cat_keys_match(string|int|float|null $a, string|int|float|null $b): bool
 {
-    $a = trim($a);
-    $b = trim($b);
+    $a = trim((string) ($a ?? ''));
+    $b = trim((string) ($b ?? ''));
     if ($a === '' || $b === '') {
         return $a === $b;
     }
@@ -4360,7 +4360,7 @@ function oracle_order_categories_name_map(PDO $mysql, array $conn): array
             foreach (['oracle_key', 'code'] as $col) {
                 $k = trim((string) ($row[$col] ?? ''));
                 if ($k !== '') {
-                    $map[$k] = $name;
+                    $map[(string) $k] = $name;
                 }
             }
         }
@@ -4398,7 +4398,7 @@ function oracle_order_categories_name_map(PDO $mysql, array $conn): array
         $k = trim(oracle_statement_row_val($row, $keyCol));
         $name = trim(oracle_statement_row_val($row, $nameCol));
         if ($k !== '' && $name !== '') {
-            $map[$k] = $name;
+            $map[(string) $k] = $name;
         }
     }
 
