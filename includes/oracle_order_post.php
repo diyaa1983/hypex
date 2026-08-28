@@ -1925,6 +1925,27 @@ function oracle_order_balance_batches(
         if (!is_array($got) || $got === []) {
             continue;
         }
+        // تحقّق أن الصفوف تطابق CAT/ITEM قبل اعتماد المحاولة (تجنّب صفوف خاطئة)
+        $matched = 0;
+        foreach ($got as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $rowItem = oracle_statement_row_val($r, 'ITEM_X');
+            $rowCat = oracle_statement_row_val($r, 'CAT_X');
+            if (!oracle_order_oracle_keys_match($rowItem, '', $item, '')) {
+                continue;
+            }
+            if ($strictCat && $cat !== '') {
+                if (trim($rowCat) === '' || !oracle_order_cat_keys_match($rowCat, $cat)) {
+                    continue;
+                }
+            }
+            $matched++;
+        }
+        if ($matched < 1) {
+            continue;
+        }
         $raw = $got;
         break;
     }
@@ -2046,7 +2067,8 @@ function oracle_order_picker_merge_stock_balance(array $stockRows, array $balanc
 
 /**
  * تشغيلات Oracle للمعاينة والترحيل — مثل قائمة Forms «التشغيلات المتوفرة»:
- * STOCK بفلتر CAT+ITEM+STORE (كميات SYS/MAN)، ثم BALANCE احتياطاً بنفس الفلتر.
+ * المصدر الأساسي MAS.BALANCE (QTY_OH > 0) بفلتر CAT+ITEM+STORE.
+ * STOCK فقط احتياطاً وبنفس فلتر الفئة (بدون خلط فئات → تشغيلات 0213…).
  *
  * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count?:int,positive_batches?:int,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,cat_used?:string,source?:string,message?:string}
  */
@@ -2061,20 +2083,38 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
 
-    // مصدر Forms: STOCK فقط مع الفئة — بدون رجوع لـ ITEM بلا CAT
-    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, $strictCat);
+    // Forms INV00024: MAS.BALANCE + CAT + ITEM + STORE + QTY_OH > 0
+    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true);
+    $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
+    if ($balanceRows !== []) {
+        $rows = oracle_order_sort_batches_forms_fifo($balanceRows);
+        $total = 0.0;
+        foreach ($rows as $row) {
+            $total += (float) ($row['qty'] ?? 0);
+        }
+
+        return [
+            'ok' => true,
+            'rows' => $rows,
+            'total' => $total,
+            'raw_count' => count($rows),
+            'positive_batches' => count($rows),
+            'qty_cols' => ['QTY_OH'],
+            'other_stores' => [],
+            'cat_used' => $cat,
+            'source' => 'balance-forms',
+        ];
+    }
+
+    // احتياط فقط: STOCK بنفس CAT (لا رجوع بلا فئة)
+    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, true);
     $stockRows = [];
     if ($stockPick !== null && is_array($stockPick['rows'] ?? null) && $stockPick['rows'] !== []) {
         $stockRows = $stockPick['rows'];
-    } elseif ($strictCat && $cat !== '') {
+    } elseif ($cat !== '') {
         $pos = oracle_order_stock_toad_positive_rows($conn, $store, $item, $cat, $owner, $table);
         if ($pos !== null && is_array($pos['rows'] ?? null) && $pos['rows'] !== []) {
             $stockRows = $pos['rows'];
-        }
-    } elseif (!$strictCat) {
-        $wide = oracle_order_stock_batches($conn, oracle_order_comp_num([]), $store, $item, $cat);
-        if (is_array($wide['rows'] ?? null) && $wide['rows'] !== []) {
-            $stockRows = $wide['rows'];
         }
     }
 
@@ -2094,44 +2134,21 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
             'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
             'other_stores' => [],
             'cat_used' => $cat,
-            'source' => 'stock-forms',
+            'source' => 'stock-fallback',
         ];
-    }
-
-    // احتياط: BALANCE بنفس CAT+ITEM+STORE فقط
-    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true);
-    $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
-    if ($balanceRows === []) {
-        return [
-            'ok' => true,
-            'rows' => [],
-            'total' => 0.0,
-            'raw_count' => 0,
-            'positive_batches' => 0,
-            'qty_cols' => ['QTY_OH'],
-            'other_stores' => [],
-            'cat_used' => $cat,
-            'source' => 'none',
-            'message' => 'لا توجد تشغيلات برصيد موجب لهذه الفئة/المادة/المستودع.',
-        ];
-    }
-
-    $rows = oracle_order_sort_batches_forms_fifo($balanceRows);
-    $total = 0.0;
-    foreach ($rows as $row) {
-        $total += (float) ($row['qty'] ?? 0);
     }
 
     return [
         'ok' => true,
-        'rows' => $rows,
-        'total' => $total,
-        'raw_count' => count($rows),
-        'positive_batches' => count($rows),
+        'rows' => [],
+        'total' => 0.0,
+        'raw_count' => 0,
+        'positive_batches' => 0,
         'qty_cols' => ['QTY_OH'],
         'other_stores' => [],
         'cat_used' => $cat,
-        'source' => 'balance-qty-oh',
+        'source' => 'none',
+        'message' => 'لا توجد تشغيلات برصيد موجب لهذه الفئة/المادة/المستودع في MAS.BALANCE.',
     ];
 }
 
@@ -3740,7 +3757,7 @@ function oracle_order_categories_name_map(PDO $mysql, array $conn): array
 }
 
 /**
- * فئات Oracle التي لها رصيد للمادة في المستودع (STOCK ثم BALANCE).
+ * فئات Oracle التي لها رصيد للمادة في المستودع (BALANCE أولاً مثل Forms، ثم STOCK).
  *
  * @return list<string>
  */
@@ -3753,7 +3770,6 @@ function oracle_order_item_stock_cats(array $conn, int $store, string $item): ar
     $sc = oracle_order_stock_cfg();
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
-    $from = oracle_order_quoted($owner, $table);
     /** @var list<string> $cats */
     $cats = [];
     $push = static function (string $c) use (&$cats): void {
@@ -3769,14 +3785,16 @@ function oracle_order_item_stock_cats(array $conn, int $store, string $item): ar
         $cats[] = $c;
     };
 
+    // Forms: الفئات من BALANCE أولاً
     try {
+        $balFrom = oracle_order_quoted($owner, 'BALANCE');
         $rows = oracle_query_all(
             $conn,
-            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $from
+            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $balFrom
             . ' WHERE STORE = :store'
             . ' AND (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
             . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
-            . ' AND (NVL(SYS_QTY, 0) > 0.0000001 OR NVL(MAN_QTY, 0) > 0.0000001)'
+            . ' AND NVL(QTY_OH, 0) > 0.0000001'
             . ' AND ROWNUM <= 30',
             ['store' => $store, 'item' => $item]
         );
@@ -3789,14 +3807,15 @@ function oracle_order_item_stock_cats(array $conn, int $store, string $item): ar
         // ignore
     }
 
+    $from = oracle_order_quoted($owner, $table);
     try {
-        $balFrom = oracle_order_quoted($owner, 'BALANCE');
         $rows = oracle_query_all(
             $conn,
-            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $balFrom
+            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $from
             . ' WHERE STORE = :store'
-            . ' AND TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
-            . ' AND NVL(QTY_OH, 0) > 0.0000001'
+            . ' AND (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+            . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
+            . ' AND (NVL(SYS_QTY, 0) > 0.0000001 OR NVL(MAN_QTY, 0) > 0.0000001)'
             . ' AND ROWNUM <= 30',
             ['store' => $store, 'item' => $item]
         );

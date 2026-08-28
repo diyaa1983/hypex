@@ -547,7 +547,7 @@ sales_ora12_enqueue_assets();
             if (batchSub) {
               batchSub.textContent = 'مستودع Oracle: ' + (data.store || '—')
                 + (data.warehouse_name ? (' — ' + data.warehouse_name) : '')
-                + ' · اختر الفئة (CAT) لكل مادة ثم راجع التشغيلات قبل التأكيد';
+                + ' · المصدر: MAS.BALANCE (مثل Forms) · اختر الفئة ثم راجع التشغيلات';
             }
             var rowNo = 0;
             (data.lines || []).forEach(function (ln) {
