@@ -2366,8 +2366,9 @@ function oracle_order_cap_balance_rows_with_stock(
 }
 
 /**
- * تشغيلات Oracle للمعاينة والترحيل — مثل Forms عند الحفظ:
- * مصدر القبول: MAS.STOCK (SYS_QTY/MAN_QTY > 0) · الكمية min(BALANCE, STOCK) إن وُجد BALANCE.
+ * تشغيلات Oracle للمعاينة والترحيل — مصدر شاشة Forms «التشغيلات المتوفرة»:
+ * جدول MAS.BALANCE · العمود QTY_OH · مفاتيح COMP_NUM + CAT + ITEM + STORE.
+ * (MAS.STOCK للتحقق المحاسبي فقط وليس قائمة التشغيلات في Forms.)
  *
  * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count?:int,positive_batches?:int,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,cat_used?:string,source?:string,message?:string}
  */
@@ -2380,22 +2381,42 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     }
     $sc = oracle_order_stock_cfg();
     $owner = (string) $sc['owner'];
-    $table = (string) $sc['table'];
     $compNum = oracle_order_comp_num([]);
 
-    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true, $compNum);
+    // المصدر الوحيد لقائمة Forms: MAS.BALANCE.QTY_OH > 0
+    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, $strictCat, $compNum);
     $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
+    if ($balanceRows === [] && $strictCat) {
+        $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, false, $compNum);
+        $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
+    }
     if ($balanceRows !== []) {
         $balanceRows = oracle_order_picker_prune_balance_outliers($balanceRows);
-    }
-
-    $rows = oracle_order_cap_balance_rows_with_stock($conn, $store, $item, $cat, $balanceRows, $owner, $table);
-    if ($rows !== []) {
+        // إثراء اختياري: إظهار STOCK للمقارنة دون تغيير الكمية المعروضة (QTY_OH)
+        $table = (string) $sc['table'];
+        $stockByNorm = oracle_order_stock_rows_by_batch($conn, $store, $item, $owner, $table, $cat);
+        $rows = [];
+        $total = 0.0;
+        foreach ($balanceRows as $br) {
+            if (!is_array($br)) {
+                continue;
+            }
+            $k = oracle_order_batch_norm_key((string) ($br['batch'] ?? ''));
+            $q = (float) ($br['qty'] ?? 0);
+            if ($k === '' || $q <= 0.0000001) {
+                continue;
+            }
+            $row = $br;
+            if (isset($stockByNorm[$k])) {
+                $sq = (float) ($stockByNorm[$k]['qty'] ?? 0);
+                $row['qty_stock'] = $sq;
+                $row['qty_balance'] = $q;
+                // الكمية المعروضة تبقى من BALANCE (مثل Forms)
+            }
+            $rows[] = $row;
+            $total += $q;
+        }
         $rows = oracle_order_sort_batches_forms_fifo($rows);
-        $total = 0.0;
-        foreach ($rows as $row) {
-            $total += (float) ($row['qty'] ?? 0);
-        }
 
         return [
             'ok' => true,
@@ -2403,37 +2424,12 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
             'total' => $total,
             'raw_count' => count($rows),
             'positive_batches' => count($rows),
-            'qty_cols' => ['SYS_QTY', 'MAN_QTY', 'QTY_OH'],
+            'qty_cols' => ['QTY_OH'],
             'other_stores' => [],
             'cat_used' => $cat,
-            'source' => 'stock-forms-cap',
-        ];
-    }
-
-    // احتياط: STOCK بنفس CAT إذا لا تطابق مع BALANCE
-    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, true);
-    $stockRows = is_array($stockPick['rows'] ?? null) ? $stockPick['rows'] : [];
-    if ($stockRows === [] && !$strictCat) {
-        $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, false);
-        $stockRows = is_array($stockPick['rows'] ?? null) ? $stockPick['rows'] : [];
-    }
-    if ($stockRows !== []) {
-        $rows = oracle_order_sort_batches_forms_fifo($stockRows);
-        $total = 0.0;
-        foreach ($rows as $row) {
-            $total += (float) ($row['qty'] ?? 0);
-        }
-
-        return [
-            'ok' => true,
-            'rows' => $rows,
-            'total' => $total,
-            'raw_count' => count($rows),
-            'positive_batches' => count($rows),
-            'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
-            'other_stores' => [],
-            'cat_used' => $cat,
-            'source' => 'stock-fallback',
+            'source' => 'mas-balance-qty-oh',
+            'forms_table' => $owner . '.BALANCE',
+            'forms_qty_col' => 'QTY_OH',
         ];
     }
 
@@ -2443,16 +2439,18 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
         'total' => 0.0,
         'raw_count' => 0,
         'positive_batches' => 0,
-        'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
+        'qty_cols' => ['QTY_OH'],
         'other_stores' => [],
         'cat_used' => $cat,
         'source' => 'none',
-        'message' => 'لا توجد تشغيلات برصيد في MAS.STOCK لهذه الفئة/المادة/المستودع (مثل شاشة Forms).',
+        'forms_table' => $owner . '.BALANCE',
+        'forms_qty_col' => 'QTY_OH',
+        'message' => 'لا توجد تشغيلات في MAS.BALANCE لهذه الفئة/المادة/المستودع (QTY_OH > 0) — نفس مصدر شاشة Forms «التشغيلات المتوفرة».',
     ];
 }
 
 /**
- * قراءة رصيد التشغيلات للترحيل/الفحص — نفس مصدر Forms عند الحفظ (STOCK > 0).
+ * قراءة رصيد التشغيلات للترحيل/الفحص — MAS.BALANCE مثل Forms.
  *
  * @return array{ok:bool,rows?:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total?:float,message?:string,raw_count?:int,cat_used?:string,source?:string,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,debug_sample?:list<array<string,mixed>>}
  */
@@ -2468,12 +2466,8 @@ function oracle_order_resolve_stock_batches(
     if ((float) ($pick['total'] ?? 0) > 0.0000001) {
         return $pick;
     }
-    $pick2 = oracle_order_picker_stock_batches($conn, $store, $item, $cat, false);
-    if ((float) ($pick2['total'] ?? 0) > 0.0000001) {
-        return $pick2;
-    }
 
-    return $pick;
+    return oracle_order_picker_stock_batches($conn, $store, $item, $cat, false);
 }
 
 /**
@@ -3493,7 +3487,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v23-FORMS-STOCK-ONLY';
+    $version = 'STOCK-v24-MAS-BALANCE';
     $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
@@ -3564,23 +3558,22 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                 $store,
                 $item,
                 (string) $sc['owner'],
-                (string) $sc['table']
+                (string) $sc['table'],
+                $cat
             );
             if (isset($stockMap[$batchNorm])) {
                 $batchStock = (float) $stockMap[$batchNorm];
             }
             $usedOnDoc = (float) ($batchUsedInDoc[$batchNorm] ?? 0);
+            // الرصيد المعتمد = MAS.BALANCE.QTY_OH (مثل شاشة Forms «التشغيلات المتوفرة»)
             $available = max(0.0, $batchQty - $usedOnDoc);
-            if ($batchStock > 0.0000001) {
-                $available = min($available, max(0.0, $batchStock - $usedOnDoc));
-            }
             if ($available < $need - 0.0000001) {
                 $name = trim((string) ($ml['name'] ?? ''));
                 $label = $item . ($name !== '' ? ' — ' . $name : '');
                 $hint = '';
-                if ($batchBalance > $batchStock + 0.0000001) {
-                    $hint = "\nBALANCE: " . $fmt($batchBalance) . ' · STOCK: ' . $fmt($batchStock)
-                        . "\nINV00024 يتحقق من STOCK — قد تكون QTY_OH أعلى من الرصيد الفعلي.";
+                if ($batchStock > 0.0000001 && abs($batchBalance - $batchStock) > 0.0001) {
+                    $hint = "\nBALANCE(QTY_OH): " . $fmt($batchBalance) . ' · STOCK: ' . $fmt($batchStock)
+                        . "\nالمصدر المعتمد للترحيل: MAS.BALANCE مثل Forms.";
                 }
                 if ($usedOnDoc > 0.0000001) {
                     $hint .= "\nمستخدم في أسطر أخرى من نفس الفاتورة: " . $fmt($usedOnDoc);
@@ -3593,7 +3586,7 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                     'store' => $store,
                     '_line' => $label
                         . "\nالمطلوب: " . $fmt($need)
-                        . "\nرصيد التشغيلة " . $batch . ': ' . $fmt($available)
+                        . "\nرصيد التشغيلة " . $batch . ' (BALANCE): ' . $fmt($available)
                         . $hint
                         . "\nاختر تشغيلة أخرى أو قسّم الكمية على أكثر من تشغيلة.",
                 ];

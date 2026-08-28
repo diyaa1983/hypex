@@ -3,6 +3,28 @@
 -- نفّذ كل قسم على حدة في Toad (SYSTEM@TAQWA)
 -- ============================================================
 
+-- 0) مصدر شاشة Forms «التشغيلات المتوفرة» = MAS.BALANCE.QTY_OH
+--    مثال: مادة 600015 / فئة 6 / مستودع 4
+SELECT BATCH, QTY_OH, EXP_DATE, CAT, ITEM, STORE, COMP_NUM
+FROM MAS.BALANCE
+WHERE COMP_NUM = 1
+  AND CAT = 6
+  AND ITEM = 600015
+  AND STORE = 4
+  AND NVL(QTY_OH, 0) > 0
+ORDER BY EXP_DATE NULLS LAST, BATCH;
+
+-- مقارنة سريعة BALANCE vs STOCK لنفس المادة
+SELECT 'BALANCE' AS SRC, TRIM(TO_CHAR(BATCH)) AS BATCH, NVL(QTY_OH,0) AS QTY
+FROM MAS.BALANCE
+WHERE CAT = 6 AND ITEM = 600015 AND STORE = 4 AND NVL(QTY_OH,0) > 0
+UNION ALL
+SELECT 'STOCK', TRIM(TO_CHAR(BATCH)), GREATEST(NVL(SYS_QTY,0), NVL(MAN_QTY,0))
+FROM MAS.STOCK
+WHERE CAT = 6 AND ITEM = 600015 AND STORE = 4
+  AND (NVL(SYS_QTY,0) > 0 OR NVL(MAN_QTY,0) > 0)
+ORDER BY 1, 2;
+
 -- 1) كل الجداول التي فيها عمود BATCH (MAS + ACCINV)
 SELECT OWNER, TABLE_NAME, COLUMN_NAME
 FROM ALL_TAB_COLUMNS
@@ -10,7 +32,7 @@ WHERE UPPER(COLUMN_NAME) = 'BATCH'
   AND OWNER IN ('MAS', 'ACCINV')
 ORDER BY OWNER, TABLE_NAME;
 
--- 2) البحث في STOCK (رصيد فعلي)
+-- 2) البحث في STOCK (رصيد محاسبي — ليس قائمة Forms)
 SELECT BATCH, SYS_QTY, MAN_QTY, EXP_DATE, CAT, ITEM, STORE, COMP_NUM
 FROM MAS.STOCK
 WHERE (TRIM(TO_CHAR(BATCH)) = '0263278'
@@ -20,7 +42,7 @@ WHERE (TRIM(TO_CHAR(BATCH)) = '0263278'
   AND TRIM(TO_CHAR(ITEM)) = '600029'
   AND STORE = 4;
 
--- 3) رصيد موجب فقط (ما يستخدمه Hypex للترحيل)
+-- 3) رصيد STOCK موجب (للمقارنة فقط)
 SELECT BATCH, SYS_QTY, MAN_QTY, EXP_DATE
 FROM MAS.STOCK
 WHERE CAT = 6

@@ -100,7 +100,7 @@ return [
         ],
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
-        // قائمة التشغيلات القابلة للترحيل: STOCK > 0 (مثل Forms عند الحفظ) · الكمية min(BALANCE, STOCK)
+        // قائمة التشغيلات في Forms: MAS.BALANCE.QTY_OH — STOCK للتحقق المحاسبي فقط
         'stock' => [
             'enabled' => true,
             'owner' => 'MAS',

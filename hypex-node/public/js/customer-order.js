@@ -2557,8 +2557,8 @@
 
   function batchOptionLabel(b) {
     var label = (b.batch || '?') + ' — رصيد ' + fmtBatchQty(b.qty);
-    if (b.qty_balance != null && b.qty_stock != null && Number(b.qty_balance) > Number(b.qty_stock)) {
-      label += ' (BAL ' + fmtBatchQty(b.qty_balance) + ' · STOCK ' + fmtBatchQty(b.qty_stock) + ')';
+    if (b.qty_stock != null && Number(b.qty_stock) >= 0 && Math.abs(Number(b.qty) - Number(b.qty_stock)) > 0.0001) {
+      label += ' (STOCK ' + fmtBatchQty(b.qty_stock) + ')';
     }
     if (b.exp_date) label += ' — ' + b.exp_date;
     return label;
@@ -2891,7 +2891,7 @@
         'مستودع ' +
         (data.store || '—') +
         (data.warehouse_name ? ' — Oracle: ' + data.warehouse_name : '') +
-        ' · رصيد Forms من STOCK · عدّل الكمية ثم رحّل — لن يُسمح بالترحيل إن لم يُغطَّ المطلوب.';
+        ' · المصدر: MAS.BALANCE (QTY_OH) مثل Forms · عدّل الكمية ثم رحّل.';
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {

@@ -26,7 +26,7 @@ $owner = (string) $sc['owner'];
 $results = [];
 
 $tables = [
-    'STOCK', 'DAILY', 'MASTER_D', 'MASCARD', 'PRODD', 'PRODUCTION', 'TRACE',
+    'BALANCE', 'STOCK', 'DAILY', 'MASTER_D', 'MASCARD', 'PRODD', 'PRODUCTION', 'TRACE',
     'BATCH', 'STOCK_D', 'STK', 'ITEM_STOCK', 'STOCK_BAL',
 ];
 
@@ -86,5 +86,5 @@ echo json_encode([
     'hits' => $results,
     'tables_with_batch_column' => array_slice($batchTables, 0, 40),
     'stock_positive_toad' => $stockPositive,
-    'forms_note' => 'شاشة Oracle تعرض قائمة تشغيلات تاريخية؛ الرصيد الفعلي للبيع من MAS.STOCK (استعلام toad-direct).',
+    'forms_note' => 'شاشة Forms «التشغيلات المتوفرة» = MAS.BALANCE.QTY_OH · STOCK للرصيد المحاسبي فقط.',
 ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;

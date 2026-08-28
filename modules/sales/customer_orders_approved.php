@@ -624,7 +624,7 @@ sales_ora12_enqueue_assets();
             if (batchSub) {
               batchSub.textContent = 'مستودع ' + (data.store || '—')
                 + (data.warehouse_name ? (' — Oracle: ' + data.warehouse_name) : '')
-                + ' · رصيد Forms من STOCK · عدّل الكمية ثم رحّل — لن يُسمح بالترحيل إن لم يُغطَّ المطلوب.';
+                + ' · المصدر: MAS.BALANCE (QTY_OH) مثل Forms · عدّل الكمية ثم رحّل.';
             }
             var rowNo = 0;
             (data.lines || []).forEach(function (ln) {
