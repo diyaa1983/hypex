@@ -2557,6 +2557,9 @@
 
   function batchOptionLabel(b) {
     var label = (b.batch || '?') + ' — رصيد ' + fmtBatchQty(b.qty);
+    if (b.qty_balance != null && b.qty_stock != null && Number(b.qty_balance) > Number(b.qty_stock)) {
+      label += ' (BAL ' + fmtBatchQty(b.qty_balance) + ' · STOCK ' + fmtBatchQty(b.qty_stock) + ')';
+    }
     if (b.exp_date) label += ' — ' + b.exp_date;
     return label;
   }

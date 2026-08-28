@@ -2122,7 +2122,40 @@ function oracle_order_picker_prune_balance_outliers(array $rows): array
 }
 
 /**
- * حدّ كميات BALANCE بـ STOCK — INV00024 يتحقق عند الحفظ من STOCK وليس QTY_OH.
+ * خريطة كميات STOCK حسب التشغيلة (ITEM + STORE — بدون CAT لأن BATCH يُطابق BALANCE).
+ *
+ * @return array<string,float>  norm_key → qty
+ */
+function oracle_order_stock_qty_by_batch(
+    array $conn,
+    int $store,
+    string $item,
+    string $owner,
+    string $table
+): array {
+    $pick = oracle_order_stock_toad_exact_batches($conn, $store, $item, '', $owner, $table, false);
+    $stockRows = is_array($pick['rows'] ?? null) ? $pick['rows'] : [];
+    /** @var array<string,float> $byNorm */
+    $byNorm = [];
+    foreach ($stockRows as $sr) {
+        if (!is_array($sr)) {
+            continue;
+        }
+        $k = oracle_order_batch_norm_key((string) ($sr['batch'] ?? ''));
+        if ($k === '') {
+            continue;
+        }
+        $sq = (float) ($sr['qty'] ?? 0);
+        if ($sq > ($byNorm[$k] ?? 0)) {
+            $byNorm[$k] = $sq;
+        }
+    }
+
+    return $byNorm;
+}
+
+/**
+ * حدّ كميات BALANCE بـ STOCK عند توفر صف لنفس التشغيلة — INV00024 يتحقق من STOCK عند الحفظ.
  *
  * @param list<array{batch:string,qty:float,exp_date?:string,sort_date?:string}> $balanceRows
  * @return list<array{batch:string,qty:float,exp_date?:string,sort_date?:string,qty_balance?:float,qty_stock?:float}>
@@ -2139,23 +2172,8 @@ function oracle_order_cap_balance_rows_with_stock(
     if ($balanceRows === []) {
         return [];
     }
-    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, true);
-    $stockRows = is_array($stockPick['rows'] ?? null) ? $stockPick['rows'] : [];
-    /** @var array<string,float> $stockByNorm */
-    $stockByNorm = [];
-    foreach ($stockRows as $sr) {
-        if (!is_array($sr)) {
-            continue;
-        }
-        $k = oracle_order_batch_norm_key((string) ($sr['batch'] ?? ''));
-        if ($k === '') {
-            continue;
-        }
-        $sq = (float) ($sr['qty'] ?? 0);
-        if ($sq > ($stockByNorm[$k] ?? 0)) {
-            $stockByNorm[$k] = $sq;
-        }
-    }
+    unset($cat);
+    $stockByNorm = oracle_order_stock_qty_by_batch($conn, $store, $item, $owner, $table);
 
     $out = [];
     foreach ($balanceRows as $br) {
@@ -2167,12 +2185,8 @@ function oracle_order_cap_balance_rows_with_stock(
         if ($k === '' || $balQty <= 0.0000001) {
             continue;
         }
-        if ($stockByNorm === []) {
+        if ($stockByNorm === [] || !isset($stockByNorm[$k])) {
             $out[] = $br;
-            continue;
-        }
-        if (!isset($stockByNorm[$k])) {
-            // تشغيلة في BALANCE بلا صف STOCK — لا تُباع (Forms يرفضها)
             continue;
         }
         $stockQty = (float) $stockByNorm[$k];
@@ -3340,7 +3354,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v20-BALANCE-STOCK-CAP';
+    $version = 'STOCK-v21-BALANCE-STOCK-CAP2';
     $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
@@ -3402,12 +3416,25 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
                 if ($pb !== '' && oracle_order_batch_norm_key($pb) === $batchNorm) {
                     $batchQty = (float) ($pr['qty'] ?? 0);
                     $batchBalance = (float) ($pr['qty_balance'] ?? $batchQty);
-                    $batchStock = (float) ($pr['qty_stock'] ?? $batchQty);
+                    $batchStock = (float) ($pr['qty_stock'] ?? 0);
                     break;
                 }
             }
+            $stockMap = oracle_order_stock_qty_by_batch(
+                $conn,
+                $store,
+                $item,
+                (string) $sc['owner'],
+                (string) $sc['table']
+            );
+            if (isset($stockMap[$batchNorm])) {
+                $batchStock = (float) $stockMap[$batchNorm];
+            }
             $usedOnDoc = (float) ($batchUsedInDoc[$batchNorm] ?? 0);
             $available = max(0.0, $batchQty - $usedOnDoc);
+            if ($batchStock > 0.0000001) {
+                $available = min($available, max(0.0, $batchStock - $usedOnDoc));
+            }
             if ($available < $need - 0.0000001) {
                 $name = trim((string) ($ml['name'] ?? ''));
                 $label = $item . ($name !== '' ? ' — ' . $name : '');
