@@ -282,12 +282,23 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
 
     $batchPicks = is_array($opts['batch_picks'] ?? null) ? $opts['batch_picks'] : [];
     $manualBatches = $batchPicks !== [];
+    $manualAllocations = false;
     if ($manualBatches) {
-        $mappedLines = oracle_order_apply_batch_picks($mappedLines, $batchPicks);
-        foreach ($mappedLines as $ml) {
-            $b = trim((string) ($ml['batch'] ?? ''));
-            if ($b === '' || $b === '0') {
-                return ['ok' => false, 'message' => 'اختر تشغيلة لكل مادة قبل الترحيل إلى Oracle.'];
+        foreach ($batchPicks as $p) {
+            if (is_array($p) && isset($p['take']) && (float) ($p['take'] ?? 0) > 0.0000001) {
+                $manualAllocations = true;
+                break;
+            }
+        }
+        if ($manualAllocations) {
+            $mappedLines = oracle_order_apply_batch_allocations($mappedLines, $batchPicks);
+        } else {
+            $mappedLines = oracle_order_apply_batch_picks($mappedLines, $batchPicks);
+            foreach ($mappedLines as $ml) {
+                $b = trim((string) ($ml['batch'] ?? ''));
+                if ($b === '' || $b === '0') {
+                    return ['ok' => false, 'message' => 'اختر تشغيلة لكل مادة قبل الترحيل إلى Oracle.'];
+                }
             }
         }
     }
@@ -3292,6 +3303,94 @@ function oracle_order_apply_batch_picks(array $mappedLines, array $picks): array
             $ml['batch'] = $byItem[$it];
         }
         $out[] = $ml;
+    }
+
+    return $out;
+}
+
+/**
+ * تطبيق توزيع يدوي (تشغيلة + كمية) — يقسّم السطر على أكثر من تشغيلة.
+ *
+ * @param list<array<string,mixed>> $mappedLines
+ * @param list<array<string,mixed>> $allocations  عناصر: srl, batch, take (كمية مخزون)
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_apply_batch_allocations(array $mappedLines, array $allocations): array
+{
+    if ($allocations === []) {
+        return $mappedLines;
+    }
+    /** @var array<int,list<array{batch:string,take:float}>> $bySrl */
+    $bySrl = [];
+    foreach ($allocations as $a) {
+        if (!is_array($a)) {
+            continue;
+        }
+        $srl = (int) ($a['srl'] ?? 0);
+        $batch = trim((string) ($a['batch'] ?? ''));
+        $take = (float) ($a['take'] ?? 0);
+        if ($srl < 1 || $batch === '' || $batch === '0' || $take <= 0.0000001) {
+            continue;
+        }
+        $bySrl[$srl][] = ['batch' => $batch, 'take' => $take];
+    }
+    if ($bySrl === []) {
+        return $mappedLines;
+    }
+
+    $out = [];
+    foreach ($mappedLines as $ml) {
+        $srl = (int) ($ml['srl'] ?? 0);
+        $parts = $bySrl[$srl] ?? [];
+        if ($parts === []) {
+            $out[] = $ml;
+            continue;
+        }
+
+        $origQty = (float) ($ml['qty'] ?? 0);
+        $origBonus = (float) ($ml['bonus'] ?? 0);
+        $totalTake = 0.0;
+        foreach ($parts as $p) {
+            $totalTake += (float) $p['take'];
+        }
+        if ($totalTake <= 0.0000001) {
+            $out[] = $ml;
+            continue;
+        }
+
+        $partsCount = count($parts);
+        $qtyAssigned = 0.0;
+        $bonusAssigned = 0.0;
+        $taxAssigned = 0.0;
+        $origTax = isset($ml['vou_tax']) ? (float) $ml['vou_tax'] : 0.0;
+
+        foreach ($parts as $idx => $part) {
+            $isLast = ($idx === $partsCount - 1);
+            $ratio = (float) $part['take'] / $totalTake;
+            if ($isLast) {
+                $partQty = max(0.0, $origQty - $qtyAssigned);
+                $partBonus = max(0.0, $origBonus - $bonusAssigned);
+                $partTax = max(0.0, $origTax - $taxAssigned);
+            } else {
+                $partQty = round($origQty * $ratio, 6);
+                $partBonus = round($origBonus * $ratio, 6);
+                $partTax = round($origTax * $ratio, 6);
+                $qtyAssigned += $partQty;
+                $bonusAssigned += $partBonus;
+                $taxAssigned += $partTax;
+            }
+            if ($partQty <= 0.0000001 && $partBonus <= 0.0000001) {
+                continue;
+            }
+            $copy = $ml;
+            $copy['batch'] = (string) $part['batch'];
+            $copy['qty'] = $partQty;
+            $copy['bonus'] = $partBonus;
+            if (isset($ml['vou_tax'])) {
+                $copy['vou_tax'] = $partTax;
+            }
+            $out[] = $copy;
+        }
     }
 
     return $out;

@@ -2517,6 +2517,123 @@
     pickerData = null;
   }
 
+  function batchOptionLabel(b) {
+    var label = (b.batch || '?') + ' — رصيد ' + fmtBatchQty(b.qty);
+    if (b.exp_date) label += ' — ' + b.exp_date;
+    return label;
+  }
+
+  function findBatchMeta(batches, batchId) {
+    batchId = String(batchId || '').trim();
+    if (!batchId || !Array.isArray(batches)) return null;
+    for (var i = 0; i < batches.length; i++) {
+      if (String(batches[i].batch || '') === batchId) return batches[i];
+    }
+    return null;
+  }
+
+  function buildBatchSelect(ln, alloc, batches) {
+    var sel = document.createElement('select');
+    sel.className = 'si-field co-batch-select';
+    sel.dataset.srl = String(ln.srl || '');
+    sel.dataset.item = String(ln.item || '');
+    sel.dataset.take = String(alloc.take || '');
+    sel.dataset.need = String(ln.need || '');
+
+    var opt0 = document.createElement('option');
+    opt0.value = '';
+    opt0.textContent = '— اختر التشغيلة —';
+    sel.appendChild(opt0);
+
+    (batches || []).forEach(function (b) {
+      var o = document.createElement('option');
+      o.value = b.batch || '';
+      o.textContent = batchOptionLabel(b);
+      o.dataset.qty = String(b.qty || '');
+      sel.appendChild(o);
+    });
+
+    var cur = String(alloc.batch || '');
+    if (cur) {
+      sel.value = cur;
+      if (sel.value !== cur) {
+        var extra = document.createElement('option');
+        extra.value = cur;
+        extra.textContent = cur + ' (غير موجودة بالقائمة)';
+        sel.appendChild(extra);
+        sel.value = cur;
+      }
+    }
+
+    return sel;
+  }
+
+  function validateBatchModal() {
+    if (!batchRows || !batchConfirm) return true;
+    var ok = true;
+    var usageBySrl = {};
+
+    batchRows.querySelectorAll('tr[data-alloc-row="1"]').forEach(function (tr) {
+      var sel = tr.querySelector('select.co-batch-select');
+      if (!sel) return;
+      var batch = (sel.value || '').trim();
+      var take = Number(sel.dataset.take) || 0;
+      var srl = String(sel.dataset.srl || '');
+      if (!batch || !srl) return;
+      if (!usageBySrl[srl]) usageBySrl[srl] = {};
+      usageBySrl[srl][batch] = (usageBySrl[srl][batch] || 0) + take;
+    });
+
+    batchRows.querySelectorAll('tr[data-alloc-row="1"]').forEach(function (tr) {
+      var sel = tr.querySelector('select.co-batch-select');
+      var balEl = tr.querySelector('.co-batch-col-bal');
+      if (!sel) return;
+      var batch = (sel.value || '').trim();
+      var take = Number(sel.dataset.take) || 0;
+      var srl = String(sel.dataset.srl || '');
+      var batches = [];
+      try {
+        batches = JSON.parse(tr.dataset.batches || '[]');
+      } catch (e) {
+        batches = [];
+      }
+      tr.classList.remove('co-batch-row--invalid');
+      if (!batch) {
+        ok = false;
+        tr.classList.add('co-batch-row--invalid');
+        if (balEl) balEl.textContent = '—';
+        return;
+      }
+      var meta = findBatchMeta(batches, batch);
+      var usedOnBatch = (usageBySrl[srl] && usageBySrl[srl][batch]) || take;
+      if (balEl) balEl.textContent = meta ? fmtBatchQty(meta.qty) : '—';
+      if (!meta || Number(meta.qty) < usedOnBatch - 0.0001 || Number(meta.qty) < take - 0.0001) {
+        ok = false;
+        tr.classList.add('co-batch-row--invalid');
+      }
+    });
+    batchConfirm.disabled = !ok;
+    return ok;
+  }
+
+  function collectBatchAllocations() {
+    var picks = [];
+    if (!batchRows) return picks;
+    batchRows.querySelectorAll('tr[data-alloc-row="1"]').forEach(function (tr) {
+      var sel = tr.querySelector('select.co-batch-select');
+      if (!sel) return;
+      var batch = (sel.value || '').trim();
+      if (!batch) return;
+      picks.push({
+        srl: parseInt(sel.dataset.srl || '0', 10),
+        item: sel.dataset.item || '',
+        batch: batch,
+        take: Number(sel.dataset.take) || 0,
+      });
+    });
+    return picks;
+  }
+
   function openBatchModal(data) {
     pickerData = data;
     if (!batchRows || !batchModal) return;
@@ -2526,14 +2643,12 @@
         'مستودع Oracle: ' +
         (data.store || '—') +
         (data.warehouse_name ? ' — ' + data.warehouse_name : '') +
-        ' · توزيع تلقائي: خصم كامل من التشغيلة الأولى ثم التالية عند الحاجة';
+        ' · توزيع تلقائي (يمكن تعديل التشغيلة لكل سطر قبل التأكيد)';
     }
     var rowNo = 0;
-    var anyBad = false;
     (data.lines || []).forEach(function (ln) {
       var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
-      var ok = !!ln.allocation_ok && allocs.length > 0;
-      if (!ok) anyBad = true;
+      var batches = Array.isArray(ln.batches) ? ln.batches : [];
 
       if (!allocs.length) {
         rowNo += 1;
@@ -2562,7 +2677,9 @@
       allocs.forEach(function (a, ai) {
         rowNo += 1;
         var tr = document.createElement('tr');
-        if (!ok) tr.className = 'co-batch-row--nostock';
+        tr.setAttribute('data-alloc-row', '1');
+        tr.dataset.batches = JSON.stringify(batches);
+
         var tdIdx = document.createElement('td');
         tdIdx.className = 'co-batch-col-idx';
         tdIdx.textContent = String(rowNo);
@@ -2591,13 +2708,14 @@
 
         var tdBatch = document.createElement('td');
         tdBatch.className = 'co-batch-col-batch';
-        var batchLabel = String(a.batch || '—');
-        if (a.exp_date) batchLabel += ' · ' + a.exp_date;
-        tdBatch.textContent = batchLabel;
+        var sel = buildBatchSelect(ln, a, batches);
+        sel.addEventListener('change', validateBatchModal);
+        tdBatch.appendChild(sel);
 
         var tdBal = document.createElement('td');
         tdBal.className = 'co-batch-col-bal';
-        tdBal.textContent = fmtBatchQty(a.batch_qty);
+        var meta = findBatchMeta(batches, a.batch);
+        tdBal.textContent = meta ? fmtBatchQty(meta.qty) : fmtBatchQty(a.batch_qty);
 
         tr.appendChild(tdIdx);
         tr.appendChild(tdName);
@@ -2608,22 +2726,20 @@
         batchRows.appendChild(tr);
       });
 
-      if (!ok && Number(ln.shortfall) > 0) {
+      if (!ln.allocation_ok && Number(ln.shortfall) > 0) {
         var trW = document.createElement('tr');
         trW.className = 'co-batch-row--nostock';
         trW.innerHTML =
-          '<td></td><td colspan="5"><div class="co-batch-warn">الرصيد لا يكفي — نقص ' +
+          '<td></td><td colspan="5"><div class="co-batch-warn">الرصيد التلقائي لا يكفي — نقص ' +
           fmtBatchQty(ln.shortfall) +
           ' من المطلوب ' +
           fmtBatchQty(ln.need) +
-          '.</div></td>';
+          ' (عدّل التشغيلات يدوياً إن أمكن).</div></td>';
         batchRows.appendChild(trW);
       }
     });
 
-    if (batchConfirm) {
-      batchConfirm.disabled = anyBad || data.can_post === false;
-    }
+    validateBatchModal();
     batchModal.hidden = false;
     batchModal.setAttribute('aria-hidden', 'false');
   }
@@ -2693,33 +2809,28 @@
   if (batchConfirm) {
     batchConfirm.addEventListener('click', function () {
       if (!pickerData || !pickerData.lines) return;
-      if (pickerData.can_post === false || batchConfirm.disabled) {
-        hxAlert('لا يمكن الترحيل: رصيد التشغيلات لا يكفي لبعض المواد.', {
-          title: 'رصيد غير كافٍ',
+      if (!validateBatchModal()) {
+        hxAlert('تحقق من اختيار التشغيلة — يجب أن يكفي رصيد كل تشغيلة للكمية المخصصة.', {
+          title: 'تعديل التشغيلة',
           kind: 'warning',
         });
         return;
       }
-      var bad = (pickerData.lines || []).some(function (ln) {
-        return !ln.allocation_ok;
-      });
-      if (bad) {
-        hxAlert('لا يمكن الترحيل: رصيد التشغيلات لا يكفي لبعض المواد.', {
-          title: 'رصيد غير كافٍ',
-          kind: 'warning',
-        });
+      var picks = collectBatchAllocations();
+      var expected = batchRows ? batchRows.querySelectorAll('tr[data-alloc-row="1"]').length : 0;
+      if (picks.length < expected) {
+        hxAlert('اختر تشغيلة لكل سطر قبل الترحيل.', { title: 'تعديل التشغيلة', kind: 'warning' });
         return;
       }
       hxConfirm(
-        'سيتم ترحيل الطلب إلى Oracle بالتوزيع المعروض (خصم تلقائي من التشغيلات).\nهل تريد التأكيد؟',
+        'سيتم ترحيل الطلب إلى Oracle بالتشغيلات المعروضة (بعد أي تعديل قمت به).\nهل تريد التأكيد؟',
         {
           title: 'ترحيل إلى Oracle',
           okLabel: 'تأكيد وترحيل',
         }
       ).then(function (ok) {
         if (!ok) return;
-        // بدون batch_picks: الخادم يوزّع تلقائياً ويقسّم السطر على أكثر من تشغيلة
-        postOracleWithBatches([]);
+        postOracleWithBatches(picks);
       });
     });
   }
