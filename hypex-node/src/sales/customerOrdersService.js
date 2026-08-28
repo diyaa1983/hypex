@@ -864,19 +864,42 @@ function getCustomerArSummary(customerId) {
 function resolvePhpCli() {
   const path = require('path');
   const fs = require('fs');
-  let phpBin = process.env.PHP_BIN || 'php';
-  for (const c of [process.env.PHP_BIN, 'C:\\xampp\\php\\php.exe', 'C:\\xampp\\php\\php', 'php']) {
-    if (!c) continue;
+  const candidates = [
+    process.env.PHP_BIN,
+    'C:\\xampp\\php\\php.exe',
+    'C:\\xampp\\php\\php',
+    'php',
+  ].filter(Boolean);
+  let phpBin = 'C:\\xampp\\php\\php.exe';
+  for (const c of candidates) {
     if (c === 'php' || fs.existsSync(c)) {
       phpBin = c;
       break;
     }
   }
   const argsPrefix = [];
-  const ini = process.env.PHP_INI || 'C:\\xampp\\php\\php.ini';
-  if (fs.existsSync(ini)) argsPrefix.push('-c', ini);
+  const iniCandidates = [process.env.PHP_INI, 'C:\\xampp\\php\\php.ini'].filter(Boolean);
+  for (const ini of iniCandidates) {
+    if (fs.existsSync(ini)) {
+      argsPrefix.push('-c', ini);
+      break;
+    }
+  }
   const root = path.resolve(__dirname, '..', '..', '..');
   return { phpBin, argsPrefix, root, fs, path };
+}
+
+function stripPhpCliNoise(text) {
+  let s = String(text || '').trim();
+  if (!s) return '';
+  // HTML error page from bootstrap → plain Arabic message
+  if (/حدث خطأ داخلي|database\.local\.php/i.test(s) || /<!doctype html/i.test(s)) {
+    const m = s.match(/Undefined constant[^<\n]+|Fatal error:[^<\n]+|Error:[^<\n]+|Exception:[^<\n]+/i);
+    if (m) return m[0].replace(/<[^>]+>/g, '').trim().slice(0, 280);
+    return 'خطأ في تشغيل PHP/قاعدة البيانات. تأكد أن الترحيل يستخدم C:\\xampp\\php\\php.exe مع php.ini الخاص بـ XAMPP (extension=pdo_mysql).';
+  }
+  s = s.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return s.slice(0, 280);
 }
 
 function runOraclePhpCli(scriptName, scriptArgs = []) {
@@ -903,22 +926,27 @@ function runOraclePhpCli(scriptName, scriptArgs = []) {
     });
     child.on('error', (e) => resolve({ ok: false, message: e.message, error: e.message }));
     child.on('close', () => {
-      const line = out
+      const lines = out
         .split(/\r?\n/)
         .map((s) => s.trim())
-        .filter(Boolean)
-        .pop();
-      if (!line) {
-        const msg = err.trim() || 'لا استجابة من Oracle/PHP.';
-        return resolve({ ok: false, message: msg, error: msg });
+        .filter(Boolean);
+      // Prefer last JSON line
+      let parsed = null;
+      for (let i = lines.length - 1; i >= 0; i--) {
+        try {
+          parsed = JSON.parse(lines[i]);
+          break;
+        } catch {
+          // continue
+        }
       }
-      try {
-        const parsed = JSON.parse(line);
-        if (parsed && parsed.message && !parsed.error) parsed.error = parsed.message;
-        resolve(parsed);
-      } catch {
-        resolve({ ok: false, message: line.slice(0, 280), error: line.slice(0, 280) });
+      if (parsed && typeof parsed === 'object') {
+        if (parsed.message && !parsed.error) parsed.error = parsed.message;
+        return resolve(parsed);
       }
+      const raw = lines[lines.length - 1] || err.trim() || 'لا استجابة من Oracle/PHP.';
+      const msg = stripPhpCliNoise(raw) || stripPhpCliNoise(err) || 'لا استجابة من Oracle/PHP.';
+      resolve({ ok: false, message: msg, error: msg });
     });
   });
 }

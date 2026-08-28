@@ -17,11 +17,15 @@ function db(): PDO
         $cfg['charset']
     );
 
-    $pdo = new PDO($dsn, $cfg['user'], $cfg['pass'], [
+    $opts = [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::MYSQL_ATTR_USE_BUFFERED_QUERY => true,
-    ]);
+    ];
+    if (defined('PDO::MYSQL_ATTR_USE_BUFFERED_QUERY')) {
+        $opts[PDO::MYSQL_ATTR_USE_BUFFERED_QUERY] = true;
+    }
+
+    $pdo = new PDO($dsn, $cfg['user'], $cfg['pass'], $opts);
 
     require_once app_path('includes/date_defaults.php');
     app_mysql_apply_timezone($pdo);

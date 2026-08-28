@@ -559,6 +559,14 @@
 
   function setMsg(text, type) {
     if (!msgEl) return;
+    text = String(text || '');
+    if (/<!doctype html|<h2|database\.local\.php/i.test(text)) {
+      text = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (/حدث خطأ داخلي|database\.local/i.test(text)) {
+        text =
+          'تعذر تشغيل سكربت الترحيل (PHP/MySQL). استخدم C:\\xampp\\php\\php.exe مع php.ini لـ XAMPP ثم أعد تشغيل: pm2 restart hypex-node';
+      }
+    }
     msgEl.textContent = text || '';
     msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
   }

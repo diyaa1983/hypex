@@ -25,6 +25,8 @@ module.exports = {
       kill_timeout: 5000,
       env: {
         NODE_ENV: 'production',
+        PHP_BIN: 'C:\\xampp\\php\\php.exe',
+        PHP_INI: 'C:\\xampp\\php\\php.ini',
       },
     },
   ],
