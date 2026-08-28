@@ -314,6 +314,10 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             }
         }
         if ($manualAllocations) {
+            $coverErr = oracle_order_validate_batch_picks_cover($mappedLines, $batchPicks, $conn, $store);
+            if ($coverErr !== null) {
+                return ['ok' => false, 'message' => $coverErr];
+            }
             $mappedLines = oracle_order_apply_batch_allocations($mappedLines, $batchPicks);
             $mappedLines = oracle_order_apply_cat_from_picks($mappedLines, $batchPicks);
         } else {
@@ -4096,6 +4100,113 @@ function oracle_order_split_line_by_batch_parts(array $line, array $parts): arra
     }
 
     return $out !== [] ? $out : [$line];
+}
+
+/**
+ * يرفض الترحيل إن لم يغطِّ مجموع take لكل SRL الكمية المطلوبة، أو تجاوز رصيد التشغيلة.
+ *
+ * @param list<array<string,mixed>> $mappedLines
+ * @param list<array<string,mixed>> $batchPicks
+ */
+function oracle_order_validate_batch_picks_cover(
+    array $mappedLines,
+    array $batchPicks,
+    array $conn,
+    int $store
+): ?string {
+    $sc = oracle_order_stock_cfg();
+    /** @var array<int,float> $takeBySrl */
+    $takeBySrl = [];
+    /** @var array<int,array<string,float>> $takeBySrlBatch */
+    $takeBySrlBatch = [];
+    foreach ($batchPicks as $p) {
+        if (!is_array($p)) {
+            continue;
+        }
+        $srl = (int) ($p['srl'] ?? 0);
+        $batch = trim((string) ($p['batch'] ?? ''));
+        $take = (float) ($p['take'] ?? 0);
+        if ($srl < 1 || $batch === '' || $batch === '0' || $take <= 0.0000001) {
+            continue;
+        }
+        $takeBySrl[$srl] = ($takeBySrl[$srl] ?? 0.0) + $take;
+        $nk = oracle_order_batch_norm_key($batch);
+        if ($nk === '') {
+            continue;
+        }
+        if (!isset($takeBySrlBatch[$srl])) {
+            $takeBySrlBatch[$srl] = [];
+        }
+        $takeBySrlBatch[$srl][$nk] = ($takeBySrlBatch[$srl][$nk] ?? 0.0) + $take;
+    }
+
+    foreach ($mappedLines as $ml) {
+        if (!is_array($ml)) {
+            continue;
+        }
+        $srl = (int) ($ml['srl'] ?? 0);
+        $item = trim((string) ($ml['item'] ?? ''));
+        $cat = trim((string) ($ml['cat'] ?? ''));
+        foreach ($batchPicks as $p) {
+            if (!is_array($p) || (int) ($p['srl'] ?? 0) !== $srl) {
+                continue;
+            }
+            $pc = trim((string) ($p['cat'] ?? ''));
+            if ($pc !== '') {
+                $cat = $pc;
+                break;
+            }
+        }
+        if ($cat === '' && $item !== '') {
+            $cat = oracle_order_item_cat_resolve($conn, $item, $cat);
+        }
+        $qty = (float) ($ml['qty'] ?? 0);
+        $bonus = (float) ($ml['bonus'] ?? 0);
+        $trUnit = (float) ($ml['tr_unit'] ?? 1);
+        if ($trUnit <= 0) {
+            $trUnit = 1.0;
+        }
+        $need = $qty + $bonus;
+        if (!empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001) {
+            $need *= $trUnit;
+        }
+        if ($srl < 1 || $need <= 0.0000001) {
+            continue;
+        }
+        $got = (float) ($takeBySrl[$srl] ?? 0);
+        if ($got + 0.0001 < $need) {
+            return 'لا يمكن الترحيل: التشغيلات لا تغطي الكمية المطلوبة للمادة '
+                . ($item !== '' ? $item : ('#' . $srl))
+                . ' (مجموع ' . rtrim(rtrim(number_format($got, 3, '.', ''), '0'), '.')
+                . ' من ' . rtrim(rtrim(number_format($need, 3, '.', ''), '0'), '.') . ').';
+        }
+        if ($got - $need > 0.0001) {
+            return 'لا يمكن الترحيل: مجموع كميات التشغيلات أكبر من المطلوب للمادة '
+                . ($item !== '' ? $item : ('#' . $srl)) . '.';
+        }
+        $stock = oracle_order_picker_stock_batches($conn, $store, $item, $cat, true);
+        $rows = is_array($stock['rows'] ?? null) ? $stock['rows'] : [];
+        /** @var array<string,float> $balByNorm */
+        $balByNorm = [];
+        foreach ($rows as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $nk = oracle_order_batch_norm_key((string) ($r['batch'] ?? ''));
+            if ($nk !== '') {
+                $balByNorm[$nk] = (float) ($r['qty'] ?? 0);
+            }
+        }
+        foreach ($takeBySrlBatch[$srl] ?? [] as $nk => $used) {
+            $bal = (float) ($balByNorm[$nk] ?? 0);
+            if ($used - 0.0001 > $bal) {
+                return 'لا يمكن الترحيل: الكمية أكبر من رصيد التشغيلة للمادة '
+                    . ($item !== '' ? $item : ('#' . $srl)) . '.';
+            }
+        }
+    }
+
+    return null;
 }
 
 /**

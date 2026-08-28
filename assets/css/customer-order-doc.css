@@ -639,183 +639,224 @@
   }
 }
 
-/* نافذة توزيع التشغيلات — ترحيل Oracle */
+/* نافذة ترحيل الكميات — مظهر جدول Toad / SQL Developer */
 .co-batch-modal {
   position: fixed;
   inset: 0;
   z-index: 10050;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(64, 64, 64, 0.55);
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  font-family: Tahoma, "Segoe UI", Arial, sans-serif;
 }
 .co-batch-modal[hidden] {
   display: none !important;
 }
 .co-batch-panel {
-  background: #fff;
-  border-radius: 12px;
-  max-width: 980px;
+  background: #f0f0f0;
+  border-radius: 2px;
+  max-width: 1040px;
   width: 100%;
   max-height: 90vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.22);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.35);
+  border: 1px solid #808080;
   overflow: hidden;
 }
 .co-batch-head {
-  padding: 1rem 1.25rem 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid #a0a0a0;
+  background: linear-gradient(180deg, #fafafa 0%, #e4e4e4 100%);
 }
 .co-batch-head h3 {
-  margin: 0 0 0.35rem;
-  font-size: 1.08rem;
-  color: #0f172a;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #000;
+  letter-spacing: 0;
 }
 .co-batch-head .muted {
-  margin: 0;
-  font-size: 0.85rem;
-  color: #64748b;
-  line-height: 1.45;
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  color: #404040;
+  line-height: 1.35;
+  font-family: Consolas, "Courier New", monospace;
 }
 .co-batch-body-wrap {
-  padding: 0.85rem 1.15rem 1rem;
+  padding: 0.4rem;
   overflow: auto;
   flex: 1;
+  background: #d4d0c8;
 }
 .co-batch-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  font-size: 0.9rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  overflow: hidden;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  border: 1px solid #808080;
   background: #fff;
 }
 .co-batch-table thead th {
-  background: #0f172a;
-  color: #f1f5f9;
+  background: linear-gradient(180deg, #ece9d8 0%, #d4d0c8 100%);
+  color: #000;
   font-weight: 700;
-  font-size: 0.82rem;
-  letter-spacing: 0.01em;
-  padding: 0.65rem 0.75rem;
+  font-size: 0.75rem;
+  padding: 0.28rem 0.4rem;
   text-align: right;
-  border-bottom: 1px solid #0b1220;
+  border: 1px solid #a0a0a0;
   white-space: nowrap;
 }
-.co-batch-table thead th:nth-child(1) { width: 2.4rem; text-align: center; }
+.co-batch-table thead th:nth-child(1) { width: 2rem; text-align: center; }
 .co-batch-table--alloc thead th:nth-child(4),
 .co-batch-table--alloc thead th:nth-child(5),
 .co-batch-table--alloc thead th:nth-child(7) {
-  width: 6.5rem;
+  width: 7rem;
   text-align: center;
 }
-.co-batch-table--alloc thead th:nth-child(3) { width: 14%; }
-.co-batch-table--alloc thead th:nth-child(6) { width: 22%; }
+.co-batch-table--alloc thead th:nth-child(3) { width: 12%; }
+.co-batch-table--alloc thead th:nth-child(6) { width: 24%; }
 
 .co-batch-table tbody td {
-  padding: 0.7rem 0.75rem;
-  border-bottom: 1px solid #e2e8f0;
-  border-inline-end: 1px solid #eef2f7;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #c0c0c0;
   text-align: right;
   vertical-align: middle;
   background: #fff;
 }
-.co-batch-table tbody td:last-child {
-  border-inline-end: 0;
+.co-batch-table tbody tr:nth-child(even):not(.co-batch-row--nostock):not(.co-batch-row--invalid) td {
+  background: #f7f7f7;
 }
-.co-batch-table tbody tr:last-child td {
-  border-bottom: 0;
-}
-.co-batch-table tbody tr:nth-child(even):not(.co-batch-row--nostock) td {
-  background: #f8fafc;
+.co-batch-table tbody tr:hover:not(.co-batch-row--nostock):not(.co-batch-row--invalid) td {
+  background: #e8f2ff;
 }
 .co-batch-table .co-batch-col-idx {
   text-align: center;
-  color: #64748b;
-  font-weight: 700;
+  color: #404040;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  font-family: Consolas, "Courier New", monospace;
 }
 .co-batch-table .co-batch-col-need,
 .co-batch-table .co-batch-col-take,
 .co-batch-table .co-batch-col-bal {
   text-align: center;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
   direction: ltr;
+  font-family: Consolas, "Courier New", monospace;
 }
 .co-batch-table .co-batch-col-batch {
   direction: ltr;
   unicode-bidi: embed;
   font-weight: 600;
-  color: #0f172a;
+  color: #000;
+  font-family: Consolas, "Courier New", monospace;
 }
 .co-batch-table .co-batch-col-cat {
-  min-width: 9rem;
+  min-width: 8rem;
 }
 .co-batch-table select.co-cat-select {
-  min-width: 8.5rem;
+  min-width: 7.5rem;
 }
 .co-batch-table .co-batch-item-code {
   display: block;
   font-weight: 700;
-  color: #0f172a;
+  color: #000;
   direction: ltr;
   unicode-bidi: embed;
+  font-family: Consolas, "Courier New", monospace;
 }
 .co-batch-table .co-batch-item-name {
   display: block;
-  margin-top: 0.2rem;
-  color: #475569;
-  font-size: 0.86rem;
-  line-height: 1.35;
+  margin-top: 0.1rem;
+  color: #404040;
+  font-size: 0.74rem;
+  line-height: 1.3;
   white-space: normal;
 }
 .co-batch-table .co-batch-item-cont {
-  font-size: 0.84rem;
-  color: #64748b;
+  font-size: 0.74rem;
+  color: #606060;
 }
 .co-batch-table select {
   width: 100%;
-  min-width: 11rem;
+  min-width: 10rem;
   max-width: 100%;
-  min-height: 2.35rem;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  padding: 0.35rem 0.55rem;
+  min-height: 1.7rem;
+  border: 1px solid #7a7a7a;
+  border-radius: 0;
+  padding: 0.15rem 0.3rem;
   background: #fff;
   font: inherit;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 0.78rem;
 }
 .co-batch-table select:focus {
-  outline: 2px solid rgba(14, 165, 233, 0.45);
-  outline-offset: 1px;
-  border-color: #0ea5e9;
+  outline: 1px solid #316ac5;
+  outline-offset: 0;
+  border-color: #316ac5;
 }
-
-/* صف بلا رصيد تشغيلة — تظليل كامل */
-.co-batch-table tbody tr.co-batch-row--nostock td {
-  background: #fff7ed !important;
-  border-bottom-color: #fed7aa;
-}
-.co-batch-table tbody tr.co-batch-row--invalid td {
-  background: #fef2f2 !important;
-  border-bottom-color: #fecaca;
-}
-.co-batch-table tbody tr.co-batch-row--nostock select {
-  border-color: #fdba74;
-  background: #fffbeb;
-  color: #9a3412;
-}
-.co-batch-warn {
-  color: #9a3412;
+.co-batch-take-input {
+  width: 100%;
+  max-width: 6.5rem;
+  min-height: 1.7rem;
+  border: 1px solid #7a7a7a;
+  border-radius: 0;
+  padding: 0.15rem 0.3rem;
+  text-align: center;
+  direction: ltr;
+  font-family: Consolas, "Courier New", monospace;
   font-size: 0.8rem;
   font-weight: 700;
-  margin: 0 0 0.4rem;
+  background: #ffffe1;
+}
+.co-batch-take-input:focus {
+  outline: 1px solid #316ac5;
+  border-color: #316ac5;
+  background: #fff;
+}
+.co-batch-take-input.co-batch-take--bad {
+  background: #ffe4e1;
+  border-color: #c00000;
+  color: #8b0000;
+}
+
+.co-batch-table tbody tr.co-batch-row--nostock td {
+  background: #fff3cd !important;
+}
+.co-batch-table tbody tr.co-batch-row--invalid td {
+  background: #ffdddd !important;
+}
+.co-batch-table tbody tr.co-batch-row--nostock select {
+  border-color: #c08000;
+  background: #fff8e1;
+  color: #6b4e00;
+}
+.co-batch-warn {
+  color: #8b0000;
+  font-size: 0.74rem;
+  font-weight: 700;
+  margin: 0;
   line-height: 1.35;
+}
+.co-batch-status {
+  flex: 1;
+  text-align: right;
+  font-size: 0.75rem;
+  color: #404040;
+  font-family: Consolas, "Courier New", monospace;
+  padding-inline-end: 0.5rem;
+  align-self: center;
+}
+.co-batch-status.is-error {
+  color: #8b0000;
+  font-weight: 700;
+}
+.co-batch-status.is-ok {
+  color: #006400;
+  font-weight: 700;
 }
 #co-batch-confirm:disabled {
   opacity: 0.55;
@@ -823,10 +864,18 @@
 }
 
 .co-batch-foot {
-  padding: 0.85rem 1.25rem;
-  border-top: 1px solid #e2e8f0;
+  padding: 0.4rem 0.55rem;
+  border-top: 1px solid #a0a0a0;
   display: flex;
-  gap: 0.55rem;
+  gap: 0.4rem;
   justify-content: flex-end;
-  background: #f8fafc;
+  align-items: center;
+  background: linear-gradient(180deg, #fafafa 0%, #e4e4e4 100%);
+}
+.co-batch-foot .si-btn,
+.co-batch-foot .btn {
+  border-radius: 2px !important;
+  min-height: 1.85rem;
+  font-size: 0.8rem;
+  padding: 0.25rem 0.75rem;
 }

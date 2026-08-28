@@ -178,7 +178,7 @@ sales_ora12_enqueue_assets();
     <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
             <div class="co-batch-head">
-                <h3 id="co-batch-title">توزيع التشغيلات — ترحيل إلى Oracle</h3>
+                <h3 id="co-batch-title">ترحيل الكميات</h3>
                 <p id="co-batch-sub" class="muted"></p>
             </div>
             <div class="co-batch-body-wrap">
@@ -198,29 +198,38 @@ sales_ora12_enqueue_assets();
                 </table>
             </div>
             <div class="co-batch-foot">
+                <span id="co-batch-status" class="co-batch-status" aria-live="polite"></span>
                 <button type="button" id="co-batch-cancel" class="btn btn-secondary">إلغاء</button>
-                <button type="button" id="co-batch-confirm" class="btn btn-primary">تأكيد وترحيل إلى Oracle</button>
+                <button type="button" id="co-batch-confirm" class="btn btn-primary">ترحيل الكميات</button>
             </div>
         </div>
     </div>
     <style>
-    .co-batch-modal { position:fixed; inset:0; z-index:10050; background:rgba(15,23,42,.45); display:flex; align-items:center; justify-content:center; padding:1rem; }
+    .co-batch-modal { position:fixed; inset:0; z-index:10050; background:rgba(64,64,64,.55); display:flex; align-items:center; justify-content:center; padding:1rem; font-family:Tahoma,"Segoe UI",Arial,sans-serif; }
     .co-batch-modal[hidden] { display:none !important; }
-    .co-batch-panel { background:#fff; border-radius:10px; max-width:960px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(0,0,0,.18); }
-    .co-batch-head { padding:1rem 1.25rem .5rem; border-bottom:1px solid #e8ecf1; }
-    .co-batch-head h3 { margin:0 0 .35rem; font-size:1.1rem; }
-    .co-batch-body-wrap { padding:.75rem 1.25rem; overflow:auto; flex:1; }
-    .co-batch-table { width:100%; border-collapse:collapse; font-size:.92rem; }
-    .co-batch-table th, .co-batch-table td { padding:.5rem .4rem; border-bottom:1px solid #eef1f5; text-align:right; vertical-align:middle; }
-    .co-batch-col-need, .co-batch-col-take, .co-batch-col-bal, .co-batch-col-idx { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:700; }
-    .co-batch-item-code { display:block; font-weight:700; direction:ltr; }
-    .co-batch-item-name { display:block; color:#475569; font-size:.86rem; margin-top:.15rem; }
-    .co-batch-item-cont { color:#64748b; font-size:.84rem; }
-    .co-batch-foot { padding:.75rem 1.25rem; border-top:1px solid #e8ecf1; display:flex; gap:.5rem; justify-content:flex-end; }
-    .co-batch-warn { color:#b45309; font-size:.85rem; margin-top:.25rem; font-weight:700; }
-    .co-batch-row--nostock td { background:#fff7ed !important; }
-    .co-batch-row--invalid td { background:#fef2f2 !important; }
-    .co-batch-table select { width:100%; min-width:10rem; padding:.35rem .5rem; }
+    .co-batch-panel { background:#f0f0f0; border-radius:2px; max-width:1040px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:2px 2px 8px rgba(0,0,0,.35); border:1px solid #808080; overflow:hidden; }
+    .co-batch-head { padding:.45rem .65rem; border-bottom:1px solid #a0a0a0; background:linear-gradient(180deg,#fafafa 0%,#e4e4e4 100%); }
+    .co-batch-head h3 { margin:0; font-size:.95rem; font-weight:700; color:#000; }
+    .co-batch-head .muted { margin:.2rem 0 0; font-size:.75rem; color:#404040; font-family:Consolas,"Courier New",monospace; }
+    .co-batch-body-wrap { padding:.4rem; overflow:auto; flex:1; background:#d4d0c8; }
+    .co-batch-table { width:100%; border-collapse:collapse; font-size:.8rem; border:1px solid #808080; background:#fff; }
+    .co-batch-table th, .co-batch-table td { padding:.2rem .35rem; border:1px solid #c0c0c0; text-align:right; vertical-align:middle; }
+    .co-batch-table thead th { background:linear-gradient(180deg,#ece9d8 0%,#d4d0c8 100%); color:#000; font-weight:700; font-size:.75rem; border:1px solid #a0a0a0; white-space:nowrap; }
+    .co-batch-col-need, .co-batch-col-take, .co-batch-col-bal, .co-batch-col-idx { text-align:center; direction:ltr; font-variant-numeric:tabular-nums; font-weight:700; font-family:Consolas,"Courier New",monospace; }
+    .co-batch-item-code { display:block; font-weight:700; direction:ltr; font-family:Consolas,"Courier New",monospace; }
+    .co-batch-item-name { display:block; color:#404040; font-size:.74rem; margin-top:.1rem; }
+    .co-batch-item-cont { color:#606060; font-size:.74rem; }
+    .co-batch-foot { padding:.4rem .55rem; border-top:1px solid #a0a0a0; display:flex; gap:.4rem; justify-content:flex-end; align-items:center; background:linear-gradient(180deg,#fafafa 0%,#e4e4e4 100%); }
+    .co-batch-status { flex:1; text-align:right; font-size:.75rem; color:#404040; font-family:Consolas,"Courier New",monospace; }
+    .co-batch-status.is-error { color:#8b0000; font-weight:700; }
+    .co-batch-status.is-ok { color:#006400; font-weight:700; }
+    .co-batch-warn { color:#8b0000; font-size:.74rem; margin:0; font-weight:700; }
+    .co-batch-row--nostock td { background:#fff3cd !important; }
+    .co-batch-row--invalid td { background:#ffdddd !important; }
+    .co-batch-table select { width:100%; min-width:10rem; padding:.15rem .3rem; border:1px solid #7a7a7a; border-radius:0; font-family:Consolas,"Courier New",monospace; font-size:.78rem; }
+    .co-batch-take-input { width:100%; max-width:6.5rem; min-height:1.7rem; border:1px solid #7a7a7a; border-radius:0; padding:.15rem .3rem; text-align:center; direction:ltr; font-family:Consolas,"Courier New",monospace; font-size:.8rem; font-weight:700; background:#ffffe1; }
+    .co-batch-take-input.co-batch-take--bad { background:#ffe4e1; border-color:#c00000; color:#8b0000; }
+    #co-batch-confirm:disabled { opacity:.55; cursor:not-allowed; }
     </style>
     <?php endif; ?>
     <?php if (!empty($order['notes'])): ?>
@@ -451,7 +460,7 @@ sales_ora12_enqueue_assets();
             sel.className = 'co-batch-select';
             sel.dataset.srl = String(ln.srl || '');
             sel.dataset.item = String(ln.item || '');
-            sel.dataset.take = String(alloc.take || '');
+            sel.dataset.need = String(ln.need || '');
             var opt0 = document.createElement('option');
             opt0.value = '';
             opt0.textContent = '— اختر التشغيلة —';
@@ -476,37 +485,99 @@ sales_ora12_enqueue_assets();
             return sel;
           }
 
+          function buildTakeInput(ln, alloc) {
+            var inp = document.createElement('input');
+            inp.type = 'number';
+            inp.className = 'co-batch-take-input';
+            inp.step = '0.001';
+            inp.min = '0';
+            inp.inputMode = 'decimal';
+            inp.value = String(Number(alloc.take) || 0);
+            inp.dataset.srl = String(ln.srl || '');
+            inp.addEventListener('input', validateBatchModal);
+            inp.addEventListener('change', validateBatchModal);
+            return inp;
+          }
+
+          function rowTakeValue(tr) {
+            var inp = tr.querySelector('input.co-batch-take-input');
+            if (inp) {
+              var n = Number(inp.value);
+              return isFinite(n) && n > 0 ? n : 0;
+            }
+            return 0;
+          }
+
+          function setBatchStatus(text, kind) {
+            var el = document.getElementById('co-batch-status');
+            if (!el) return;
+            el.textContent = text || '';
+            el.classList.remove('is-error', 'is-ok');
+            if (kind === 'error') el.classList.add('is-error');
+            if (kind === 'ok') el.classList.add('is-ok');
+          }
+
           function validateBatchModal() {
             if (!batchRows || !batchConfirm) return true;
             var ok = true;
             var usageBySrl = {};
+            var takeSumBySrl = {};
+            var needBySrl = {};
+            var statusMsg = '';
             batchRows.querySelectorAll('select.co-cat-select').forEach(function (sel) {
-              if (!(sel.value || '').trim()) ok = false;
+              if (!(sel.value || '').trim()) {
+                ok = false;
+                if (!statusMsg) statusMsg = 'اختر الفئة لكل مادة.';
+              }
             });
             batchRows.querySelectorAll('tr[data-alloc-row="1"]').forEach(function (tr) {
               var sel = tr.querySelector('select.co-batch-select');
               if (!sel) return;
               var batch = (sel.value || '').trim();
-              var take = Number(sel.dataset.take) || 0;
-              var srl = String(sel.dataset.srl || '');
+              var take = rowTakeValue(tr);
+              var srl = String(sel.dataset.srl || tr.dataset.srl || '');
+              var need = Number(tr.dataset.need || sel.dataset.need) || 0;
+              if (srl) {
+                takeSumBySrl[srl] = (takeSumBySrl[srl] || 0) + take;
+                if (need > 0) needBySrl[srl] = need;
+              }
               if (!batch || !srl) return;
               if (!usageBySrl[srl]) usageBySrl[srl] = {};
               usageBySrl[srl][batch] = (usageBySrl[srl][batch] || 0) + take;
             });
+            Object.keys(needBySrl).forEach(function (srl) {
+              var need = needBySrl[srl];
+              var got = takeSumBySrl[srl] || 0;
+              if (got + 0.0001 < need) {
+                ok = false;
+                if (!statusMsg) {
+                  statusMsg = 'الكميات من التشغيلات لا تغطي المطلوب (مجموع ' + fmtQty(got) + ' من ' + fmtQty(need) + ').';
+                }
+              } else if (got - need > 0.0001) {
+                ok = false;
+                if (!statusMsg) {
+                  statusMsg = 'مجموع الكميات من التشغيلات أكبر من المطلوب.';
+                }
+              }
+            });
             batchRows.querySelectorAll('tr[data-alloc-row="1"]').forEach(function (tr) {
               var sel = tr.querySelector('select.co-batch-select');
               var balEl = tr.querySelector('.co-batch-col-bal');
+              var takeInp = tr.querySelector('input.co-batch-take-input');
               if (!sel) return;
               var batch = (sel.value || '').trim();
-              var take = Number(sel.dataset.take) || 0;
-              var srl = String(sel.dataset.srl || '');
+              var take = rowTakeValue(tr);
+              var srl = String(sel.dataset.srl || tr.dataset.srl || '');
               var batches = [];
               try { batches = JSON.parse(tr.dataset.batches || '[]'); } catch (e) { batches = []; }
               tr.classList.remove('co-batch-row--invalid');
-              if (!batch) {
+              if (takeInp) takeInp.classList.remove('co-batch-take--bad');
+              if (!batch || take <= 0) {
                 ok = false;
                 tr.classList.add('co-batch-row--invalid');
-                if (balEl) balEl.textContent = '—';
+                if (takeInp && take <= 0) takeInp.classList.add('co-batch-take--bad');
+                if (balEl && !batch) balEl.textContent = '—';
+                if (!statusMsg) statusMsg = 'اختر تشغيلة وأدخل كمية أكبر من صفر لكل سطر.';
                 return;
               }
               var meta = findBatchMeta(batches, batch);
@@ -515,9 +586,17 @@ sales_ora12_enqueue_assets();
               if (!meta || Number(meta.qty) < usedOnBatch - 0.0001 || Number(meta.qty) < take - 0.0001) {
                 ok = false;
                 tr.classList.add('co-batch-row--invalid');
+                if (takeInp) takeInp.classList.add('co-batch-take--bad');
+                if (!statusMsg) statusMsg = 'الكمية أكبر من رصيد التشغيلة.';
               }
             });
+            if (!batchRows.querySelector('tr[data-alloc-row="1"]') && !statusMsg) {
+              ok = false;
+              statusMsg = 'لا توجد تشغيلات كافية للترحيل.';
+            }
             batchConfirm.disabled = !ok;
+            if (ok) setBatchStatus('جاهز للترحيل — مجموع الكميات يطابق المطلوب.', 'ok');
+            else setBatchStatus(statusMsg || 'تحقق من الكميات والتشغيلات قبل الترحيل.', 'error');
             return ok;
           }
 
@@ -530,11 +609,11 @@ sales_ora12_enqueue_assets();
               var batch = (sel.value || '').trim();
               if (!batch) return;
               picks.push({
-                srl: parseInt(sel.dataset.srl || '0', 10),
+                srl: parseInt(sel.dataset.srl || tr.dataset.srl || '0', 10),
                 item: sel.dataset.item || '',
                 batch: batch,
-                take: Number(sel.dataset.take) || 0,
-                cat: catForSrl(parseInt(sel.dataset.srl || '0', 10))
+                take: rowTakeValue(tr),
+                cat: catForSrl(parseInt(sel.dataset.srl || tr.dataset.srl || '0', 10))
               });
             });
             return picks;
@@ -545,9 +624,9 @@ sales_ora12_enqueue_assets();
             if (!batchRows || !batchModal) return;
             batchRows.innerHTML = '';
             if (batchSub) {
-              batchSub.textContent = 'مستودع Oracle: ' + (data.store || '—')
-                + (data.warehouse_name ? (' — ' + data.warehouse_name) : '')
-                + ' · MAS.BALANCE (Toad) · COMP_NUM+CAT+ITEM+STORE · اختر الفئة ثم راجع التشغيلات';
+              batchSub.textContent = 'STORE=' + (data.store || '—')
+                + (data.warehouse_name ? (' · ' + data.warehouse_name) : '')
+                + ' · عدّل الكمية من كل تشغيلة ثم رحّل — لن يُسمح بالترحيل إن لم يُغطَّ المطلوب.';
             }
             var rowNo = 0;
             (data.lines || []).forEach(function (ln) {
@@ -557,15 +636,17 @@ sales_ora12_enqueue_assets();
                 rowNo += 1;
                 var tr0 = document.createElement('tr');
                 tr0.className = 'co-batch-row--nostock';
+                tr0.dataset.srl = String(ln.srl || '');
+                tr0.dataset.shortfall = '1';
                 tr0.innerHTML = '<td class="co-batch-col-idx">' + rowNo + '</td>'
                   + '<td><strong class="co-batch-item-code" dir="ltr">' + (ln.item || '') + '</strong>'
                   + '<span class="co-batch-item-name">' + (ln.name || '') + '</span></td>'
                   + '<td class="co-batch-col-cat"></td>'
                   + '<td class="co-batch-col-need">' + fmtQty(ln.need) + '</td>'
                   + '<td class="co-batch-col-take">—</td>'
-                  + '<td colspan="2"><div class="co-batch-warn">لا يكفي الرصيد أو لا توجد تشغيلات'
+                  + '<td colspan="2"><div class="co-batch-warn">التشغيلات لا تغطي المطلوب'
                   + (Number(ln.shortfall) > 0 ? (' (نقص ' + fmtQty(ln.shortfall) + ')') : '')
-                  + '.</div></td>';
+                  + ' — لا يمكن الترحيل.</div></td>';
                 var tdCat0 = tr0.querySelector('.co-batch-col-cat');
                 if (tdCat0) {
                   var catSel0 = buildCatSelect(ln, data.categories || []);
@@ -580,6 +661,8 @@ sales_ora12_enqueue_assets();
                 var tr = document.createElement('tr');
                 tr.setAttribute('data-alloc-row', '1');
                 tr.dataset.batches = JSON.stringify(batches);
+                tr.dataset.srl = String(ln.srl || '');
+                tr.dataset.need = String(ln.need || '');
                 var tdIdx = document.createElement('td');
                 tdIdx.className = 'co-batch-col-idx';
                 tdIdx.textContent = String(rowNo);
@@ -602,7 +685,7 @@ sales_ora12_enqueue_assets();
                 tdNeed.textContent = ai === 0 ? fmtQty(ln.need) : '';
                 var tdTake = document.createElement('td');
                 tdTake.className = 'co-batch-col-take';
-                tdTake.textContent = fmtQty(a.take);
+                tdTake.appendChild(buildTakeInput(ln, a));
                 var tdBatch = document.createElement('td');
                 tdBatch.className = 'co-batch-col-batch';
                 var sel = buildBatchSelect(ln, a, batches);
@@ -624,8 +707,10 @@ sales_ora12_enqueue_assets();
               if (!ln.allocation_ok && Number(ln.shortfall) > 0) {
                 var trW = document.createElement('tr');
                 trW.className = 'co-batch-row--nostock';
-                trW.innerHTML = '<td></td><td></td><td colspan="5"><div class="co-batch-warn">الرصيد التلقائي لا يكفي — نقص '
-                  + fmtQty(ln.shortfall) + ' (عدّل التشغيلات يدوياً إن أمكن).</div></td>';
+                trW.dataset.shortfall = '1';
+                trW.innerHTML = '<td></td><td></td><td colspan="5"><div class="co-batch-warn">الرصيد المتوفر لا يكفي — نقص '
+                  + fmtQty(ln.shortfall) + ' من المطلوب ' + fmtQty(ln.need)
+                  + ' — عدّل الكميات/التشغيلات لتغطية المطلوب بالكامل، وإلا لن يُسمح بالترحيل.</div></td>';
                 batchRows.appendChild(trW);
               }
             });
@@ -649,12 +734,12 @@ sales_ora12_enqueue_assets();
               }
               var items = Array.isArray(x.items) ? x.items.filter(Boolean) : [];
               var stockIssues = Array.isArray(x.stock_issues) ? x.stock_issues : [];
-              if (stockIssues.length || String(text).indexOf('رصيد Oracle') >= 0) {
+              if (stockIssues.length || String(text).indexOf('رصيد Oracle') >= 0 || String(text).indexOf('لا يمكن الترحيل') >= 0) {
                 var body = stockIssues.length
                   ? stockIssues.map(function (iss) { return iss._line || iss.item || ''; }).join('\n\n')
                   : text;
                 if (window.HypexUI && window.HypexUI.dialog) {
-                  window.HypexUI.dialog({ title: 'تعذر الترحيل إلى Oracle', message: body, kind: 'error', buttons: [{ label: 'حسناً', value: true, primary: true }] });
+                  window.HypexUI.dialog({ title: 'ترحيل الكميات', message: body, kind: 'error', buttons: [{ label: 'حسناً', value: true, primary: true }] });
                 } else {
                   alert(body);
                 }
@@ -697,7 +782,7 @@ sales_ora12_enqueue_assets();
           if (batchConfirm) batchConfirm.onclick = function () {
             if (!pickerData || !pickerData.lines) return;
             if (!validateBatchModal()) {
-              alert('تحقق من اختيار الفئة والتشغيلة — يجب أن يكفي رصيد كل تشغيلة للكمية المخصصة.');
+              alert('لا يمكن الترحيل: التشغيلات يجب أن تغطي الكمية المطلوبة بالكامل، دون تجاوز رصيد أي تشغيلة.');
               return;
             }
             var picks = collectBatchAllocations();
@@ -706,7 +791,7 @@ sales_ora12_enqueue_assets();
               alert('اختر تشغيلة لكل سطر قبل الترحيل.');
               return;
             }
-            if (!confirm('سيتم ترحيل الطلب إلى Oracle بالتشغيلات المعروضة (بعد أي تعديل).\nهل تريد التأكيد؟')) {
+            if (!confirm('سيتم ترحيل الكميات بالتشغيلات المعروضة.\nهل تريد المتابعة؟')) {
               return;
             }
             closeBatchModal();

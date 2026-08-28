@@ -507,7 +507,7 @@ async function renderForm(req, res, orderId) {
       <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
           <div class="co-batch-head">
-            <h3 id="co-batch-title">توزيع التشغيلات — ترحيل إلى Oracle</h3>
+            <h3 id="co-batch-title">ترحيل الكميات</h3>
             <p id="co-batch-sub" class="muted"></p>
           </div>
           <div class="co-batch-body-wrap">
@@ -527,8 +527,9 @@ async function renderForm(req, res, orderId) {
             </table>
           </div>
           <div class="co-batch-foot">
+            <span id="co-batch-status" class="co-batch-status" aria-live="polite"></span>
             <button type="button" id="co-batch-cancel" class="si-btn">إلغاء</button>
-            <button type="button" id="co-batch-confirm" class="si-btn si-tb--post">تأكيد وترحيل إلى Oracle</button>
+            <button type="button" id="co-batch-confirm" class="si-btn si-tb--post">ترحيل الكميات</button>
           </div>
         </div>
       </div>`
