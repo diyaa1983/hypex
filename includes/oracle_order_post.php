@@ -284,10 +284,33 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $manualBatches = $batchPicks !== [];
     $manualAllocations = false;
     if ($manualBatches) {
+        $batchPicks = oracle_order_enrich_batch_picks_with_take($batchPicks, $mappedLines, $conn, $store);
         foreach ($batchPicks as $p) {
-            if (is_array($p) && isset($p['take']) && (float) ($p['take'] ?? 0) > 0.0000001) {
+            if (!is_array($p)) {
+                continue;
+            }
+            if ((float) ($p['take'] ?? 0) > 0.0000001 && trim((string) ($p['batch'] ?? '')) !== '') {
                 $manualAllocations = true;
                 break;
+            }
+        }
+        if (!$manualAllocations) {
+            /** @var array<int,int> $pickCountBySrl */
+            $pickCountBySrl = [];
+            foreach ($batchPicks as $p) {
+                if (!is_array($p)) {
+                    continue;
+                }
+                $srl = (int) ($p['srl'] ?? 0);
+                if ($srl > 0) {
+                    $pickCountBySrl[$srl] = ($pickCountBySrl[$srl] ?? 0) + 1;
+                }
+            }
+            foreach ($pickCountBySrl as $cnt) {
+                if ($cnt > 1) {
+                    $manualAllocations = true;
+                    break;
+                }
             }
         }
         if ($manualAllocations) {
@@ -303,7 +326,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             }
         }
     }
-    $stockCheckOpts = $manualBatches ? ['manual_batches' => true] : [];
+    $mappedLines = oracle_order_auto_fifo_split_mapped_lines($conn, $store, $mappedLines);
+    $stockCheckOpts = ['manual_batches' => true];
 
     $headerDisc = oracle_order_header_discount($order, $merchAfterLineDisc);
 
@@ -3643,6 +3667,215 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 }
 
 /**
+ * @param list<array<string,mixed>> $picks
+ * @param list<array<string,mixed>> $mappedLines
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_enrich_batch_picks_with_take(
+    array $picks,
+    array $mappedLines,
+    array $conn,
+    int $store
+): array {
+    if ($picks === []) {
+        return $picks;
+    }
+    /** @var array<int,array<string,mixed>> $lineBySrl */
+    $lineBySrl = [];
+    foreach ($mappedLines as $ml) {
+        if (!is_array($ml)) {
+            continue;
+        }
+        $srl = (int) ($ml['srl'] ?? 0);
+        if ($srl > 0) {
+            $lineBySrl[$srl] = $ml;
+        }
+    }
+    /** @var array<int,list<int>> $idxBySrl */
+    $idxBySrl = [];
+    foreach ($picks as $i => $p) {
+        if (!is_array($p)) {
+            continue;
+        }
+        $srl = (int) ($p['srl'] ?? 0);
+        if ($srl > 0) {
+            $idxBySrl[$srl][] = $i;
+        }
+    }
+    $sc = oracle_order_stock_cfg();
+    foreach ($idxBySrl as $srl => $indices) {
+        $ml = $lineBySrl[$srl] ?? null;
+        if (!$ml || !is_array($ml)) {
+            continue;
+        }
+        $needs = false;
+        foreach ($indices as $i) {
+            if ((float) ($picks[$i]['take'] ?? 0) <= 0.0000001) {
+                $needs = true;
+                break;
+            }
+        }
+        if (!$needs) {
+            continue;
+        }
+        $item = trim((string) ($ml['item'] ?? ''));
+        $cat = trim((string) ($ml['cat'] ?? ''));
+        if ($cat === '' && $item !== '') {
+            $cat = oracle_order_item_cat_resolve($conn, $item, $cat);
+        }
+        foreach ($picks as $p) {
+            if (!is_array($p) || (int) ($p['srl'] ?? 0) !== $srl) {
+                continue;
+            }
+            $pc = trim((string) ($p['cat'] ?? ''));
+            if ($pc !== '') {
+                $cat = $pc;
+                break;
+            }
+        }
+        $qty = (float) ($ml['qty'] ?? 0);
+        $bonus = (float) ($ml['bonus'] ?? 0);
+        $trUnit = (float) ($ml['tr_unit'] ?? 1);
+        if ($trUnit <= 0) {
+            $trUnit = 1.0;
+        }
+        $need = $qty + $bonus;
+        if (!empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001) {
+            $need *= $trUnit;
+        }
+        $stock = oracle_order_picker_stock_batches($conn, $store, $item, $cat, true);
+        $batchOpts = is_array($stock['rows'] ?? null) ? $stock['rows'] : [];
+        $fifo = oracle_order_fifo_allocate($need, $batchOpts);
+        /** @var array<string,float> $takeByNorm */
+        $takeByNorm = [];
+        foreach ($fifo['allocations'] as $fa) {
+            if (!is_array($fa)) {
+                continue;
+            }
+            $k = oracle_order_batch_norm_key((string) ($fa['batch'] ?? ''));
+            if ($k !== '') {
+                $takeByNorm[$k] = (float) ($fa['take'] ?? 0);
+            }
+        }
+        foreach ($indices as $i) {
+            if ((float) ($picks[$i]['take'] ?? 0) > 0.0000001) {
+                continue;
+            }
+            $b = trim((string) ($picks[$i]['batch'] ?? ''));
+            $k = oracle_order_batch_norm_key($b);
+            if ($k !== '' && isset($takeByNorm[$k])) {
+                $picks[$i]['take'] = $takeByNorm[$k];
+            }
+        }
+    }
+
+    return $picks;
+}
+
+/**
+ * هل السطر يحتاج تقسيم FIFO (لا تشغيلة أو الكمية أكبر من رصيد التشغيلة)؟
+ */
+function oracle_order_line_needs_fifo_split(array $conn, int $store, array $ml): bool
+{
+    $batch = trim((string) ($ml['batch'] ?? ''));
+    $item = trim((string) ($ml['item'] ?? ''));
+    $cat = trim((string) ($ml['cat'] ?? ''));
+    if ($cat === '' && $item !== '') {
+        $cat = oracle_order_item_cat_resolve($conn, $item, $cat);
+    }
+    $qty = (float) ($ml['qty'] ?? 0);
+    $bonus = (float) ($ml['bonus'] ?? 0);
+    $trUnit = (float) ($ml['tr_unit'] ?? 1);
+    if ($trUnit <= 0) {
+        $trUnit = 1.0;
+    }
+    $need = $qty + $bonus;
+    $sc = oracle_order_stock_cfg();
+    if (!empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001) {
+        $need *= $trUnit;
+    }
+    if ($item === '' || $need <= 0.0000001) {
+        return false;
+    }
+    if ($batch === '' || $batch === '0') {
+        return true;
+    }
+    $batches = oracle_order_picker_stock_batches($conn, $store, $item, $cat, true);
+    $rows = is_array($batches['rows'] ?? null) ? $batches['rows'] : [];
+    $batchNorm = oracle_order_batch_norm_key($batch);
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        if (oracle_order_batch_norm_key((string) ($r['batch'] ?? '')) === $batchNorm) {
+            return (float) ($r['qty'] ?? 0) + 0.0000001 < $need;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * تقسيم أسطر DAILY على التشغيلات (FIFO) — مثل معاينة Hypex قبل الترحيل.
+ *
+ * @param list<array<string,mixed>> $mappedLines
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_auto_fifo_split_mapped_lines(array $conn, int $store, array $mappedLines): array
+{
+    $out = [];
+    foreach ($mappedLines as $ml) {
+        if (!is_array($ml) || !oracle_order_line_needs_fifo_split($conn, $store, $ml)) {
+            $out[] = $ml;
+            continue;
+        }
+        $item = trim((string) ($ml['item'] ?? ''));
+        $cat = trim((string) ($ml['cat'] ?? ''));
+        if ($cat === '' && $item !== '') {
+            $cat = oracle_order_item_cat_resolve($conn, $item, $cat);
+        }
+        $qty = (float) ($ml['qty'] ?? 0);
+        $bonus = (float) ($ml['bonus'] ?? 0);
+        $trUnit = (float) ($ml['tr_unit'] ?? 1);
+        if ($trUnit <= 0) {
+            $trUnit = 1.0;
+        }
+        $need = $qty + $bonus;
+        $sc = oracle_order_stock_cfg();
+        if (!empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001) {
+            $need *= $trUnit;
+        }
+        $stock = oracle_order_picker_stock_batches($conn, $store, $item, $cat, true);
+        $batchOpts = is_array($stock['rows'] ?? null) ? $stock['rows'] : [];
+        $fifo = oracle_order_fifo_allocate($need, $batchOpts);
+        $allocations = is_array($fifo['allocations'] ?? null) ? $fifo['allocations'] : [];
+        if ($allocations === []) {
+            $out[] = $ml;
+            continue;
+        }
+        $parts = [];
+        foreach ($allocations as $fa) {
+            if (!is_array($fa)) {
+                continue;
+            }
+            $parts[] = [
+                'batch' => (string) ($fa['batch'] ?? ''),
+                'take' => (float) ($fa['take'] ?? 0),
+            ];
+        }
+        if ($parts === []) {
+            $out[] = $ml;
+            continue;
+        }
+        foreach (oracle_order_split_line_by_batch_parts($ml, $parts) as $split) {
+            $out[] = $split;
+        }
+    }
+
+    return $out !== [] ? $out : $mappedLines;
+}
+
+/**
  * @param list<array<string,mixed>> $mappedLines
  * @param list<array<string,mixed>> $picks
  * @return list<array<string,mixed>>
@@ -3754,7 +3987,14 @@ function oracle_order_split_line_by_batch_parts(array $line, array $parts): arra
         }
         $ratio = $take / $totalTake;
 
-        if ($isLast) {
+        if ($partsCount === 1) {
+            $partQty = min($take, $origQty);
+            $partBonus = min($origBonus, $take);
+            if ($origBonus <= 0.0000001) {
+                $partBonus = 0.0;
+            }
+            $partTax = $origTax;
+        } elseif ($isLast) {
             $partQty = max(0.0, $origQty - $qtyAssigned);
             $partBonus = max(0.0, $origBonus - $bonusAssigned);
             $partTax = max(0.0, $origTax - $taxAssigned);
