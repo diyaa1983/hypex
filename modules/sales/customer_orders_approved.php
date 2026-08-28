@@ -460,7 +460,7 @@ sales_ora12_enqueue_assets();
             if (batchSub) {
               batchSub.textContent = 'مستودع Oracle: ' + (data.store || '—')
                 + (data.warehouse_name ? (' — ' + data.warehouse_name) : '')
-                + ' · التشغيلات من MAS.BALANCE (نفس Oracle) · توزيع تلقائي على أكثر من تشغيلة عند الحاجة';
+                + ' · التشغيلات من STOCK (نفس Oracle) · توزيع تلقائي على أكثر من تشغيلة عند الحاجة';
             }
             var rowNo = 0;
             (data.lines || []).forEach(function (ln) {
