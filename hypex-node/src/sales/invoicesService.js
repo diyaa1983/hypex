@@ -768,32 +768,27 @@ async function searchItems(q, limit = 30, opts = {}) {
 }
 
 async function listItemCategoriesOracle() {
+  // احتياط إذا تعذرت المزامنة من MAS.CODE — نفس الأسماء الظاهرة في Toad
   const fallbackNames = {
-    1: 'فئة أولى',
-    2: 'فئة ثانية',
-    3: 'فئة ثالثة',
-    4: 'فئة رابعة',
-    5: 'فئة خامسة',
-    6: 'فئة سادسة',
-    7: 'فئة سابعة',
-    8: 'فئة ثامنة',
-    11: 'فئة حادي عشر',
-    12: 'فئة ثاني عشر',
-    13: 'فئة ثالث عشر',
+    1: 'مواد خام+تعبئه',
+    2: 'مبيض',
+    3: 'سائل جلي',
+    4: 'بخاخ',
+    5: 'تكلس',
+    6: 'معطرات',
+    7: 'عسكرية',
+    8: 'عروض',
+    9: 'مواد تالفه',
+    11: 'مياه تصنيع',
+    12: 'مواد تعبئه',
+    13: 'جوي',
   };
-  function isOracleArName(name) {
-    const n = String(name || '').trim();
-    if (!n) return false;
-    if (/^فئة(\s|$)/.test(n)) return true;
-    return /[\u0600-\u06FF]/.test(n) && !/[A-Za-z]/.test(n);
-  }
   function resolveName(cat, name) {
     const c = String(cat || '').trim();
     const n = String(name || '').trim();
-    if (isOracleArName(n)) return n;
+    if (n && /[\u0600-\u06FF]/.test(n)) return n;
     if (fallbackNames[c]) return fallbackNames[c];
-    if (/^\d{1,3}$/.test(c)) return 'فئة ' + c;
-    return n || c;
+    return n || ('فئة ' + c);
   }
   try {
     const rows = await db.query(

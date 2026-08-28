@@ -100,13 +100,8 @@ return [
         ],
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
-        // أسماء فئات Oracle (CAT) إن لم يوجد جدول أسماء — تُعرض في ترحيل الكميات
-        // اتركها فارغة لاستخدام: فئة أولى / ثانية / ... حسب رقم CAT من MASCARD
-        'category_labels' => [
-            // '1' => 'فئة أولى',
-            // '2' => 'فئة ثانية',
-            // '6' => 'فئة سادسة',
-        ],
+        // اختياري: تجاوز أسماء من MAS.CODE
+        'category_labels' => [],
         // قائمة التشغيلات في Forms: MAS.BALANCE.QTY_OH — STOCK للتحقق المحاسبي فقط
         'stock' => [
             'enabled' => true,
@@ -119,16 +114,16 @@ return [
     ],
 
     /**
-     * مجموعات / فئات المواد → inv_item_category
-     * عدّل owner/table/columns بعد التحقق من Toad
+     * فئات المواد في Oracle → inv_item_category
+     * المصدر المؤكد: MAS.CODE (CODE / CODE_NAME)
      */
     'item_groups' => [
         'owner' => 'MAS',
-        'table' => 'ITEM_GROUP', // مثال — غيّر للاسم الحقيقي
+        'table' => 'CODE',
         'columns' => [
-            'oracle_key' => 'GROUP_CODE',
-            'code' => 'GROUP_CODE',
-            'name_ar' => 'GROUP_NAME',
+            'oracle_key' => 'CODE',
+            'code' => 'CODE',
+            'name_ar' => 'CODE_NAME',
         ],
     ],
 
