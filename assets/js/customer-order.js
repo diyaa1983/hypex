@@ -2594,15 +2594,29 @@
     sel.dataset.srl = String(ln.srl || '');
     sel.dataset.item = String(ln.item || '');
 
-    var options = Array.isArray(ln.cat_options) && ln.cat_options.length ? ln.cat_options : [];
-    if (!options.length && Array.isArray(categories)) {
-      categories.forEach(function (c) {
-        options.push(c);
+    var byCat = {};
+    function addOpt(opt) {
+      if (!opt) return;
+      var code = String(opt.cat || '').trim();
+      if (!code) return;
+      if (!byCat[code]) {
+        byCat[code] = { cat: code, name: String(opt.name || '') };
+        return;
+      }
+      if (!byCat[code].name && opt.name) byCat[code].name = String(opt.name);
+    }
+    // كل فئات Oracle أولاً، ثم خيارات السطر (مع الرصيد)
+    if (Array.isArray(categories)) categories.forEach(addOpt);
+    if (Array.isArray(ln.cat_options)) ln.cat_options.forEach(addOpt);
+    if (ln.cat) addOpt({ cat: ln.cat, name: 'فئة ' + ln.cat });
+
+    var options = Object.keys(byCat)
+      .map(function (k) {
+        return byCat[k];
+      })
+      .sort(function (a, b) {
+        return String(a.cat).localeCompare(String(b.cat), undefined, { numeric: true });
       });
-    }
-    if (!options.length && ln.cat) {
-      options.push({ cat: ln.cat, name: 'فئة ' + ln.cat });
-    }
 
     var opt0 = document.createElement('option');
     opt0.value = '';

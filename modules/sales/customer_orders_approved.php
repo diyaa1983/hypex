@@ -382,9 +382,24 @@ sales_ora12_enqueue_assets();
             sel.className = 'co-cat-select';
             sel.style.width = '100%';
             sel.dataset.srl = String(ln.srl || '');
-            var options = Array.isArray(ln.cat_options) && ln.cat_options.length ? ln.cat_options : [];
-            if (!options.length && Array.isArray(categories)) categories.forEach(function (c) { options.push(c); });
-            if (!options.length && ln.cat) options.push({ cat: ln.cat, name: 'فئة ' + ln.cat });
+            var byCat = {};
+            function addOpt(opt) {
+              if (!opt) return;
+              var code = String(opt.cat || '').trim();
+              if (!code) return;
+              if (!byCat[code]) {
+                byCat[code] = { cat: code, name: String(opt.name || '') };
+                return;
+              }
+              if (!byCat[code].name && opt.name) byCat[code].name = String(opt.name);
+            }
+            if (Array.isArray(categories)) categories.forEach(addOpt);
+            if (Array.isArray(ln.cat_options)) ln.cat_options.forEach(addOpt);
+            if (ln.cat) addOpt({ cat: ln.cat, name: 'فئة ' + ln.cat });
+            var options = Object.keys(byCat).map(function (k) { return byCat[k]; })
+              .sort(function (a, b) {
+                return String(a.cat).localeCompare(String(b.cat), undefined, { numeric: true });
+              });
             var opt0 = document.createElement('option');
             opt0.value = '';
             opt0.textContent = '— اختر الفئة —';

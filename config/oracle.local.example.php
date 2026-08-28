@@ -100,6 +100,13 @@ return [
         ],
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
+        // أسماء فئات Oracle (CAT) إن لم يوجد جدول أسماء — تُعرض في ترحيل الكميات
+        // اتركها فارغة لاستخدام: فئة أولى / ثانية / ... حسب رقم CAT من MASCARD
+        'category_labels' => [
+            // '1' => 'فئة أولى',
+            // '2' => 'فئة ثانية',
+            // '6' => 'فئة سادسة',
+        ],
         // قائمة التشغيلات في Forms: MAS.BALANCE.QTY_OH — STOCK للتحقق المحاسبي فقط
         'stock' => [
             'enabled' => true,

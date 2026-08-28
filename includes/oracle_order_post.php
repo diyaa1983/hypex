@@ -258,9 +258,10 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $discFrac = oracle_order_line_disc_fraction($ln, $hasHeaderDiscount);
         $merchAfterLineDisc += max(0.0, ($qty * $sell) * (1.0 - $discFrac));
         // التشغيلة تُختار لاحقاً من رصيد المستودع (الأقدم أولاً) — لا نعتمد تشغيلة البطاقة.
-        $lineCat = trim((string) ($item['cat'] ?? ''));
+        // الفئة: بطاقة Oracle (MASCARD) تلقائياً، ثم فئة Hypex إن لزم.
+        $lineCat = trim((string) ($card['cat'] ?? ''));
         if ($lineCat === '') {
-            $lineCat = trim((string) ($card['cat'] ?? ''));
+            $lineCat = trim((string) ($item['cat'] ?? ''));
         }
         $mappedLines[] = [
             'item' => $card['item'],
@@ -4340,14 +4341,121 @@ function oracle_order_fifo_allocate(float $need, array $batches): array
 }
 
 /**
- * أسماء فئات Oracle (من MySQL المزامَن أو جدول item_groups).
+ * اسم عربي افتراضي لرقم فئة Oracle (مثل Forms: فئة ثانية).
+ */
+function oracle_order_cat_arabic_label(string $code): string
+{
+    $code = trim($code);
+    if ($code === '') {
+        return 'فئة';
+    }
+    $n = preg_replace('/\D+/', '', $code) ?? '';
+    if ($n === '' || !ctype_digit($n)) {
+        return 'فئة ' . $code;
+    }
+    $i = (int) $n;
+    static $ordinals = [
+        1 => 'أولى',
+        2 => 'ثانية',
+        3 => 'ثالثة',
+        4 => 'رابعة',
+        5 => 'خامسة',
+        6 => 'سادسة',
+        7 => 'سابعة',
+        8 => 'ثامنة',
+        9 => 'تاسعة',
+        10 => 'عاشرة',
+        11 => 'حادي عشر',
+        12 => 'ثاني عشر',
+        13 => 'ثالث عشر',
+        14 => 'رابع عشر',
+        15 => 'خامس عشر',
+    ];
+    if (isset($ordinals[$i])) {
+        return 'فئة ' . $ordinals[$i];
+    }
+
+    return 'فئة ' . $code;
+}
+
+/**
+ * كل أرقام CAT الموجودة في بطاقة المواد Oracle (MASCARD).
  *
- * @return array<string,string>  مفتاح oracle_key/code → name_ar
+ * @return list<string>
+ */
+function oracle_order_mascard_all_cats(array $conn): array
+{
+    $cfg = oracle_config();
+    $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $owner = strtoupper(trim((string) ($si['item_card_owner'] ?? 'MAS'))) ?: 'MAS';
+    $table = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
+    $from = oracle_order_quoted($owner, $table);
+    /** @var list<string> $cats */
+    $cats = [];
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $from
+            . ' WHERE CAT IS NOT NULL AND ROWNUM <= 200'
+        );
+    } catch (Throwable $e) {
+        return [];
+    }
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $c = trim(oracle_statement_row_val($r, 'CAT'));
+        if ($c === '') {
+            continue;
+        }
+        $dup = false;
+        foreach ($cats as $existing) {
+            if (oracle_order_cat_keys_match($existing, $c)) {
+                $dup = true;
+                break;
+            }
+        }
+        if (!$dup) {
+            $cats[] = $c;
+        }
+    }
+    usort($cats, static fn (string $a, string $b): int => strnatcasecmp($a, $b));
+
+    return $cats;
+}
+
+/**
+ * أسماء فئات Oracle:
+ * 1) sales_invoice.category_labels في الإعدادات
+ * 2) inv_item_category (Hypex)
+ * 3) جدول item_groups في Oracle إن وُجد
+ * 4) كل CAT من MASCARD بأسماء عربية افتراضية
+ *
+ * @return array<string,string>  مفتاح CAT → name_ar
  */
 function oracle_order_categories_name_map(PDO $mysql, array $conn): array
 {
     /** @var array<string,string> $map */
     $map = [];
+    $put = static function (string $k, string $name) use (&$map): void {
+        $k = trim($k);
+        $name = trim($name);
+        if ($k === '' || $name === '') {
+            return;
+        }
+        if (!isset($map[$k]) || $map[$k] === '' || str_starts_with($map[$k], 'فئة ')) {
+            $map[$k] = $name;
+        }
+    };
+
+    $cfg = oracle_config();
+    $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $labels = is_array($si['category_labels'] ?? null) ? $si['category_labels'] : [];
+    foreach ($labels as $k => $name) {
+        $put((string) $k, (string) $name);
+    }
+
     try {
         $rows = $mysql->query(
             'SELECT oracle_key, code, name_ar FROM inv_item_category WHERE is_active = 1'
@@ -4357,52 +4465,99 @@ function oracle_order_categories_name_map(PDO $mysql, array $conn): array
             if ($name === '') {
                 continue;
             }
-            foreach (['oracle_key', 'code'] as $col) {
-                $k = trim((string) ($row[$col] ?? ''));
-                if ($k !== '') {
-                    $map[(string) $k] = $name;
-                }
+            $okey = trim((string) ($row['oracle_key'] ?? ''));
+            $code = trim((string) ($row['code'] ?? ''));
+            // oracle_key = رقم CAT في Forms؛ code الرقمي فقط إن طابق نمط الفئة
+            if ($okey !== '') {
+                $put($okey, $name);
+            } elseif ($code !== '' && preg_match('/^\d{1,3}$/', $code)) {
+                $put($code, $name);
             }
         }
     } catch (Throwable $e) {
         // ignore
     }
-    if ($map !== []) {
-        return $map;
-    }
 
-    $cfg = oracle_config();
     $s = is_array($cfg['item_groups'] ?? null) ? $cfg['item_groups'] : [];
     $owner = strtoupper(trim((string) ($s['owner'] ?? '')));
     $table = strtoupper(trim((string) ($s['table'] ?? '')));
     $cols = is_array($s['columns'] ?? null) ? $s['columns'] : [];
     $keyCol = strtoupper(trim((string) ($cols['oracle_key'] ?? $cols['code'] ?? '')));
     $nameCol = strtoupper(trim((string) ($cols['name_ar'] ?? '')));
-    if ($owner === '' || $table === '' || $keyCol === '' || $nameCol === '') {
-        return $map;
-    }
-    $quoted = [];
-    foreach ([$keyCol, $nameCol] as $c) {
-        $quoted[] = '"' . str_replace('"', '""', $c) . '"';
-    }
-    $from = oracle_order_quoted($owner, $table);
-    try {
-        $rows = oracle_query_all($conn, 'SELECT ' . implode(', ', $quoted) . ' FROM ' . $from . ' WHERE ROWNUM <= 500');
-    } catch (Throwable $e) {
-        return $map;
-    }
-    foreach ($rows as $row) {
-        if (!is_array($row)) {
-            continue;
+    if ($owner !== '' && $table !== '' && $keyCol !== '' && $nameCol !== '') {
+        $quoted = [];
+        foreach ([$keyCol, $nameCol] as $c) {
+            $quoted[] = '"' . str_replace('"', '""', $c) . '"';
         }
-        $k = trim(oracle_statement_row_val($row, $keyCol));
-        $name = trim(oracle_statement_row_val($row, $nameCol));
-        if ($k !== '' && $name !== '') {
-            $map[(string) $k] = $name;
+        $from = oracle_order_quoted($owner, $table);
+        try {
+            $rows = oracle_query_all($conn, 'SELECT ' . implode(', ', $quoted) . ' FROM ' . $from . ' WHERE ROWNUM <= 500');
+            foreach ($rows as $row) {
+                if (!is_array($row)) {
+                    continue;
+                }
+                $k = trim(oracle_statement_row_val($row, $keyCol));
+                $name = trim(oracle_statement_row_val($row, $nameCol));
+                $put($k, $name);
+            }
+        } catch (Throwable $e) {
+            // ignore — غالباً الجدول غير موجود
+        }
+    }
+
+    foreach (oracle_order_mascard_all_cats($conn) as $c) {
+        if (!isset($map[$c]) || $map[$c] === '') {
+            $put($c, oracle_order_cat_arabic_label($c));
         }
     }
 
     return $map;
+}
+
+/**
+ * دليل فئات Oracle كامل للعرض في قائمة الاختيار.
+ *
+ * @param array<string,string> $nameMap
+ * @param list<string> $extraCodes
+ * @return list<array{cat:string,name:string}>
+ */
+function oracle_order_categories_catalog(array $nameMap, array $extraCodes = []): array
+{
+    /** @var array<string,string> $merged */
+    $merged = [];
+    foreach ($nameMap as $code => $name) {
+        $code = trim((string) $code);
+        if ($code === '') {
+            continue;
+        }
+        $merged[$code] = trim((string) $name) !== '' ? trim((string) $name) : oracle_order_cat_arabic_label($code);
+    }
+    foreach ($extraCodes as $code) {
+        $code = trim((string) $code);
+        if ($code === '' || isset($merged[$code])) {
+            continue;
+        }
+        $hit = '';
+        foreach ($nameMap as $k => $v) {
+            if (oracle_order_cat_keys_match((string) $k, $code)) {
+                $hit = trim((string) $v);
+                break;
+            }
+        }
+        $merged[$code] = $hit !== '' ? $hit : oracle_order_cat_arabic_label($code);
+    }
+    $out = [];
+    foreach ($merged as $code => $name) {
+        $out[] = ['cat' => (string) $code, 'name' => $name];
+    }
+    usort(
+        $out,
+        static function (array $a, array $b): int {
+            return strnatcasecmp((string) ($a['cat'] ?? ''), (string) ($b['cat'] ?? ''));
+        }
+    );
+
+    return $out;
 }
 
 /**
@@ -4696,17 +4851,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
     }
 
     $catNameMap = oracle_order_categories_name_map($mysql, $conn);
-    /** @var list<array{cat:string,name:string}> $categoriesCatalog */
-    $categoriesCatalog = [];
-    foreach ($catNameMap as $code => $name) {
-        $categoriesCatalog[] = ['cat' => (string) $code, 'name' => $name];
-    }
-    usort(
-        $categoriesCatalog,
-        static function (array $a, array $b): int {
-            return strnatcasecmp((string) ($a['cat'] ?? ''), (string) ($b['cat'] ?? ''));
-        }
-    );
+    $categoriesCatalog = oracle_order_categories_catalog($catNameMap);
 
     $pickerLines = [];
     $undefinedNames = [];
@@ -4719,21 +4864,27 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         $keys = oracle_order_item_keys($mysql, $ln);
         $card = [];
         if ($keys['item'] !== '' || $keys['barcode'] !== '') {
-            $card = oracle_order_mascard_find($conn, $keys['item'], $keys['barcode'], (string) ($keys['cat'] ?? ''));
+            // ابحث بالبطاقة أولاً دون فرض فئة Hypex — مصدر الربط التلقائي هو MASCARD.CAT
+            $card = oracle_order_mascard_find($conn, $keys['item'], $keys['barcode'], '');
         }
         if ($card === []) {
             $undefinedNames[] = oracle_order_line_display_name($ln);
             continue;
         }
         $srl++;
-        $hypexCat = trim((string) ($keys['cat'] ?? ''));
-        $defaultCat = $hypexCat !== '' ? $hypexCat : trim((string) ($card['cat'] ?? ''));
-        if ($defaultCat === '') {
-            $defaultCat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
+        $oracleCat = trim((string) ($card['cat'] ?? ''));
+        if ($oracleCat === '') {
+            $oracleCat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
         }
+        $hypexCat = trim((string) ($keys['cat'] ?? ''));
+        // الربط التلقائي: فئة بطاقة Oracle أولاً، ثم Hypex إن وُجدت
+        $defaultCat = $oracleCat !== '' ? $oracleCat : $hypexCat;
         $stockCatCodes = oracle_order_item_stock_cats($conn, $store, (string) $card['item']);
-        $catOptions = oracle_order_cat_options_labeled($catNameMap, $stockCatCodes);
-        $catOptions = oracle_order_cat_options_prefer($catOptions, $defaultCat, $catNameMap);
+        // اعرض كل فئات Oracle بأسمائها + فئات الرصيد للمادة
+        $catOptions = oracle_order_categories_catalog($catNameMap, $stockCatCodes);
+        if ($defaultCat !== '') {
+            $catOptions = oracle_order_cat_options_prefer($catOptions, $defaultCat, $catNameMap);
+        }
         $cat = oracle_order_picker_resolve_cat($catPicksBySrl, $srl, $defaultCat, $catOptions);
         $bonus = (float) ($ln['qty_extra'] ?? 0);
         $trUnit = (float) ($ln['unit_factor'] ?? 1);
