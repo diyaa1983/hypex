@@ -504,6 +504,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $mappedLines = $stockCheck2['lines'];
     }
 
+    $mappedLines = oracle_order_renumber_daily_srl($mappedLines);
+
     try {
         oracle_try_begin($conn);
         oracle_order_insert_row(
@@ -976,6 +978,7 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'VOU_TAX' => true,
         'PER_TAX' => true,
         'TR_UNIT' => true,
+        'SRL' => true,
         'JD_COST' => true,
         'CUST_ACC' => true,
         'STORE' => true,
@@ -3461,11 +3464,8 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             continue;
         }
 
-        // توزيع الكمية على التشغيلات من الأقدم → الأحدث (مثل النظام القديم)
-        // وإن لزم تُقسَّم المادة على أكثر من سطر/تشغيلة.
+        // توزيع الكمية على التشغيلات من الأقدم → الأحدث (مثل Oracle Forms)
         $needLeft = $need;
-        $origQty = (float) ($ml['qty'] ?? 0);
-        $origBonus = (float) ($ml['bonus'] ?? 0);
         $allocated = [];
         foreach ($rows as $r) {
             if ($needLeft <= 0.0000001) {
@@ -3502,38 +3502,8 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             continue;
         }
 
-        $parts = count($allocated);
-        $qtyAssigned = 0.0;
-        $bonusAssigned = 0.0;
-        foreach ($allocated as $idx => $part) {
-            $isLast = ($idx === $parts - 1);
-            $ratio = $need > 0.0000001 ? ((float) $part['take'] / $need) : 0.0;
-            if ($isLast) {
-                $partQty = max(0.0, $origQty - $qtyAssigned);
-                $partBonus = max(0.0, $origBonus - $bonusAssigned);
-            } else {
-                $partQty = round($origQty * $ratio, 6);
-                $partBonus = round($origBonus * $ratio, 6);
-                $qtyAssigned += $partQty;
-                $bonusAssigned += $partBonus;
-            }
-            if ($partQty <= 0.0000001 && $partBonus <= 0.0000001) {
-                continue;
-            }
-            $copy = $ml;
-            $copy['batch'] = (string) $part['batch'];
-            $copy['qty'] = $partQty;
-            $copy['bonus'] = $partBonus;
-            // توزيع ضريبة السطر إن وُجدت
-            if (isset($ml['vou_tax'])) {
-                $copy['vou_tax'] = $isLast
-                    ? max(0.0, (float) $ml['vou_tax'] - array_sum(array_map(
-                        static fn($x) => (float) ($x['vou_tax'] ?? 0),
-                        array_slice($outLines, -$idx)
-                    )))
-                    : round(((float) $ml['vou_tax']) * $ratio, 6);
-            }
-            $outLines[] = $copy;
+        foreach (oracle_order_split_line_by_batch_parts($ml, $allocated) as $split) {
+            $outLines[] = $split;
         }
     }
 
@@ -3601,10 +3571,110 @@ function oracle_order_apply_batch_picks(array $mappedLines, array $picks): array
 }
 
 /**
- * تطبيق توزيع يدوي (تشغيلة + كمية) — يقسّم السطر على أكثر من تشغيلة.
+ * ترقيم SRL لكل سطر DAILY (1، 2، 3…) — مطلوب لظهور أكثر من سطر لنفس المادة في INV00024.
  *
+ * @param list<array<string,mixed>> $lines
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_renumber_daily_srl(array $lines): array
+{
+    $out = [];
+    $n = 0;
+    foreach ($lines as $line) {
+        if (!is_array($line)) {
+            continue;
+        }
+        $n++;
+        $line['srl'] = $n;
+        $out[] = $line;
+    }
+
+    return $out;
+}
+
+/**
+ * تقسيم كمية سطر على تشغيلات (take = وحدة المخزون/المطلوب من كل تشغيلة).
+ *
+ * @param array<string,mixed> $line
+ * @param list<array{batch:string,take:float}> $parts
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_split_line_by_batch_parts(array $line, array $parts): array
+{
+    if ($parts === []) {
+        return [$line];
+    }
+    $sc = oracle_order_stock_cfg();
+    $origQty = (float) ($line['qty'] ?? 0);
+    $origBonus = (float) ($line['bonus'] ?? 0);
+    $trUnit = (float) ($line['tr_unit'] ?? 1);
+    if ($trUnit <= 0) {
+        $trUnit = 1.0;
+    }
+    $multTr = !empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001;
+    $origTax = isset($line['vou_tax']) ? (float) $line['vou_tax'] : 0.0;
+
+    $totalTake = 0.0;
+    foreach ($parts as $p) {
+        $totalTake += (float) ($p['take'] ?? 0);
+    }
+    if ($totalTake <= 0.0000001) {
+        return [$line];
+    }
+
+    $out = [];
+    $partsCount = count($parts);
+    $qtyAssigned = 0.0;
+    $bonusAssigned = 0.0;
+    $taxAssigned = 0.0;
+
+    foreach ($parts as $idx => $part) {
+        $isLast = ($idx === $partsCount - 1);
+        $take = (float) ($part['take'] ?? 0);
+        if ($take <= 0.0000001) {
+            continue;
+        }
+        $ratio = $take / $totalTake;
+
+        if ($isLast) {
+            $partQty = max(0.0, $origQty - $qtyAssigned);
+            $partBonus = max(0.0, $origBonus - $bonusAssigned);
+            $partTax = max(0.0, $origTax - $taxAssigned);
+        } elseif (!$multTr && $origBonus <= 0.0000001) {
+            // مثل Oracle Forms: 200 → 150 من التشغيلة الأولى + 50 من الثانية
+            $partQty = $take;
+            $partBonus = 0.0;
+            $partTax = round($origTax * $ratio, 6);
+            $qtyAssigned += $partQty;
+            $taxAssigned += $partTax;
+        } else {
+            $partQty = round($origQty * $ratio, 6);
+            $partBonus = round($origBonus * $ratio, 6);
+            $partTax = round($origTax * $ratio, 6);
+            $qtyAssigned += $partQty;
+            $bonusAssigned += $partBonus;
+            $taxAssigned += $partTax;
+        }
+
+        if ($partQty <= 0.0000001 && $partBonus <= 0.0000001) {
+            continue;
+        }
+        $copy = $line;
+        $copy['batch'] = (string) $part['batch'];
+        $copy['qty'] = $partQty;
+        $copy['bonus'] = $partBonus;
+        if (isset($line['vou_tax'])) {
+            $copy['vou_tax'] = $partTax;
+        }
+        $out[] = $copy;
+    }
+
+    return $out !== [] ? $out : [$line];
+}
+
+/**
  * @param list<array<string,mixed>> $mappedLines
- * @param list<array<string,mixed>> $allocations  عناصر: srl, batch, take (كمية مخزون)
+ * @param list<array<string,mixed>> $allocations
  * @return list<array<string,mixed>>
  */
 function oracle_order_apply_batch_allocations(array $mappedLines, array $allocations): array
@@ -3638,50 +3708,8 @@ function oracle_order_apply_batch_allocations(array $mappedLines, array $allocat
             $out[] = $ml;
             continue;
         }
-
-        $origQty = (float) ($ml['qty'] ?? 0);
-        $origBonus = (float) ($ml['bonus'] ?? 0);
-        $totalTake = 0.0;
-        foreach ($parts as $p) {
-            $totalTake += (float) $p['take'];
-        }
-        if ($totalTake <= 0.0000001) {
-            $out[] = $ml;
-            continue;
-        }
-
-        $partsCount = count($parts);
-        $qtyAssigned = 0.0;
-        $bonusAssigned = 0.0;
-        $taxAssigned = 0.0;
-        $origTax = isset($ml['vou_tax']) ? (float) $ml['vou_tax'] : 0.0;
-
-        foreach ($parts as $idx => $part) {
-            $isLast = ($idx === $partsCount - 1);
-            $ratio = (float) $part['take'] / $totalTake;
-            if ($isLast) {
-                $partQty = max(0.0, $origQty - $qtyAssigned);
-                $partBonus = max(0.0, $origBonus - $bonusAssigned);
-                $partTax = max(0.0, $origTax - $taxAssigned);
-            } else {
-                $partQty = round($origQty * $ratio, 6);
-                $partBonus = round($origBonus * $ratio, 6);
-                $partTax = round($origTax * $ratio, 6);
-                $qtyAssigned += $partQty;
-                $bonusAssigned += $partBonus;
-                $taxAssigned += $partTax;
-            }
-            if ($partQty <= 0.0000001 && $partBonus <= 0.0000001) {
-                continue;
-            }
-            $copy = $ml;
-            $copy['batch'] = (string) $part['batch'];
-            $copy['qty'] = $partQty;
-            $copy['bonus'] = $partBonus;
-            if (isset($ml['vou_tax'])) {
-                $copy['vou_tax'] = $partTax;
-            }
-            $out[] = $copy;
+        foreach (oracle_order_split_line_by_batch_parts($ml, $parts) as $split) {
+            $out[] = $split;
         }
     }
 
