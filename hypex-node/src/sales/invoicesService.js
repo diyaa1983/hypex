@@ -781,6 +781,20 @@ async function listItemCategoriesOracle() {
     12: 'فئة ثاني عشر',
     13: 'فئة ثالث عشر',
   };
+  function isOracleArName(name) {
+    const n = String(name || '').trim();
+    if (!n) return false;
+    if (/^فئة(\s|$)/.test(n)) return true;
+    return /[\u0600-\u06FF]/.test(n) && !/[A-Za-z]/.test(n);
+  }
+  function resolveName(cat, name) {
+    const c = String(cat || '').trim();
+    const n = String(name || '').trim();
+    if (isOracleArName(n)) return n;
+    if (fallbackNames[c]) return fallbackNames[c];
+    if (/^\d{1,3}$/.test(c)) return 'فئة ' + c;
+    return n || c;
+  }
   try {
     const rows = await db.query(
       `SELECT id,
@@ -788,36 +802,20 @@ async function listItemCategoriesOracle() {
               name_ar AS name
        FROM inv_item_category
        WHERE is_active = 1
-         AND (
-           (oracle_key IS NOT NULL AND TRIM(oracle_key) <> '')
-           OR (code REGEXP '^[0-9]{1,3}$')
-         )
-       ORDER BY CAST(TRIM(IFNULL(NULLIF(oracle_key,''), code)) AS UNSIGNED), name_ar
+         AND oracle_key IS NOT NULL AND TRIM(oracle_key) <> ''
+       ORDER BY CAST(TRIM(oracle_key) AS UNSIGNED), name_ar
        LIMIT 200`
     );
     const mapped = (rows || [])
-      .map((r) => ({
-        cat: String(r.cat || '').trim(),
-        name: String(r.name || '').trim() || fallbackNames[String(r.cat || '').trim()] || ('فئة ' + String(r.cat || '').trim()),
-        id: Number(r.id || 0),
-      }))
-      .filter((r) => r.cat);
-    if (mapped.length) return mapped;
-  } catch {
-    /* fall through */
-  }
-  try {
-    const rows = await db.query(
-      `SELECT id, code AS cat, name_ar AS name
-       FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 200`
-    );
-    const mapped = (rows || [])
-      .map((r) => ({
-        cat: String(r.cat || '').trim(),
-        name: String(r.name || '').trim(),
-        id: Number(r.id || 0),
-      }))
-      .filter((r) => r.cat);
+      .map((r) => {
+        const cat = String(r.cat || '').trim();
+        return {
+          cat,
+          name: resolveName(cat, r.name),
+          id: Number(r.id || 0),
+        };
+      })
+      .filter((r) => r.cat && /^\d{1,3}$/.test(r.cat));
     if (mapped.length) return mapped;
   } catch {
     /* fall through */

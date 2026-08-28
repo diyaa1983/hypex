@@ -4426,11 +4426,28 @@ function oracle_order_mascard_all_cats(array $conn): array
 }
 
 /**
- * أسماء فئات Oracle:
- * 1) sales_invoice.category_labels في الإعدادات
- * 2) inv_item_category (Hypex)
- * 3) جدول item_groups في Oracle إن وُجد
- * 4) كل CAT من MASCARD بأسماء عربية افتراضية
+ * هل الاسم يبدو كاسم فئة Oracle عربي (وليس مجموعة منتجات إنجليزية)؟
+ */
+function oracle_order_cat_name_is_oracle_ar(string $name): bool
+{
+    $name = trim($name);
+    if ($name === '') {
+        return false;
+    }
+    if (preg_match('/^فئة(\s|$)/u', $name)) {
+        return true;
+    }
+    // عربي بدون حروف لاتينية = مقبول من إعدادات/جداول Oracle
+    if (preg_match('/\p{Arabic}/u', $name) && !preg_match('/[A-Za-z]/', $name)) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * أسماء فئات Oracle للعرض (مثل Forms: فئة أولى / ثانية / …).
+ * لا نستخدم أسماء مجموعات المنتجات الإنجليزية من inv_item_category.
  *
  * @return array<string,string>  مفتاح CAT → name_ar
  */
@@ -4438,46 +4455,25 @@ function oracle_order_categories_name_map(PDO $mysql, array $conn): array
 {
     /** @var array<string,string> $map */
     $map = [];
-    $put = static function (string $k, string $name) use (&$map): void {
-        $k = trim($k);
-        $name = trim($name);
-        if ($k === '' || $name === '') {
-            return;
-        }
-        if (!isset($map[$k]) || $map[$k] === '' || str_starts_with($map[$k], 'فئة ')) {
-            $map[$k] = $name;
-        }
-    };
 
+    // 1) كل CAT من MASCARD بأسماء عربية افتراضية (مصدر Oracle)
+    foreach (oracle_order_mascard_all_cats($conn) as $c) {
+        $map[$c] = oracle_order_cat_arabic_label($c);
+    }
+
+    // 2) تسميات صريحة من الإعدادات (أعلى أولوية)
     $cfg = oracle_config();
     $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
     $labels = is_array($si['category_labels'] ?? null) ? $si['category_labels'] : [];
     foreach ($labels as $k => $name) {
-        $put((string) $k, (string) $name);
-    }
-
-    try {
-        $rows = $mysql->query(
-            'SELECT oracle_key, code, name_ar FROM inv_item_category WHERE is_active = 1'
-        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($rows as $row) {
-            $name = trim((string) ($row['name_ar'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-            $okey = trim((string) ($row['oracle_key'] ?? ''));
-            $code = trim((string) ($row['code'] ?? ''));
-            // oracle_key = رقم CAT في Forms؛ code الرقمي فقط إن طابق نمط الفئة
-            if ($okey !== '') {
-                $put($okey, $name);
-            } elseif ($code !== '' && preg_match('/^\d{1,3}$/', $code)) {
-                $put($code, $name);
-            }
+        $k = trim((string) $k);
+        $name = trim((string) $name);
+        if ($k !== '' && $name !== '') {
+            $map[$k] = $name;
         }
-    } catch (Throwable $e) {
-        // ignore
     }
 
+    // 3) جدول item_groups في Oracle إن وُجد وفيه أسماء عربية
     $s = is_array($cfg['item_groups'] ?? null) ? $cfg['item_groups'] : [];
     $owner = strtoupper(trim((string) ($s['owner'] ?? '')));
     $table = strtoupper(trim((string) ($s['table'] ?? '')));
@@ -4498,16 +4494,41 @@ function oracle_order_categories_name_map(PDO $mysql, array $conn): array
                 }
                 $k = trim(oracle_statement_row_val($row, $keyCol));
                 $name = trim(oracle_statement_row_val($row, $nameCol));
-                $put($k, $name);
+                if ($k !== '' && oracle_order_cat_name_is_oracle_ar($name)) {
+                    $map[$k] = $name;
+                }
             }
         } catch (Throwable $e) {
-            // ignore — غالباً الجدول غير موجود
+            // ignore
         }
     }
 
-    foreach (oracle_order_mascard_all_cats($conn) as $c) {
-        if (!isset($map[$c]) || $map[$c] === '') {
-            $put($c, oracle_order_cat_arabic_label($c));
+    // 4) MySQL: فقط إن كان الاسم عربي فئة Oracle (لا Drain Cleaner / Bleach)
+    try {
+        $rows = $mysql->query(
+            'SELECT oracle_key, code, name_ar FROM inv_item_category WHERE is_active = 1'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            $name = trim((string) ($row['name_ar'] ?? ''));
+            if (!oracle_order_cat_name_is_oracle_ar($name)) {
+                continue;
+            }
+            $okey = trim((string) ($row['oracle_key'] ?? ''));
+            $code = trim((string) ($row['code'] ?? ''));
+            if ($okey !== '') {
+                $map[$okey] = $name;
+            } elseif ($code !== '' && preg_match('/^\d{1,3}$/', $code)) {
+                $map[$code] = $name;
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+
+    // 5) أكمل أي مفتاح ناقص بتسمية عربية
+    foreach (array_keys($map) as $c) {
+        if (trim((string) ($map[$c] ?? '')) === '') {
+            $map[$c] = oracle_order_cat_arabic_label((string) $c);
         }
     }
 
@@ -4608,7 +4629,8 @@ function oracle_order_link_all_items_from_mascard(PDO $mysql, array $conn): int
 }
 
 /**
- * مزامنة فئات Oracle (CAT) إلى inv_item_category بأسمائها العربية.
+ * مزامنة فئات Oracle (CAT) إلى صفوف مستقلة في inv_item_category بأسماء عربية.
+ * لا تستبدل مجموعات المنتجات الإنجليزية (Bleach / Drain Cleaner…).
  *
  * @param array<string,string> $nameMap
  * @return int عدد الفئات التي ضُمنت
@@ -4622,35 +4644,45 @@ function oracle_order_sync_categories_to_hypex(PDO $mysql, array $nameMap): int
         if ($code === '' || $name === '') {
             continue;
         }
+        if (!oracle_order_cat_name_is_oracle_ar($name)) {
+            $name = oracle_order_cat_arabic_label($code);
+        }
         try {
+            // ابحث بالـ oracle_key فقط — لا تلمس صفوف code=6 الإنجليزية
             $st = $mysql->prepare(
-                'SELECT id, name_ar FROM inv_item_category WHERE oracle_key = ? OR code = ? LIMIT 1'
+                'SELECT id, name_ar FROM inv_item_category WHERE oracle_key = ? LIMIT 1'
             );
-            $st->execute([$code, $code]);
+            $st->execute([$code]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: null;
             if ($row) {
                 $id = (int) ($row['id'] ?? 0);
                 if ($id > 0) {
                     $mysql->prepare(
-                        'UPDATE inv_item_category SET oracle_key = ?, name_ar = ?, is_active = 1 WHERE id = ?'
-                    )->execute([$code, $name, $id]);
+                        'UPDATE inv_item_category SET name_ar = ?, is_active = 1 WHERE id = ?'
+                    )->execute([$name, $id]);
                     $n++;
                 }
                 continue;
             }
-            $mysql->prepare(
-                'INSERT INTO inv_item_category (code, name_ar, oracle_key, is_active) VALUES (?,?,?,1)'
-            )->execute([$code, $name, $code]);
-            $n++;
-        } catch (Throwable $e) {
+            // رمز مخصص حتى لا يتعارض مع مجموعات المنتجات (code الرقمي القديم)
+            $storeCode = 'OC' . $code;
             try {
                 $mysql->prepare(
-                    'INSERT INTO inv_item_category (code, name_ar, is_active) VALUES (?,?,1)'
-                )->execute([$code, $name]);
+                    'INSERT INTO inv_item_category (code, name_ar, oracle_key, is_active) VALUES (?,?,?,1)'
+                )->execute([$storeCode, $name, $code]);
                 $n++;
-            } catch (Throwable $e2) {
-                // ignore
+            } catch (Throwable $e) {
+                try {
+                    $mysql->prepare(
+                        'UPDATE inv_item_category SET name_ar = ?, oracle_key = ?, is_active = 1 WHERE code = ?'
+                    )->execute([$name, $code, $storeCode]);
+                    $n++;
+                } catch (Throwable $e2) {
+                    // ignore
+                }
             }
+        } catch (Throwable $e) {
+            // ignore
         }
     }
 
@@ -4669,22 +4701,27 @@ function oracle_order_link_item_to_oracle_cat(PDO $mysql, int $itemId, string $o
     }
     try {
         $st = $mysql->prepare(
-            'SELECT id FROM inv_item_category WHERE oracle_key = ? OR code = ? LIMIT 1'
+            'SELECT id FROM inv_item_category WHERE oracle_key = ? LIMIT 1'
         );
-        $st->execute([$oracleCat, $oracleCat]);
+        $st->execute([$oracleCat]);
         $catId = (int) ($st->fetchColumn() ?: 0);
         if ($catId < 1) {
             $name = oracle_order_cat_arabic_label($oracleCat);
+            $storeCode = 'OC' . $oracleCat;
             try {
                 $mysql->prepare(
                     'INSERT INTO inv_item_category (code, name_ar, oracle_key, is_active) VALUES (?,?,?,1)'
-                )->execute([$oracleCat, $name, $oracleCat]);
+                )->execute([$storeCode, $name, $oracleCat]);
             } catch (Throwable $e) {
-                $mysql->prepare(
-                    'INSERT INTO inv_item_category (code, name_ar, is_active) VALUES (?,?,1)'
-                )->execute([$oracleCat, $name]);
+                try {
+                    $mysql->prepare(
+                        'UPDATE inv_item_category SET name_ar = ?, oracle_key = ?, is_active = 1 WHERE code = ?'
+                    )->execute([$name, $oracleCat, $storeCode]);
+                } catch (Throwable $e2) {
+                    // ignore
+                }
             }
-            $st->execute([$oracleCat, $oracleCat]);
+            $st->execute([$oracleCat]);
             $catId = (int) ($st->fetchColumn() ?: 0);
         }
         if ($catId > 0) {
