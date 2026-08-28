@@ -22,6 +22,7 @@ if (!verify_csrf($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($data['_csrf'] ?? null))) {
 }
 
 $id = (int) ($data['id'] ?? 0);
-$result = oracle_order_batch_picker_data(db(), $id);
+$catPicks = is_array($data['cat_picks'] ?? null) ? $data['cat_picks'] : [];
+$result = oracle_order_batch_picker_data(db(), $id, ['cat_picks' => $catPicks]);
 http_response_code(!empty($result['ok']) ? 200 : 422);
 echo json_encode($result, JSON_UNESCAPED_UNICODE);

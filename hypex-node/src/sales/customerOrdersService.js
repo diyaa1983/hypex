@@ -923,12 +923,39 @@ function runOraclePhpCli(scriptName, scriptArgs = []) {
   });
 }
 
-function fetchOracleBatches(orderId) {
+function fetchOracleBatches(orderId, opts = null) {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
   const id = Number(orderId) || 0;
   if (id < 1) {
     return Promise.resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
   }
-  return runOraclePhpCli('oracle_order_batches.php', [String(id)]);
+
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const catPicks = Array.isArray(o.cat_picks) ? o.cat_picks : [];
+  let optsFile = '';
+  if (catPicks.length) {
+    optsFile = path.join(os.tmpdir(), 'hypex-oracle-cat-' + process.pid + '-' + Date.now() + '.json');
+    try {
+      fs.writeFileSync(optsFile, JSON.stringify({ cat_picks: catPicks }), 'utf8');
+    } catch (e) {
+      return Promise.resolve({ ok: false, message: e.message, error: e.message });
+    }
+  }
+
+  const args = [String(id)];
+  if (optsFile) args.push('--opts-file=' + optsFile);
+
+  return runOraclePhpCli('oracle_order_batches.php', args).finally(() => {
+    if (optsFile) {
+      try {
+        fs.unlinkSync(optsFile);
+      } catch {
+        // ignore
+      }
+    }
+  });
 }
 
 function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null) {

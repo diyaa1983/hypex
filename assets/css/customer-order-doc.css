@@ -708,13 +708,14 @@
   white-space: nowrap;
 }
 .co-batch-table thead th:nth-child(1) { width: 2.4rem; text-align: center; }
-.co-batch-table--alloc thead th:nth-child(3),
 .co-batch-table--alloc thead th:nth-child(4),
-.co-batch-table--alloc thead th:nth-child(6) {
+.co-batch-table--alloc thead th:nth-child(5),
+.co-batch-table--alloc thead th:nth-child(7) {
   width: 6.5rem;
   text-align: center;
 }
-.co-batch-table--alloc thead th:nth-child(5) { width: 22%; }
+.co-batch-table--alloc thead th:nth-child(3) { width: 14%; }
+.co-batch-table--alloc thead th:nth-child(6) { width: 22%; }
 
 .co-batch-table tbody td {
   padding: 0.7rem 0.75rem;
@@ -752,6 +753,12 @@
   unicode-bidi: embed;
   font-weight: 600;
   color: #0f172a;
+}
+.co-batch-table .co-batch-col-cat {
+  min-width: 9rem;
+}
+.co-batch-table select.co-cat-select {
+  min-width: 8.5rem;
 }
 .co-batch-table .co-batch-item-code {
   display: block;

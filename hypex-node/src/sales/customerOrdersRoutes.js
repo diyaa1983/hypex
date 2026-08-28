@@ -516,6 +516,7 @@ async function renderForm(req, res, orderId) {
                 <tr>
                   <th>#</th>
                   <th>المادة</th>
+                  <th>الفئة</th>
                   <th>المطلوب</th>
                   <th>الكمية من التشغيلة</th>
                   <th>التشغيلة</th>
@@ -694,7 +695,8 @@ router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) =>
     if (!canApprove(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية.' });
     }
-    const result = await svc.fetchOracleBatches(req.params.id);
+    const catPicks = Array.isArray(req.body?.cat_picks) ? req.body.cat_picks : [];
+    const result = await svc.fetchOracleBatches(req.params.id, { cat_picks: catPicks });
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
   } catch (e) {

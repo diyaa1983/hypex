@@ -292,6 +292,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         }
         if ($manualAllocations) {
             $mappedLines = oracle_order_apply_batch_allocations($mappedLines, $batchPicks);
+            $mappedLines = oracle_order_apply_cat_from_picks($mappedLines, $batchPicks);
         } else {
             $mappedLines = oracle_order_apply_batch_picks($mappedLines, $batchPicks);
             foreach ($mappedLines as $ml) {
@@ -1300,6 +1301,21 @@ function oracle_order_oracle_num_norm(string $s): string
 }
 
 /**
+ * مطابقة رقم فئة Oracle (CAT) مع تجاهل الأصفار البادئة.
+ */
+function oracle_order_cat_keys_match(string $a, string $b): bool
+{
+    $a = trim($a);
+    $b = trim($b);
+    if ($a === '' || $b === '') {
+        return $a === $b;
+    }
+
+    return oracle_order_oracle_num_norm($a) === oracle_order_oracle_num_norm($b)
+        || $a === $b;
+}
+
+/**
  * هل صف STOCK يطابق المادة والفئة المطلوبة؟
  */
 function oracle_order_oracle_keys_match(string $rowItem, string $rowCat, string $item, string $cat): bool
@@ -1990,24 +2006,29 @@ function oracle_order_picker_merge_stock_balance(array $stockRows, array $balanc
  *
  * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count?:int,positive_batches?:int,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,cat_used?:string,source?:string,message?:string}
  */
-function oracle_order_picker_stock_batches(array $conn, int $store, string $item, string $cat): array
+function oracle_order_picker_stock_batches(array $conn, int $store, string $item, string $cat, bool $strictCat = true): array
 {
     $item = trim($item);
     $cat = trim($cat);
-    if ($cat === '' && $item !== '') {
+    if ($cat === '' && $item !== '' && !$strictCat) {
         $cat = oracle_order_item_cat_resolve($conn, $item, '');
     }
     $sc = oracle_order_stock_cfg();
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
 
-    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true);
+    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, $strictCat);
     $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
 
     $stockRows = [];
     $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
     if ($stockPick !== null && is_array($stockPick['rows'] ?? null) && $stockPick['rows'] !== []) {
         $stockRows = $stockPick['rows'];
+    } elseif ($strictCat && $cat !== '') {
+        $pos = oracle_order_stock_toad_positive_rows($conn, $store, $item, $cat, $owner, $table);
+        if ($pos !== null && is_array($pos['rows'] ?? null) && $pos['rows'] !== []) {
+            $stockRows = $pos['rows'];
+        }
     } else {
         $wide = oracle_order_stock_batches($conn, oracle_order_comp_num([]), $store, $item, $cat);
         if (is_array($wide['rows'] ?? null) && $wide['rows'] !== []) {
@@ -3591,11 +3612,261 @@ function oracle_order_fifo_allocate(float $need, array $batches): array
 }
 
 /**
+ * أسماء فئات Oracle (من MySQL المزامَن أو جدول item_groups).
+ *
+ * @return array<string,string>  مفتاح oracle_key/code → name_ar
+ */
+function oracle_order_categories_name_map(PDO $mysql, array $conn): array
+{
+    /** @var array<string,string> $map */
+    $map = [];
+    try {
+        $rows = $mysql->query(
+            'SELECT oracle_key, code, name_ar FROM inv_item_category WHERE is_active = 1'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $row) {
+            $name = trim((string) ($row['name_ar'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            foreach (['oracle_key', 'code'] as $col) {
+                $k = trim((string) ($row[$col] ?? ''));
+                if ($k !== '') {
+                    $map[$k] = $name;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+    if ($map !== []) {
+        return $map;
+    }
+
+    $cfg = oracle_config();
+    $s = is_array($cfg['item_groups'] ?? null) ? $cfg['item_groups'] : [];
+    $owner = strtoupper(trim((string) ($s['owner'] ?? '')));
+    $table = strtoupper(trim((string) ($s['table'] ?? '')));
+    $cols = is_array($s['columns'] ?? null) ? $s['columns'] : [];
+    $keyCol = strtoupper(trim((string) ($cols['oracle_key'] ?? $cols['code'] ?? '')));
+    $nameCol = strtoupper(trim((string) ($cols['name_ar'] ?? '')));
+    if ($owner === '' || $table === '' || $keyCol === '' || $nameCol === '') {
+        return $map;
+    }
+    $quoted = [];
+    foreach ([$keyCol, $nameCol] as $c) {
+        $quoted[] = '"' . str_replace('"', '""', $c) . '"';
+    }
+    $from = oracle_order_quoted($owner, $table);
+    try {
+        $rows = oracle_query_all($conn, 'SELECT ' . implode(', ', $quoted) . ' FROM ' . $from . ' WHERE ROWNUM <= 500');
+    } catch (Throwable $e) {
+        return $map;
+    }
+    foreach ($rows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $k = trim(oracle_statement_row_val($row, $keyCol));
+        $name = trim(oracle_statement_row_val($row, $nameCol));
+        if ($k !== '' && $name !== '') {
+            $map[$k] = $name;
+        }
+    }
+
+    return $map;
+}
+
+/**
+ * فئات Oracle التي لها رصيد للمادة في المستودع (STOCK ثم BALANCE).
+ *
+ * @return list<string>
+ */
+function oracle_order_item_stock_cats(array $conn, int $store, string $item): array
+{
+    $item = trim($item);
+    if ($item === '' || $store < 1) {
+        return [];
+    }
+    $sc = oracle_order_stock_cfg();
+    $owner = (string) $sc['owner'];
+    $table = (string) $sc['table'];
+    $from = oracle_order_quoted($owner, $table);
+    /** @var list<string> $cats */
+    $cats = [];
+    $push = static function (string $c) use (&$cats): void {
+        $c = trim($c);
+        if ($c === '') {
+            return;
+        }
+        foreach ($cats as $existing) {
+            if (oracle_order_cat_keys_match($existing, $c)) {
+                return;
+            }
+        }
+        $cats[] = $c;
+    };
+
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $from
+            . ' WHERE STORE = :store'
+            . ' AND (TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+            . ' OR LTRIM(TRIM(TO_CHAR(ITEM)), \'0\') = LTRIM(TRIM(:item), \'0\'))'
+            . ' AND (NVL(SYS_QTY, 0) > 0.0000001 OR NVL(MAN_QTY, 0) > 0.0000001)'
+            . ' AND ROWNUM <= 30',
+            ['store' => $store, 'item' => $item]
+        );
+        foreach ($rows as $r) {
+            if (is_array($r)) {
+                $push(oracle_statement_row_val($r, 'CAT'));
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+
+    try {
+        $balFrom = oracle_order_quoted($owner, 'BALANCE');
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT DISTINCT TRIM(TO_CHAR(CAT)) AS CAT FROM ' . $balFrom
+            . ' WHERE STORE = :store'
+            . ' AND TRIM(TO_CHAR(ITEM)) = TRIM(:item)'
+            . ' AND NVL(QTY_OH, 0) > 0.0000001'
+            . ' AND ROWNUM <= 30',
+            ['store' => $store, 'item' => $item]
+        );
+        foreach ($rows as $r) {
+            if (is_array($r)) {
+                $push(oracle_statement_row_val($r, 'CAT'));
+            }
+        }
+    } catch (Throwable $e) {
+        // ignore
+    }
+
+    $card = oracle_order_mascard_find($conn, $item, '');
+    $push(trim((string) ($card['cat'] ?? '')));
+
+    return $cats;
+}
+
+/**
+ * @param array<string,string> $nameMap
+ * @param list<string> $catCodes
+ * @return list<array{cat:string,name:string}>
+ */
+function oracle_order_cat_options_labeled(array $nameMap, array $catCodes): array
+{
+    $out = [];
+    foreach ($catCodes as $code) {
+        $code = trim((string) $code);
+        if ($code === '') {
+            continue;
+        }
+        $name = $nameMap[$code] ?? '';
+        if ($name === '') {
+            foreach ($nameMap as $k => $v) {
+                if (oracle_order_cat_keys_match($k, $code)) {
+                    $name = $v;
+                    break;
+                }
+            }
+        }
+        $out[] = [
+            'cat' => $code,
+            'name' => $name !== '' ? $name : ('فئة ' . $code),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * اختيار فئة Oracle لسطر المعاينة (من اختيار المستخدم أو MASCARD أو أول فئة برصيد).
+ *
+ * @param list<array{cat:string,name:string}> $catOptions
+ */
+function oracle_order_picker_resolve_cat(array $catPicksBySrl, int $srl, string $defaultCat, array $catOptions): string
+{
+    $picked = trim((string) ($catPicksBySrl[$srl] ?? ''));
+    if ($picked !== '') {
+        foreach ($catOptions as $opt) {
+            $c = trim((string) ($opt['cat'] ?? ''));
+            if ($c !== '' && oracle_order_cat_keys_match($c, $picked)) {
+                return $c;
+            }
+        }
+
+        return $picked;
+    }
+    $defaultCat = trim($defaultCat);
+    if ($defaultCat !== '') {
+        foreach ($catOptions as $opt) {
+            $c = trim((string) ($opt['cat'] ?? ''));
+            if ($c !== '' && oracle_order_cat_keys_match($c, $defaultCat)) {
+                return $c;
+            }
+        }
+    }
+    if ($catOptions !== []) {
+        return trim((string) ($catOptions[0]['cat'] ?? ''));
+    }
+
+    return $defaultCat;
+}
+
+/**
+ * تطبيق فئة Oracle المختارة من المعاينة على بنود الترحيل.
+ *
+ * @param list<array<string,mixed>> $mappedLines
+ * @param list<array<string,mixed>> $picks
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_apply_cat_from_picks(array $mappedLines, array $picks): array
+{
+    if ($picks === []) {
+        return $mappedLines;
+    }
+    /** @var array<int,string> $bySrl */
+    $bySrl = [];
+    foreach ($picks as $p) {
+        if (!is_array($p)) {
+            continue;
+        }
+        $cat = trim((string) ($p['cat'] ?? ''));
+        if ($cat === '') {
+            continue;
+        }
+        $srl = (int) ($p['srl'] ?? 0);
+        if ($srl > 0) {
+            $bySrl[$srl] = $cat;
+        }
+    }
+    if ($bySrl === []) {
+        return $mappedLines;
+    }
+    $out = [];
+    foreach ($mappedLines as $ml) {
+        $srl = (int) ($ml['srl'] ?? 0);
+        if ($srl > 0 && isset($bySrl[$srl])) {
+            $ml['cat'] = $bySrl[$srl];
+        }
+        $out[] = $ml;
+    }
+
+    return $out;
+}
+
+/**
  * قوائم التشغيلات المتوفرة لبنود طلب عميل (معاينة التوزيع التلقائي قبل الترحيل).
  *
- * @return array{ok:bool,message?:string,store?:int,warehouse_name?:string,lines?:list<array<string,mixed>>,can_post?:bool}
+ * @param array{cat_picks?:list<array<string,mixed>>} $opts
+ * @return array{ok:bool,message?:string,store?:int,warehouse_name?:string,lines?:list<array<string,mixed>>,can_post?:bool,categories?:list<array{cat:string,name:string}>}
  */
-function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
+function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = []): array
 {
     oracle_order_schema_ensure($mysql);
     sal_customer_order_ensure_schema($mysql);
@@ -3628,6 +3899,32 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
     $owner = (string) $scfg['owner'];
     $table = (string) $scfg['table'];
 
+    /** @var array<int,string> $catPicksBySrl */
+    $catPicksBySrl = [];
+    foreach (is_array($opts['cat_picks'] ?? null) ? $opts['cat_picks'] : [] as $cp) {
+        if (!is_array($cp)) {
+            continue;
+        }
+        $srl = (int) ($cp['srl'] ?? 0);
+        $cat = trim((string) ($cp['cat'] ?? ''));
+        if ($srl > 0 && $cat !== '') {
+            $catPicksBySrl[$srl] = $cat;
+        }
+    }
+
+    $catNameMap = oracle_order_categories_name_map($mysql, $conn);
+    /** @var list<array{cat:string,name:string}> $categoriesCatalog */
+    $categoriesCatalog = [];
+    foreach ($catNameMap as $code => $name) {
+        $categoriesCatalog[] = ['cat' => (string) $code, 'name' => $name];
+    }
+    usort(
+        $categoriesCatalog,
+        static function (array $a, array $b): int {
+            return strnatcasecmp((string) ($a['cat'] ?? ''), (string) ($b['cat'] ?? ''));
+        }
+    );
+
     $pickerLines = [];
     $undefinedNames = [];
     $srl = 0;
@@ -3646,10 +3943,13 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
             continue;
         }
         $srl++;
-        $cat = trim((string) ($card['cat'] ?? ''));
-        if ($cat === '') {
-            $cat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
+        $defaultCat = trim((string) ($card['cat'] ?? ''));
+        if ($defaultCat === '') {
+            $defaultCat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
         }
+        $stockCatCodes = oracle_order_item_stock_cats($conn, $store, (string) $card['item']);
+        $catOptions = oracle_order_cat_options_labeled($catNameMap, $stockCatCodes);
+        $cat = oracle_order_picker_resolve_cat($catPicksBySrl, $srl, $defaultCat, $catOptions);
         $bonus = (float) ($ln['qty_extra'] ?? 0);
         $trUnit = (float) ($ln['unit_factor'] ?? 1);
         if ($trUnit <= 0) {
@@ -3660,7 +3960,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
             $need *= $trUnit;
         }
 
-        $stock = oracle_order_picker_stock_batches($conn, $store, (string) $card['item'], $cat);
+        $stock = oracle_order_picker_stock_batches($conn, $store, (string) $card['item'], $cat, true);
         /** @var list<array{batch:string,qty:float,exp_date?:string}> $batchOpts */
         $batchOpts = [];
         foreach (is_array($stock['rows'] ?? null) ? $stock['rows'] : [] as $br) {
@@ -3680,6 +3980,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
             'srl' => $srl,
             'item' => (string) $card['item'],
             'cat' => $cat,
+            'cat_options' => $catOptions,
             'name' => (string) ($ln['item_name'] ?? ''),
             'need' => $need,
             'qty' => $qty,
@@ -3713,6 +4014,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId): array
         'store' => $store,
         'warehouse_name' => (string) ($order['warehouse_name'] ?? ''),
         'oracle_conn' => oracle_order_oracle_conn_label(),
+        'categories' => $categoriesCatalog,
         'lines' => $pickerLines,
         'can_post' => $canPost,
         'auto_allocate' => true,

@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 /**
  * CLI: جلب التشغيلات المتاحة من Oracle STOCK لطلب معتمد.
- *   php oracle_order_batches.php <order_id>
+ *   php oracle_order_batches.php <order_id> [--opts-file=/path/to.json]
+ *
+ * opts JSON: { "cat_picks": [ { "srl": 1, "cat": "6" } ] }
  */
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "cli only\n");
@@ -11,6 +13,20 @@ if (PHP_SAPI !== 'cli') {
 }
 
 $orderId = (int) ($argv[1] ?? 0);
+$opts = [];
+
+foreach ($argv as $arg) {
+    if (!is_string($arg) || !str_starts_with($arg, '--opts-file=')) {
+        continue;
+    }
+    $path = substr($arg, 12);
+    if ($path !== '' && is_file($path)) {
+        $raw = json_decode((string) file_get_contents($path), true);
+        if (is_array($raw)) {
+            $opts = $raw;
+        }
+    }
+}
 
 require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
 
@@ -20,6 +36,6 @@ if (function_exists('opcache_invalidate')) {
 }
 require_once $postFile;
 
-$result = oracle_order_batch_picker_data(db(), $orderId);
+$result = oracle_order_batch_picker_data(db(), $orderId, $opts);
 echo json_encode($result, JSON_UNESCAPED_UNICODE) . PHP_EOL;
 exit(!empty($result['ok']) ? 0 : 1);
