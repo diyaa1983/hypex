@@ -1947,10 +1947,46 @@ function oracle_order_balance_batches(
 }
 
 /**
- * تشغيلات Oracle للمعاينة والترحيل — قائمة STOCK (مثل Forms «التشغيلات المتوفرة»).
+ * دمج قائمة STOCK (تشغيلات Forms) مع كميات BALANCE عند التطابق.
  *
- * BALANCE قد يحتوي تشغيلات قديمة (مثل 0251433) غير ظاهرة في Oracle؛
- * الكميات 41117، 85، 145… تطابق STOCK/Forms بينما 0251433 موجودة في BALANCE فقط.
+ * @param list<array{batch:string,qty:float,exp_date?:string,sort_date?:string}> $stockRows
+ * @param list<array{batch:string,qty:float,exp_date?:string,sort_date?:string}> $balanceRows
+ * @return list<array{batch:string,qty:float,exp_date?:string,sort_date?:string}>
+ */
+function oracle_order_picker_merge_stock_balance(array $stockRows, array $balanceRows): array
+{
+    if ($stockRows === []) {
+        return $balanceRows;
+    }
+    /** @var array<string,array{batch:string,qty:float,exp_date?:string,sort_date?:string}> $balanceByNorm */
+    $balanceByNorm = [];
+    foreach ($balanceRows as $br) {
+        if (!is_array($br)) {
+            continue;
+        }
+        $k = oracle_order_batch_norm_key((string) ($br['batch'] ?? ''));
+        if ($k !== '') {
+            $balanceByNorm[$k] = $br;
+        }
+    }
+    $out = [];
+    foreach ($stockRows as $sr) {
+        if (!is_array($sr)) {
+            continue;
+        }
+        $k = oracle_order_batch_norm_key((string) ($sr['batch'] ?? ''));
+        if ($k === '') {
+            continue;
+        }
+        // تشغيلات Forms من STOCK — الكمية من BALANCE إن وُجدت (QTY_OH)
+        $out[] = $balanceByNorm[$k] ?? $sr;
+    }
+
+    return $out;
+}
+
+/**
+ * تشغيلات Oracle للمعاينة والترحيل — STOCK (قائمة Forms) + BALANCE (كميات QTY_OH).
  *
  * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count?:int,positive_batches?:int,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,cat_used?:string,source?:string,message?:string}
  */
@@ -1965,44 +2001,54 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
 
-    // 1) STOCK — نفس قائمة Oracle Forms (بدون تشغيلات BALANCE القديمة)
-    $picked = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
-    if ($picked === null || empty($picked['rows'])) {
+    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true);
+    $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
+
+    $stockRows = [];
+    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
+    if ($stockPick !== null && is_array($stockPick['rows'] ?? null) && $stockPick['rows'] !== []) {
+        $stockRows = $stockPick['rows'];
+    } else {
         $wide = oracle_order_stock_batches($conn, oracle_order_comp_num([]), $store, $item, $cat);
-        if ((float) ($wide['total'] ?? 0) > 0.0000001 && is_array($wide['rows'] ?? null) && $wide['rows'] !== []) {
-            $picked = $wide;
+        if (is_array($wide['rows'] ?? null) && $wide['rows'] !== []) {
+            $stockRows = $wide['rows'];
         }
     }
 
-    if ($picked !== null && is_array($picked['rows'] ?? null) && $picked['rows'] !== []) {
-        $picked['rows'] = oracle_order_sort_batches_forms_fifo($picked['rows']);
-        $picked['ok'] = true;
-        $picked['source'] = 'stock-forms';
+    $rows = oracle_order_picker_merge_stock_balance($stockRows, $balanceRows);
+    $source = $stockRows !== [] ? 'stock+balance' : 'balance-qty-oh';
 
-        return $picked;
+    if ($rows === []) {
+        return [
+            'ok' => true,
+            'rows' => [],
+            'total' => 0.0,
+            'raw_count' => 0,
+            'positive_batches' => 0,
+            'qty_cols' => ['QTY_OH'],
+            'other_stores' => [],
+            'cat_used' => $cat,
+            'source' => $source,
+            'message' => 'لا توجد تشغيلات برصيد موجب لهذه المادة/المستودع.',
+        ];
     }
 
-    // 2) احتياط: BALANCE (إذا لا يوجد STOCK لهذه المادة)
-    $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true);
-    if ($balance !== null && is_array($balance['rows'] ?? null) && $balance['rows'] !== []) {
-        $balance['rows'] = oracle_order_sort_batches_forms_fifo($balance['rows']);
-        $balance['ok'] = true;
-        $balance['source'] = 'balance-qty-oh';
-
-        return $balance;
+    $rows = oracle_order_sort_batches_forms_fifo($rows);
+    $total = 0.0;
+    foreach ($rows as $row) {
+        $total += (float) ($row['qty'] ?? 0);
     }
 
     return [
         'ok' => true,
-        'rows' => [],
-        'total' => 0.0,
-        'raw_count' => 0,
-        'positive_batches' => 0,
-        'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
+        'rows' => $rows,
+        'total' => $total,
+        'raw_count' => count($rows),
+        'positive_batches' => count($rows),
+        'qty_cols' => $stockRows !== [] ? ['SYS_QTY', 'MAN_QTY', 'QTY_OH'] : ['QTY_OH'],
         'other_stores' => [],
         'cat_used' => $cat,
-        'source' => 'stock-forms',
-        'message' => 'لا توجد تشغيلات برصيد موجب في STOCK لهذه المادة/المستودع.',
+        'source' => $source,
     ];
 }
 
