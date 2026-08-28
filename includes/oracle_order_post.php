@@ -1366,6 +1366,25 @@ function oracle_order_oracle_keys_match(string $rowItem, string $rowCat, string 
 /**
  * قراءة كمية من Oracle (يدعم الفاصلة العشرية 2,332).
  */
+/**
+ * تطبيع نص كمية Oracle (أرقام عربية-هندية، فاصلة عشرية عربية، مسافات).
+ */
+function oracle_order_normalize_qty_string(string $s): string
+{
+    $s = trim($s);
+    $s = str_replace(["\xc2\xa0", ' ', "\xE2\x80\x8F", "\xE2\x80\x8E"], '', $s);
+    static $digitMap = [
+        '٠' => '0', '١' => '1', '٢' => '2', '٣' => '3', '٤' => '4',
+        '٥' => '5', '٦' => '6', '٧' => '7', '٨' => '8', '٩' => '9',
+        '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4',
+        '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9',
+    ];
+    $s = strtr($s, $digitMap);
+    $s = str_replace(['،', '٫'], '.', $s);
+
+    return $s;
+}
+
 function oracle_order_parse_qty(mixed $v): float
 {
     if ($v === null || $v === '') {
@@ -1387,22 +1406,77 @@ function oracle_order_parse_qty(mixed $v): float
         } else {
             return 0.0;
         }
+        if (is_int($v) || is_float($v)) {
+            $f = (float) $v;
+
+            return is_finite($f) ? $f : 0.0;
+        }
     }
-    $s = trim((string) $v);
+    $s = oracle_order_normalize_qty_string((string) $v);
     if ($s === '' || $s === '.' || $s === '-') {
         return 0.0;
     }
-    $s = str_replace(["\xc2\xa0", ' '], '', $s);
-    if (preg_match('/^\d+,\d+$/', $s)) {
-        $s = str_replace(',', '.', $s);
-    } elseif (preg_match('/^\d{1,3}(\.\d{3})+(,\d+)?$/', $s)) {
+    if (preg_match('/^-?\d+\.\d+$/', $s)) {
+        return (float) $s;
+    }
+    // Oracle Forms / NLS: الفاصلة العشرية — 41,117 أو 41,117.000 أو 10,332
+    if (preg_match('/^-?(\d+),(\d+)(\.(\d+))?$/', $s, $m)) {
+        $dotFrac = $m[4] ?? '';
+        if ($dotFrac !== ''
+            && !preg_match('/^0+$/', $dotFrac)
+            && preg_match('/^-?\d{1,3}(,\d{3})+\.\d+$/', $s)) {
+            return (float) str_replace(',', '', $s);
+        }
+
+        return (float) ($m[1] . '.' . $m[2]);
+    }
+    // أوروبي: 1.234,56
+    if (preg_match('/^-?\d{1,3}(\.\d{3})+(,\d+)?$/', $s)) {
         $s = str_replace('.', '', $s);
         $s = str_replace(',', '.', $s);
-    } else {
-        $s = str_replace(',', '', $s);
+
+        return (float) $s;
+    }
+    // أمريكي: 1,234.56 أو 1,234,567
+    if (preg_match('/^-?\d{1,3}(,\d{3})+(\.\d+)?$/', $s)) {
+        return (float) str_replace(',', '', $s);
+    }
+    if (preg_match('/^-?\d+$/', $s)) {
+        return (float) $s;
     }
 
     return is_numeric($s) ? (float) $s : 0.0;
+}
+
+/**
+ * قراءة كمية من صف Oracle — يُفضَّل العمود الرقمي على TO_CHAR(_TXT).
+ *
+ * @param array<string,mixed> $r
+ * @param list<string> $cols
+ */
+function oracle_order_row_qty(array $r, array $cols): float
+{
+    foreach ($cols as $col) {
+        foreach ([$col, strtoupper($col), strtolower($col)] as $k) {
+            if (!array_key_exists($k, $r)) {
+                continue;
+            }
+            $raw = $r[$k];
+            if (is_int($raw) || is_float($raw)) {
+                $f = (float) $raw;
+                if (is_finite($f) && abs($f) > 0.0000001) {
+                    return $f;
+                }
+                continue;
+            }
+            $n = oracle_order_parse_qty($raw);
+            if ($n > 0.0000001) {
+                return $n;
+            }
+        }
+    }
+
+    return 0.0;
 }
 
 /**
@@ -1818,8 +1892,8 @@ function oracle_order_stock_toad_exact_batches(
             if ($norm === '') {
                 continue;
             }
-            $sq = oracle_order_parse_qty($r['SYS_QTY'] ?? oracle_statement_row_val($r, 'SYS_QTY'));
-            $mq = oracle_order_parse_qty($r['MAN_QTY'] ?? oracle_statement_row_val($r, 'MAN_QTY'));
+            $sq = oracle_order_row_qty($r, ['SYS_QTY', 'SYS_QTY_TXT']);
+            $mq = oracle_order_row_qty($r, ['MAN_QTY', 'MAN_QTY_TXT']);
             $q = max($sq, $mq);
             if ($q <= 0.0000001) {
                 continue;
@@ -2020,7 +2094,7 @@ function oracle_order_balance_batches(
         if ($norm === '') {
             continue;
         }
-        $q = oracle_order_parse_qty($r['QTY_OH'] ?? oracle_statement_row_val($r, 'QTY_OH'));
+        $q = oracle_order_row_qty($r, ['QTY_OH']);
         if ($q <= 0.0000001) {
             continue;
         }
@@ -2429,7 +2503,7 @@ function oracle_order_stock_sql_positive_batches(
                 if ($norm === '') {
                     continue;
                 }
-                $q = oracle_order_parse_qty($r['STOCK_QTY'] ?? oracle_statement_row_val($r, 'STOCK_QTY'));
+                $q = oracle_order_row_qty($r, ['STOCK_QTY', 'SYS_QTY', 'MAN_QTY']);
                 if ($q <= 0.0000001) {
                     continue;
                 }
@@ -2691,15 +2765,9 @@ function oracle_order_stock_toad_positive_rows(
         if ($norm === '') {
             continue;
         }
-        $sq = oracle_order_parse_qty($r['SYS_QTY_TXT'] ?? oracle_statement_row_val($r, 'SYS_QTY_TXT'));
-        if ($sq <= 0.0000001) {
-            $sq = oracle_order_parse_qty($r['SYS_QTY'] ?? oracle_statement_row_val($r, 'SYS_QTY'));
-        }
-        $mq = oracle_order_parse_qty($r['MAN_QTY_TXT'] ?? oracle_statement_row_val($r, 'MAN_QTY_TXT'));
-        if ($mq <= 0.0000001) {
-            $mq = oracle_order_parse_qty($r['MAN_QTY'] ?? oracle_statement_row_val($r, 'MAN_QTY'));
-        }
-        $q = max($sq, $mq, oracle_order_parse_qty($r['STOCK_QTY'] ?? oracle_statement_row_val($r, 'STOCK_QTY')));
+        $sq = oracle_order_row_qty($r, ['SYS_QTY', 'SYS_QTY_TXT']);
+        $mq = oracle_order_row_qty($r, ['MAN_QTY', 'MAN_QTY_TXT']);
+        $q = max($sq, $mq, oracle_order_row_qty($r, ['STOCK_QTY']));
         if ($q <= 0.0000001) {
             continue;
         }
@@ -3378,7 +3446,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v21-BALANCE-STOCK-CAP2';
+    $version = 'STOCK-v22-DECIMAL-QTY';
     $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
