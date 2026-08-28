@@ -247,7 +247,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $item = oracle_order_item_keys($mysql, $ln);
         $card = [];
         if ($item['item'] !== '' || $item['barcode'] !== '') {
-            $card = oracle_order_mascard_find($conn, $item['item'], $item['barcode']);
+            $card = oracle_order_mascard_find($conn, $item['item'], $item['barcode'], (string) ($item['cat'] ?? ''));
         }
         if ($card === []) {
             $undefinedNames[] = oracle_order_line_display_name($ln);
@@ -258,9 +258,13 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         $discFrac = oracle_order_line_disc_fraction($ln, $hasHeaderDiscount);
         $merchAfterLineDisc += max(0.0, ($qty * $sell) * (1.0 - $discFrac));
         // التشغيلة تُختار لاحقاً من رصيد المستودع (الأقدم أولاً) — لا نعتمد تشغيلة البطاقة.
+        $lineCat = trim((string) ($item['cat'] ?? ''));
+        if ($lineCat === '') {
+            $lineCat = trim((string) ($card['cat'] ?? ''));
+        }
         $mappedLines[] = [
             'item' => $card['item'],
-            'cat' => $card['cat'],
+            'cat' => $lineCat !== '' ? $lineCat : $card['cat'],
             'batch' => '0',
             'qty' => $qty,
             'bonus' => (float) ($ln['qty_extra'] ?? 0),
@@ -4511,7 +4515,8 @@ function oracle_order_cat_options_labeled(array $nameMap, array $catCodes): arra
 }
 
 /**
- * اختيار فئة Oracle لسطر المعاينة (من اختيار المستخدم أو MASCARD أو أول فئة برصيد).
+ * اختيار فئة Oracle لسطر المعاينة.
+ * الأولوية: اختيار المستخدم → فئة المادة في Hypex/MASCARD → لا نأخذ «أول فئة برصيد» إن وُجدت فئة افتراضية.
  *
  * @param list<array{cat:string,name:string}> $catOptions
  */
@@ -4536,12 +4541,64 @@ function oracle_order_picker_resolve_cat(array $catPicksBySrl, int $srl, string 
                 return $c;
             }
         }
+
+        // لا نستبدل فئة المادة بفئة أخرى لمجرد أن لها رصيد — هذا سبب «فئة ثانية»
+        return $defaultCat;
     }
     if ($catOptions !== []) {
         return trim((string) ($catOptions[0]['cat'] ?? ''));
     }
 
-    return $defaultCat;
+    return '';
+}
+
+/**
+ * ضع الفئة المفضّلة أولاً في قائمة الخيارات.
+ *
+ * @param list<array{cat:string,name:string}> $catOptions
+ * @return list<array{cat:string,name:string}>
+ */
+function oracle_order_cat_options_prefer(array $catOptions, string $preferCat, array $nameMap = []): array
+{
+    $preferCat = trim($preferCat);
+    if ($preferCat === '') {
+        return $catOptions;
+    }
+    $found = false;
+    $rest = [];
+    $preferred = null;
+    foreach ($catOptions as $opt) {
+        if (!is_array($opt)) {
+            continue;
+        }
+        $c = trim((string) ($opt['cat'] ?? ''));
+        if ($c !== '' && oracle_order_cat_keys_match($c, $preferCat)) {
+            $preferred = $opt;
+            $found = true;
+            continue;
+        }
+        $rest[] = $opt;
+    }
+    if (!$found) {
+        $name = $nameMap[$preferCat] ?? '';
+        if ($name === '') {
+            foreach ($nameMap as $k => $v) {
+                if (oracle_order_cat_keys_match((string) $k, $preferCat)) {
+                    $name = $v;
+                    break;
+                }
+            }
+        }
+        $preferred = [
+            'cat' => $preferCat,
+            'name' => $name !== '' ? $name : ('فئة ' . $preferCat),
+        ];
+    }
+    if ($preferred === null) {
+        return $catOptions;
+    }
+
+    return array_merge([$preferred], $rest);
 }
 
 /**
@@ -4662,19 +4719,21 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         $keys = oracle_order_item_keys($mysql, $ln);
         $card = [];
         if ($keys['item'] !== '' || $keys['barcode'] !== '') {
-            $card = oracle_order_mascard_find($conn, $keys['item'], $keys['barcode']);
+            $card = oracle_order_mascard_find($conn, $keys['item'], $keys['barcode'], (string) ($keys['cat'] ?? ''));
         }
         if ($card === []) {
             $undefinedNames[] = oracle_order_line_display_name($ln);
             continue;
         }
         $srl++;
-        $defaultCat = trim((string) ($card['cat'] ?? ''));
+        $hypexCat = trim((string) ($keys['cat'] ?? ''));
+        $defaultCat = $hypexCat !== '' ? $hypexCat : trim((string) ($card['cat'] ?? ''));
         if ($defaultCat === '') {
             $defaultCat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
         }
         $stockCatCodes = oracle_order_item_stock_cats($conn, $store, (string) $card['item']);
         $catOptions = oracle_order_cat_options_labeled($catNameMap, $stockCatCodes);
+        $catOptions = oracle_order_cat_options_prefer($catOptions, $defaultCat, $catNameMap);
         $cat = oracle_order_picker_resolve_cat($catPicksBySrl, $srl, $defaultCat, $catOptions);
         $bonus = (float) ($ln['qty_extra'] ?? 0);
         $trUnit = (float) ($ln['unit_factor'] ?? 1);
@@ -4845,37 +4904,63 @@ function oracle_order_item_keys(PDO $pdo, array $ln): array
     if ($itemId > 0) {
         try {
             $st = $pdo->prepare(
-                'SELECT TRIM(i.oracle_key) AS okey, TRIM(i.sku) AS sku, TRIM(i.barcode) AS barcode
-                 FROM inv_item i
-                 WHERE i.id = ? LIMIT 1'
+                'SELECT TRIM(i.oracle_key) AS okey, TRIM(i.sku) AS sku, TRIM(i.barcode) AS barcode,'
+                . ' TRIM(COALESCE(c.oracle_key, c.code, \'\')) AS cat_okey'
+                . ' FROM inv_item i'
+                . ' LEFT JOIN inv_item_category c ON c.id = i.category_id'
+                . ' WHERE i.id = ? LIMIT 1'
             );
             $st->execute([$itemId]);
             $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
             $okey = trim((string) ($row['okey'] ?? ''));
             $skuRow = trim((string) ($row['sku'] ?? ''));
             $barRow = trim((string) ($row['barcode'] ?? ''));
-            if ($skuRow !== '') {
-                $sku = $skuRow;
+            $cat = trim((string) ($row['cat_okey'] ?? ''));
+            if ($skuProp !== '') {
+                $sku = $skuProp;
             }
             if ($barRow !== '') {
                 $barcode = $barRow;
             }
             if ($okey !== '') {
                 $item = $okey;
-            } elseif ($skuRow !== '') {
-                $item = $skuRow;
+            } elseif ($skuProp !== '') {
+                $item = $skuProp;
             }
         } catch (Throwable $e) {
             try {
-                $st = $pdo->prepare('SELECT sku FROM inv_item WHERE id = ? LIMIT 1');
+                $st = $pdo->prepare(
+                    'SELECT TRIM(i.oracle_key) AS okey, TRIM(i.sku) AS sku, TRIM(i.barcode) AS barcode'
+                    . ' FROM inv_item i WHERE i.id = ? LIMIT 1'
+                );
                 $st->execute([$itemId]);
-                $ik = trim((string) ($st->fetchColumn() ?: ''));
-                if ($ik !== '') {
-                    $sku = $ik;
-                    $item = $ik;
+                $row = $st->fetch(PDO::FETCH_ASSOC) ?: [];
+                $okey = trim((string) ($row['okey'] ?? ''));
+                $skuProp = trim((string) ($row['sku'] ?? ''));
+                $barRow = trim((string) ($row['barcode'] ?? ''));
+                if ($skuProp !== '') {
+                    $sku = $skuProp;
+                }
+                if ($barRow !== '') {
+                    $barcode = $barRow;
+                }
+                if ($okey !== '') {
+                    $item = $okey;
+                } elseif ($skuProp !== '') {
+                    $item = $skuProp;
                 }
             } catch (Throwable $e2) {
-                // keep line values
+                try {
+                    $st = $pdo->prepare('SELECT sku FROM inv_item WHERE id = ? LIMIT 1');
+                    $st->execute([$itemId]);
+                    $ik = trim((string) ($st->fetchColumn() ?: ''));
+                    if ($ik !== '') {
+                        $sku = $ik;
+                        $item = $ik;
+                    }
+                } catch (Throwable $e3) {
+                    // keep line values
+                }
             }
         }
     }
@@ -4901,7 +4986,7 @@ function oracle_order_looks_like_ean(string $s): bool
 /**
  * @return array{item:string,cat:string,batch:string}|array{}
  */
-function oracle_order_mascard_find(array $conn, string $item, string $barcode): array
+function oracle_order_mascard_find(array $conn, string $item, string $barcode, string $preferCat = ''): array
 {
     $cfg = oracle_config();
     $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
@@ -4931,12 +5016,34 @@ function oracle_order_mascard_find(array $conn, string $item, string $barcode): 
         }
     }
 
-    $row = oracle_order_first_row(
-        $conn,
-        "SELECT * FROM {$from} WHERE (TRIM(TO_CHAR({$itemCol})) = TRIM(:v)
-            OR LTRIM(TRIM(TO_CHAR({$itemCol})), '0') = LTRIM(TRIM(:v), '0')) AND ROWNUM <= 1",
-        $item
-    );
+    $preferCat = trim($preferCat);
+    $row = [];
+    if ($preferCat !== '' && $catCol !== '' && $item !== '') {
+        try {
+            $got = oracle_query_all(
+                $conn,
+                "SELECT * FROM {$from} WHERE (TRIM(TO_CHAR({$itemCol})) = TRIM(:v)
+                    OR LTRIM(TRIM(TO_CHAR({$itemCol})), '0') = LTRIM(TRIM(:v), '0'))
+                    AND (TRIM(TO_CHAR({$catCol})) = TRIM(:cat)
+                     OR LTRIM(TRIM(TO_CHAR({$catCol})), '0') = LTRIM(TRIM(:cat), '0'))
+                    AND ROWNUM <= 5",
+                ['v' => $item, 'cat' => $preferCat]
+            );
+            if (is_array($got) && $got !== []) {
+                $row = $got[0];
+            }
+        } catch (Throwable $e) {
+            $row = [];
+        }
+    }
+    if ($row === []) {
+        $row = oracle_order_first_row(
+            $conn,
+            "SELECT * FROM {$from} WHERE (TRIM(TO_CHAR({$itemCol})) = TRIM(:v)
+                OR LTRIM(TRIM(TO_CHAR({$itemCol})), '0') = LTRIM(TRIM(:v), '0')) AND ROWNUM <= 1",
+            $item
+        );
+    }
     if ($row === [] && $barcode !== '' && $barcode !== $item) {
         $row = oracle_order_first_row(
             $conn,
@@ -4966,6 +5073,11 @@ function oracle_order_mascard_find(array $conn, string $item, string $barcode): 
     $outBatch = $batchCol !== '' ? trim(oracle_statement_row_val($row, $batchCol)) : '';
     if ($outItem === '') {
         return [];
+    }
+
+    // فئة المادة في Hypex لها الأولوية إن وُجدت (منع اختيار فئة ثانية من MASCARD)
+    if ($preferCat !== '') {
+        $outCat = $preferCat;
     }
 
     if ($outCat === '' || $outBatch === '') {
