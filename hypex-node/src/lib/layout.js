@@ -248,6 +248,10 @@ function renderApp({
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
   <meta name="hx-print-engine" content="standalone-v3">
+  <meta name="theme-color" content="#1e3a5f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="manifest" href="/manifest.php">
   <title>${esc(title)} · ${esc(getPrintBrand().companyName || 'Hypex')}</title>
   ${faviconLinksHtml()}
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
@@ -264,6 +268,13 @@ function renderApp({
       ${mainBody}
     </main>
   </div>
+  <script>
+  (function(){
+    var el=!!(window.hypexDesktop&&window.hypexDesktop.isElectron)||/\\bElectron\\//i.test(navigator.userAgent||'');
+    if(el){document.documentElement.classList.add('hypex-desktop-app');document.body.classList.add('app-body--standalone','app-body--electron');}
+    if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches){document.body.classList.add('app-body--standalone');}
+  })();
+  </script>
   <script src="/assets/js/shell.js" defer></script>
   ${jsLinks}
 </body>

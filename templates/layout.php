@@ -311,7 +311,14 @@ app_busy_render_overlay();
 <script>try{sessionStorage.removeItem('manager:mdi-windows-v1');}catch(e){}</script>
 <script>
 (function () {
-  if (window.matchMedia('(display-mode: standalone)').matches) {
+  var isElectron = !!(window.hypexDesktop && window.hypexDesktop.isElectron)
+    || /\bElectron\//i.test(navigator.userAgent || '');
+  if (isElectron) {
+    document.documentElement.classList.add('hypex-desktop-app');
+    document.body.classList.add('app-body--standalone', 'app-body--electron');
+  }
+  if (window.matchMedia('(display-mode: standalone)').matches
+    || window.matchMedia('(display-mode: fullscreen)').matches) {
     document.body.classList.add('app-body--standalone');
   }
   if (!('windowControlsOverlay' in navigator)) return;

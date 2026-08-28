@@ -809,12 +809,8 @@ function render_app_titlebar(string $pageTitle, string $routeTitle, string $acti
 {
     $screen = trim($pageTitle) !== '' ? trim($pageTitle) : trim($routeTitle);
     $company = trim($companyNameAr);
-    $fullTitle = $screen;
-    if ($company !== '' && $screen !== '') {
-        $fullTitle = $company . ' - ' . $screen;
-    } elseif ($company !== '') {
-        $fullTitle = $company;
-    }
+    // اسم الشركة فقط في شريط التطبيق — بدون عنوان الصفحة الطويل
+    $fullTitle = $company !== '' ? $company : $screen;
 
     echo '<header class="app-titlebar no-print" role="banner">';
     echo '<div class="app-titlebar__row">';

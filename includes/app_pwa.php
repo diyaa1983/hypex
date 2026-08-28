@@ -87,13 +87,13 @@ function app_pwa_manifest(?array $settingsRow = null): array
         'description' => 'تطبيق سطح المكتب — ' . $company,
         'start_url' => app_pwa_start_url(),
         'scope' => $scope,
-        'display' => 'standalone',
-        'display_override' => ['standalone', 'minimal-ui', 'browser'],
+        'display' => 'fullscreen',
+        'display_override' => ['fullscreen', 'standalone', 'minimal-ui'],
         'orientation' => 'any',
         'dir' => 'rtl',
         'lang' => 'ar',
         'background_color' => '#0b1220',
-        'theme_color' => '#0b1220',
+        'theme_color' => '#1e3a5f',
         'icons' => app_pwa_icons($settingsRow),
         'prefer_related_applications' => false,
     ];
@@ -114,14 +114,13 @@ function app_pwa_sw_url(): string
 function render_app_pwa_head(?array $settingsRow = null): void
 {
     $manifest = esc(app_pwa_manifest_url());
-    $theme = '#0b1220';
     $swUrl = app_pwa_sw_url();
     $scope = app_pwa_scope();
 
     echo '<link rel="manifest" href="' . $manifest . '">' . "\n";
-    echo '<meta name="theme-color" content="' . esc($theme) . '">' . "\n";
-    echo '<meta name="theme-color" media="(prefers-color-scheme: light)" content="' . esc($theme) . '">' . "\n";
-    echo '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="' . esc($theme) . '">' . "\n";
+    echo '<meta name="theme-color" content="#1e3a5f">' . "\n";
+    echo '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#1e3a5f">' . "\n";
+    echo '<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1e3a5f">' . "\n";
     $brand192 = esc(app_pwa_icon_png_url(192));
     $brand512 = esc(app_pwa_icon_png_url(512));
     echo '<link rel="icon" type="image/png" sizes="192x192" href="' . $brand192 . '">' . "\n";
@@ -132,6 +131,7 @@ function render_app_pwa_head(?array $settingsRow = null): void
     echo '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">' . "\n";
     $appTitle = trim((string) ($settingsRow['company_name_ar'] ?? 'Manager'));
     echo '<meta name="apple-mobile-web-app-title" content="' . esc($appTitle) . '">' . "\n";
+    echo '<meta name="application-name" content="' . esc($appTitle) . '">' . "\n";
     echo '<script>if("serviceWorker"in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register('
         . json_encode($swUrl, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
         . ',{scope:' . json_encode($scope, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)

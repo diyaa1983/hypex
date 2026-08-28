@@ -205,9 +205,31 @@ body.app-body .app-titlebar {
   background: transparent;
 }
 
-.app-titlebar__btn-icon {
-  display: block;
-  line-height: 1;
+/* في وضع التطبيق: لا نعرض شريط عنوان يشبه المتصفح — فقط شريط النظام القصير */
+@media (display-mode: fullscreen), (display-mode: standalone), (display-mode: window-controls-overlay) {
+  body.app-body .app-titlebar__title {
+    /* اسم الشركة فقط — بدون عنوان الصفحة الطويل */
+    max-width: 40vw;
+  }
+}
+
+html.hypex-desktop-app body.app-body .app-titlebar__title,
+body.app-body--electron .app-titlebar__title {
+  /* غلاف Electron: عنوان ثابت قصير */
+  font-size: 0.78rem;
+}
+
+/* إخفاء أي فراغ علوي كان يحاكي شريط المتصفح */
+html.hypex-desktop-app,
+html.hypex-desktop-app body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+html.hypex-desktop-app body.app-body {
+  overflow: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* PWA / WCO: شريط الاسم بعرض كامل ملتصق بأعلى النافذة — بدون فراغ علوي */
