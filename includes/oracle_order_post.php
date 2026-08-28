@@ -2122,6 +2122,77 @@ function oracle_order_picker_prune_balance_outliers(array $rows): array
 }
 
 /**
+ * حدّ كميات BALANCE بـ STOCK — INV00024 يتحقق عند الحفظ من STOCK وليس QTY_OH.
+ *
+ * @param list<array{batch:string,qty:float,exp_date?:string,sort_date?:string}> $balanceRows
+ * @return list<array{batch:string,qty:float,exp_date?:string,sort_date?:string,qty_balance?:float,qty_stock?:float}>
+ */
+function oracle_order_cap_balance_rows_with_stock(
+    array $conn,
+    int $store,
+    string $item,
+    string $cat,
+    array $balanceRows,
+    string $owner,
+    string $table
+): array {
+    if ($balanceRows === []) {
+        return [];
+    }
+    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, true);
+    $stockRows = is_array($stockPick['rows'] ?? null) ? $stockPick['rows'] : [];
+    /** @var array<string,float> $stockByNorm */
+    $stockByNorm = [];
+    foreach ($stockRows as $sr) {
+        if (!is_array($sr)) {
+            continue;
+        }
+        $k = oracle_order_batch_norm_key((string) ($sr['batch'] ?? ''));
+        if ($k === '') {
+            continue;
+        }
+        $sq = (float) ($sr['qty'] ?? 0);
+        if ($sq > ($stockByNorm[$k] ?? 0)) {
+            $stockByNorm[$k] = $sq;
+        }
+    }
+
+    $out = [];
+    foreach ($balanceRows as $br) {
+        if (!is_array($br)) {
+            continue;
+        }
+        $k = oracle_order_batch_norm_key((string) ($br['batch'] ?? ''));
+        $balQty = (float) ($br['qty'] ?? 0);
+        if ($k === '' || $balQty <= 0.0000001) {
+            continue;
+        }
+        if ($stockByNorm === []) {
+            $out[] = $br;
+            continue;
+        }
+        if (!isset($stockByNorm[$k])) {
+            // تشغيلة في BALANCE بلا صف STOCK — لا تُباع (Forms يرفضها)
+            continue;
+        }
+        $stockQty = (float) $stockByNorm[$k];
+        $eff = min($balQty, $stockQty);
+        if ($eff <= 0.0000001) {
+            continue;
+        }
+        $row = $br;
+        $row['qty'] = $eff;
+        if ($stockQty + 0.0000001 < $balQty) {
+            $row['qty_balance'] = $balQty;
+            $row['qty_stock'] = $stockQty;
+        }
+        $out[] = $row;
+    }
+
+    return $out;
+}
+
+/**
  * تشغيلات Oracle للمعاينة والترحيل — مثل Toad/Forms «التشغيلات المتوفرة»:
  * MAS.BALANCE · COMP_NUM + CAT + ITEM + STORE · QTY_OH > 0
  *
@@ -2142,7 +2213,9 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
     if ($balanceRows !== []) {
         $balanceRows = oracle_order_picker_prune_balance_outliers($balanceRows);
-        $rows = oracle_order_sort_batches_forms_fifo($balanceRows);
+        $table = (string) $sc['table'];
+        $rows = oracle_order_cap_balance_rows_with_stock($conn, $store, $item, $cat, $balanceRows, $owner, $table);
+        $rows = oracle_order_sort_batches_forms_fifo($rows);
         $total = 0.0;
         foreach ($rows as $row) {
             $total += (float) ($row['qty'] ?? 0);
@@ -2154,10 +2227,10 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
             'total' => $total,
             'raw_count' => count($rows),
             'positive_batches' => count($rows),
-            'qty_cols' => ['QTY_OH'],
+            'qty_cols' => ['QTY_OH', 'SYS_QTY', 'MAN_QTY'],
             'other_stores' => [],
             'cat_used' => $cat,
-            'source' => 'balance-toad',
+            'source' => 'balance-stock-cap',
         ];
     }
 
@@ -3267,7 +3340,7 @@ function oracle_order_pending_daily_qty(array $conn, int $compNum, int $store, s
  */
 function oracle_order_check_stock(array $conn, int $compNum, int $store, array $mappedLines, array $opts = []): array
 {
-    $version = 'STOCK-v19-BALANCE-BINDS';
+    $version = 'STOCK-v20-BALANCE-STOCK-CAP';
     $manualMode = !empty($opts['manual_batches']);
     $sc = oracle_order_stock_cfg();
     if (!$sc['enabled']) {
@@ -3287,6 +3360,8 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 
     $issues = [];
     $outLines = [];
+    /** @var array<string,float> $batchUsedInDoc */
+    $batchUsedInDoc = [];
     $fmt = static function (float $n): string {
         return rtrim(rtrim(number_format($n, 3, '.', ''), '0'), '.');
     };
@@ -3320,30 +3395,46 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
             $pickRows = is_array($batchesPick['rows'] ?? null) ? $batchesPick['rows'] : [];
             $batchQty = 0.0;
             $batchNorm = oracle_order_batch_norm_key($batch);
+            $batchBalance = 0.0;
+            $batchStock = 0.0;
             foreach ($pickRows as $pr) {
                 $pb = trim((string) ($pr['batch'] ?? ''));
                 if ($pb !== '' && oracle_order_batch_norm_key($pb) === $batchNorm) {
                     $batchQty = (float) ($pr['qty'] ?? 0);
+                    $batchBalance = (float) ($pr['qty_balance'] ?? $batchQty);
+                    $batchStock = (float) ($pr['qty_stock'] ?? $batchQty);
                     break;
                 }
             }
-            if ($batchQty < $need - 0.0000001) {
+            $usedOnDoc = (float) ($batchUsedInDoc[$batchNorm] ?? 0);
+            $available = max(0.0, $batchQty - $usedOnDoc);
+            if ($available < $need - 0.0000001) {
                 $name = trim((string) ($ml['name'] ?? ''));
                 $label = $item . ($name !== '' ? ' — ' . $name : '');
+                $hint = '';
+                if ($batchBalance > $batchStock + 0.0000001) {
+                    $hint = "\nBALANCE: " . $fmt($batchBalance) . ' · STOCK: ' . $fmt($batchStock)
+                        . "\nINV00024 يتحقق من STOCK — قد تكون QTY_OH أعلى من الرصيد الفعلي.";
+                }
+                if ($usedOnDoc > 0.0000001) {
+                    $hint .= "\nمستخدم في أسطر أخرى من نفس الفاتورة: " . $fmt($usedOnDoc);
+                }
                 $issues[] = [
                     'item' => $item,
                     'name' => $name,
                     'need' => $need,
-                    'available' => $batchQty,
+                    'available' => $available,
                     'store' => $store,
                     '_line' => $label
                         . "\nالمطلوب: " . $fmt($need)
-                        . "\nرصيد التشغيلة " . $batch . ': ' . $fmt($batchQty)
-                        . "\nاختر تشغيلة أخرى أو راجع STOCK في Oracle.",
+                        . "\nرصيد التشغيلة " . $batch . ': ' . $fmt($available)
+                        . $hint
+                        . "\nاختر تشغيلة أخرى أو قسّم الكمية على أكثر من تشغيلة.",
                 ];
                 $outLines[] = $ml;
                 continue;
             }
+            $batchUsedInDoc[$batchNorm] = $usedOnDoc + $need;
             $outLines[] = array_merge($ml, ['batch' => $batch]);
             continue;
         }
@@ -3365,7 +3456,7 @@ function oracle_order_check_stock(array $conn, int $compNum, int $store, array $
 
         // اطرح كميات فواتير Oracle غير المحفوظة/المعلقة لنفس المادة والمستودع (VOU_FLAG=18)
         $pendingQty = 0.0;
-        if (!$manualMode && !empty($sc['subtract_pending'])) {
+        if (!empty($sc['subtract_pending'])) {
             $pending = oracle_order_pending_daily_qty($conn, $compNum, $store, $item, $catUsed);
             if (empty($pending['ok'])) {
                 return [

@@ -627,6 +627,21 @@
     return Promise.resolve(window.confirm(msg));
   }
 
+  function isOrderLockError(text) {
+    text = String(text || '');
+    return (
+      text.indexOf('فك الاعتماد') >= 0 ||
+      text.indexOf('طلب معتمد') >= 0 ||
+      text.indexOf('معتمد بالفعل') >= 0
+    );
+  }
+
+  function refreshOrderPageSoon() {
+    window.setTimeout(function () {
+      window.location.reload();
+    }, 400);
+  }
+
   function showActionError(data) {
     var text = (data && (data.error || data.message)) || 'فشل الإجراء';
     var items = data && Array.isArray(data.items)
@@ -694,6 +709,10 @@
       hxAlert(body, { title: 'المادة غير معرفة على النظام', kind: 'error' });
     } else if (String(text).length > 80 || String(text).indexOf('\n') >= 0) {
       hxAlert(text, { title: 'تنبيه النظام', kind: 'error' });
+    }
+
+    if (isOrderLockError(text)) {
+      refreshOrderPageSoon();
     }
   }
 
@@ -2320,7 +2339,11 @@
       .then(function (data) {
         setBusy(false);
         if (!data.ok) {
-          setMsg(data.error || 'تعذر الحفظ', 'error');
+          var saveErr = data.error || 'تعذر الحفظ';
+          setMsg(saveErr, 'error');
+          if (isOrderLockError(saveErr)) {
+            refreshOrderPageSoon();
+          }
           return null;
         }
         setMsg('تم الحفظ · ' + (data.order_no || ''), 'ok');
@@ -2472,9 +2495,24 @@
         setMsg('احفظ الطلب أولاً ثم اعتمد.', 'error');
         return;
       }
-      hxConfirm('اعتماد هذا الطلب؟', { title: 'اعتماد', okLabel: 'اعتماد' }).then(function (ok) {
+      var confirmMsg =
+        'اعتماد هذا الطلب؟' +
+        (formDirty ? '\n\nسيتم حفظ التعديلات الحالية أولاً ثم الاعتماد.' : '');
+      hxConfirm(confirmMsg, { title: 'اعتماد', okLabel: 'اعتماد' }).then(function (ok) {
         if (!ok) return;
-        postAction('/api/sales/customer-orders/' + state.id + '/approve', '/sales/orders/' + state.id);
+        var runApprove = function () {
+          postAction(
+            '/api/sales/customer-orders/' + state.id + '/approve',
+            '/sales/orders/' + state.id
+          );
+        };
+        if (formDirty) {
+          saveOrder().then(function (data) {
+            if (data && data.ok) runApprove();
+          });
+        } else {
+          runApprove();
+        }
       });
     });
   }
@@ -2759,7 +2797,7 @@
         'مستودع Oracle: ' +
         (data.store || '—') +
         (data.warehouse_name ? ' — ' + data.warehouse_name : '') +
-        ' · MAS.BALANCE (Toad) · COMP_NUM+CAT+ITEM+STORE · اختر الفئة ثم راجع التشغيلات';
+        ' · MAS.BALANCE+STOCK · min(QTY_OH,SYS_QTY) · COMP_NUM+CAT+ITEM+STORE · اختر الفئة ثم راجع التشغيلات';
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {
@@ -2995,13 +3033,29 @@
   if (delBtn) {
     delBtn.addEventListener('click', function () {
       if (busy || !state.id || locked) return;
-      hxConfirm(
-        'تحذير: سيتم حذف بنود الطلب ثم حذف الطلب نهائياً.\nلا يمكن التراجع.',
-        { title: 'حذف الطلب', okLabel: 'حذف نهائياً', danger: true }
-      ).then(function (ok) {
-        if (!ok) return;
-        postAction('/api/sales/customer-orders/' + state.id + '/delete', '/sales/orders');
-      });
+      fetch('/api/sales/customer-orders/' + state.id, {
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (data && data.ok && data.order && data.order.is_approved) {
+            setMsg('الطلب معتمد — فك الاعتماد أولاً.', 'error');
+            refreshOrderPageSoon();
+            return;
+          }
+          hxConfirm(
+            'تحذير: سيتم حذف بنود الطلب ثم حذف الطلب نهائياً.\nلا يمكن التراجع.',
+            { title: 'حذف الطلب', okLabel: 'حذف نهائياً', danger: true }
+          ).then(function (ok) {
+            if (!ok) return;
+            postAction('/api/sales/customer-orders/' + state.id + '/delete', '/sales/orders');
+          });
+        })
+        .catch(function () {
+          setMsg('تعذر التحقق من حالة الطلب', 'error');
+        });
     });
   }
 
@@ -3144,6 +3198,12 @@
       loadCustomerAr(cid, { scroll: false });
     });
   }
+
+  window.addEventListener('pageshow', function (ev) {
+    if (ev.persisted && state.id) {
+      window.location.reload();
+    }
+  });
 
   if (window.HypexDocNav) {
     window.HypexDocNav.bind({
