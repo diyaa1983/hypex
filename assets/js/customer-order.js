@@ -2643,7 +2643,7 @@
         'مستودع Oracle: ' +
         (data.store || '—') +
         (data.warehouse_name ? ' — ' + data.warehouse_name : '') +
-        ' · التشغيلات من STOCK (نفس Oracle) · توزيع تلقائي: خصم من الأولى ثم التالية (سطر لكل تشغيلة)';
+        ' · توزيع تلقائي من تشغيلات Oracle (يمكن تعديل التشغيلة لكل سطر قبل التأكيد)';
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {

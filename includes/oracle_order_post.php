@@ -1947,11 +1947,9 @@ function oracle_order_balance_batches(
 }
 
 /**
- * تشغيلات Oracle للمعاينة والترحيل — من STOCK (نفس قائمة Forms «التشغيلات المتوفرة»).
+ * تشغيلات Oracle للمعاينة والترحيل — BALANCE أولاً ثم STOCK (نفس السلوك السابق الصحيح).
  *
- * لا نستخدم MAS.BALANCE وحدها لأنها قد تحتوي تشغيلات قديمة (مثل 0251433) غير ظاهرة في Oracle.
- *
- * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count:int,positive_batches:int,qty_cols:list<string>,other_stores:list<array{store:int,qty:float}>,cat_used:string,source:string,message?:string}
+ * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count?:int,positive_batches?:int,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,cat_used?:string,source?:string,message?:string}
  */
 function oracle_order_picker_stock_batches(array $conn, int $store, string $item, string $cat): array
 {
@@ -1960,40 +1958,22 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     if ($cat === '' && $item !== '') {
         $cat = oracle_order_item_cat_resolve($conn, $item, '');
     }
-    $sc = oracle_order_stock_cfg();
-    $owner = (string) $sc['owner'];
-    $table = (string) $sc['table'];
 
-    // 1) STOCK — CAT + ITEM + STORE (مثل Toad/Forms)
-    $stock = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table);
-    if ($stock !== null && is_array($stock['rows'] ?? null) && $stock['rows'] !== []) {
+    $stock = oracle_order_resolve_stock_batches($conn, oracle_order_comp_num([]), $store, $item, $cat);
+    if (!is_array($stock['rows'] ?? null)) {
+        $stock['rows'] = [];
+    }
+    if ($stock['rows'] !== []) {
         $stock['rows'] = oracle_order_sort_batches_forms_fifo($stock['rows']);
-        $stock['source'] = 'stock-qty';
-
-        return $stock;
+    }
+    if (!isset($stock['ok'])) {
+        $stock['ok'] = true;
+    }
+    if ($stock['rows'] === [] && empty($stock['message'])) {
+        $stock['message'] = 'لا توجد تشغيلات برصيد موجب لهذه المادة/المستودع.';
     }
 
-    // 2) STOCK أوسع (مرشّحات فئة/مستودع)
-    $full = oracle_order_stock_batches($conn, oracle_order_comp_num([]), $store, $item, $cat);
-    if ((float) ($full['total'] ?? 0) > 0.0000001 && is_array($full['rows'] ?? null) && $full['rows'] !== []) {
-        $full['rows'] = oracle_order_sort_batches_forms_fifo($full['rows']);
-        $full['source'] = (string) ($full['source'] ?? 'stock-qty');
-
-        return $full;
-    }
-
-    return [
-        'ok' => true,
-        'rows' => [],
-        'total' => 0.0,
-        'raw_count' => 0,
-        'positive_batches' => 0,
-        'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
-        'other_stores' => [],
-        'cat_used' => $cat,
-        'source' => 'stock-qty',
-        'message' => 'لا توجد تشغيلات برصيد موجب في STOCK لهذه المادة/المستودع (نفس Oracle).',
-    ];
+    return $stock;
 }
 
 /**

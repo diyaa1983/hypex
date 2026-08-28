@@ -460,7 +460,7 @@ sales_ora12_enqueue_assets();
             if (batchSub) {
               batchSub.textContent = 'مستودع Oracle: ' + (data.store || '—')
                 + (data.warehouse_name ? (' — ' + data.warehouse_name) : '')
-                + ' · التشغيلات من STOCK (نفس Oracle) · توزيع تلقائي على أكثر من تشغيلة عند الحاجة';
+                + ' · توزيع تلقائي من تشغيلات Oracle (يمكن تعديل التشغيلة قبل التأكيد)';
             }
             var rowNo = 0;
             (data.lines || []).forEach(function (ln) {
