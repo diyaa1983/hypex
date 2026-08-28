@@ -2067,8 +2067,8 @@ function oracle_order_picker_merge_stock_balance(array $stockRows, array $balanc
 
 /**
  * تشغيلات Oracle للمعاينة والترحيل — مثل قائمة Forms «التشغيلات المتوفرة»:
- * المصدر الأساسي MAS.BALANCE (QTY_OH > 0) بفلتر CAT+ITEM+STORE.
- * STOCK فقط احتياطاً وبنفس فلتر الفئة (بدون خلط فئات → تشغيلات 0213…).
+ * قائمة التشغيلات من STOCK (CAT+ITEM+STORE)، الكمية من BALANCE (QTY_OH) عند التطابق.
+ * يستبعد صفوف BALANCE اليتيمة غير الموجودة في STOCK (مثل 0251433).
  *
  * @return array{ok:bool,rows:list<array{batch:string,qty:float,exp_date:string,sort_date:string}>,total:float,raw_count?:int,positive_batches?:int,qty_cols?:list<string>,other_stores?:list<array{store:int,qty:float}>,cat_used?:string,source?:string,message?:string}
  */
@@ -2083,32 +2083,13 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     $owner = (string) $sc['owner'];
     $table = (string) $sc['table'];
 
-    // Forms INV00024: MAS.BALANCE + CAT + ITEM + STORE + QTY_OH > 0
+    // Forms: قائمة التشغيلات من STOCK (CAT+ITEM+STORE) — الكمية من BALANCE عند التطابق
+    // يستبعد صفوف BALANCE القديمة/اليتيمة مثل 0251433 غير الظاهرة في Forms
     $balance = oracle_order_balance_batches($conn, $store, $item, $cat, $owner, true);
     $balanceRows = is_array($balance['rows'] ?? null) ? $balance['rows'] : [];
-    if ($balanceRows !== []) {
-        $rows = oracle_order_sort_batches_forms_fifo($balanceRows);
-        $total = 0.0;
-        foreach ($rows as $row) {
-            $total += (float) ($row['qty'] ?? 0);
-        }
 
-        return [
-            'ok' => true,
-            'rows' => $rows,
-            'total' => $total,
-            'raw_count' => count($rows),
-            'positive_batches' => count($rows),
-            'qty_cols' => ['QTY_OH'],
-            'other_stores' => [],
-            'cat_used' => $cat,
-            'source' => 'balance-forms',
-        ];
-    }
-
-    // احتياط فقط: STOCK بنفس CAT (لا رجوع بلا فئة)
-    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, true);
     $stockRows = [];
+    $stockPick = oracle_order_stock_toad_exact_batches($conn, $store, $item, $cat, $owner, $table, true);
     if ($stockPick !== null && is_array($stockPick['rows'] ?? null) && $stockPick['rows'] !== []) {
         $stockRows = $stockPick['rows'];
     } elseif ($cat !== '') {
@@ -2119,7 +2100,19 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
     }
 
     if ($stockRows !== []) {
-        $rows = oracle_order_sort_batches_forms_fifo($stockRows);
+        $merged = oracle_order_picker_merge_stock_balance($stockRows, $balanceRows);
+        $rows = [];
+        foreach ($merged as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $q = (float) ($row['qty'] ?? 0);
+            if ($q <= 0.0000001) {
+                continue;
+            }
+            $rows[] = $row;
+        }
+        $rows = oracle_order_sort_batches_forms_fifo($rows);
         $total = 0.0;
         foreach ($rows as $row) {
             $total += (float) ($row['qty'] ?? 0);
@@ -2131,10 +2124,10 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
             'total' => $total,
             'raw_count' => count($rows),
             'positive_batches' => count($rows),
-            'qty_cols' => ['SYS_QTY', 'MAN_QTY'],
+            'qty_cols' => $balanceRows !== [] ? ['SYS_QTY', 'MAN_QTY', 'QTY_OH'] : ['SYS_QTY', 'MAN_QTY'],
             'other_stores' => [],
             'cat_used' => $cat,
-            'source' => 'stock-fallback',
+            'source' => 'stock+balance-forms',
         ];
     }
 
@@ -2148,7 +2141,7 @@ function oracle_order_picker_stock_batches(array $conn, int $store, string $item
         'other_stores' => [],
         'cat_used' => $cat,
         'source' => 'none',
-        'message' => 'لا توجد تشغيلات برصيد موجب لهذه الفئة/المادة/المستودع في MAS.BALANCE.',
+        'message' => 'لا توجد تشغيلات برصيد موجب لهذه الفئة/المادة/المستودع.',
     ];
 }
 

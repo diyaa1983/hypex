@@ -2759,7 +2759,7 @@
         'مستودع Oracle: ' +
         (data.store || '—') +
         (data.warehouse_name ? ' — ' + data.warehouse_name : '') +
-        ' · المصدر: MAS.BALANCE (مثل Forms) · اختر الفئة ثم راجع التشغيلات';
+        ' · قائمة STOCK + كميات BALANCE (مثل Forms) · اختر الفئة ثم راجع التشغيلات';
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {
