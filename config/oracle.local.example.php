@@ -101,7 +101,7 @@ return [
         'item_card_owner' => 'MAS',
         'item_card_table' => 'MASCARD',
         // فحص رصيد المخزون قبل الترحيل (MAS.STOCK) — يمنع خطأ INV00024
-        // يختار أقدم تشغيلة متاحة (FIFO/FEFO) ويقسّم الكمية على أكثر من تشغيلة عند الحاجة
+        // قائمة التشغيلات في معاينة الترحيل من MAS.BALANCE (QTY_OH) مثل Toad/Forms — ليس STOCK
         'stock' => [
             'enabled' => true,
             'owner' => 'MAS',
