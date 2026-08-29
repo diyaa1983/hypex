@@ -266,27 +266,15 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
   const focus = focusId ? rows.find((r) => Number(r.id) === focusId) || (await masters.getRegion(focusId)) : null;
   if (focusId && !focus) focusId = 0;
   let addressRows = [];
-  if (focusId > 0) addressRows = await q.listRegionAddresses(focusId);
+  let regionUse = { canDelete: false };
+  if (focusId > 0) {
+    addressRows = await q.listRegionAddresses(focusId);
+    regionUse = await masters.regionUsage(focusId);
+  }
 
   const flash = String(req.query.msg || '');
   const err = String(req.query.err || '');
-  const showImport = String(req.query.import || '') === '1' || !!err && String(req.query.focus || '') === 'import';
   const qsKeep = `${qv ? '&q=' + encodeURIComponent(qv) : ''}${showAll ? '&all=1' : ''}`;
-  let importWarningsHtml = '';
-  try {
-    const rawWarn = String(req.query.warn || '');
-    if (rawWarn) {
-      const list = JSON.parse(Buffer.from(rawWarn, 'base64url').toString('utf8'));
-      if (Array.isArray(list) && list.length) {
-        importWarningsHtml = `<div class="rg-import-warn"><strong>تنبيهات (${list.length}):</strong><ul>${list
-          .slice(0, 15)
-          .map((w) => `<li>${ui.esc(String(w))}</li>`)
-          .join('')}${list.length > 15 ? `<li>… و ${list.length - 15} أخرى</li>` : ''}</ul></div>`;
-      }
-    }
-  } catch {
-    /* */
-  }
 
   const regionNav =
     rows
@@ -369,6 +357,15 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
             <button class="si-btn si-btn--primary" type="submit">حفظ تعريف المنطقة</button>
           </div>
         </form>
+        <div class="si-form-actions" style="padding:0 1rem 1rem">
+          ${
+            regionUse.canDelete
+              ? `<form method="post" action="/customers/regions/${focusId}/delete" onsubmit="return confirm('حذف المنطقة نهائياً؟ لا يمكن التراجع.');">
+            <button class="si-btn si-btn--danger" type="submit">حذف المنطقة</button>
+          </form>`
+              : `<span class="rg-hint">لا يمكن حذف المنطقة لوجود عملاء أو جولات أو مندوبين مرتبطين بها.</span>`
+          }
+        </div>
       </section>
 
       <section class="si-surface rg-detail" style="margin-top:.75rem">
@@ -442,46 +439,15 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
         mark: 'Rg',
         kicker: KICKER,
         title: 'تعريف المناطق',
-        subtitle: 'عرّف المنطقة ثم أضف بداخلها العناوين — أو استورد ربط العملاء من Excel',
+        subtitle: 'عرّف المنطقة ثم أضف بداخلها العناوين',
         actions: [
           { label: '＋ منطقة جديدة', href: '/customers/regions?new=1' + qsKeep, primary: true },
-          { label: 'استيراد Excel', href: '/customers/regions?import=1' + qsKeep },
           { label: 'العملاء', href: '/customers/list' },
           { label: 'لوحة العملاء', href: HUB },
         ],
       })}
       ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${ui.esc(flash)}</p>` : ''}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${ui.esc(err)}</p>` : ''}
-      ${importWarningsHtml}
-      <section class="rg-import" id="rg-import" ${showImport ? '' : 'hidden'}>
-        <h3>استيراد Excel — ربط العميل · المنطقة · العنوان · المندوب</h3>
-        <p>
-          ارفع ملف <strong>.xlsx</strong> بالأعمدة التالية (يمكن إعادة ترتيبها، المهم عناوين الأعمدة):
-        </p>
-        <div class="rg-import-cols" dir="rtl">
-          <code>رقم العميل</code> ·
-          <code>اسم العميل</code> ·
-          <code>العنوان</code> ·
-          <code>المنطقة</code> ·
-          <code>اسم المندوب</code>
-          <br>مثال: 11200612 · مركز حبيبه / الرابيه · الرابيه · عمان الغربية · إبراهيم
-        </div>
-        <form class="rg-import-form" method="post" action="/customers/regions/import" enctype="multipart/form-data" style="margin-top:.85rem">
-          <label>ملف Excel
-            <input class="si-field" type="file" name="excel_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
-          </label>
-          <label style="flex:0;min-width:auto;flex-direction:row;align-items:center;gap:.4rem;padding-bottom:.45rem">
-            <input type="checkbox" name="replace_reps" value="1" checked>
-            استبدال مندوب العميل بالمندوب من الملف
-          </label>
-          <button class="si-btn si-btn--primary" type="submit">تنفيذ الاستيراد</button>
-          <a class="si-btn" href="/customers/regions${qsKeep ? '?' + qsKeep.slice(1) : ''}">إخفاء</a>
-        </form>
-        <p class="rg-hint" style="margin-top:.65rem">
-          يُنشئ المناطق والعناوين والمندوبين تلقائياً إن لم يكونوا موجودين، ويربط العميل الموجود برمزه في النظام (مثل 11200612).
-          العملاء غير الموجودين في قاعدة البيانات يُذكرون كتنبيه دون إيقاف الاستيراد.
-        </p>
-      </section>
       <div class="si-rail">
         <form class="si-search rg-filters" method="get" action="/customers/regions" style="max-width:100%;margin:0">
           ${focusId && !wantsNew ? `<input type="hidden" name="id" value="${focusId}">` : ''}
@@ -490,7 +456,6 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
             <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفة
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
-          <a class="si-btn" href="/customers/regions?import=1${qsKeep}">استيراد Excel</a>
         </form>
       </div>
       <div class="rg-layout">
@@ -594,6 +559,15 @@ router.post('/customers/regions/:id/edit', async (req, res) => {
     return res.redirect('/customers/regions?id=' + id + '&err=' + encodeURIComponent(result.error));
   }
   res.redirect('/customers/regions?id=' + id + '&msg=' + encodeURIComponent(result.message || 'تم'));
+});
+router.post('/customers/regions/:id/delete', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const id = Number(req.params.id);
+  const result = await masters.deleteRegion(id);
+  if (!result.ok) {
+    return res.redirect('/customers/regions?id=' + id + '&err=' + encodeURIComponent(result.error));
+  }
+  res.redirect('/customers/regions?msg=' + encodeURIComponent(result.message || 'تم الحذف'));
 });
 router.post('/customers/regions/:id/addresses', async (req, res) => {
   if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');

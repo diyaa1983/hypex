@@ -425,6 +425,62 @@ async function saveRegionAddress(payload) {
   return { ok: true, id: Number(result.insertId), message: 'تم إضافة العنوان.' };
 }
 
+async function countSafe(sql, params = []) {
+  try {
+    const rows = await safeQuery(sql, params);
+    return Number(rows[0]?.c || 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function regionUsage(id) {
+  const rid = Number(id) || 0;
+  if (rid < 1) {
+    return { customers: 0, tours: 0, reps: 0, canDelete: false };
+  }
+  const customers = await countSafe(
+    `SELECT COUNT(*) AS c FROM crm_customer
+     WHERE region_id = ?
+        OR region_address_id IN (SELECT id FROM crm_region_address WHERE region_id = ?)`,
+    [rid, rid]
+  );
+  const tours = await countSafe(`SELECT COUNT(*) AS c FROM sal_rep_tour WHERE region_id = ?`, [rid]);
+  const reps = await countSafe(
+    `SELECT COUNT(*) AS c FROM crm_sales_rep_region WHERE region_id = ?`,
+    [rid]
+  );
+  return {
+    customers,
+    tours,
+    reps,
+    canDelete: customers < 1 && tours < 1 && reps < 1,
+  };
+}
+
+async function deleteRegion(id) {
+  const rid = Number(id) || 0;
+  if (rid < 1) return { ok: false, error: 'منطقة غير صالحة.' };
+  const row = await getRegion(rid);
+  if (!row) return { ok: false, error: 'المنطقة غير موجودة.' };
+  const usage = await regionUsage(rid);
+  if (!usage.canDelete) {
+    if (usage.customers > 0) {
+      return { ok: false, error: 'لا يمكن حذف المنطقة لارتباطها بعملاء.' };
+    }
+    if (usage.tours > 0) {
+      return { ok: false, error: 'لا يمكن حذف المنطقة لوجود جولات مرتبطة بها.' };
+    }
+    if (usage.reps > 0) {
+      return { ok: false, error: 'لا يمكن حذف المنطقة لارتباطها بمندوبين.' };
+    }
+    return { ok: false, error: 'لا يمكن حذف المنطقة لوجود حركات عليها.' };
+  }
+  await safeQuery(`DELETE FROM crm_region_address WHERE region_id = ?`, [rid]);
+  await safeQuery(`DELETE FROM crm_region WHERE id = ?`, [rid]);
+  return { ok: true, message: 'تم حذف المنطقة.' };
+}
+
 async function listAddressesForRegion(regionId, { activeOnly = true } = {}) {
   if (!regionId) return [];
   const activeSql = activeOnly ? 'AND is_active = 1' : '';
@@ -567,6 +623,8 @@ module.exports = {
   getRegion,
   saveRegion,
   saveRegionAddress,
+  regionUsage,
+  deleteRegion,
   listAddressesForRegion,
   nextRegionCode,
   importRegionCustomerExcel,
