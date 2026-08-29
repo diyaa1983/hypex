@@ -3117,6 +3117,7 @@
         tr.dataset.lineId = String(ln.line_id || '');
         tr.dataset.need = String(ln.need || '');
         tr.dataset.unitFactor = String(ln.unit_factor || 1);
+        if (ai > 0) tr.classList.add('co-batch-row--cont');
         if (!ln.allocation_ok && Number(ln.shortfall) > 0) {
           tr.dataset.shortfall = '1';
           tr.classList.add('co-batch-row--invalid');
@@ -3130,23 +3131,33 @@
         tdName.className = 'co-batch-col-item';
         tdName.innerHTML = itemHtml;
 
-        var tdCat = document.createElement('td');
-        tdCat.className = 'co-batch-col-cat';
+        tr.appendChild(tdIdx);
+        tr.appendChild(tdName);
+
         if (ai === 0) {
+          var span = allocs.length > 1 ? allocs.length : 0;
+          var tdCat = document.createElement('td');
+          tdCat.className = 'co-batch-col-cat';
+          if (span) tdCat.rowSpan = span;
           var catSel = buildCatSelect(ln, data.categories || []);
           catSel.addEventListener('change', function () {
             reloadBatchesForCatChange(catSel);
           });
           tdCat.appendChild(catSel);
+          tr.appendChild(tdCat);
+
+          var tdQty = document.createElement('td');
+          tdQty.className = 'co-batch-col-qty';
+          if (span) tdQty.rowSpan = span;
+          tdQty.appendChild(buildQtyBonusInput(ln, 'qty'));
+          tr.appendChild(tdQty);
+
+          var tdBonus = document.createElement('td');
+          tdBonus.className = 'co-batch-col-bonus';
+          if (span) tdBonus.rowSpan = span;
+          tdBonus.appendChild(buildQtyBonusInput(ln, 'bonus'));
+          tr.appendChild(tdBonus);
         }
-
-        var tdQty = document.createElement('td');
-        tdQty.className = 'co-batch-col-qty';
-        if (ai === 0) tdQty.appendChild(buildQtyBonusInput(ln, 'qty'));
-
-        var tdBonus = document.createElement('td');
-        tdBonus.className = 'co-batch-col-bonus';
-        if (ai === 0) tdBonus.appendChild(buildQtyBonusInput(ln, 'bonus'));
 
         var tdTake = document.createElement('td');
         tdTake.className = 'co-batch-col-take';
@@ -3163,11 +3174,6 @@
         var meta = findBatchMeta(batches, a.batch);
         tdBal.textContent = meta ? fmtBatchQty(meta.qty) : fmtBatchQty(a.batch_qty);
 
-        tr.appendChild(tdIdx);
-        tr.appendChild(tdName);
-        tr.appendChild(tdCat);
-        tr.appendChild(tdQty);
-        tr.appendChild(tdBonus);
         tr.appendChild(tdTake);
         tr.appendChild(tdBatch);
         tr.appendChild(tdBal);
