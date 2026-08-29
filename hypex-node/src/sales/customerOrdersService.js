@@ -42,15 +42,21 @@ async function nextOrderNo(orderDate) {
   const year = iso.slice(0, 4);
   const rows = await db.query(
     `SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? OR order_no LIKE ? OR order_no LIKE ?`,
-    [`${year}%`, `%${year}`, `%-${year}`]
+    [`${year}-%`, `${year}%`, `%-${year}`]
   );
   let maxSeq = 0;
-  const reNew = new RegExp(`^${year}(\\d+)$`);
+  const reYearDash = new RegExp(`^${year}-(\\d+)$`);
+  const reCompact = new RegExp(`^${year}(\\d+)$`);
   const reOldCo = new RegExp(`^CO(\\d+)-${year}$`);
   const reOldPlain = new RegExp(`^(\\d+)-${year}$`);
   for (const row of rows) {
     const no = String(row.order_no || '');
-    let m = no.match(reNew);
+    let m = no.match(reYearDash);
+    if (m) {
+      maxSeq = Math.max(maxSeq, Number(m[1]));
+      continue;
+    }
+    m = no.match(reCompact);
     if (m) {
       maxSeq = Math.max(maxSeq, Number(m[1]));
       continue;
@@ -58,7 +64,7 @@ async function nextOrderNo(orderDate) {
     m = no.match(reOldCo) || no.match(reOldPlain);
     if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
   }
-  return `${year}${String(maxSeq + 1).padStart(3, '0')}`;
+  return `${year}-${maxSeq + 1}`;
 }
 
 async function getOrder(id) {
@@ -803,7 +809,19 @@ async function browseNeighbors(id) {
 }
 
 async function findOrderIdByNo(no) {
-  return findIdByNo('sal_customer_order', 'order_no', no);
+  const s = String(no || '').trim();
+  if (!s) return 0;
+  let id = await findIdByNo('sal_customer_order', 'order_no', s);
+  if (id) return id;
+  if (/^\d+$/.test(s)) {
+    const year = String(new Date().getFullYear());
+    id = await findIdByNo('sal_customer_order', 'order_no', `${year}-${s}`);
+    if (id) return id;
+    id = await findIdByNo('sal_customer_order', 'order_no', `${year}${s.padStart(3, '0')}`);
+    if (id) return id;
+    id = await findIdByNo('sal_customer_order', 'order_no', `CO${s.padStart(3, '0')}-${year}`);
+  }
+  return id || 0;
 }
 
 /**

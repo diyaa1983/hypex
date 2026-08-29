@@ -92,6 +92,8 @@ return [
         'comp_num' => 1,
         // رقم المستودع في أوراكل إن لم يُضبط على بطاقة المستودع
         'default_store' => 4,
+        // عمود «رقم الطلبية» في INV00024 — إن عرفت الاسم ثبّته هنا (مثال: DOC_NO)
+        // 'order_no_columns' => ['DOC_NO'],
         // عمود «خاضع لضريبة المبيعات» في INV00024 (عدّل إن اختلف عندكم)
         'tax_subject' => [
             'columns' => ['STAX', 'TAX_FLAG', 'ST_FLAG', 'CUS_TAX', 'TAXABLE'],

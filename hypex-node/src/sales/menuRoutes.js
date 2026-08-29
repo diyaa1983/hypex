@@ -1444,7 +1444,6 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
         <td class="si-num" dir="ltr">${esc(ln.item || '')}</td>
         <td>${esc(ln.item_name || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ln.cat || '—')}</td>
-        <td class="si-num" dir="ltr">${esc(ln.batch || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ln.unit_label || (ln.tr_unit ? '1*' + ln.tr_unit : '—'))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.qty))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.bonus))}</td>
@@ -1452,6 +1451,7 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
         <td class="si-num" dir="ltr">${esc(Number(ln.tax_pct || 0))}%</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(ln.vou_tax))}</td>
+        <td class="si-num no-print" dir="ltr">${esc(ln.batch || '—')}</td>
       </tr>`
         )
         .join('') || ui.emptyRow(12, 'لا بنود');
@@ -1529,8 +1529,9 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
           <table class="si-table ora-doc-lines">
             <thead>
               <tr>
-                <th>#</th><th>المادة</th><th>البيان</th><th>الفئة</th><th>التشغيلة</th><th>الوحدة</th>
+                <th>#</th><th>المادة</th><th>البيان</th><th>الفئة</th><th>الوحدة</th>
                 <th>الكمية</th><th>بونص</th><th>السعر</th><th>ض%</th><th>الإجمالي</th><th>الضريبة</th>
+                <th class="no-print">التشغيلة</th>
               </tr>
             </thead>
             <tbody>${lineRows}</tbody>
@@ -1538,12 +1539,13 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
               lines.length
                 ? `<tfoot>
                     <tr class="ora-doc-lines__sum">
-                      <td colspan="6">مجموع البنود</td>
+                      <td colspan="5">مجموع البنود</td>
                       <td class="si-num" dir="ltr">${esc(fmtAmt(qtySum))}</td>
                       <td class="si-num" dir="ltr">${esc(fmtAmt(bonusSum))}</td>
                       <td></td><td></td>
                       <td class="si-num" dir="ltr">${esc(fmtAmt(header.gross))}</td>
                       <td class="si-num" dir="ltr">${esc(fmtAmt(header.tax_sum))}</td>
+                      <td class="no-print"></td>
                     </tr>
                   </tfoot>`
                 : ''

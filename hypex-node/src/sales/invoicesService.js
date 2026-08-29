@@ -25,15 +25,21 @@ async function nextInvoiceNo(invoiceDate) {
   const iso = parseDateToIso(invoiceDate);
   const year = iso.slice(0, 4);
   const rows = await db.query(
-    `SELECT invoice_no FROM sal_invoice WHERE invoice_no LIKE ? OR invoice_no LIKE ?`,
-    [`${year}%`, `%-${year}`]
+    `SELECT invoice_no FROM sal_invoice WHERE invoice_no LIKE ? OR invoice_no LIKE ? OR invoice_no LIKE ?`,
+    [`${year}-%`, `${year}%`, `%-${year}`]
   );
   let maxSeq = 0;
-  const reNew = new RegExp(`^${year}(\\d+)$`);
+  const reYearDash = new RegExp(`^${year}-(\\d+)$`);
+  const reCompact = new RegExp(`^${year}(\\d+)$`);
   const reOld = new RegExp(`^(\\d+)-${year}$`);
   for (const row of rows) {
     const no = String(row.invoice_no || '');
-    let m = no.match(reNew);
+    let m = no.match(reYearDash);
+    if (m) {
+      maxSeq = Math.max(maxSeq, Number(m[1]));
+      continue;
+    }
+    m = no.match(reCompact);
     if (m) {
       maxSeq = Math.max(maxSeq, Number(m[1]));
       continue;
@@ -41,7 +47,7 @@ async function nextInvoiceNo(invoiceDate) {
     m = no.match(reOld);
     if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
   }
-  return `${year}${String(maxSeq + 1).padStart(3, '0')}`;
+  return `${year}-${maxSeq + 1}`;
 }
 
 async function listInvoices({ q = '', filter = 'all', page = 1, pageSize = 50 } = {}) {
@@ -1041,7 +1047,19 @@ async function browseNeighbors(id) {
 }
 
 async function findInvoiceIdByNo(no) {
-  return findIdByNo('sal_invoice', 'invoice_no', no);
+  const s = String(no || '').trim();
+  if (!s) return 0;
+  let id = await findIdByNo('sal_invoice', 'invoice_no', s);
+  if (id) return id;
+  if (/^\d+$/.test(s)) {
+    const year = String(new Date().getFullYear());
+    id = await findIdByNo('sal_invoice', 'invoice_no', `${year}-${s}`);
+    if (id) return id;
+    id = await findIdByNo('sal_invoice', 'invoice_no', `${year}${s.padStart(3, '0')}`);
+    if (id) return id;
+    id = await findIdByNo('sal_invoice', 'invoice_no', `${s.padStart(3, '0')}-${year}`);
+  }
+  return id || 0;
 }
 
 module.exports = {

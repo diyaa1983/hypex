@@ -362,8 +362,8 @@ async function renderForm(req, res, orderId) {
               <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
               <input class="si-field si-field--mono si-docno-input ${
                 locked ? 'is-approved' : initial.order_no || initial.id ? 'is-saved' : ''
-              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="رقم — Enter" dir="ltr"
-                     title="↑/← سابق · ↓/→ تالٍ · Enter بحث برقم">
+              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="2026-1 — Enter بحث" dir="ltr"
+                     title="↑/← سابق · ↓/→ تالٍ · اكتب الرقم ثم Enter للبحث">
               <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
             </div>
           </label>

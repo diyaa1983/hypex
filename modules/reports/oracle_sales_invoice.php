@@ -310,7 +310,6 @@ if ($header) {
                         <th>المادة</th>
                         <th>البيان</th>
                         <th>الفئة</th>
-                        <th>التشغيلة</th>
                         <th>الوحدة</th>
                         <th>الكمية</th>
                         <th>بونص</th>
@@ -322,7 +321,7 @@ if ($header) {
                     </thead>
                     <tbody>
                     <?php if (!$lines): ?>
-                        <tr><td colspan="12" class="muted" style="text-align:center;padding:1rem;">لا بنود</td></tr>
+                        <tr><td colspan="11" class="muted" style="text-align:center;padding:1rem;">لا بنود</td></tr>
                     <?php endif; ?>
                     <?php
                     $seq = 0;
@@ -334,7 +333,6 @@ if ($header) {
                             <td dir="ltr"><code><?= esc((string) ($ln['item'] ?? '')) ?></code></td>
                             <td><?= esc((string) ($ln['item_name'] ?? '—')) ?></td>
                             <td dir="ltr"><?= esc((string) ($ln['cat'] ?? '')) ?></td>
-                            <td dir="ltr"><?= esc((string) ($ln['batch'] ?? '')) ?></td>
                             <td dir="ltr"><?= esc((string) ($ln['unit_label'] ?? '—')) ?></td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['qty'] ?? 0))) ?></td>
                             <td dir="ltr"><?= esc($fmtAmt((float) ($ln['bonus'] ?? 0))) ?></td>
@@ -348,9 +346,9 @@ if ($header) {
                     <?php if ($lines): ?>
                     <tfoot>
                     <tr>
-                        <td colspan="6">مجموع البنود</td>
+                        <td colspan="5">مجموع البنود</td>
                         <td dir="ltr"><?= esc($fmtAmt((float) ($header['qty_sum'] ?? 0))) ?></td>
-                        <td></td>
+                        <td dir="ltr"><?= esc($fmtAmt((float) ($header['bonus_sum'] ?? 0))) ?></td>
                         <td></td>
                         <td></td>
                         <td dir="ltr"><?= esc($fmtAmt((float) ($header['gross'] ?? 0))) ?></td>

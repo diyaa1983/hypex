@@ -482,8 +482,8 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 <button type="button" class="si-btn si-docno-btn" id="inv_prev" title="السابق">‹</button>
                 <input class="si-field si-field--mono si-docno-input" id="inv_no" type="text" value="${esc(
                   initial.invoice_no
-                )}" readonly placeholder="رقم — Enter" dir="ltr"
-                       title="← سابق · → آخر · ↑↓ سابق/تالٍ · Enter بحث">
+                )}" readonly placeholder="2026-1 — Enter بحث" dir="ltr"
+                       title="← سابق · → تالٍ · اكتب الرقم ثم Enter للبحث">
                 <button type="button" class="si-btn si-docno-btn" id="inv_next" title="التالي">›</button>
                 <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="inv_last" title="آخر فاتورة (أكبر رقم)">»</button>
               </div>

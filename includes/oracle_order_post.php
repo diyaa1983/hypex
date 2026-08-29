@@ -459,6 +459,14 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'type' => $stype,
         'salesman' => $salesman,
         'order_no' => (string) ($order['order_no'] ?? ''),
+        'order_no_columns_daily' => array_values(array_filter(
+            oracle_order_order_no_column_candidates(),
+            static fn (string $c): bool => isset($cols[$c])
+        )),
+        'order_no_columns_master' => array_values(array_filter(
+            oracle_order_order_no_column_candidates(),
+            static fn (string $c): bool => isset($hdrCols[$c])
+        )),
         'header_table' => $hdrTable,
         'per_disc' => $headerDisc['per_disc'],
         'vou_disc' => $headerDisc['vou_disc'],
@@ -513,15 +521,10 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'DUE_DATE' => $orderDate,
         'TTIME' => date('H:i:s'),
         'USR_ID' => 'HYPX',
-        'ORDER_NO' => (string) ($order['order_no'] ?? ''),
-        'ORD_NUM' => (string) ($order['order_no'] ?? ''),
-        'ORD_NO' => (string) ($order['order_no'] ?? ''),
-        'REQ_NO' => (string) ($order['order_no'] ?? ''),
-        'ORDNUM' => (string) ($order['order_no'] ?? ''),
-        'PO_NO' => (string) ($order['order_no'] ?? ''),
-        'V_ORDER' => (string) ($order['order_no'] ?? ''),
-        'CUST_ORD' => (string) ($order['order_no'] ?? ''),
     ];
+    foreach (oracle_order_order_no_column_candidates() as $ordColName) {
+        $sharedHeader[$ordColName] = (string) ($order['order_no'] ?? '');
+    }
     $sharedHeader = array_merge($sharedHeader, $taxHeaderFields);
     $smNo = (int) ($salesman['no'] ?? 0);
     if ($smNo < 1) {
@@ -813,6 +816,50 @@ function oracle_order_pick_col(array $cols, array $names): ?string
     return null;
 }
 
+/**
+ * أعمدة مرشّحة لحقل «رقم الطلبية» في INV00024 (MASTER_D / DAILY).
+ * يمكن تثبيتها في config/oracle.local.php → sales_invoice.order_no_columns
+ *
+ * @return list<string>
+ */
+function oracle_order_order_no_column_candidates(): array
+{
+    static $cached = null;
+    if (is_array($cached)) {
+        return $cached;
+    }
+    $cfg = is_array(oracle_config()['sales_invoice'] ?? null) ? oracle_config()['sales_invoice'] : [];
+    $fromCfg = $cfg['order_no_columns'] ?? null;
+    $list = [];
+    if (is_string($fromCfg) && trim($fromCfg) !== '') {
+        $list = [strtoupper(trim($fromCfg))];
+    } elseif (is_array($fromCfg)) {
+        foreach ($fromCfg as $c) {
+            $u = strtoupper(trim((string) $c));
+            if ($u !== '') {
+                $list[] = $u;
+            }
+        }
+    }
+    // DOC_NO شائع في شاشات MAS لـ «رقم الطلبية» — قبل الأسماء العامة
+    $defaults = [
+        'DOC_NO', 'DOC_NUM', 'DOCNO',
+        'ORDER_NO', 'ORD_NUM', 'ORD_NO', 'ORDNUM', 'ORDERNO', 'ORDNO',
+        'REQ_NO', 'REQ_NUM', 'REQNO',
+        'V_ORDER', 'V_ORD', 'INV_ORD',
+        'CUST_ORD', 'CUS_ORD', 'CUS_PO', 'PO_NO', 'PO_NUM',
+        'REF_NO', 'REFNO', 'V_REF', 'REF1',
+    ];
+    foreach ($defaults as $d) {
+        if (!in_array($d, $list, true)) {
+            $list[] = $d;
+        }
+    }
+    $cached = $list;
+
+    return $cached;
+}
+
 function oracle_order_max_vnum(array $conn, string $from, int $stype, int $vyear, int $compNum, bool $hasComp): int
 {
     $where = 'TYPE = :stype AND VYEAR = :y';
@@ -928,9 +975,14 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
     if ($payCol) {
         $extras[$payCol] = strtolower((string) ($order['payment_type'] ?? 'credit')) === 'cash' ? 1 : 0;
     }
-    $ordCol = oracle_order_pick_col($cols, ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO', 'ORDNUM']);
-    if ($ordCol) {
-        $extras[$ordCol] = (string) ($order['order_no'] ?? '');
+    $orderNo = trim((string) ($order['order_no'] ?? ''));
+    if ($orderNo !== '') {
+        // اكتب على كل الأعمدة الموجودة (الرأس والبنود قد يختلفان)
+        foreach (oracle_order_order_no_column_candidates() as $ordCol) {
+            if (isset($cols[$ordCol])) {
+                $extras[$ordCol] = $orderNo;
+            }
+        }
     }
     $rateCol = oracle_order_pick_col($cols, ['TRAN_RATE']);
     if ($rateCol) {
@@ -1049,6 +1101,31 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'SALES_MAN' => true,
         'SMAN' => true,
         'MAN_NUM' => true,
+        // رقم الطلبية — لا تُنسخ من فاتورة سابقة
+        'DOC_NO' => true,
+        'DOC_NUM' => true,
+        'DOCNO' => true,
+        'ORDER_NO' => true,
+        'ORD_NUM' => true,
+        'ORD_NO' => true,
+        'ORDNUM' => true,
+        'ORDERNO' => true,
+        'ORDNO' => true,
+        'REQ_NO' => true,
+        'REQ_NUM' => true,
+        'REQNO' => true,
+        'V_ORDER' => true,
+        'V_ORD' => true,
+        'INV_ORD' => true,
+        'CUST_ORD' => true,
+        'CUS_ORD' => true,
+        'CUS_PO' => true,
+        'PO_NO' => true,
+        'PO_NUM' => true,
+        'REF_NO' => true,
+        'REFNO' => true,
+        'V_REF' => true,
+        'REF1' => true,
     ];
     $out = [];
     foreach ($sample as $k => $v) {
@@ -1083,7 +1160,7 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
         'STORE' => ['STORE', 'STO_NUM', 'STO_NO', 'STORE_NO', 'WAREHOUSE', 'WH_NO'],
         'VDATE' => ['VDATE', 'V_DATE', 'FDATE', 'INV_DATE', 'BILL_DATE', 'TRN_DATE'],
         'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'MAN_NUM', 'EMP_NO', 'SELLER', 'SALEMAN'],
-        'ORDER_NO' => ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'ORDNUM', 'PO_NO', 'V_ORDER', 'CUST_ORD'],
+        'ORDER_NO' => oracle_order_order_no_column_candidates(),
         'NOTE' => ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE', 'NOTE1', 'NOTE_1'],
         'FLAG' => ['FLAG', 'FLAGE', 'V_FLAG'],
         'PRINT_FLAGE' => ['PRINT_FLAGE', 'PRINT_FLAG'],
@@ -1102,7 +1179,11 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
             continue;
         }
         foreach ($names as $n) {
-            if (isset($cols[$n]) && (!isset($vals[$n]) || $vals[$n] === null || $vals[$n] === '')) {
+            if (!isset($cols[$n])) {
+                continue;
+            }
+            // رقم الطلبية: اكتب دائماً على كل الأعمدة الموجودة في الجدول
+            if ($src === 'ORDER_NO' || !isset($vals[$n]) || $vals[$n] === null || $vals[$n] === '') {
                 $vals[$n] = $val;
             }
         }

@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * رقم مستند تسلسلي رقمي فقط: YYYY + تسلسل (مثل 2026001).
- * التسلسل يبدأ من 1 كل سنة. يدعم قراءة الصيغة القديمة 001-2026 عند حساب الحد الأقصى.
+ * رقم مستند تسلسلي: YYYY-N (مثل 2026-1، 2026-2).
+ * التسلسل يبدأ من 1 كل سنة. يدعم الصيغ القديمة عند حساب الحد الأقصى.
  */
 function doc_seq_generate_next_no(
     PDO $pdo,
@@ -33,8 +33,8 @@ function doc_seq_generate_next_no(
         throw new InvalidArgumentException('جدول أو عمود الرقم غير صالح.');
     }
 
-    $where = '(`' . $colSafe . '` LIKE ? OR `' . $colSafe . '` LIKE ?)';
-    $params = [$yearStr . '%', '%' . $oldSuffix];
+    $where = '(`' . $colSafe . '` LIKE ? OR `' . $colSafe . '` LIKE ? OR `' . $colSafe . '` LIKE ?)';
+    $params = [$yearStr . '-%', $yearStr . '%', '%' . $oldSuffix];
     if ($extraWhere !== '') {
         $where = '(' . $extraWhere . ') AND ' . $where;
         $params = array_merge($extraParams, $params);
@@ -44,10 +44,15 @@ function doc_seq_generate_next_no(
     $st->execute($params);
 
     $maxSeq = 0;
+    $yearQ = preg_quote($yearStr, '/');
     $oldSuffixQuoted = preg_quote($oldSuffix, '/');
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $no) {
         $no = (string) $no;
-        if (preg_match('/^' . preg_quote($yearStr, '/') . '(\\d+)$/', $no, $m)) {
+        if (preg_match('/^' . $yearQ . '-(\\d+)$/', $no, $m)) {
+            $maxSeq = max($maxSeq, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^' . $yearQ . '(\\d+)$/', $no, $m)) {
             $maxSeq = max($maxSeq, (int) $m[1]);
             continue;
         }
@@ -56,5 +61,5 @@ function doc_seq_generate_next_no(
         }
     }
 
-    return $yearStr . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
+    return $yearStr . '-' . (string) ($maxSeq + 1);
 }

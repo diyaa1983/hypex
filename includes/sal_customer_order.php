@@ -193,12 +193,17 @@ function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate): strin
     $st = $pdo->prepare(
         'SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? OR order_no LIKE ? OR order_no LIKE ? FOR UPDATE'
     );
-    $st->execute([$yearStr . '%', '%' . $oldSuffix, 'CO%' . $oldSuffix]);
+    $st->execute([$yearStr . '-%', $yearStr . '%', '%' . $oldSuffix]);
     $max = 0;
+    $yearQ = preg_quote($yearStr, '/');
     $oldSuffixQuoted = preg_quote($oldSuffix, '/');
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $no) {
         $no = (string) $no;
-        if (preg_match('/^' . preg_quote($yearStr, '/') . '(\\d+)$/', $no, $m)) {
+        if (preg_match('/^' . $yearQ . '-(\\d+)$/', $no, $m)) {
+            $max = max($max, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^' . $yearQ . '(\\d+)$/', $no, $m)) {
             $max = max($max, (int) $m[1]);
             continue;
         }
@@ -211,7 +216,7 @@ function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate): strin
         }
     }
 
-    return $yearStr . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT);
+    return $yearStr . '-' . (string) ($max + 1);
 }
 
 function sal_customer_order_status_label(string $status): string
