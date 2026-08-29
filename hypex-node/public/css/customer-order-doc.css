@@ -964,19 +964,13 @@
   background: #f8fafc;
 }
 
-/* اختصارات بجانب عنوان الطلب */
+/* اختصارات بجانب عنوان الطلب — التنسيق الأساسي في sales-2027.css */
 .si-keys-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.35rem;
   padding: 0;
-  margin: 0;
-}
-.si-keys-bar .si-count--keys {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.3rem;
   margin: 0;
 }
 .si-meta--order .si-f--cat-filter {
