@@ -909,7 +909,7 @@
         '<td class="si-item-sku-cell">' +
         '<div class="si-item-sku-wrap">' +
         '<input class="js-item-sku" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
-        'placeholder="رقم المادة" data-nav="1" title="' +
+        'placeholder="" data-nav="1" title="' +
         escAttr(sku) +
         '" value="' +
         escAttr(sku) +
@@ -929,7 +929,7 @@
         escAttr(ln.base_sale != null ? ln.base_sale : '') +
         '">' +
         '<input class="js-item-code" type="text" inputmode="search" autocomplete="off" spellcheck="false" dir="ltr" ' +
-        'placeholder="الباركود" data-nav="1" title="' +
+        'placeholder="" data-nav="1" title="' +
         escAttr(barcode) +
         '" value="' +
         escAttr(barcode) +
@@ -939,7 +939,7 @@
         '<div class="si-suggest js-item-suggest" hidden></div>' +
         '</td>' +
         '<td class="si-item-name-cell">' +
-        '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" placeholder="اسم المادة" data-nav="1" title="' +
+        '<input class="js-item-name" type="text" autocomplete="off" spellcheck="false" dir="rtl" placeholder="" data-nav="1" title="' +
         escAttr(nameOnly) +
         '" value="' +
         escAttr(nameOnly) +

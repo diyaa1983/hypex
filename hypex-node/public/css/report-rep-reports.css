@@ -3,26 +3,35 @@
 .hx-visits-filters {
   display: grid;
   grid-template-columns:
-    minmax(9.25rem, 0.95fr)
-    minmax(9.25rem, 0.95fr)
-    minmax(10.5rem, 1.15fr)
-    minmax(14rem, 2fr)
-    minmax(8.25rem, 0.9fr)
-    minmax(9.25rem, 1fr);
-  gap: 0.85rem 1rem;
+    minmax(10.5rem, 1fr)
+    minmax(10.5rem, 1fr)
+    minmax(12rem, 1.2fr)
+    minmax(16rem, 1.8fr);
+  grid-template-areas:
+    'from to rep customer'
+    'method status actions actions';
+  gap: 0.7rem 1rem;
   align-items: end;
 }
 
+.hx-visits-filters > .hx-visits-f,
 .hx-visits-filters > label {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.32rem;
   min-width: 0;
 }
+
+.hx-visits-filters .hx-visits-f--from { grid-area: from; }
+.hx-visits-filters .hx-visits-f--to { grid-area: to; }
+.hx-visits-filters .hx-visits-f--rep { grid-area: rep; }
+.hx-visits-filters .hx-visits-f--customer { grid-area: customer; }
+.hx-visits-filters .hx-visits-f--method { grid-area: method; }
+.hx-visits-filters .hx-visits-f--status { grid-area: status; }
 
 .hx-visits-filters .hx-visits-f-label {
   font-size: 0.8rem;
   font-weight: 700;
-  color: #475569;
+  color: #334155;
   line-height: 1.2;
 }
 
@@ -37,26 +46,33 @@
 .hx-visits-filters .si-field {
   width: 100%;
   min-width: 0;
+  min-height: 2.35rem;
   box-sizing: border-box;
 }
 
-.hx-visits-filters .hx-visits-f--customer {
-  grid-column: auto;
-}
-
 .hx-visits-filters .hx-visits-f-actions {
-  grid-column: 1 / -1;
+  grid-area: actions;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
-  padding-top: 0.55rem;
-  margin-top: 0.1rem;
-  border-top: 1px solid #e2e8f0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-height: 2.35rem;
 }
 
 .si-meta.hx-visits-filters {
   padding: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(10.5rem, 1fr)
+    minmax(10.5rem, 1fr)
+    minmax(12rem, 1.2fr)
+    minmax(16rem, 1.8fr);
+  grid-template-areas:
+    'from to rep customer'
+    'method status actions actions';
 }
 
 .si-meta.hx-visits-filters > label {
@@ -66,23 +82,28 @@
   color: inherit;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1100px) {
   .hx-visits-filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .hx-visits-filters .hx-visits-f--customer {
-    grid-column: span 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      'from to'
+      'rep customer'
+      'method status'
+      'actions actions';
   }
 }
 
-@media (max-width: 720px) {
+@media (max-width: 640px) {
   .hx-visits-filters {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .hx-visits-filters .hx-visits-f--customer {
-    grid-column: 1 / -1;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      'from'
+      'to'
+      'rep'
+      'customer'
+      'method'
+      'status'
+      'actions';
   }
 }
 

@@ -1984,38 +1984,44 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       })}
       <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
         <form method="get" action="/sales-reps/reports/visits" class="si-meta hx-visits-filters">
-          <label class="hx-visits-f--date">من تاريخ
+          <label class="hx-visits-f hx-visits-f--from">
+            <span class="hx-visits-f-label">من تاريخ</span>
             <span class="hx-date-field">
               <input class="si-field si-field--mono" type="date" name="from" id="si-visits-from" value="${esc(from)}" dir="ltr">
               <span class="muted hx-date-weekday" id="si-weekday-from">${esc(weekdayAr(from))}</span>
             </span>
           </label>
-          <label class="hx-visits-f--date">إلى تاريخ
+          <label class="hx-visits-f hx-visits-f--to">
+            <span class="hx-visits-f-label">إلى تاريخ</span>
             <span class="hx-date-field">
               <input class="si-field si-field--mono" type="date" name="to" id="si-visits-to" value="${esc(to)}" dir="ltr">
               <span class="muted hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span>
             </span>
           </label>
-          <label>المندوب
+          <label class="hx-visits-f hx-visits-f--rep">
+            <span class="hx-visits-f-label">المندوب</span>
             <select class="si-field" name="sales_rep_id">
               <option value="0">— الكل —</option>
               ${repOpts}
             </select>
           </label>
-          <label class="hx-visits-f--customer">العميل
+          <label class="hx-visits-f hx-visits-f--customer">
+            <span class="hx-visits-f-label">العميل</span>
             <select class="si-field" name="customer_id">
               <option value="0">— الكل —</option>
               ${custOpts}
             </select>
           </label>
-          <label>النوع
+          <label class="hx-visits-f hx-visits-f--method">
+            <span class="hx-visits-f-label">النوع</span>
             <select class="si-field" name="method">
               <option value="" ${method === '' ? 'selected' : ''}>— الكل —</option>
               <option value="GPS" ${method === 'GPS' ? 'selected' : ''}>GPS</option>
               <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>يدوي</option>
             </select>
           </label>
-          <label>الحالة
+          <label class="hx-visits-f hx-visits-f--status">
+            <span class="hx-visits-f-label">الحالة</span>
             <select class="si-field" name="status">
               <option value="" ${status === '' ? 'selected' : ''}>— الكل —</option>
               <option value="open" ${status === 'open' ? 'selected' : ''}>داخل الزيارة</option>
