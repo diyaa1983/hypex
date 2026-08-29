@@ -429,12 +429,6 @@ async function renderForm(req, res, orderId) {
               ${whOpts}
             </select>
           </label>
-          <label class="si-f si-f--cat-filter">
-            <span class="si-f-head">فئة Oracle</span>
-            <select class="si-field" id="co-oracle-cat-filter" ${locked ? 'disabled' : ''} title="تصفية قائمة المواد حسب فئة Oracle" data-nav="1">
-              <option value="">— كل الفئات —</option>
-            </select>
-          </label>
           <label class="si-f si-f--cust">
             <span class="si-f-head">
               العميل

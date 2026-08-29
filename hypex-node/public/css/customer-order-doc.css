@@ -973,11 +973,21 @@
   padding: 0;
   margin: 0;
 }
-.si-meta--order .si-f--cat-filter {
-  min-width: 0;
+/* بدون حركات/اهتزاز عند الاختيار أو الحفظ */
+.si-stage.si-stage--toolbar-first,
+.si-stage.si-stage--toolbar-first * {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
 }
-.si-meta--order .si-f--cat-filter .si-field {
-  min-width: 0;
+.si-stage.si-stage--toolbar-first .si-tb:hover:not(:disabled),
+.si-stage.si-stage--toolbar-first .si-tb:active:not(:disabled) {
+  transform: none !important;
+}
+.si-stage.si-stage--toolbar-first.is-nav-loading,
+.si-stage.si-stage--toolbar-first.is-nav-flash {
+  opacity: 1 !important;
+  filter: none !important;
 }
 
 /* نصوص شاشة الطلب سوداء — رقم الطلب يبقى بألوانه (أحمر معتمد / أخضر محفوظ) */

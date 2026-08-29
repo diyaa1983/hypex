@@ -1636,15 +1636,14 @@ label .si-field-key {
   border-color: rgba(22, 163, 74, 0.22);
 }
 
-/* طلب عميل: صف للقوائم + صف كامل للعميل حتى تظهر الأسماء كاملة */
+/* طلب عميل: تاريخ | نوع | مندوب | مستودع — والعميل سطراً كاملاً */
 .si-meta--order {
   grid-template-columns:
-    minmax(7.75rem, 0.72fr)
-    minmax(5.75rem, 0.5fr)
-    minmax(10.5rem, 1.1fr)
-    minmax(12.5rem, 1.25fr)
-    minmax(10.5rem, 1.05fr);
-  gap: 0.55rem 0.7rem;
+    minmax(8.5rem, 0.85fr)
+    minmax(6.5rem, 0.65fr)
+    minmax(12rem, 1.2fr)
+    minmax(13.5rem, 1.35fr);
+  gap: 0.7rem 0.85rem;
 }
 .si-meta--order .si-f--cust {
   grid-column: 1 / -1;
@@ -1652,8 +1651,7 @@ label .si-field-key {
 }
 .si-meta--order .si-f--pay select.si-field,
 .si-meta--order .si-f--rep select.si-field,
-.si-meta--order .si-f--wh select.si-field,
-.si-meta--order .si-f--cat-filter select.si-field {
+.si-meta--order .si-f--wh select.si-field {
   min-height: 2.2rem;
   height: 2.2rem;
   font-size: 0.88rem;
@@ -1662,11 +1660,10 @@ label .si-field-key {
 @media (max-width: 1280px) {
   .si-meta--order {
     grid-template-columns:
-      minmax(7.25rem, 0.7fr)
-      minmax(5.5rem, 0.48fr)
-      minmax(9.5rem, 1fr)
+      minmax(8rem, 0.8fr)
+      minmax(6.25rem, 0.6fr)
       minmax(11rem, 1.15fr)
-      minmax(9.5rem, 0.95fr);
+      minmax(12rem, 1.25fr);
   }
 }
 
