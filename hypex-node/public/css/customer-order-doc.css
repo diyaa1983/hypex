@@ -917,5 +917,8 @@
   margin: 0;
 }
 .si-meta--order .si-f--cat-filter {
-  min-width: 10rem;
+  min-width: 0;
+}
+.si-meta--order .si-f--cat-filter .si-field {
+  min-width: 0;
 }
