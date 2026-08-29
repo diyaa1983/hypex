@@ -49,15 +49,15 @@ return [
         'hide_screen_title' => true,
     ],
     'sales_customer_orders' => [
-        'file' => 'modules/sales/customer_orders.php',
-        'permission' => 'sales_customer_orders',
-        'title' => 'طلبات شراء العملاء',
-        'hide_screen_title' => true,
-    ],
-    'sales_customer_order_entry' => [
         'file' => 'modules/sales/customer_order_entry.php',
         'permission' => 'sales_customer_orders',
         'title' => 'طلب شراء عميل',
+        'hide_screen_title' => true,
+    ],
+    'sales_customer_order_entry' => [
+        'file' => 'modules/sales/customer_orders.php',
+        'permission' => 'sales_customer_orders',
+        'title' => 'قائمة طلبات الشراء',
         'hide_screen_title' => true,
     ],
     // نفس النموذج لمن لديه صلاحية الاعتماد فقط

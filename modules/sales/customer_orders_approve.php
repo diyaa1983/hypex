@@ -130,7 +130,7 @@ $jsCo = app_url('assets/js/customer-order-lines.js') . (is_readable($jsCoPath) ?
         </div>
         <a class="btn btn-primary" type="button" href="<?= esc(app_url(
             user_can('sales_customer_orders')
-                ? 'index.php?r=sales_customer_order_entry'
+                ? 'index.php?r=sales_customer_orders'
                 : 'index.php?r=sales_customer_order_entry_approve'
         )) ?>">+ طلب جديد</a>
         <button class="btn btn-primary" type="submit">تصفية</button>

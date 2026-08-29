@@ -20,8 +20,8 @@ const salesCatalog = [
     group: 'customer_orders',
     title: 'طلبات شراء العملاء',
     items: [
-      { r: 'sales_customer_orders', label: 'طلبات شراء العملاء', icon: '📝', path: '/sales/orders', kind: 'list' },
-      { r: 'sales_customer_order_entry', label: 'طلب شراء عميل جديد', icon: '➕', path: '/sales/orders/new', kind: 'doc' },
+      { r: 'sales_customer_orders', label: 'طلبات شراء العملاء', icon: '📝', path: '/sales/orders/new', kind: 'doc' },
+      { r: 'sales_customer_order_entry', label: 'قائمة طلبات الشراء', icon: '📋', path: '/sales/orders', kind: 'list' },
       { r: 'sales_customer_orders_approve', label: 'اعتماد طلبات الشراء', icon: '✅', path: '/sales/orders/approve', kind: 'list' },
       { r: 'sales_customer_orders_approved', label: 'الطلبات المعتمدة', icon: '📦', path: '/sales/orders/approved', kind: 'list' },
       { r: 'report_customer_orders', label: 'تقرير طلبات الشراء', icon: '📊', path: '/sales/reports/customer-orders', kind: 'report' },

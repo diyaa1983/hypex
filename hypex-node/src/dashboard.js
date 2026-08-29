@@ -150,7 +150,7 @@ async function collectDashboard() {
         label: 'طلبات شراء العملاء',
         value: String(ordersTotal),
         tone: 'primary',
-        href: '/sales/orders',
+        href: '/sales/orders/new',
       },
       {
         label: 'بانتظار الاعتماد',

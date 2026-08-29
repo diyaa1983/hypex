@@ -30,7 +30,7 @@ $id = (int) ($_GET['id'] ?? 0);
 $order = $id > 0 ? sal_customer_order_fetch($pdo, $id) : null;
 if ($id > 0 && !$order) {
     flash_set('error', 'الطلب غير موجود.');
-    redirect(app_url('index.php?r=sales_customer_orders'));
+    redirect(app_url('index.php?r=sales_customer_order_entry'));
 }
 if ($order && (string) ($order['status'] ?? '') === 'approved') {
     redirect(app_url('index.php?r=sales_customer_orders_approved&id=' . (int) $order['id']));
@@ -96,21 +96,21 @@ $headerDisc = $order ? (string) ($order['invoice_discount_input'] ?? '') : '';
 $canApprove = sal_customer_order_user_can_approve();
 $canDelete = sal_customer_order_user_can_delete_managed();
 
-$listUrl = user_can('sales_customer_orders')
-    ? app_url('index.php?r=sales_customer_orders')
+$listUrl = user_can('sales_customer_order_entry') || user_can('sales_customer_orders')
+    ? app_url('index.php?r=sales_customer_order_entry')
     : app_url('index.php?r=sales_customer_orders_approve');
 $newUrl = user_can('sales_customer_orders')
-    ? app_url('index.php?r=sales_customer_order_entry')
+    ? app_url('index.php?r=sales_customer_orders')
     : app_url('index.php?r=sales_customer_order_entry_approve');
 $entryUrl = $newUrl;
-$activeRoute = (string) ($GLOBALS['activeRoute'] ?? 'sales_customer_order_entry');
+$activeRoute = (string) ($GLOBALS['activeRoute'] ?? 'sales_customer_orders');
 if (isset($_GET['r']) && (string) $_GET['r'] === 'sales_customer_order_entry_approve') {
     $entryUrl = app_url('index.php?r=sales_customer_order_entry_approve');
     $newUrl = $entryUrl;
     $activeRoute = 'sales_customer_order_entry_approve';
 }
-if (!in_array($activeRoute, ['sales_customer_order_entry', 'sales_customer_order_entry_approve'], true)) {
-    $activeRoute = 'sales_customer_order_entry';
+if (!in_array($activeRoute, ['sales_customer_orders', 'sales_customer_order_entry', 'sales_customer_order_entry_approve'], true)) {
+    $activeRoute = 'sales_customer_orders';
 }
 
 $exitUrl = nav_exit_url($activeRoute);

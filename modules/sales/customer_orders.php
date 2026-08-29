@@ -47,22 +47,22 @@ $filterQuery = array_filter([
     'sales_rep_id' => $salesRepId > 0 ? $salesRepId : null,
     'customer_id' => $customerId > 0 ? $customerId : null,
 ], static fn ($v) => $v !== null && $v !== '');
-$pagerUrl = list_pager_base_url('sales_customer_orders', $filterQuery);
+$pagerUrl = list_pager_base_url('sales_customer_order_entry', $filterQuery);
 
-$activeRoute = 'sales_customer_orders';
+$activeRoute = 'sales_customer_order_entry';
 $canApprove = user_can('sales_customer_orders_approve');
 $canApproved = $canApprove;
 $canCreate = sal_customer_order_user_can_edit_drafts();
-$newOrderUrl = app_url('index.php?r=sales_customer_order_entry');
+$newOrderUrl = app_url('index.php?r=sales_customer_orders');
 sales_ora12_enqueue_assets();
 ?>
 <div class="dashboard-ora sales-ora12-screen">
-<?php sales_ora12_render_title_bar('طلبات شراء العملاء', '', $activeRoute); ?>
+<?php sales_ora12_render_title_bar('قائمة طلبات الشراء', '', $activeRoute); ?>
 <?php sales_ora12_workspace_open(); ?>
 <div class="sales-ora-panel card">
-    <h2>طلبات شراء العملاء</h2>
+    <h2>قائمة طلبات الشراء</h2>
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" style="flex-wrap:wrap;gap:0.5rem;align-items:end;">
-        <input type="hidden" name="r" value="sales_customer_orders">
+        <input type="hidden" name="r" value="sales_customer_order_entry">
         <div class="field">
             <label>بحث</label>
             <input class="input" name="q" value="<?= esc($q) ?>" placeholder="رقم الطلب أو العميل أو المندوب">

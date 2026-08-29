@@ -247,7 +247,17 @@ router.get('/sales/posting', guard('sales_invoices_list'), async (req, res) => {
   });
 });
 
-router.get('/sales/orders', guard('sales_customer_orders'), async (req, res) => {
+router.get('/sales/orders', async (req, res) => {
+  const u = req.session.user;
+  if (!can(u, 'sales_customer_orders') && !can(u, 'sales_customer_order_entry') && !u.is_admin) {
+    return res.status(403).send(
+      ui.salesPage({
+        user: u,
+        title: 'ممنوع',
+        bodyHtml: `<div class="si-stage">${ui.hero({ title: 'ممنوع', subtitle: 'لا صلاحية لهذه الشاشة' })}</div>`,
+      })
+    );
+  }
   const qv = String(req.query.q || '');
   const rows = await q.listOrders({ q: qv });
   const rowsHtml =
@@ -264,7 +274,7 @@ router.get('/sales/orders', guard('sales_customer_orders'), async (req, res) => 
       )
       .join('') || ui.emptyRow(6);
   listPage(res, req.session.user, {
-    title: 'طلبات شراء العملاء',
+    title: 'قائمة طلبات الشراء',
     tableTitle: 'سجل الطلبات',
     mark: 'PO',
     subtitle: 'قائمة الطلبات — فتح وتعديل',
@@ -273,7 +283,7 @@ router.get('/sales/orders', guard('sales_customer_orders'), async (req, res) => 
     count: rows.length,
     searchPath: '/sales/orders',
     qVal: qv,
-    phpRoute: 'sales_customer_orders',
+    phpRoute: 'sales_customer_order_entry',
     extraActions: [{ label: '＋ طلب جديد', href: '/sales/orders/new', primary: true }],
   });
 });

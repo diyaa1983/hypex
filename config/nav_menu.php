@@ -61,7 +61,7 @@ return [
                             'title' => 'طلبات شراء العملاء',
                             'items' => [
                                 ['r' => 'sales_customer_orders', 'label' => 'طلبات شراء العملاء', 'icon' => '📝'],
-                                ['r' => 'sales_customer_order_entry', 'label' => 'طلب شراء عميل جديد', 'icon' => '➕'],
+                                ['r' => 'sales_customer_order_entry', 'label' => 'قائمة طلبات الشراء', 'icon' => '📋'],
                                 ['r' => 'sales_customer_orders_approve', 'label' => 'اعتماد طلبات الشراء', 'icon' => '✅'],
                                 ['r' => 'sales_customer_orders_approved', 'label' => 'الطلبات المعتمدة', 'icon' => '📦'],
                             ],
