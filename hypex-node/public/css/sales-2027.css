@@ -89,6 +89,31 @@ body.si-2027 .si-main::before {
   top: 0.35rem;
 }
 
+/* عنوان الشاشة + اختصارات في سطر واحد */
+.si-doc-top-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem 0.85rem;
+  margin: 0.35rem 0 0.65rem;
+  padding: 0 0.15rem;
+}
+.si-doc-top-row .si-doc-screen-head {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+.si-doc-top-row .si-keys-bar {
+  margin: 0;
+  padding: 0;
+  flex: 0 1 auto;
+}
+
 /* عنوان الشاشة أسفل شريط الأدوات — خط أصغر من الترويسة القديمة */
 .si-doc-screen-head {
   display: flex;

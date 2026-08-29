@@ -964,19 +964,19 @@
   background: #f8fafc;
 }
 
-/* اختصارات تحت شريط الحفظ */
+/* اختصارات بجانب عنوان الطلب */
 .si-keys-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.35rem 0.55rem 0.55rem;
-  margin: 0 0 0.35rem;
+  gap: 0.35rem;
+  padding: 0;
+  margin: 0;
 }
 .si-keys-bar .si-count--keys {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.3rem;
   margin: 0;
 }
 .si-meta--order .si-f--cat-filter {

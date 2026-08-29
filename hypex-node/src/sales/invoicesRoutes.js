@@ -456,17 +456,19 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
     const bodyHtml = `
       <div class="si-stage si-stage--toolbar-first">
         ${toolbarHtml(caps, initial)}
-        <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
-          <span class="si-count si-count--keys">
-            <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
-            <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
-            <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
-            <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
-          </span>
-        </div>
-        <div class="si-doc-screen-head">
-          <h1 class="si-doc-screen-title" id="si-screen-title">${titleLine}</h1>
-          <div class="si-doc-screen-badge" id="si-screen-badge">${badge}</div>
+        <div class="si-doc-top-row">
+          <div class="si-doc-screen-head">
+            <h1 class="si-doc-screen-title" id="si-screen-title">${titleLine}</h1>
+            <div class="si-doc-screen-badge" id="si-screen-badge">${badge}</div>
+          </div>
+          <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
+            <span class="si-count si-count--keys">
+              <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+              <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+              <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+              <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
+            </span>
+          </div>
         </div>
 
         <section class="si-surface">
