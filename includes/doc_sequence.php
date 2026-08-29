@@ -2,8 +2,8 @@
 declare(strict_types=1);
 
 /**
- * رقم مستند تسلسلي: 001-2026 (ثلاثة أرقام على الأقل + سنة تاريخ المستند).
- * التسلسل يبدأ من 1 كل سنة.
+ * رقم مستند تسلسلي رقمي فقط: YYYY + تسلسل (مثل 2026001).
+ * التسلسل يبدأ من 1 كل سنة. يدعم قراءة الصيغة القديمة 001-2026 عند حساب الحد الأقصى.
  */
 function doc_seq_generate_next_no(
     PDO $pdo,
@@ -16,7 +16,8 @@ function doc_seq_generate_next_no(
 ): string {
     $ts = strtotime($dateIso);
     $year = $ts !== false ? (int) date('Y', $ts) : (int) date('Y');
-    $suffix = '-' . $year;
+    $yearStr = (string) $year;
+    $oldSuffix = '-' . $yearStr;
 
     if ($poolKey !== null && $poolKey !== '') {
         require_once app_path('includes/doc_number_pool.php');
@@ -32,8 +33,8 @@ function doc_seq_generate_next_no(
         throw new InvalidArgumentException('جدول أو عمود الرقم غير صالح.');
     }
 
-    $where = '`' . $colSafe . '` LIKE ?';
-    $params = ['%' . $suffix];
+    $where = '(`' . $colSafe . '` LIKE ? OR `' . $colSafe . '` LIKE ?)';
+    $params = [$yearStr . '%', '%' . $oldSuffix];
     if ($extraWhere !== '') {
         $where = '(' . $extraWhere . ') AND ' . $where;
         $params = array_merge($extraParams, $params);
@@ -43,13 +44,17 @@ function doc_seq_generate_next_no(
     $st->execute($params);
 
     $maxSeq = 0;
-    $suffixQuoted = preg_quote($suffix, '/');
+    $oldSuffixQuoted = preg_quote($oldSuffix, '/');
     foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $no) {
         $no = (string) $no;
-        if (preg_match('/^(\d+)' . $suffixQuoted . '$/', $no, $m)) {
+        if (preg_match('/^' . preg_quote($yearStr, '/') . '(\\d+)$/', $no, $m)) {
+            $maxSeq = max($maxSeq, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^(\\d+)' . $oldSuffixQuoted . '$/', $no, $m)) {
             $maxSeq = max($maxSeq, (int) $m[1]);
         }
     }
 
-    return str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT) . $suffix;
+    return $yearStr . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
 }

@@ -749,14 +749,14 @@
         '</td>' +
         '<td><input class="js-qty" type="number" step="' +
         qtyStep() +
-        '" min="0" data-nav="1" placeholder="كمية" value="' +
+        '" min="0" data-nav="1" value="' +
         escAttr(userNumAttr(ln.qty)) +
         '" ' +
         (posted ? 'readonly' : '') +
         '></td>' +
         '<td><input class="js-qty-extra" type="number" step="' +
         qtyStep() +
-        '" min="0" data-nav="1" placeholder="إضافية" value="' +
+        '" min="0" data-nav="1" value="' +
         escAttr(userNumAttr(ln.qty_extra)) +
         '" ' +
         (posted ? 'readonly' : '') +
@@ -769,7 +769,7 @@
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
-        '" min="0" max="100" data-nav="1" placeholder="خصم %" value="' +
+        '" min="0" max="100" data-nav="1" value="' +
         escAttr(userNumAttr(ln.discount_pct)) +
         '" ' +
         (posted ? 'readonly' : '') +

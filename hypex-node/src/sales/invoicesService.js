@@ -24,19 +24,24 @@ function r6(n) {
 async function nextInvoiceNo(invoiceDate) {
   const iso = parseDateToIso(invoiceDate);
   const year = iso.slice(0, 4);
-  const suffix = `-${year}`;
   const rows = await db.query(
-    `SELECT invoice_no FROM sal_invoice WHERE invoice_no LIKE ?`,
-    [`%${suffix}`]
+    `SELECT invoice_no FROM sal_invoice WHERE invoice_no LIKE ? OR invoice_no LIKE ?`,
+    [`${year}%`, `%-${year}`]
   );
   let maxSeq = 0;
-  const re = new RegExp(`^(\\d+)${suffix.replace('-', '\\-')}$`);
+  const reNew = new RegExp(`^${year}(\\d+)$`);
+  const reOld = new RegExp(`^(\\d+)-${year}$`);
   for (const row of rows) {
     const no = String(row.invoice_no || '');
-    const m = no.match(re);
+    let m = no.match(reNew);
+    if (m) {
+      maxSeq = Math.max(maxSeq, Number(m[1]));
+      continue;
+    }
+    m = no.match(reOld);
     if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
   }
-  return String(maxSeq + 1).padStart(3, '0') + suffix;
+  return `${year}${String(maxSeq + 1).padStart(3, '0')}`;
 }
 
 async function listInvoices({ q = '', filter = 'all', page = 1, pageSize = 50 } = {}) {

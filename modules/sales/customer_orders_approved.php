@@ -188,10 +188,11 @@ sales_ora12_enqueue_assets();
                         <th>#</th>
                         <th>المادة</th>
                         <th>الفئة</th>
-                        <th>المطلوب</th>
-                        <th>الكمية من التشغيلة</th>
+                        <th>الكمية</th>
+                        <th>إضافي</th>
+                        <th>من التشغيلة</th>
                         <th>التشغيلة</th>
-                        <th>رصيد التشغيلة</th>
+                        <th>الرصيد</th>
                     </tr>
                     </thead>
                     <tbody id="co-batch-rows"></tbody>

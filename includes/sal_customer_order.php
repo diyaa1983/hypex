@@ -183,17 +183,35 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
 function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate): string
 {
     $year = (int) date('Y', strtotime($orderDate) ?: time());
+    $yearStr = (string) $year;
     require_once app_path('includes/doc_number_pool.php');
     $pooled = doc_number_pool_take($pdo, doc_number_pool_key_sal_customer_order(), $year);
-    if ($pooled !== []) return (string) $pooled[0];
-    $suffix = '-' . $year;
-    $st = $pdo->prepare('SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? FOR UPDATE');
-    $st->execute(['%' . $suffix]);
-    $max = 0;
-    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $no) {
-        if (preg_match('/^CO(\d+)-' . $year . '$/', (string) $no, $m)) $max = max($max, (int) $m[1]);
+    if ($pooled !== []) {
+        return (string) $pooled[0];
     }
-    return 'CO' . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT) . $suffix;
+    $oldSuffix = '-' . $yearStr;
+    $st = $pdo->prepare(
+        'SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? OR order_no LIKE ? OR order_no LIKE ? FOR UPDATE'
+    );
+    $st->execute([$yearStr . '%', '%' . $oldSuffix, 'CO%' . $oldSuffix]);
+    $max = 0;
+    $oldSuffixQuoted = preg_quote($oldSuffix, '/');
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $no) {
+        $no = (string) $no;
+        if (preg_match('/^' . preg_quote($yearStr, '/') . '(\\d+)$/', $no, $m)) {
+            $max = max($max, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^CO(\\d+)' . $oldSuffixQuoted . '$/', $no, $m)) {
+            $max = max($max, (int) $m[1]);
+            continue;
+        }
+        if (preg_match('/^(\\d+)' . $oldSuffixQuoted . '$/', $no, $m)) {
+            $max = max($max, (int) $m[1]);
+        }
+    }
+
+    return $yearStr . str_pad((string) ($max + 1), 3, '0', STR_PAD_LEFT);
 }
 
 function sal_customer_order_status_label(string $status): string

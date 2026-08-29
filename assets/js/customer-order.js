@@ -950,12 +950,12 @@
         '<td class="si-unit-cell">' +
         unitSelectHtml(ln, locked).replace('<select class="js-unit"', '<select class="js-unit" data-nav="1"') +
         '</td>' +
-        '<td><input class="js-qty" type="number" step="1" min="0" data-nav="1" placeholder="كمية" value="' +
+        '<td><input class="js-qty" type="number" step="1" min="0" data-nav="1" value="' +
         escAttr(userNumAttr(ln.qty)) +
         '" ' +
         (locked ? 'readonly' : '') +
         '></td>' +
-        '<td><input class="js-qty-extra" type="number" step="1" min="0" data-nav="1" placeholder="إضافية" value="' +
+        '<td><input class="js-qty-extra" type="number" step="1" min="0" data-nav="1" value="' +
         escAttr(userNumAttr(ln.qty_extra)) +
         '" ' +
         (locked ? 'readonly' : '') +
@@ -968,7 +968,7 @@
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
-        '" min="0" max="100" data-nav="1" placeholder="خصم %" value="' +
+        '" min="0" max="100" data-nav="1" value="' +
         escAttr(userNumAttr(ln.discount_pct)) +
         '" ' +
         (locked ? 'readonly' : '') +
@@ -2566,8 +2566,10 @@
   var needReloadTimer = null;
 
   function fmtBatchQty(n) {
-    n = Number(n) || 0;
-    return String(n).indexOf('.') >= 0 ? n.toFixed(3).replace(/\.?0+$/, '') : String(n);
+    n = roundBatchQty(Number(n) || 0);
+    var dp = batchQtyDp();
+    var s = n.toFixed(dp);
+    return s.replace(/\.?0+$/, '') || '0';
   }
 
   function closeBatchModal() {
@@ -2689,18 +2691,36 @@
     return picks;
   }
 
-  function collectNeedOverrides() {
+  function batchQtyDp() {
+    if (window.HxDec && typeof window.HxDec.amountDecimals === 'function') {
+      return Math.max(0, Number(window.HxDec.amountDecimals()) || 3);
+    }
+    return 3;
+  }
+
+  function roundBatchQty(n) {
+    n = Number(n) || 0;
+    var dp = batchQtyDp();
+    var f = Math.pow(10, dp);
+    return Math.round(n * f) / f;
+  }
+
+  function collectQtyOverrides() {
     var picks = [];
     if (!batchRows) return picks;
     var seen = {};
-    batchRows.querySelectorAll('input.co-batch-need-input').forEach(function (inp) {
+    batchRows.querySelectorAll('input.co-batch-qty-input').forEach(function (inp) {
       var srl = parseInt(inp.dataset.srl || '0', 10);
       var lineId = parseInt(inp.dataset.lineId || '0', 10);
       if (srl < 1 || seen[srl]) return;
       seen[srl] = true;
-      var need = Number(inp.value);
-      if (!isFinite(need) || need <= 0) return;
-      var row = { srl: srl, need: need };
+      var qty = Number(inp.value);
+      var bonusInp = batchRows.querySelector('input.co-batch-bonus-input[data-srl="' + srl + '"]');
+      var bonus = bonusInp ? Number(bonusInp.value) : 0;
+      if (!isFinite(qty) || qty < 0) qty = 0;
+      if (!isFinite(bonus) || bonus < 0) bonus = 0;
+      if (qty <= 0 && bonus <= 0) return;
+      var row = { srl: srl, qty: roundBatchQty(qty), bonus: roundBatchQty(bonus) };
       if (lineId > 0) row.line_id = lineId;
       picks.push(row);
     });
@@ -2729,7 +2749,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         cat_picks: collectCatPicks(),
-        need_overrides: collectNeedOverrides(),
+        qty_overrides: collectQtyOverrides(),
       }),
     })
       .then(function (r) {
@@ -2762,31 +2782,46 @@
     }, 450);
   }
 
-  function buildNeedInput(ln) {
+  function syncNeedFromQtyBonus(srl) {
+    var qtyInp = batchRows.querySelector('input.co-batch-qty-input[data-srl="' + srl + '"]');
+    var bonusInp = batchRows.querySelector('input.co-batch-bonus-input[data-srl="' + srl + '"]');
+    var qty = qtyInp ? Number(qtyInp.value) : 0;
+    var bonus = bonusInp ? Number(bonusInp.value) : 0;
+    if (!isFinite(qty) || qty < 0) qty = 0;
+    if (!isFinite(bonus) || bonus < 0) bonus = 0;
+    var factor = 1;
+    var tr = batchRows.querySelector('tr[data-srl="' + srl + '"]');
+    if (tr && Number(tr.dataset.unitFactor) > 1.000001 && String(tr.dataset.multTr) === '1') {
+      factor = Number(tr.dataset.unitFactor);
+    }
+    var need = (qty + bonus) * factor;
+    batchRows.querySelectorAll('tr[data-srl="' + srl + '"]').forEach(function (row) {
+      row.dataset.need = String(need);
+      var sel = row.querySelector('select.co-batch-select');
+      if (sel) sel.dataset.need = String(need);
+    });
+    return need;
+  }
+
+  function buildQtyBonusInput(ln, kind) {
     var inp = document.createElement('input');
     inp.type = 'number';
-    inp.className = 'co-batch-need-input';
-    inp.step = '0.001';
-    inp.min = '0.001';
+    inp.className = kind === 'bonus' ? 'co-batch-bonus-input' : 'co-batch-qty-input';
+    inp.step = qtyStep();
+    inp.min = '0';
     inp.inputMode = 'decimal';
-    inp.value = String(Number(ln.need) || 0);
+    var raw = kind === 'bonus' ? Number(ln.bonus != null ? ln.bonus : ln.qty_extra) || 0 : Number(ln.qty) || 0;
+    inp.value = String(roundBatchQty(raw));
     inp.dataset.srl = String(ln.srl || '');
     inp.dataset.lineId = String(ln.line_id || '');
-    inp.title = 'عدّل الكمية المطلوبة — يُحدَّث الطلب بالكامل عند الترحيل';
+    inp.title = kind === 'bonus' ? 'الكمية الإضافية (بونص)' : 'كمية الطلب — تُحدَّث عند الترحيل';
     inp.addEventListener('input', function () {
-      var need = Number(inp.value);
-      if (!isFinite(need) || need <= 0) {
-        validateBatchModal();
-        return;
-      }
-      batchRows.querySelectorAll('tr[data-srl="' + inp.dataset.srl + '"]').forEach(function (tr) {
-        tr.dataset.need = String(need);
-        var sel = tr.querySelector('select.co-batch-select');
-        if (sel) sel.dataset.need = String(need);
-      });
+      syncNeedFromQtyBonus(inp.dataset.srl);
       validateBatchModal();
     });
     inp.addEventListener('change', function () {
+      inp.value = String(roundBatchQty(Number(inp.value) || 0));
+      syncNeedFromQtyBonus(inp.dataset.srl);
       scheduleNeedReload();
     });
     inp.addEventListener('keydown', function (ev) {
@@ -2814,7 +2849,7 @@
       var o = document.createElement('option');
       o.value = b.batch || '';
       o.textContent = batchOptionLabel(b);
-      o.dataset.qty = String(b.qty || '');
+      o.dataset.qty = String(roundBatchQty(b.qty || 0));
       sel.appendChild(o);
     });
 
@@ -2837,21 +2872,24 @@
     var inp = document.createElement('input');
     inp.type = 'number';
     inp.className = 'co-batch-take-input';
-    inp.step = '0.001';
+    inp.step = qtyStep();
     inp.min = '0';
     inp.inputMode = 'decimal';
-    inp.value = String(Number(alloc.take) || 0);
+    inp.value = String(roundBatchQty(Number(alloc.take) || 0));
     inp.dataset.srl = String(ln.srl || '');
     inp.title = 'عدّل الكمية المأخوذة من هذه التشغيلة';
     inp.addEventListener('input', validateBatchModal);
-    inp.addEventListener('change', validateBatchModal);
+    inp.addEventListener('change', function () {
+      inp.value = String(roundBatchQty(Number(inp.value) || 0));
+      validateBatchModal();
+    });
     return inp;
   }
 
   function rowTakeValue(tr) {
     var inp = tr.querySelector('input.co-batch-take-input');
     if (inp) {
-      var n = Number(inp.value);
+      var n = roundBatchQty(Number(inp.value));
       return isFinite(n) && n > 0 ? n : 0;
     }
     var sel = tr.querySelector('select.co-batch-select');
@@ -2883,11 +2921,11 @@
       }
     });
 
-    batchRows.querySelectorAll('input.co-batch-need-input').forEach(function (inp) {
-      var need = Number(inp.value);
-      if (!isFinite(need) || need <= 0) {
+    batchRows.querySelectorAll('input.co-batch-qty-input').forEach(function (inp) {
+      var qty = Number(inp.value);
+      if (!isFinite(qty) || qty <= 0) {
         ok = false;
-        if (!statusMsg) statusMsg = 'أدخل كمية مطلوبة أكبر من صفر.';
+        if (!statusMsg) statusMsg = 'أدخل كمية أكبر من صفر لكل مادة.';
       }
     });
 
@@ -3024,25 +3062,32 @@
     (data.lines || []).forEach(function (ln) {
       var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
       var batches = Array.isArray(ln.batches) ? ln.batches : [];
+      var itemHtml =
+        '<span class="co-batch-item-line"><span class="co-batch-item-code">' +
+        escAttr(String(ln.item || '')) +
+        '</span><span class="co-batch-item-name">' +
+        escAttr(String(ln.name || '')) +
+        '</span></span>';
 
       if (!allocs.length) {
         rowNo += 1;
         var tr0 = document.createElement('tr');
-        tr0.className = 'co-batch-row--nostock';
+        tr0.className = 'co-batch-row--nostock co-batch-row--invalid';
         tr0.dataset.srl = String(ln.srl || '');
+        tr0.dataset.lineId = String(ln.line_id || '');
         tr0.dataset.need = String(ln.need || '');
+        tr0.dataset.unitFactor = String(ln.unit_factor || 1);
         tr0.dataset.shortfall = '1';
         tr0.innerHTML =
           '<td class="co-batch-col-idx">' +
           rowNo +
           '</td>' +
-          '<td class="co-batch-col-item"><span class="co-batch-item-line"><span class="co-batch-item-code">' +
-          escAttr(String(ln.item || '')) +
-          '</span><span class="co-batch-item-name">' +
-          escAttr(String(ln.name || '')) +
-          '</span></span></td>' +
+          '<td class="co-batch-col-item">' +
+          itemHtml +
+          '</td>' +
           '<td class="co-batch-col-cat"></td>' +
-          '<td class="co-batch-col-need"></td>' +
+          '<td class="co-batch-col-qty"></td>' +
+          '<td class="co-batch-col-bonus"></td>' +
           '<td class="co-batch-col-take">—</td>' +
           '<td class="co-batch-col-batch" colspan="2"><div class="co-batch-warn">التشغيلات لا تغطي المطلوب' +
           (Number(ln.shortfall) > 0 ? ' (نقص ' + fmtBatchQty(ln.shortfall) + ')' : '') +
@@ -3055,8 +3100,10 @@
           });
           tdCat0.appendChild(catSel0);
         }
-        var tdNeed0 = tr0.querySelector('.co-batch-col-need');
-        if (tdNeed0) tdNeed0.appendChild(buildNeedInput(ln));
+        var tdQty0 = tr0.querySelector('.co-batch-col-qty');
+        var tdBonus0 = tr0.querySelector('.co-batch-col-bonus');
+        if (tdQty0) tdQty0.appendChild(buildQtyBonusInput(ln, 'qty'));
+        if (tdBonus0) tdBonus0.appendChild(buildQtyBonusInput(ln, 'bonus'));
         batchRows.appendChild(tr0);
         return;
       }
@@ -3069,8 +3116,10 @@
         tr.dataset.srl = String(ln.srl || '');
         tr.dataset.lineId = String(ln.line_id || '');
         tr.dataset.need = String(ln.need || '');
+        tr.dataset.unitFactor = String(ln.unit_factor || 1);
         if (!ln.allocation_ok && Number(ln.shortfall) > 0) {
           tr.dataset.shortfall = '1';
+          tr.classList.add('co-batch-row--invalid');
         }
 
         var tdIdx = document.createElement('td');
@@ -3079,17 +3128,7 @@
 
         var tdName = document.createElement('td');
         tdName.className = 'co-batch-col-item';
-        if (ai === 0) {
-          tdName.innerHTML =
-            '<span class="co-batch-item-line"><span class="co-batch-item-code">' +
-            escAttr(String(ln.item || '')) +
-            '</span><span class="co-batch-item-name">' +
-            escAttr(String(ln.name || '')) +
-            '</span></span>';
-        } else {
-          tdName.innerHTML =
-            '<span class="co-batch-item-cont muted">↳ استمرار نفس المادة</span>';
-        }
+        tdName.innerHTML = itemHtml;
 
         var tdCat = document.createElement('td');
         tdCat.className = 'co-batch-col-cat';
@@ -3101,9 +3140,13 @@
           tdCat.appendChild(catSel);
         }
 
-        var tdNeed = document.createElement('td');
-        tdNeed.className = 'co-batch-col-need';
-        if (ai === 0) tdNeed.appendChild(buildNeedInput(ln));
+        var tdQty = document.createElement('td');
+        tdQty.className = 'co-batch-col-qty';
+        if (ai === 0) tdQty.appendChild(buildQtyBonusInput(ln, 'qty'));
+
+        var tdBonus = document.createElement('td');
+        tdBonus.className = 'co-batch-col-bonus';
+        if (ai === 0) tdBonus.appendChild(buildQtyBonusInput(ln, 'bonus'));
 
         var tdTake = document.createElement('td');
         tdTake.className = 'co-batch-col-take';
@@ -3123,7 +3166,8 @@
         tr.appendChild(tdIdx);
         tr.appendChild(tdName);
         tr.appendChild(tdCat);
-        tr.appendChild(tdNeed);
+        tr.appendChild(tdQty);
+        tr.appendChild(tdBonus);
         tr.appendChild(tdTake);
         tr.appendChild(tdBatch);
         tr.appendChild(tdBal);
@@ -3135,7 +3179,7 @@
         trW.className = 'co-batch-row--nostock';
         trW.dataset.shortfall = '1';
         trW.innerHTML =
-          '<td></td><td></td><td colspan="5"><div class="co-batch-warn">الرصيد المتوفر لا يكفي — نقص ' +
+          '<td></td><td></td><td colspan="6"><div class="co-batch-warn">الرصيد المتوفر لا يكفي — نقص ' +
           fmtBatchQty(ln.shortfall) +
           ' من المطلوب ' +
           fmtBatchQty(ln.need) +
@@ -3158,7 +3202,7 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         batch_picks: batchPicks || [],
-        need_overrides: collectNeedOverrides(),
+        qty_overrides: collectQtyOverrides(),
       }),
     })
       .then(function (r) {

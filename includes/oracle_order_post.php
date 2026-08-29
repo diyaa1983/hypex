@@ -176,7 +176,10 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         ];
     }
 
-    $needOverrides = is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : [];
+    $needOverrides = is_array($opts['qty_overrides'] ?? null) ? $opts['qty_overrides'] : [];
+    if ($needOverrides === []) {
+        $needOverrides = is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : [];
+    }
     if ($needOverrides !== [] && !$dryRun) {
         $applied = oracle_order_apply_need_overrides($mysql, $orderId, $needOverrides);
         if (empty($applied['ok'])) {
@@ -510,10 +513,14 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'DUE_DATE' => $orderDate,
         'TTIME' => date('H:i:s'),
         'USR_ID' => 'HYPX',
-        'NOTE1' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
-        'NOTE' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
-        'NOTES' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
-        'REMARK' => 'Hypex ' . (string) ($order['order_no'] ?? ''),
+        'ORDER_NO' => (string) ($order['order_no'] ?? ''),
+        'ORD_NUM' => (string) ($order['order_no'] ?? ''),
+        'ORD_NO' => (string) ($order['order_no'] ?? ''),
+        'REQ_NO' => (string) ($order['order_no'] ?? ''),
+        'ORDNUM' => (string) ($order['order_no'] ?? ''),
+        'PO_NO' => (string) ($order['order_no'] ?? ''),
+        'V_ORDER' => (string) ($order['order_no'] ?? ''),
+        'CUST_ORD' => (string) ($order['order_no'] ?? ''),
     ];
     $sharedHeader = array_merge($sharedHeader, $taxHeaderFields);
     $smNo = (int) ($salesman['no'] ?? 0);
@@ -921,21 +928,13 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
     if ($payCol) {
         $extras[$payCol] = strtolower((string) ($order['payment_type'] ?? 'credit')) === 'cash' ? 1 : 0;
     }
-    $ordCol = oracle_order_pick_col($cols, ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO']);
+    $ordCol = oracle_order_pick_col($cols, ['ORDER_NO', 'ORD_NUM', 'ORD_NO', 'REQ_NO', 'V_ORDER', 'CUST_ORD', 'PO_NO', 'ORDNUM']);
     if ($ordCol) {
         $extras[$ordCol] = (string) ($order['order_no'] ?? '');
-    }
-    $noteCol = oracle_order_pick_col($cols, ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE']);
-    if ($noteCol) {
-        $extras[$noteCol] = 'Hypex ' . (string) ($order['order_no'] ?? '');
     }
     $rateCol = oracle_order_pick_col($cols, ['TRAN_RATE']);
     if ($rateCol) {
         $extras[$rateCol] = 1;
-    }
-    $n1 = oracle_order_pick_col($cols, ['NOTE1', 'NOTE', 'NOTES', 'REMARK']);
-    if ($n1 && !isset($extras[$n1])) {
-        $extras[$n1] = 'Hypex ' . (string) ($order['order_no'] ?? '');
     }
 
     return $extras;
@@ -4963,7 +4962,7 @@ function oracle_order_apply_cat_from_picks(array $mappedLines, array $picks): ar
 
 /**
  * @param list<array<string,mixed>> $raw
- * @return array{by_srl:array<int,float>,by_line:array<int,float>}
+ * @return array{by_srl:array<int,array{qty?:?float,bonus?:?float,need?:?float}>,by_line:array<int,array{qty?:?float,bonus?:?float,need?:?float}>}
  */
 function oracle_order_parse_need_overrides(array $raw): array
 {
@@ -4973,21 +4972,61 @@ function oracle_order_parse_need_overrides(array $raw): array
         if (!is_array($row)) {
             continue;
         }
-        $need = isset($row['need']) ? (float) $row['need'] : -1.0;
-        if ($need <= 0.0000001) {
-            continue;
-        }
         $srl = (int) ($row['srl'] ?? 0);
         $lineId = (int) ($row['line_id'] ?? 0);
+        $entry = null;
+        if (array_key_exists('qty', $row) || array_key_exists('bonus', $row)) {
+            $entry = [
+                'qty' => array_key_exists('qty', $row) ? (float) $row['qty'] : null,
+                'bonus' => array_key_exists('bonus', $row) ? max(0.0, (float) $row['bonus']) : null,
+            ];
+            if (($entry['qty'] === null || $entry['qty'] <= 0.0000001)
+                && ($entry['bonus'] === null || $entry['bonus'] <= 0.0000001)
+                && !isset($row['need'])) {
+                continue;
+            }
+        } elseif (isset($row['need']) && (float) $row['need'] > 0.0000001) {
+            $entry = ['need' => (float) $row['need']];
+        }
+        if ($entry === null) {
+            continue;
+        }
         if ($lineId > 0) {
-            $byLine[$lineId] = $need;
+            $byLine[$lineId] = $entry;
         }
         if ($srl > 0) {
-            $bySrl[$srl] = $need;
+            $bySrl[$srl] = $entry;
         }
     }
 
     return ['by_srl' => $bySrl, 'by_line' => $byLine];
+}
+
+/**
+ * @param array{qty?:?float,bonus?:?float,need?:?float} $entry
+ * @return array{qty:float,bonus:float}|null
+ */
+function oracle_order_resolve_qty_bonus_override(array $entry, float $curQty, float $curBonus, float $trUnit): ?array
+{
+    if (isset($entry['need'])) {
+        $bonus = $curBonus;
+        $qty = oracle_order_need_to_order_qty((float) $entry['need'], $bonus, $trUnit);
+        if ($qty <= 0.0000001) {
+            return null;
+        }
+
+        return ['qty' => $qty, 'bonus' => $bonus];
+    }
+    $qty = array_key_exists('qty', $entry) && $entry['qty'] !== null ? (float) $entry['qty'] : $curQty;
+    $bonus = array_key_exists('bonus', $entry) && $entry['bonus'] !== null ? max(0.0, (float) $entry['bonus']) : $curBonus;
+    if ($qty <= 0.0000001 && $bonus <= 0.0000001) {
+        return null;
+    }
+    if ($qty <= 0.0000001) {
+        $qty = $curQty > 0 ? $curQty : 0.0;
+    }
+
+    return ['qty' => round($qty, 6), 'bonus' => round($bonus, 6)];
 }
 
 /**
@@ -5026,13 +5065,13 @@ function oracle_order_apply_need_overrides_in_memory(array $lines, array $overri
         }
         $srl++;
         $lineId = (int) ($ln['id'] ?? 0);
-        $need = null;
+        $entry = null;
         if ($lineId > 0 && isset($parsed['by_line'][$lineId])) {
-            $need = $parsed['by_line'][$lineId];
+            $entry = $parsed['by_line'][$lineId];
         } elseif (isset($parsed['by_srl'][$srl])) {
-            $need = $parsed['by_srl'][$srl];
+            $entry = $parsed['by_srl'][$srl];
         }
-        if ($need === null) {
+        if ($entry === null) {
             continue;
         }
         $bonus = (float) ($ln['qty_extra'] ?? 0);
@@ -5040,21 +5079,24 @@ function oracle_order_apply_need_overrides_in_memory(array $lines, array $overri
         if ($trUnit <= 0) {
             $trUnit = 1.0;
         }
-        $newQty = oracle_order_need_to_order_qty((float) $need, $bonus, $trUnit);
-        if ($newQty <= 0.0000001) {
+        $resolved = oracle_order_resolve_qty_bonus_override($entry, $qty, $bonus, $trUnit);
+        if ($resolved === null) {
             continue;
         }
+        $newQty = $resolved['qty'];
+        $newBonus = $resolved['bonus'];
         $oldQty = $qty;
-        if (abs($oldQty - $newQty) < 0.0000001) {
+        if (abs($oldQty - $newQty) < 0.0000001 && abs($bonus - $newBonus) < 0.0000001) {
             continue;
         }
         $ratio = $oldQty > 0.0000001 ? ($newQty / $oldQty) : 1.0;
         $ln['qty'] = $newQty;
+        $ln['qty_extra'] = $newBonus;
         $ln['line_total'] = round((float) ($ln['line_total'] ?? 0) * $ratio, 6);
         $ln['tax_amount'] = round((float) ($ln['tax_amount'] ?? 0) * $ratio, 6);
         $ln['line_gross'] = round((float) ($ln['line_gross'] ?? 0) * $ratio, 6);
         $ln['discount_amount'] = round((float) ($ln['discount_amount'] ?? 0) * $ratio, 6);
-        $ln['qty_base'] = ($newQty + $bonus) * $trUnit;
+        $ln['qty_base'] = ($newQty + $newBonus) * $trUnit;
     }
     unset($ln);
 
@@ -5062,7 +5104,7 @@ function oracle_order_apply_need_overrides_in_memory(array $lines, array $overri
 }
 
 /**
- * حفظ تعديل الكميات على كامل الطلب قبل الترحيل.
+ * حفظ تعديل الكميات/الإضافي على كامل الطلب قبل الترحيل.
  *
  * @param list<array<string,mixed>> $overrides
  * @return array{ok:bool,changed?:bool,message?:string,error?:string}
@@ -5096,13 +5138,13 @@ function oracle_order_apply_need_overrides(PDO $mysql, int $orderId, array $over
             if ($lineId < 1) {
                 continue;
             }
-            $need = null;
+            $entry = null;
             if (isset($parsed['by_line'][$lineId])) {
-                $need = $parsed['by_line'][$lineId];
+                $entry = $parsed['by_line'][$lineId];
             } elseif (isset($parsed['by_srl'][$srl])) {
-                $need = $parsed['by_srl'][$srl];
+                $entry = $parsed['by_srl'][$srl];
             }
-            if ($need === null) {
+            if ($entry === null) {
                 continue;
             }
             $bonus = (float) ($ln['qty_extra'] ?? 0);
@@ -5110,8 +5152,8 @@ function oracle_order_apply_need_overrides(PDO $mysql, int $orderId, array $over
             if ($trUnit <= 0) {
                 $trUnit = 1.0;
             }
-            $newQty = oracle_order_need_to_order_qty((float) $need, $bonus, $trUnit);
-            if ($newQty <= 0.0000001) {
+            $resolved = oracle_order_resolve_qty_bonus_override($entry, $qty, $bonus, $trUnit);
+            if ($resolved === null || $resolved['qty'] <= 0.0000001) {
                 $mysql->rollBack();
 
                 return [
@@ -5120,8 +5162,10 @@ function oracle_order_apply_need_overrides(PDO $mysql, int $orderId, array $over
                     'error' => 'كمية غير صالحة بعد التعديل.',
                 ];
             }
+            $newQty = $resolved['qty'];
+            $newBonus = $resolved['bonus'];
             $oldQty = $qty;
-            if (abs($oldQty - $newQty) < 0.0000001) {
+            if (abs($oldQty - $newQty) < 0.0000001 && abs($bonus - $newBonus) < 0.0000001) {
                 continue;
             }
             $ratio = $oldQty > 0.0000001 ? ($newQty / $oldQty) : 1.0;
@@ -5129,14 +5173,14 @@ function oracle_order_apply_need_overrides(PDO $mysql, int $orderId, array $over
             $taxAmt = round((float) ($ln['tax_amount'] ?? 0) * $ratio, 6);
             $lineGross = round((float) ($ln['line_gross'] ?? 0) * $ratio, 6);
             $discAmt = round((float) ($ln['discount_amount'] ?? 0) * $ratio, 6);
-            $qtyBase = inv_item_unit_to_base_qty($newQty + $bonus, $trUnit);
+            $qtyBase = inv_item_unit_to_base_qty($newQty + $newBonus, $trUnit);
 
             $upd = $mysql->prepare(
                 'UPDATE sal_customer_order_line
-                 SET qty = ?, qty_base = ?, line_total = ?, tax_amount = ?, line_gross = ?, discount_amount = ?
+                 SET qty = ?, qty_extra = ?, qty_base = ?, line_total = ?, tax_amount = ?, line_gross = ?, discount_amount = ?
                  WHERE id = ? AND order_id = ?'
             );
-            $upd->execute([$newQty, $qtyBase, $lineTotal, $taxAmt, $lineGross, $discAmt, $lineId, $orderId]);
+            $upd->execute([$newQty, $newBonus, $qtyBase, $lineTotal, $taxAmt, $lineGross, $discAmt, $lineId, $orderId]);
             $changed = true;
         }
 
@@ -5218,9 +5262,11 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
             $catPicksBySrl[$srl] = $cat;
         }
     }
-    $needParsed = oracle_order_parse_need_overrides(
-        is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : []
-    );
+    $ovRaw = is_array($opts['qty_overrides'] ?? null) ? $opts['qty_overrides'] : [];
+    if ($ovRaw === []) {
+        $ovRaw = is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : [];
+    }
+    $needParsed = oracle_order_parse_need_overrides($ovRaw);
 
     $catNameMap = oracle_order_categories_name_map($mysql, $conn);
     oracle_order_sync_categories_to_hypex($mysql, $catNameMap);
@@ -5274,17 +5320,23 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         if ($trUnit <= 0) {
             $trUnit = 1.0;
         }
+        $lineId = (int) ($ln['id'] ?? 0);
+        $entry = null;
+        if ($lineId > 0 && isset($needParsed['by_line'][$lineId])) {
+            $entry = $needParsed['by_line'][$lineId];
+        } elseif (isset($needParsed['by_srl'][$srl])) {
+            $entry = $needParsed['by_srl'][$srl];
+        }
+        if ($entry !== null) {
+            $resolved = oracle_order_resolve_qty_bonus_override($entry, $qty, $bonus, $trUnit);
+            if ($resolved !== null) {
+                $qty = $resolved['qty'];
+                $bonus = $resolved['bonus'];
+            }
+        }
         $need = $qty + $bonus;
         if (!empty($scfg['multiply_by_tr_unit']) && $trUnit > 1.000001) {
             $need *= $trUnit;
-        }
-        $lineId = (int) ($ln['id'] ?? 0);
-        if ($lineId > 0 && isset($needParsed['by_line'][$lineId])) {
-            $need = (float) $needParsed['by_line'][$lineId];
-            $qty = oracle_order_need_to_order_qty($need, $bonus, $trUnit);
-        } elseif (isset($needParsed['by_srl'][$srl])) {
-            $need = (float) $needParsed['by_srl'][$srl];
-            $qty = oracle_order_need_to_order_qty($need, $bonus, $trUnit);
         }
         if ($qty <= 0.0000001 || $need <= 0.0000001) {
             continue;

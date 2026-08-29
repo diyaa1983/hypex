@@ -40,18 +40,25 @@ function normalizePaymentType(v) {
 async function nextOrderNo(orderDate) {
   const iso = parseDateToIso(orderDate);
   const year = iso.slice(0, 4);
-  const suffix = `-${year}`;
   const rows = await db.query(
-    `SELECT order_no FROM sal_customer_order WHERE order_no LIKE ?`,
-    [`%${suffix}`]
+    `SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? OR order_no LIKE ? OR order_no LIKE ?`,
+    [`${year}%`, `%${year}`, `%-${year}`]
   );
   let maxSeq = 0;
-  const re = new RegExp(`^CO(\\d+)${suffix.replace('-', '\\-')}$`);
+  const reNew = new RegExp(`^${year}(\\d+)$`);
+  const reOldCo = new RegExp(`^CO(\\d+)-${year}$`);
+  const reOldPlain = new RegExp(`^(\\d+)-${year}$`);
   for (const row of rows) {
-    const m = String(row.order_no || '').match(re);
+    const no = String(row.order_no || '');
+    let m = no.match(reNew);
+    if (m) {
+      maxSeq = Math.max(maxSeq, Number(m[1]));
+      continue;
+    }
+    m = no.match(reOldCo) || no.match(reOldPlain);
     if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
   }
-  return `CO${String(maxSeq + 1).padStart(3, '0')}${suffix}`;
+  return `${year}${String(maxSeq + 1).padStart(3, '0')}`;
 }
 
 async function getOrder(id) {
@@ -962,14 +969,18 @@ function fetchOracleBatches(orderId, opts = null) {
 
   const o = opts && typeof opts === 'object' ? opts : {};
   const catPicks = Array.isArray(o.cat_picks) ? o.cat_picks : [];
-  const needOverrides = Array.isArray(o.need_overrides) ? o.need_overrides : [];
+  const needOverrides = Array.isArray(o.need_overrides)
+    ? o.need_overrides
+    : Array.isArray(o.qty_overrides)
+      ? o.qty_overrides
+      : [];
   let optsFile = '';
   if (catPicks.length || needOverrides.length) {
     optsFile = path.join(os.tmpdir(), 'hypex-oracle-cat-' + process.pid + '-' + Date.now() + '.json');
     try {
       fs.writeFileSync(
         optsFile,
-        JSON.stringify({ cat_picks: catPicks, need_overrides: needOverrides }),
+        JSON.stringify({ cat_picks: catPicks, need_overrides: needOverrides, qty_overrides: needOverrides }),
         'utf8'
       );
     } catch (e) {
@@ -1009,7 +1020,7 @@ function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null, n
     try {
       fs.writeFileSync(
         batchFile,
-        JSON.stringify({ batch_picks: picks, need_overrides: needs }),
+        JSON.stringify({ batch_picks: picks, need_overrides: needs, qty_overrides: needs }),
         'utf8'
       );
     } catch (e) {

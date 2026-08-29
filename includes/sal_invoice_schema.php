@@ -295,8 +295,7 @@ function sal_invoice_id_is_cancelled(PDO $pdo, int $invoiceId): bool
 }
 
 /**
- * رقم فاتورة تسلسلي: 001-2026 (ثلاثة أرقام على الأقل + سنة الفاتورة).
- * التسلسل يبدأ من 1 كل سنة ويستمر 002، 003 …
+ * رقم فاتورة تسلسلي رقمي فقط: YYYY + تسلسل (مثل 2026001).
  */
 function sal_invoice_generate_next_no(PDO $pdo, string $invoiceDate): string
 {

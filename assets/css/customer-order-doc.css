@@ -658,9 +658,9 @@
 .co-batch-panel {
   background: #fff;
   border-radius: 12px;
-  max-width: min(1100px, 96vw);
+  max-width: min(920px, 96vw);
   width: 100%;
-  max-height: min(90vh, 920px);
+  max-height: min(88vh, 820px);
   display: flex;
   flex-direction: column;
   box-shadow: 0 16px 48px rgba(15, 23, 42, 0.22);
@@ -692,7 +692,7 @@
   table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
   overflow: hidden;
@@ -702,26 +702,27 @@
   background: #0f172a;
   color: #f1f5f9;
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   letter-spacing: 0.01em;
-  padding: 0.65rem 0.7rem;
+  padding: 0.45rem 0.5rem;
   text-align: right;
   border-bottom: 1px solid #0b1220;
   white-space: nowrap;
 }
-.co-batch-table thead th:nth-child(1) { width: 2.6rem; text-align: center; }
-.co-batch-table--alloc thead th:nth-child(2) { width: 28%; }
-.co-batch-table--alloc thead th:nth-child(3) { width: 13%; }
+.co-batch-table thead th:nth-child(1) { width: 2.2rem; text-align: center; }
+.co-batch-table--alloc thead th:nth-child(2) { width: 24%; }
+.co-batch-table--alloc thead th:nth-child(3) { width: 12%; }
 .co-batch-table--alloc thead th:nth-child(4),
 .co-batch-table--alloc thead th:nth-child(5),
-.co-batch-table--alloc thead th:nth-child(7) {
-  width: 7.2rem;
+.co-batch-table--alloc thead th:nth-child(6),
+.co-batch-table--alloc thead th:nth-child(8) {
+  width: 5.8rem;
   text-align: center;
 }
-.co-batch-table--alloc thead th:nth-child(6) { width: 20%; }
+.co-batch-table--alloc thead th:nth-child(7) { width: 18%; }
 
 .co-batch-table tbody td {
-  padding: 0.6rem 0.65rem;
+  padding: 0.4rem 0.45rem;
   border-bottom: 1px solid #e2e8f0;
   border-inline-end: 1px solid #eef2f7;
   text-align: right;
@@ -744,6 +745,8 @@
   font-variant-numeric: tabular-nums;
 }
 .co-batch-table .co-batch-col-need,
+.co-batch-table .co-batch-col-qty,
+.co-batch-table .co-batch-col-bonus,
 .co-batch-table .co-batch-col-take,
 .co-batch-table .co-batch-col-bal {
   text-align: center;
@@ -810,13 +813,15 @@
   border-color: #0ea5e9;
 }
 .co-batch-need-input,
+.co-batch-qty-input,
+.co-batch-bonus-input,
 .co-batch-take-input {
   width: 100%;
-  max-width: 6.5rem;
-  min-height: 2.35rem;
+  max-width: 5.5rem;
+  min-height: 2rem;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.35rem 0.55rem;
+  padding: 0.25rem 0.4rem;
   text-align: center;
   direction: ltr;
   font: inherit;
@@ -825,11 +830,15 @@
   box-sizing: border-box;
 }
 .co-batch-need-input:focus,
+.co-batch-qty-input:focus,
+.co-batch-bonus-input:focus,
 .co-batch-take-input:focus {
   outline: 2px solid rgba(14, 165, 233, 0.45);
   outline-offset: 1px;
   border-color: #0ea5e9;
 }
+.co-batch-qty-input,
+.co-batch-bonus-input,
 .co-batch-need-input {
   border-color: #94a3b8;
   background: #f8fafc;
@@ -845,8 +854,9 @@
   border-bottom-color: #fed7aa;
 }
 .co-batch-table tbody tr.co-batch-row--invalid td {
-  background: #fef2f2 !important;
-  border-bottom-color: #fecaca;
+  background: #fee2e2 !important;
+  border-bottom-color: #f87171;
+  color: #7f1d1d;
 }
 .co-batch-table tbody tr.co-batch-row--nostock select {
   border-color: #fdba74;
@@ -889,4 +899,23 @@
   justify-content: flex-end;
   align-items: center;
   background: #f8fafc;
+}
+
+/* اختصارات تحت شريط الحفظ */
+.si-keys-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem 0.55rem;
+  margin: 0 0 0.35rem;
+}
+.si-keys-bar .si-count--keys {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0;
+}
+.si-meta--order .si-f--cat-filter {
+  min-width: 10rem;
 }

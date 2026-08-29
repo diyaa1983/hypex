@@ -338,6 +338,14 @@ async function renderForm(req, res, orderId) {
   const bodyHtml = `
     <div class="si-stage si-stage--toolbar-first">
       ${toolbarHtml(caps, initial)}
+      <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
+        <span class="si-count si-count--keys">
+          <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+          <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+          <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+          <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
+        </span>
+      </div>
       <div class="si-doc-screen-head">
         <h1 class="si-doc-screen-title" id="co-screen-title">${titleLine}</h1>
         <div class="si-doc-screen-badge">${badge}</div>
@@ -381,6 +389,12 @@ async function renderForm(req, res, orderId) {
               ${whOpts}
             </select>
           </label>
+          <label class="si-f si-f--cat-filter">
+            <span class="si-f-head">فئة Oracle</span>
+            <select class="si-field" id="co-oracle-cat-filter" ${locked ? 'disabled' : ''} title="تصفية قائمة المواد حسب فئة Oracle" data-nav="1">
+              <option value="">— كل الفئات —</option>
+            </select>
+          </label>
           <label class="si-f si-f--cust">
             <span class="si-f-head">
               العميل
@@ -400,18 +414,6 @@ async function renderForm(req, res, orderId) {
       <section class="si-surface">
         <div class="si-surface-head">
           <h2>بنود الطلب</h2>
-          <label class="si-f si-f--cat-filter" style="margin:0;display:flex;align-items:center;gap:.4rem;min-width:14rem">
-            <span class="si-f-head" style="margin:0;white-space:nowrap">فئة Oracle</span>
-            <select class="si-field" id="co-oracle-cat-filter" ${locked ? 'disabled' : ''} title="تصفية قائمة المواد حسب فئة Oracle">
-              <option value="">— كل الفئات —</option>
-            </select>
-          </label>
-          <span class="si-count si-count--keys">
-            <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
-            <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
-            <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
-            <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
-          </span>
         </div>
         <div class="si-lines-wrap">
           <table class="si-lines si-lines--co" id="co-lines">
@@ -523,10 +525,11 @@ async function renderForm(req, res, orderId) {
                   <th>#</th>
                   <th>المادة</th>
                   <th>الفئة</th>
-                  <th>المطلوب</th>
-                  <th>الكمية من التشغيلة</th>
+                  <th>الكمية</th>
+                  <th>إضافي</th>
+                  <th>من التشغيلة</th>
                   <th>التشغيلة</th>
-                  <th>رصيد التشغيلة</th>
+                  <th>الرصيد</th>
                 </tr>
               </thead>
               <tbody id="co-batch-rows"></tbody>
@@ -714,10 +717,15 @@ router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) =>
       return res.status(403).json({ ok: false, error: 'لا صلاحية.' });
     }
     const catPicks = Array.isArray(req.body?.cat_picks) ? req.body.cat_picks : [];
-    const needOverrides = Array.isArray(req.body?.need_overrides) ? req.body.need_overrides : [];
+    const needOverrides = Array.isArray(req.body?.qty_overrides)
+      ? req.body.qty_overrides
+      : Array.isArray(req.body?.need_overrides)
+        ? req.body.need_overrides
+        : [];
     const result = await svc.fetchOracleBatches(req.params.id, {
       cat_picks: catPicks,
       need_overrides: needOverrides,
+      qty_overrides: needOverrides,
     });
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
@@ -733,7 +741,11 @@ router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
     }
     const dry = String(req.query.dry || req.body?.dry || '') === '1';
     const batchPicks = Array.isArray(req.body?.batch_picks) ? req.body.batch_picks : [];
-    const needOverrides = Array.isArray(req.body?.need_overrides) ? req.body.need_overrides : [];
+    const needOverrides = Array.isArray(req.body?.qty_overrides)
+      ? req.body.qty_overrides
+      : Array.isArray(req.body?.need_overrides)
+        ? req.body.need_overrides
+        : [];
     const result = await svc.postOrderToOracle(
       req.params.id,
       req.session.user.id,
