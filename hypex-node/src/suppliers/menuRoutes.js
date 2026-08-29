@@ -131,31 +131,43 @@ async function supplierForm(req, res, id) {
         actions: [{ label: 'رجوع للقائمة', href: '/suppliers/list' }],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <section class="si-surface">
-        <div class="si-surface-head"><h2>${isNew ? 'مورد جديد' : 'تعديل'}</h2></div>
-        <form method="post" action="${isNew ? '/suppliers/new' : '/suppliers/' + id}" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
+      <section class="si-surface si-surface--master">
+        <div class="si-surface-head">
+          <h2>${isNew ? 'مورد جديد' : esc(row.name_ar || 'تعديل')}</h2>
+          ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
+        </div>
+        <form method="post" action="${isNew ? '/suppliers/new' : '/suppliers/' + id}" class="si-master-form">
           <input type="hidden" name="id" value="${row ? row.id : 0}">
-          <label>الرمز <span style="font-weight:500;color:#5c6578">(فارغ = تلقائي)</span>
-            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="مثال: S-00001" autocomplete="off">
-          </label>
-          <label>اسم المورد *
-            <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off">
-          </label>
-          <label>الهاتف
-            <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr">
-          </label>
-          <label>البريد
-            <input class="si-field" name="email" type="email" value="${esc(row?.email || '')}" dir="ltr">
-          </label>
-          <label>الرقم الضريبي
-            <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr">
-          </label>
-          <label class="si-span-2">العنوان
-            <textarea class="si-field" name="address_ar" rows="2" style="min-height:4rem">${esc(
-              row?.address_ar || ''
-            )}</textarea>
-          </label>
-          <div class="si-span-2" style="display:flex;gap:.5rem;margin-top:.35rem">
+          <div class="si-master-grid">
+            <label class="si-mf">
+              <span class="si-mf-label">الرمز</span>
+              <span class="si-mf-hint">فارغ = يُولَّد تلقائياً</span>
+              <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="" autocomplete="off">
+            </label>
+            <label class="si-mf">
+              <span class="si-mf-label">اسم المورد <em>*</em></span>
+              <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="">
+            </label>
+            <label class="si-mf">
+              <span class="si-mf-label">الهاتف</span>
+              <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" placeholder="" autocomplete="off">
+            </label>
+            <label class="si-mf">
+              <span class="si-mf-label">البريد</span>
+              <input class="si-field" name="email" type="email" value="${esc(row?.email || '')}" dir="ltr" placeholder="" autocomplete="off">
+            </label>
+            <label class="si-mf">
+              <span class="si-mf-label">الرقم الضريبي</span>
+              <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr" placeholder="" autocomplete="off">
+            </label>
+            <label class="si-mf si-mf--full">
+              <span class="si-mf-label">العنوان</span>
+              <textarea class="si-field" name="address_ar" rows="3" placeholder="">${esc(
+                row?.address_ar || ''
+              )}</textarea>
+            </label>
+          </div>
+          <div class="si-form-actions">
             <button class="si-btn si-btn--primary" type="submit">حفظ</button>
             <a class="si-btn" href="/suppliers/list">إلغاء</a>
           </div>
