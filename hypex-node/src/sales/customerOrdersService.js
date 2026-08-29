@@ -1061,6 +1061,15 @@ function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null, n
   });
 }
 
+function unpostOrderFromOracle(orderId, userId) {
+  const id = Number(orderId) || 0;
+  const uid = Number(userId) || 0;
+  if (id < 1) {
+    return Promise.resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
+  }
+  return runOraclePhpCli('oracle_order_unpost.php', [String(id), String(uid)]);
+}
+
 module.exports = {
   getOrder,
   saveOrder,
@@ -1072,5 +1081,6 @@ module.exports = {
   findOrderIdByNo,
   getCustomerArSummary,
   postOrderToOracle,
+  unpostOrderFromOracle,
   fetchOracleBatches,
 };

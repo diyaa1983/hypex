@@ -79,6 +79,7 @@ function toolbarCaps(user, order) {
     canPdf: hasId,
     canExcel: hasId,
     canPostOracle: canAppr && hasId && locked && !(Number(order.oracle_v_num || 0) > 0),
+    canUnpostOracle: canAppr && hasId && Number(order.oracle_v_num || 0) > 0,
     oracleVnum: Number(order.oracle_v_num || 0) || 0,
     oracleVyear: Number(order.oracle_vyear || 0) || 0,
   };
@@ -112,6 +113,15 @@ function toolbarHtml(caps, order) {
           caps.oracleVnum > 0
             ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
             : ' title="تحويل الطلب المعتمد إلى فاتورة بيع في فواتير المبيعات"'
+        )}
+        ${b(
+          'co-oracle-unpost',
+          'إلغاء ترحيل Oracle',
+          'si-tb--ghost',
+          !caps.canUnpostOracle,
+          caps.oracleVnum > 0
+            ? ` title="حذف مسودة Oracle #${caps.oracleVnum} لإعادة الترحيل بعد التعديل"`
+            : ' title="لا يوجد ترحيل Oracle لإلغائه"'
         )}
       </div>
       <div class="si-tb-group">
@@ -730,6 +740,24 @@ router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) =>
       qty_overrides: needOverrides,
     });
     if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/sales/customer-orders/:id/unpost-oracle', async (req, res) => {
+  try {
+    if (!canApprove(req.session.user)) {
+      return res.status(403).json({ ok: false, error: 'لا صلاحية إلغاء ترحيل Oracle.' });
+    }
+    const result = await svc.unpostOrderFromOracle(req.params.id, req.session.user.id);
+    if (!result.ok) {
+      return res.status(400).json({
+        ...result,
+        error: result.error || result.message || 'فشل إلغاء ترحيل Oracle.',
+      });
+    }
     res.json(result);
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

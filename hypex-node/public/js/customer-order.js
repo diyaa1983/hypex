@@ -2555,6 +2555,64 @@
     });
   }
 
+  var oracleUnpostBtn = document.getElementById('co-oracle-unpost');
+  if (oracleUnpostBtn) {
+    oracleUnpostBtn.addEventListener('click', function () {
+      if (busy || !state.id) return;
+      var vnum = Number(state.oracle_v_num || 0);
+      var vyear = Number(state.oracle_vyear || 0);
+      var label = vnum > 0 ? 'Oracle #' + vnum + (vyear > 0 ? ' / ' + vyear : '') : 'Oracle';
+      hxConfirm(
+        'سيتم حذف مسودة الفاتورة ' +
+          label +
+          ' من Oracle (إن كانت VOU_FLAG=18).\nبعدها يمكنك تعديل الطلب ثم «ترحيل إلى Oracle» من جديد.\n\nإذا حُفظت الفاتورة في INV00024 فلن يُسمح بالحذف من هنا.',
+        {
+          title: 'إلغاء ترحيل Oracle',
+          okLabel: 'إلغاء الترحيل',
+          danger: true,
+        }
+      ).then(function (ok) {
+        if (!ok) return;
+        setBusy(true);
+        setMsg('جاري إلغاء ترحيل Oracle…');
+        fetch('/api/sales/customer-orders/' + state.id + '/unpost-oracle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: '{}',
+        })
+          .then(function (r) {
+            return r.json().then(function (data) {
+              return { status: r.status, data: data };
+            });
+          })
+          .then(function (res) {
+            setBusy(false);
+            var data = res.data || {};
+            if (!data.ok) {
+              hxAlert(data.message || data.error || 'فشل إلغاء الترحيل.', {
+                title: 'إلغاء ترحيل Oracle',
+                kind: 'warning',
+              });
+              setMsg(data.message || data.error || 'فشل إلغاء الترحيل.', 'error');
+              return;
+            }
+            state.oracle_v_num = 0;
+            state.oracle_vyear = 0;
+            hxAlert(data.message || 'تم إلغاء ترحيل Oracle. يمكنك إعادة الترحيل بعد التعديل.', {
+              title: 'إلغاء ترحيل Oracle',
+              kind: 'success',
+            }).then(function () {
+              refreshOrderPageSoon();
+            });
+          })
+          .catch(function () {
+            setBusy(false);
+            hxAlert('تعذر الاتصال بالخادم.', { title: 'إلغاء ترحيل Oracle', kind: 'warning' });
+          });
+      });
+    });
+  }
+
   var oracleBtn = document.getElementById('co-oracle');
   var batchModal = document.getElementById('co-batch-modal');
   var batchRows = document.getElementById('co-batch-rows');

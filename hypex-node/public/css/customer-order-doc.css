@@ -979,3 +979,50 @@
 .si-meta--order .si-f--cat-filter .si-field {
   min-width: 0;
 }
+
+/* نصوص شاشة الطلب سوداء — رقم الطلب يبقى بألوانه (أحمر معتمد / أخضر محفوظ) */
+.si-stage.si-stage--toolbar-first,
+.si-stage.si-stage--toolbar-first .si-doc-screen-title,
+.si-stage.si-stage--toolbar-first .si-surface-head h2,
+.si-stage.si-stage--toolbar-first .si-surface-head .si-count,
+.si-stage.si-stage--toolbar-first .si-f-head,
+.si-stage.si-stage--toolbar-first .si-key-desc,
+.si-stage.si-stage--toolbar-first .si-key-hint,
+.si-stage.si-stage--toolbar-first .si-field,
+.si-stage.si-stage--toolbar-first select.si-field,
+.si-stage.si-stage--toolbar-first textarea,
+.si-stage.si-stage--toolbar-first .si-lines th,
+.si-stage.si-stage--toolbar-first .si-lines td,
+.si-stage.si-stage--toolbar-first .si-lines input,
+.si-stage.si-stage--toolbar-first .si-lines select,
+.si-stage.si-stage--toolbar-first .si-notes,
+.si-stage.si-stage--toolbar-first .si-notes label,
+.si-stage.si-stage--toolbar-first .si-totals label,
+.si-stage.si-stage--toolbar-first .si-tot-row,
+.si-stage.si-stage--toolbar-first .si-tot-row span,
+.si-stage.si-stage--toolbar-first .si-tot-row strong,
+.si-stage.si-stage--toolbar-first .si-tot-grand,
+.si-stage.si-stage--toolbar-first .si-tot-grand span,
+.si-stage.si-stage--toolbar-first .si-tot-grand strong,
+.si-stage.si-stage--toolbar-first .si-pill,
+.si-stage.si-stage--toolbar-first .muted,
+.si-stage.si-stage--toolbar-first .si-price-mode,
+.si-stage.si-stage--toolbar-first .si-docno-btn {
+  color: #000 !important;
+}
+
+.si-stage.si-stage--toolbar-first .si-keys-bar .si-field-key {
+  color: #000 !important;
+}
+
+/* رقم الطلب فقط — كما هو */
+.si-stage.si-stage--toolbar-first #co_no.is-approved,
+.si-stage.si-stage--toolbar-first .si-docno-input.is-approved,
+.si-stage.si-stage--toolbar-first #inv_no.is-approved {
+  color: #b91c1c !important;
+}
+.si-stage.si-stage--toolbar-first #co_no.is-saved,
+.si-stage.si-stage--toolbar-first .si-docno-input.is-saved,
+.si-stage.si-stage--toolbar-first #inv_no.is-saved {
+  color: #047857 !important;
+}
