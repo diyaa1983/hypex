@@ -49,6 +49,11 @@ return [
                     'inherit_from' => ['sales_customer_orders_approve', 'sales_customer_orders_approved'],
                 ],
                 [
+                    'code' => 'action_unpost_customer_order_oracle',
+                    'name_ar' => 'إلغاء ترحيل Oracle لطلب شراء عميل',
+                    'inherit_from' => ['sales_customer_orders_approve', 'sales_customer_orders'],
+                ],
+                [
                     'code' => 'action_unpost_cash_receipt',
                     'name_ar' => 'فك ترحيل سند قبض',
                     'inherit_from' => ['cash_receipt', 'cash_receipts_list'],
@@ -174,6 +179,11 @@ return [
                     'inherit_from' => ['sales_customer_orders_approve'],
                 ],
                 [
+                    'code' => 'action_post_customer_order_oracle',
+                    'name_ar' => 'ترحيل طلب شراء عميل إلى Oracle',
+                    'inherit_from' => ['sales_customer_orders_approve', 'sales_customer_orders'],
+                ],
+                [
                     'code' => 'action_post_cash_receipt',
                     'name_ar' => 'ترحيل سند قبض',
                     'inherit_from' => ['cash_receipt', 'cash_receipts_list'],
@@ -257,6 +267,11 @@ return [
                     'code' => 'action_delete_sales_rep_route',
                     'name_ar' => 'حذف خط سير المندوب',
                     'inherit_from' => ['sales_rep_route'],
+                ],
+                [
+                    'code' => 'action_delete_sales_rep_visit',
+                    'name_ar' => 'حذف زيارة من تقرير الزيارات',
+                    'inherit_from' => ['report_sales_rep_visits', 'sales_rep_visits'],
                 ],
                 [
                     'code' => 'action_convert_purchase_order',

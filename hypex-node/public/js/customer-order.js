@@ -2371,7 +2371,7 @@
         clearFormDirty();
         if (data.order_no) {
           var titleEl = document.getElementById('co-screen-title');
-          if (titleEl) titleEl.textContent = 'طلب ' + data.order_no;
+          if (titleEl) titleEl.textContent = 'طلب شراء عميل';
         }
         if (data.id && Number(data.id) !== Number(state.id || 0)) {
           if (window.history && window.history.replaceState) {

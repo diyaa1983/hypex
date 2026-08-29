@@ -11,8 +11,10 @@ const { execFileSync } = require('child_process');
 
 const APP_ROOT = path.resolve(__dirname, '..', '..', '..');
 const NAV_PATH = path.join(APP_ROOT, 'config', 'nav_menu.php');
+const ACTION_PATH = path.join(APP_ROOT, 'config', 'action_permissions.php');
 
 let cache = { mtimeMs: 0, data: null };
+let actionCache = { mtimeMs: 0, data: null };
 
 function phpBin() {
   for (const c of [
@@ -50,6 +52,41 @@ function loadNavMenu() {
     cache = { mtimeMs, data: { domains: [] } };
   }
   return cache.data;
+}
+
+function loadActionCatalog() {
+  let mtimeMs = 0;
+  try {
+    mtimeMs = fs.statSync(ACTION_PATH).mtimeMs;
+  } catch {
+    return { groups: [] };
+  }
+  if (actionCache.data && actionCache.mtimeMs === mtimeMs) return actionCache.data;
+
+  const phpUnix = ACTION_PATH.replace(/\\/g, '/');
+  const phpCode = `echo json_encode(require ${JSON.stringify(phpUnix)}, JSON_UNESCAPED_UNICODE);`;
+  try {
+    const out = execFileSync(phpBin(), ['-r', phpCode], {
+      encoding: 'utf8',
+      maxBuffer: 4 * 1024 * 1024,
+      windowsHide: true,
+    });
+    actionCache = { mtimeMs, data: JSON.parse(out) };
+  } catch (e) {
+    console.error('permissionsNav.loadActionCatalog', e.message || e);
+    actionCache = { mtimeMs, data: { groups: [] } };
+  }
+  return actionCache.data;
+}
+
+function actionItemsFlat() {
+  const out = [];
+  for (const g of loadActionCatalog().groups || []) {
+    for (const item of g.items || []) {
+      if (item && item.code) out.push(item);
+    }
+  }
+  return out;
 }
 
 function permCodeFromItem(it) {
@@ -108,8 +145,40 @@ function buildPermissionPanels(screens, opts = {}) {
   const shown = new Set();
   const panels = [];
 
+  const flatActions = isMobile ? [] : actionItemsFlat();
+
+  function actionsForScreenCodes(screenCodes) {
+    const set = new Set((screenCodes || []).filter(Boolean));
+    const out = [];
+    for (const actionItem of flatActions) {
+      const code = String(actionItem.code || '');
+      if (!code || !idByCode[code] || shown.has(code)) continue;
+      const inherit = Array.isArray(actionItem.inherit_from) ? actionItem.inherit_from : [];
+      let primary = '';
+      for (const parent of inherit) {
+        const p = String(parent || '').trim();
+        if (p && idByCode[p]) {
+          primary = p;
+          break;
+        }
+      }
+      if (!primary || !set.has(primary)) continue;
+      out.push({
+        id: idByCode[code],
+        code,
+        label: String(actionItem.name_ar || nameByCode[code] || code).trim() || code,
+        kind: 'action',
+        filterKind: 'action',
+        typeLabel: typeLabelAr('action'),
+      });
+      shown.add(code);
+    }
+    return out;
+  }
+
   function appendItems(navItems) {
     const items = [];
+    const screenCodesInPanel = [];
     for (const it of navItems || []) {
       const code = permCodeFromItem(it);
       if (!code || !idByCode[code] || shown.has(code)) continue;
@@ -123,7 +192,11 @@ function buildPermissionPanels(screens, opts = {}) {
         filterKind: filterKind(kind),
         typeLabel: typeLabelAr(kind),
       });
+      screenCodesInPanel.push(code);
       shown.add(code);
+    }
+    if (!isMobile) {
+      items.push(...actionsForScreenCodes(screenCodesInPanel));
     }
     return items;
   }
@@ -172,6 +245,7 @@ function buildPermissionPanels(screens, opts = {}) {
     if (isMobile && !code.startsWith('m_')) continue;
     if (!idByCode[code]) continue;
     const kind = kindFor(code, typeByCode);
+    if (kind === 'action') continue;
     const row = {
       id: idByCode[code],
       code,
@@ -182,6 +256,35 @@ function buildPermissionPanels(screens, opts = {}) {
     };
     if (kind === 'report') leftoverReports.push(row);
     else leftoverScreens.push(row);
+  }
+
+  if (!isMobile) {
+    for (const actionGroup of loadActionCatalog().groups || []) {
+      const title = String(actionGroup.title || 'الإجراءات');
+      const items = [];
+      for (const actionItem of actionGroup.items || []) {
+        const code = String(actionItem.code || '');
+        if (!code || !idByCode[code] || shown.has(code)) continue;
+        items.push({
+          id: idByCode[code],
+          code,
+          label: String(actionItem.name_ar || nameByCode[code] || code).trim() || code,
+          kind: 'action',
+          filterKind: 'action',
+          typeLabel: typeLabelAr('action'),
+        });
+        shown.add(code);
+      }
+      if (!items.length) continue;
+      panels.push({
+        id: 'actions__' + title,
+        domainId: 'actions',
+        domainTitle: 'صلاحيات الإجراءات',
+        title,
+        kind: 'actions',
+        items,
+      });
+    }
   }
 
   if (leftoverReports.length) {
@@ -228,6 +331,8 @@ function buildPermissionPanels(screens, opts = {}) {
 
 module.exports = {
   loadNavMenu,
+  loadActionCatalog,
+  actionItemsFlat,
   buildPermissionPanels,
   typeLabelAr,
 };

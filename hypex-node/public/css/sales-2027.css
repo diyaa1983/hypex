@@ -103,10 +103,35 @@ body.si-2027 .si-main::before {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem 0.55rem;
+  gap: 0.4rem 0.75rem;
   margin: 0;
   padding: 0;
   min-width: 0;
+}
+.si-doc-top-row .si-f--docno-top {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  min-width: 0;
+}
+.si-doc-top-row .si-f--docno-top .si-f-head {
+  margin: 0;
+  min-height: 0;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+}
+.si-doc-top-row .si-f--docno-top .si-docno-row {
+  min-width: 13.5rem;
+  width: 15.5rem;
+  max-width: min(18rem, 42vw);
+}
+.si-doc-top-row .si-f--docno-top .si-field {
+  min-height: 2.05rem;
+  height: 2.05rem;
 }
 .si-doc-top-row .si-keys-bar {
   margin: 0;
@@ -638,24 +663,18 @@ body.si-2027 .si-main::before {
   align-items: center;
   gap: 0.35rem;
   margin-bottom: 1rem;
-  padding: 0.42rem 0.48rem;
-  border-radius: 18px;
-  /* ?????? ?? ????? ??????? ???????? .sidebar--2027 */
-  background:
-    radial-gradient(420px 180px at 100% 0%, rgba(14, 165, 233, 0.2), transparent 60%),
-    radial-gradient(320px 160px at 0% 100%, rgba(37, 99, 235, 0.12), transparent 55%),
-    linear-gradient(168deg, #0f172a 0%, #1e3a5f 55%, #0b1220 100%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 16px 40px rgba(15, 23, 42, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(18px) saturate(1.15);
+  padding: 0.2rem 0;
+  border-radius: 0;
+  background: none;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
   animation: none;
 }
 
 .si-cmd.si-doc-toolbar {
-  gap: 0.55rem;
-  padding: 0.5rem 0.55rem;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
 }
 
 @keyframes si-cmd-in {
@@ -675,20 +694,20 @@ body.si-2027 .si-main::before {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.32rem;
-  padding: 0.18rem;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  border: 0;
 }
 
 .si-tb-group--core {
-  background: rgba(14, 165, 233, 0.1);
-  border-color: rgba(56, 189, 248, 0.2);
+  background: none;
+  border: 0;
 }
 
 .si-tb-group--risk {
-  background: rgba(180, 35, 24, 0.08);
-  border-color: rgba(180, 35, 24, 0.16);
+  background: none;
+  border: 0;
 }
 
 .si-tb-group--status {
@@ -701,9 +720,9 @@ body.si-2027 .si-main::before {
 
 /* Capsule action buttons 2027 — مقاس موحّد داخل شريط المستند */
 .si-tb {
-  --tb-bg: rgba(255, 255, 255, 0.08);
-  --tb-fg: #e9eef6;
-  --tb-bd: rgba(255, 255, 255, 0.12);
+  --tb-bg: #fff;
+  --tb-fg: #0f172a;
+  --tb-bd: #cbd5e1;
   --tb-glow: transparent;
   appearance: none;
   display: inline-flex;
@@ -725,7 +744,7 @@ body.si-2027 .si-main::before {
   letter-spacing: 0.01em;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
   transition:
     transform 0.16s cubic-bezier(0.22, 1, 0.36, 1),
     background 0.18s ease,
@@ -745,11 +764,9 @@ body.si-2027 .si-main::before {
 
 .si-tb:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.18);
-  box-shadow:
-    0 8px 18px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: #f8fafc;
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.1);
 }
 
 .si-tb:active:not(:disabled) {
@@ -780,19 +797,19 @@ body.si-2027 .si-main::before {
   letter-spacing: 0.03em;
   font-family: ui-monospace, Consolas, 'Cascadia Mono', 'Courier New', monospace;
   line-height: 1;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(0, 0, 0, 0.18);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: #475569;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
   vertical-align: middle;
   opacity: 0.9;
 }
 
 .si-tb--ghost .si-tb-key,
 .si-tb:not(.si-tb--save):not(.si-tb--post):not(.si-tb--danger):not(.si-tb--accent) .si-tb-key {
-  color: rgba(226, 232, 240, 0.95);
-  background: rgba(15, 23, 42, 0.28);
-  border-color: rgba(148, 163, 184, 0.28);
+  color: #475569;
+  background: #e2e8f0;
+  border-color: #cbd5e1;
 }
 
 .si-tb--save .si-tb-key,
@@ -888,17 +905,17 @@ label .si-field-key {
 }
 
 .si-tb--danger {
-  --tb-bg: rgba(180, 35, 24, 0.22);
-  --tb-fg: #fecaca;
-  --tb-bd: rgba(248, 113, 113, 0.4);
-  color: #fecaca;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --tb-bg: #fef2f2;
+  --tb-fg: #b91c1c;
+  --tb-bd: #fecaca;
+  color: #b91c1c;
+  box-shadow: none;
 }
 
 .si-tb--danger:hover:not(:disabled) {
-  background: rgba(180, 35, 24, 0.38);
-  border-color: rgba(248, 113, 113, 0.55);
-  color: #fff;
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
 }
 
 /* الحذف المعطَّل: مقروء ليُعرف مكانه، وباهت رمادي كي لا يبدو قابلاً للضغط */
@@ -908,32 +925,31 @@ label .si-field-key {
 }
 
 .si-tb--ghost {
-  --tb-bg: rgba(255, 255, 255, 0.06);
-  --tb-bd: rgba(255, 255, 255, 0.12);
-  --tb-fg: rgba(233, 238, 246, 0.9);
-  color: rgba(233, 238, 246, 0.9);
+  --tb-bg: #fff;
+  --tb-bd: #cbd5e1;
+  --tb-fg: #0f172a;
+  color: #0f172a;
 }
 
 .si-tb--accent {
-  --tb-bg: rgba(14, 165, 233, 0.18);
-  --tb-bd: rgba(56, 189, 248, 0.35);
-  --tb-fg: #bae6fd;
-  color: #bae6fd;
+  --tb-bg: #eff6ff;
+  --tb-bd: #93c5fd;
+  --tb-fg: #1d4ed8;
+  color: #1d4ed8;
 }
 
-/* Legacy buttons inside dark cmd bar */
 .si-cmd .si-btn {
-  --_bg: rgba(255, 255, 255, 0.06);
-  --_fg: #e8eef5;
-  --_bd: rgba(255, 255, 255, 0.1);
-  box-shadow: none;
-  color: #e8eef5 !important;
-  border-radius: 11px;
+  --_bg: #fff;
+  --_fg: #0f172a;
+  --_bd: #cbd5e1;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  color: #0f172a !important;
+  border-radius: 10px;
   min-height: 2.2rem;
 }
 
 .si-cmd .si-btn:hover:not(:disabled) {
-  --_bg: rgba(255, 255, 255, 0.12);
+  --_bg: #f8fafc;
 }
 
 .si-cmd .si-btn--primary {
@@ -947,7 +963,7 @@ label .si-field-key {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  color: rgba(233, 238, 246, 0.72);
+  color: #334155;
   max-width: min(22rem, 100%);
   line-height: 1.35;
 }
@@ -1372,7 +1388,7 @@ label .si-field-key {
   font-size: 0.48rem;
   font-weight: 600;
   letter-spacing: 0.01em;
-  color: rgba(255, 255, 255, 0.72);
+  color: #64748b;
   text-transform: none;
   white-space: nowrap;
   max-width: 3.2rem;
@@ -1382,7 +1398,7 @@ label .si-field-key {
 }
 .si-tb--ghost .si-tb-keydesc,
 .si-tb:not(.si-tb--save):not(.si-tb--post):not(.si-tb--danger):not(.si-tb--accent) .si-tb-keydesc {
-  color: rgba(226, 232, 240, 0.72);
+  color: #64748b;
 }
 
 /* ?????? + ??? ???? ? ????? ?????? ??? ???? */
@@ -1623,7 +1639,6 @@ label .si-field-key {
 /* طلب عميل: صف للقوائم + صف كامل للعميل حتى تظهر الأسماء كاملة */
 .si-meta--order {
   grid-template-columns:
-    minmax(11rem, 1.05fr)
     minmax(7.75rem, 0.72fr)
     minmax(5.75rem, 0.5fr)
     minmax(10.5rem, 1.1fr)
@@ -1647,7 +1662,6 @@ label .si-field-key {
 @media (max-width: 1280px) {
   .si-meta--order {
     grid-template-columns:
-      minmax(10rem, 1fr)
       minmax(7.25rem, 0.7fr)
       minmax(5.5rem, 0.48fr)
       minmax(9.5rem, 1fr)

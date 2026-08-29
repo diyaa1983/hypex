@@ -154,7 +154,46 @@ async function saveGroup(payload) {
 }
 
 /* ── permissions ── */
+async function syncActionPermissions() {
+  const items = permissionsNav.actionItemsFlat();
+  if (!items.length) return 0;
+  let added = 0;
+  const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+  let nextOrder = Math.max(Number(maxRows[0]?.m || 0), 9000);
+  for (const item of items) {
+    const code = String(item.code || '').trim();
+    const nameAr = String(item.name_ar || code).trim() || code;
+    if (!code) continue;
+    const existing = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    if (existing[0]) {
+      await q(`UPDATE sys_screen SET name_ar = ? WHERE code = ?`, [nameAr, code]);
+      continue;
+    }
+    nextOrder += 1;
+    await q(
+      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'screen', ?)`,
+      [code, nameAr, nextOrder]
+    );
+    const created = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    const screenId = Number(created[0]?.id || 0);
+    if (screenId > 0) {
+      await q(
+        `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+         SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = 'ADMINS'`,
+        [screenId]
+      );
+    }
+    added += 1;
+  }
+  return added;
+}
+
 async function listPermissionsMatrix(groupId = 0) {
+  try {
+    await syncActionPermissions();
+  } catch (e) {
+    console.error('syncActionPermissions', e.message || e);
+  }
   const groups = await listGroups();
   const screens = await q(
     `SELECT id, code, name_ar, screen_type, sort_order FROM sys_screen ORDER BY sort_order, id`

@@ -21,8 +21,32 @@ function canEdit(user) {
   );
 }
 
-function canApprove(user) {
+function canApproveScreen(user) {
   return user.is_admin || auth.userCan(user, 'sales_customer_orders_approve');
+}
+
+function canAction(user, code) {
+  return user.is_admin || auth.userCan(user, code);
+}
+
+function canApprove(user) {
+  return canApproveScreen(user) && canAction(user, 'action_approve_customer_order');
+}
+
+function canUnapprove(user) {
+  return canApproveScreen(user) && canAction(user, 'action_unapprove_customer_order');
+}
+
+function canDeleteOrder(user) {
+  return canAction(user, 'action_delete_customer_order');
+}
+
+function canPostOracle(user) {
+  return canApproveScreen(user) && canAction(user, 'action_post_customer_order_oracle');
+}
+
+function canUnpostOracle(user) {
+  return canApproveScreen(user) && canAction(user, 'action_unpost_customer_order_oracle');
 }
 
 function canView(user) {
@@ -68,18 +92,22 @@ function isoDate(v) {
 function toolbarCaps(user, order) {
   const locked = !!(order && order.is_approved);
   const hasId = !!(order && order.id);
-  const canAppr = canApprove(user);
   const edit = canEdit(user);
+  const allowApprove = canApprove(user);
+  const allowUnapprove = canUnapprove(user);
+  const allowDelete = canDeleteOrder(user);
+  const allowPostOracle = canPostOracle(user);
+  const allowUnpostOracle = canUnpostOracle(user);
   return {
     canSave: edit && !locked,
-    canApprove: canAppr && hasId && !locked,
-    canUnapprove: canAppr && locked,
-    canDelete: hasId && !locked && (canAppr || user.is_admin),
+    canApprove: allowApprove && hasId && !locked,
+    canUnapprove: allowUnapprove && locked,
+    canDelete: hasId && !locked && allowDelete,
     canPrint: hasId,
     canPdf: hasId,
     canExcel: hasId,
-    canPostOracle: canAppr && hasId && locked && !(Number(order.oracle_v_num || 0) > 0),
-    canUnpostOracle: canAppr && hasId && Number(order.oracle_v_num || 0) > 0,
+    canPostOracle: allowPostOracle && hasId && locked && !(Number(order.oracle_v_num || 0) > 0),
+    canUnpostOracle: allowUnpostOracle && hasId && Number(order.oracle_v_num || 0) > 0,
     oracleVnum: Number(order.oracle_v_num || 0) || 0,
     oracleVyear: Number(order.oracle_vyear || 0) || 0,
   };
@@ -343,16 +371,25 @@ async function renderForm(req, res, orderId) {
     ? '<span class="si-pill si-pill--lock">معتمد — قراءة فقط</span>'
     : '<span class="si-pill si-pill--wait">مسودة</span>';
 
-  const titleLine = initial.order_no
-    ? `طلب ${esc(initial.order_no)}`
-    : 'طلب شراء عميل جديد';
-
   const bodyHtml = `
     <div class="si-stage si-stage--toolbar-first">
       ${toolbarHtml(caps, initial)}
       <div class="si-doc-top-row">
         <div class="si-doc-screen-head">
-          <h1 class="si-doc-screen-title" id="co-screen-title">${titleLine}</h1>
+          <h1 class="si-doc-screen-title" id="co-screen-title">طلب شراء عميل</h1>
+          <label class="si-f si-f--docno si-f--docno-top">
+            <span class="si-f-head">رقم الطلب</span>
+            <div class="si-docno-row" dir="ltr">
+              <button type="button" class="si-btn si-docno-btn" id="co_first" title="أول طلب">«</button>
+              <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
+              <input class="si-field si-field--mono si-docno-input ${
+                locked ? 'is-approved' : initial.order_no || initial.id ? 'is-saved' : ''
+              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="" dir="ltr"
+                     title="↑/← سابق · ↓/→ تالٍ · Home أول · End آخر · اكتب الرقم ثم Enter للبحث">
+              <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
+              <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="co_last" title="آخر طلب">»</button>
+            </div>
+          </label>
           <div class="si-doc-screen-badge">${badge}</div>
         </div>
         <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
@@ -370,19 +407,6 @@ async function renderForm(req, res, orderId) {
           <h2>بيانات المستند</h2>
         </div>
         <div class="si-meta si-meta--invoice si-meta--order">
-          <label class="si-f si-f--docno">
-            <span class="si-f-head">رقم الطلب</span>
-            <div class="si-docno-row" dir="ltr">
-              <button type="button" class="si-btn si-docno-btn" id="co_first" title="أول طلب">«</button>
-              <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
-              <input class="si-field si-field--mono si-docno-input ${
-                locked ? 'is-approved' : initial.order_no || initial.id ? 'is-saved' : ''
-              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="" dir="ltr"
-                     title="↑/← سابق · ↓/→ تالٍ · Home أول · End آخر · اكتب الرقم ثم Enter للبحث">
-              <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
-              <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="co_last" title="آخر طلب">»</button>
-            </div>
-          </label>
           <label class="si-f si-f--date">
             <span class="si-f-head">التاريخ</span>
             <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''} data-nav="1">
@@ -567,7 +591,7 @@ async function renderForm(req, res, orderId) {
   res.send(
     renderApp({
       user,
-      title: isNew ? 'طلب شراء عميل جديد' : `طلب ${initial.order_no}`,
+      title: isNew ? 'طلب شراء عميل' : `طلب شراء عميل ${initial.order_no || ''}`.trim(),
       bodyHtml,
       bodyClass: 'si-2027',
       mainClass: 'main si-main',
@@ -716,7 +740,7 @@ router.post('/api/sales/customer-orders/:id/approve', async (req, res) => {
 
 router.post('/api/sales/customer-orders/:id/unapprove', async (req, res) => {
   try {
-    if (!canApprove(req.session.user)) {
+    if (!canUnapprove(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية فك الاعتماد.' });
     }
     const result = await svc.setApproved(req.params.id, false, req.session.user.id);
@@ -729,8 +753,8 @@ router.post('/api/sales/customer-orders/:id/unapprove', async (req, res) => {
 
 router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) => {
   try {
-    if (!canApprove(req.session.user)) {
-      return res.status(403).json({ ok: false, error: 'لا صلاحية.' });
+    if (!canPostOracle(req.session.user)) {
+      return res.status(403).json({ ok: false, error: 'لا صلاحية ترحيل إلى Oracle.' });
     }
     const catPicks = Array.isArray(req.body?.cat_picks) ? req.body.cat_picks : [];
     const needOverrides = Array.isArray(req.body?.qty_overrides)
@@ -752,7 +776,7 @@ router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) =>
 
 router.post('/api/sales/customer-orders/:id/unpost-oracle', async (req, res) => {
   try {
-    if (!canApprove(req.session.user)) {
+    if (!canUnpostOracle(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية إلغاء ترحيل Oracle.' });
     }
     const result = await svc.unpostOrderFromOracle(req.params.id, req.session.user.id);
@@ -770,7 +794,7 @@ router.post('/api/sales/customer-orders/:id/unpost-oracle', async (req, res) => 
 
 router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
   try {
-    if (!canApprove(req.session.user)) {
+    if (!canPostOracle(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية ترحيل إلى Oracle.' });
     }
     const dry = String(req.query.dry || req.body?.dry || '') === '1';
@@ -796,7 +820,7 @@ router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
 
 router.post('/api/sales/customer-orders/:id/delete', async (req, res) => {
   try {
-    if (!canApprove(req.session.user) && !req.session.user.is_admin) {
+    if (!canDeleteOrder(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية حذف.' });
     }
     const result = await svc.deleteOrder(req.params.id);
