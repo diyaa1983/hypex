@@ -67,15 +67,13 @@ function createWindow() {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
-    // بدون شريط عنوان ويندوز التقليدي (لا يظهر عنوان الصفحة / عنوان المتصفح)
-    frame: true,
     titleBarStyle: 'hidden',
     titleBarOverlay: {
       color: '#1e3a5f',
       symbolColor: '#ffffff',
-      height: 33,
+      height: 36,
     },
-    title: config.windowTitle || 'النظام المحاسبي',
+    title: config.windowTitle || 'هايبكس',
     backgroundColor: '#1e3a5f',
     minimizable: config.minimizable !== false ? true : false,
     maximizable: true,
@@ -92,6 +90,7 @@ function createWindow() {
 
   try {
     mainWindow.setMenuBarVisibility(false);
+    mainWindow.removeMenu();
   } catch (e) {
     /* ignore */
   }

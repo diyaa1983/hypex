@@ -1,7 +1,8 @@
 {
-  "appUrl": "http://localhost/manager/login.php",
-  "windowTitle": "النظام المحاسبي",
-  "minimizable": false,
+  "appUrl": "http://176.29.176.192:3000/",
+  "windowTitle": "هايبكس",
+  "minimizable": true,
   "confirmOnClose": true,
-  "disableCloseButton": false
+  "disableCloseButton": false,
+  "startMaximized": true
 }
