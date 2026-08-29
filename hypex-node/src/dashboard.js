@@ -138,7 +138,7 @@ async function collectDashboard() {
         value: String(salesMonthCount),
         hint: fmt(salesMonthTotal) + ' د.أ',
         tone: 'success',
-        href: '/sales/invoices',
+        href: '/sales/invoices/new',
       },
       {
         label: 'فواتير بانتظار الترحيل',

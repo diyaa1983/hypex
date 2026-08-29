@@ -9,7 +9,8 @@ const { resolveScreen } = require('./screenMap');
 
 /** شاشات المستندات: ?id= → /path/:id وبدون id → /path/new أو القائمة */
 const DOC_ID_ROUTES = {
-  sales_invoices: { byId: (id) => `/sales/invoices/${id}`, fresh: '/sales/invoices/new', list: '/sales/invoices' },
+  sales_invoices: { byId: (id) => `/sales/invoices/${id}`, fresh: '/sales/invoices/new', list: '/sales/documents' },
+  sales_documents_list: { list: '/sales/documents', fresh: '/sales/invoices/new' },
   sales_invoices_list: { list: '/sales/posting' },
   sales_returns: { byId: (id) => `/sales/returns/${id}`, fresh: '/sales/returns/new', list: '/sales/returns' },
   sales_returns_list: { list: '/sales/returns' },

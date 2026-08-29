@@ -1731,7 +1731,7 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
             </div>
             <div class="si-hero-actions">
               ${ui.siPrintBtnHtml('طباعة')}
-              <a class="si-btn no-print" href="/sales/invoices">فاتورة مبيعات</a>
+              <a class="si-btn no-print" href="/sales/invoices/new">فاتورة مبيعات</a>
               <a class="si-btn no-print" href="/sales">لوحة المبيعات</a>
             </div>
           </header>

@@ -1816,7 +1816,7 @@
           if (window.HypexUI && window.HypexUI.toast) {
             window.HypexUI.toast(data.message || 'تم حذف الفاتورة', 'ok', 2500);
           }
-          window.location.href = '/sales/invoices';
+          window.location.href = '/sales/documents';
         })
         .catch(function () {
           setBusy(false);
@@ -1971,7 +1971,7 @@
   var searchBtn = document.getElementById('si-search');
   if (searchBtn) {
     searchBtn.addEventListener('click', function () {
-      leaveTo('/sales/invoices');
+      leaveTo('/sales/documents');
     });
   }
 

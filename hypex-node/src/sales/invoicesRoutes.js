@@ -135,113 +135,9 @@ function toolbarHtml(caps, inv) {
     </div>`;
 }
 
-/** قائمة الفواتير */
-router.get('/sales/invoices', async (req, res) => {
-  try {
-    const q = String(req.query.q || '').trim();
-    const filter = ['all', 'unposted', 'posted'].includes(String(req.query.filter || ''))
-      ? String(req.query.filter)
-      : 'all';
-    const page = Number(req.query.page || 1);
-    const data = await svc.listInvoices({ q, filter, page, pageSize: 50 });
-    const canPost = canAction(req.session.user, 'action_post_sales_invoice');
-
-    const rows = data.rows
-      .map((r) => {
-        const pay = r.payment_type === 'cash' ? 'نقدي' : 'ذمم';
-        const st = r.is_posted ? ui.statusPill('ok', 'مرحّلة') : ui.statusPill('wait', 'مسودة');
-        return `<tr>
-          <td class="si-num" dir="ltr">${esc(r.invoice_no)}</td>
-          <td class="si-num" dir="ltr">${esc(isoToDmy(r.invoice_date))}</td>
-          <td>${esc(r.customer_name || '—')}</td>
-          <td>${esc(pay)}</td>
-          <td>${st}</td>
-          <td class="si-num" dir="ltr">${esc(fmtAmt(r.total))}</td>
-          <td><div class="si-act">
-            <a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/sales/invoices/${r.id}">فتح</a>
-            ${
-              !r.is_posted && canPost
-                ? `<button type="button" class="si-btn js-list-post" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" data-id="${r.id}">ترحيل</button>`
-                : ''
-            }
-          </div></td>
-        </tr>`;
-      })
-      .join('');
-
-    const bodyHtml = `
-      <div class="si-stage">
-        ${ui.hero({
-          mark: 'SI',
-          kicker: 'Hypex Sales · Node',
-          title: 'فواتير المبيعات',
-          subtitle: 'قائمة الفواتير — فتح وتعديل داخل Node',
-          actions: [
-            { label: '＋ فاتورة جديدة', href: '/sales/invoices/new', primary: true },
-            { label: 'لوحة المبيعات', href: '/sales' },
-          ],
-        })}
-
-        <div class="si-rail">
-          <div class="si-seg" role="tablist">
-            <a class="${filter === 'all' ? 'is-active' : ''}" href="/sales/invoices?filter=all&q=${encodeURIComponent(q)}">الكل</a>
-            <a class="${filter === 'unposted' ? 'is-active' : ''}" href="/sales/invoices?filter=unposted&q=${encodeURIComponent(q)}">غير مرحّلة</a>
-            <a class="${filter === 'posted' ? 'is-active' : ''}" href="/sales/invoices?filter=posted&q=${encodeURIComponent(q)}">مرحّلة</a>
-          </div>
-          <form class="si-search" method="get" action="/sales/invoices" id="si-list-search">
-            <input type="hidden" name="filter" value="${esc(filter)}">
-            <input type="search" name="q" id="si-list-q" value="${esc(q)}" placeholder="ابحث بالرقم أو العميل…" autocomplete="off">
-            <button class="si-btn si-btn--primary" type="submit">بحث</button>
-          </form>
-        </div>
-
-        ${ui.tableSurface(
-          'سجل الفواتير',
-          `${data.total} صف`,
-          ['الرقم', 'التاريخ', 'العميل', 'النوع', 'الحالة', 'الإجمالي', ''],
-          rows || ui.emptyRow(7, 'لا توجد فواتير بعد — أنشئ أول فاتورة')
-        )}
-      </div>
-      <script>
-      (function(){
-        function ask(msg){
-          if(window.HypexUI&&window.HypexUI.confirm) return window.HypexUI.confirm(msg,{title:'ترحيل',okLabel:'ترحيل',cancelLabel:'إلغاء'});
-          return Promise.resolve(window.confirm(msg));
-        }
-        document.querySelectorAll('.js-list-post').forEach(function(btn){
-          btn.addEventListener('click', function(){
-            var id = btn.getAttribute('data-id');
-            if(!id) return;
-            ask('ترحيل الفاتورة؟ (قيود + مستودع ثم الفوترة)').then(function(ok){
-              if(!ok) return;
-              btn.disabled = true;
-              fetch('/api/sales/invoices/'+id+'/post', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
-                .then(function(r){return r.json()})
-                .then(function(d){
-                  if(window.HypexUI&&window.HypexUI.alert) window.HypexUI.alert(d.message||d.error||(d.ok?'تم':'فشل'), d.ok?'ok':'error');
-                  else alert(d.message||d.error||(d.ok?'تم':'فشل'));
-                  if(d.ok) location.reload();
-                  else btn.disabled=false;
-                })
-                .catch(function(){ btn.disabled=false; if(window.HypexUI) window.HypexUI.alert('تعذر الاتصال','error'); else alert('تعذر الاتصال'); });
-            });
-          });
-        });
-      })();
-      </script>
-    `;
-
-    res.send(
-      ui.salesPage({
-        user: req.session.user,
-        title: 'فواتير المبيعات',
-        bodyHtml,
-      })
-    );
-  } catch (e) {
-    console.error(e);
-    res.status(500).send('Error: ' + e.message);
-  }
+/** شاشة فاتورة المبيعات — القائمة منفصلة في /sales/documents */
+router.get('/sales/invoices', (req, res) => {
+  res.redirect(302, '/sales/invoices/new');
 });
 
 /** صورة QR من حقل الفوترة (نص / رابط / base64) — null إن غير مرسلة */
@@ -484,8 +380,8 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 <button type="button" class="si-btn si-docno-btn" id="inv_prev" title="السابق">‹</button>
                 <input class="si-field si-field--mono si-docno-input" id="inv_no" type="text" value="${esc(
                   initial.invoice_no
-                )}" readonly placeholder="2026-1 — Enter بحث" dir="ltr"
-                       title="← سابق · → تالٍ · اكتب الرقم ثم Enter للبحث">
+                )}" readonly placeholder="" dir="ltr"
+                       title="← سابق · → تالٍ · Home أول · End آخر · اكتب الرقم ثم Enter للبحث">
                 <button type="button" class="si-btn si-docno-btn" id="inv_next" title="التالي">›</button>
                 <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="inv_last" title="آخر فاتورة (أكبر رقم)">»</button>
               </div>

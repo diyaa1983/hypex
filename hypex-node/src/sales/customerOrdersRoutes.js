@@ -271,7 +271,7 @@ async function renderForm(req, res, orderId) {
   const isNew = !order;
   const locked = !!(order && order.is_approved);
   const caps = toolbarCaps(user, order || { id: 0, is_approved: false });
-  const nav = order ? await svc.browseNeighbors(order.id) : { prev_id: 0, next_id: 0 };
+  const nav = await svc.browseNeighbors(order ? order.id : 0);
 
   const initial = {
     id: order ? order.id : 0,
@@ -293,6 +293,8 @@ async function renderForm(req, res, orderId) {
     oracle_vyear: order ? Number(order.oracle_vyear || 0) : 0,
     prev_id: nav.prev_id || 0,
     next_id: nav.next_id || 0,
+    first_id: nav.first_id || 0,
+    last_id: nav.last_id || 0,
     lines:
       order && order.lines.length
         ? order.lines
@@ -371,12 +373,14 @@ async function renderForm(req, res, orderId) {
           <label class="si-f si-f--docno">
             <span class="si-f-head">رقم الطلب</span>
             <div class="si-docno-row" dir="ltr">
+              <button type="button" class="si-btn si-docno-btn" id="co_first" title="أول طلب">«</button>
               <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
               <input class="si-field si-field--mono si-docno-input ${
                 locked ? 'is-approved' : initial.order_no || initial.id ? 'is-saved' : ''
-              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="2026-1 — Enter بحث" dir="ltr"
-                     title="↑/← سابق · ↓/→ تالٍ · اكتب الرقم ثم Enter للبحث">
+              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="" dir="ltr"
+                     title="↑/← سابق · ↓/→ تالٍ · Home أول · End آخر · اكتب الرقم ثم Enter للبحث">
               <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
+              <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="co_last" title="آخر طلب">»</button>
             </div>
           </label>
           <label class="si-f si-f--date">

@@ -26,7 +26,8 @@ async function neighbors(table, id, opts = {}) {
   const last_id = lastRows[0] ? Number(lastRows[0].id) : 0;
 
   if (n < 1) {
-    return { prev_id: 0, next_id: 0, first_id, last_id };
+    // مستند جديد: السهم السابق يفتح آخر مستند، والأول/الآخر يعملان من الأزرار
+    return { prev_id: last_id, next_id: 0, first_id, last_id };
   }
 
   const prev = await db.query(

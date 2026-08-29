@@ -3562,10 +3562,14 @@
   if (window.HypexDocNav) {
     window.HypexDocNav.bind({
       input: 'co_no',
+      firstBtn: 'co_first',
       prevBtn: 'co_prev',
       nextBtn: 'co_next',
+      lastBtn: 'co_last',
+      firstId: state.first_id,
       prevId: state.prev_id,
       nextId: state.next_id,
+      lastId: state.last_id,
       openPath: '/sales/orders',
       findApi: '/api/sales/customer-orders/by-no',
       currentNo: state.order_no || '',
