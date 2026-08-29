@@ -2562,6 +2562,8 @@
   var batchCancel = document.getElementById('co-batch-cancel');
   var batchConfirm = document.getElementById('co-batch-confirm');
   var pickerData = null;
+  var batchModalHome = batchModal ? batchModal.parentNode : null;
+  var needReloadTimer = null;
 
   function fmtBatchQty(n) {
     n = Number(n) || 0;
@@ -2569,11 +2571,25 @@
   }
 
   function closeBatchModal() {
+    if (needReloadTimer) {
+      clearTimeout(needReloadTimer);
+      needReloadTimer = null;
+    }
     if (batchModal) {
       batchModal.hidden = true;
       batchModal.setAttribute('aria-hidden', 'true');
+      if (batchModalHome && batchModal.parentNode !== batchModalHome) {
+        batchModalHome.appendChild(batchModal);
+      }
     }
     pickerData = null;
+  }
+
+  function portalBatchModal() {
+    if (!batchModal) return;
+    if (batchModal.parentNode !== document.body) {
+      document.body.appendChild(batchModal);
+    }
   }
 
   function batchOptionLabel(b) {
@@ -2673,6 +2689,24 @@
     return picks;
   }
 
+  function collectNeedOverrides() {
+    var picks = [];
+    if (!batchRows) return picks;
+    var seen = {};
+    batchRows.querySelectorAll('input.co-batch-need-input').forEach(function (inp) {
+      var srl = parseInt(inp.dataset.srl || '0', 10);
+      var lineId = parseInt(inp.dataset.lineId || '0', 10);
+      if (srl < 1 || seen[srl]) return;
+      seen[srl] = true;
+      var need = Number(inp.value);
+      if (!isFinite(need) || need <= 0) return;
+      var row = { srl: srl, need: need };
+      if (lineId > 0) row.line_id = lineId;
+      picks.push(row);
+    });
+    return picks;
+  }
+
   var catReloadBusy = false;
 
   function reloadBatchesForCatChange(changedSel) {
@@ -2682,13 +2716,21 @@
       validateBatchModal();
       return;
     }
+    reloadBatchPicker();
+  }
+
+  function reloadBatchPicker() {
+    if (!state.id || catReloadBusy) return;
     catReloadBusy = true;
     if (batchConfirm) batchConfirm.disabled = true;
-    var catPicks = collectCatPicks();
+    setBatchStatus('جاري تحديث التشغيلات…', '');
     fetch('/api/sales/customer-orders/' + state.id + '/oracle-batches', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cat_picks: catPicks }),
+      body: JSON.stringify({
+        cat_picks: collectCatPicks(),
+        need_overrides: collectNeedOverrides(),
+      }),
     })
       .then(function (r) {
         return r.json();
@@ -2697,7 +2739,7 @@
         catReloadBusy = false;
         if (!data.ok) {
           hxAlert(data.message || data.error || 'تعذر تحديث التشغيلات.', {
-            title: 'الفئة',
+            title: 'ترحيل الكميات',
             kind: 'warning',
           });
           validateBatchModal();
@@ -2707,9 +2749,53 @@
       })
       .catch(function () {
         catReloadBusy = false;
-        hxAlert('تعذر الاتصال بالخادم', { title: 'الفئة', kind: 'warning' });
+        hxAlert('تعذر الاتصال بالخادم', { title: 'ترحيل الكميات', kind: 'warning' });
         validateBatchModal();
       });
+  }
+
+  function scheduleNeedReload() {
+    if (needReloadTimer) clearTimeout(needReloadTimer);
+    needReloadTimer = setTimeout(function () {
+      needReloadTimer = null;
+      reloadBatchPicker();
+    }, 450);
+  }
+
+  function buildNeedInput(ln) {
+    var inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'co-batch-need-input';
+    inp.step = '0.001';
+    inp.min = '0.001';
+    inp.inputMode = 'decimal';
+    inp.value = String(Number(ln.need) || 0);
+    inp.dataset.srl = String(ln.srl || '');
+    inp.dataset.lineId = String(ln.line_id || '');
+    inp.title = 'عدّل الكمية المطلوبة — يُحدَّث الطلب بالكامل عند الترحيل';
+    inp.addEventListener('input', function () {
+      var need = Number(inp.value);
+      if (!isFinite(need) || need <= 0) {
+        validateBatchModal();
+        return;
+      }
+      batchRows.querySelectorAll('tr[data-srl="' + inp.dataset.srl + '"]').forEach(function (tr) {
+        tr.dataset.need = String(need);
+        var sel = tr.querySelector('select.co-batch-select');
+        if (sel) sel.dataset.need = String(need);
+      });
+      validateBatchModal();
+    });
+    inp.addEventListener('change', function () {
+      scheduleNeedReload();
+    });
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') {
+        ev.preventDefault();
+        inp.blur();
+      }
+    });
+    return inp;
   }
 
   function buildBatchSelect(ln, alloc, batches) {
@@ -2794,6 +2880,14 @@
       if (!srl || !(sel.value || '').trim()) {
         ok = false;
         if (!statusMsg) statusMsg = 'اختر الفئة لكل مادة.';
+      }
+    });
+
+    batchRows.querySelectorAll('input.co-batch-need-input').forEach(function (inp) {
+      var need = Number(inp.value);
+      if (!isFinite(need) || need <= 0) {
+        ok = false;
+        if (!statusMsg) statusMsg = 'أدخل كمية مطلوبة أكبر من صفر.';
       }
     });
 
@@ -2920,13 +3014,11 @@
   function openBatchModal(data) {
     pickerData = data;
     if (!batchRows || !batchModal) return;
+    portalBatchModal();
     batchRows.innerHTML = '';
     if (batchSub) {
-      batchSub.textContent =
-        'مستودع ' +
-        (data.store || '—') +
-        (data.warehouse_name ? ' — Oracle: ' + data.warehouse_name : '') +
-        ' · المصدر: MAS.BALANCE (QTY_OH) مثل Forms · عدّل الكمية ثم رحّل.';
+      batchSub.textContent = '';
+      batchSub.hidden = true;
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {
@@ -2938,20 +3030,19 @@
         var tr0 = document.createElement('tr');
         tr0.className = 'co-batch-row--nostock';
         tr0.dataset.srl = String(ln.srl || '');
+        tr0.dataset.need = String(ln.need || '');
         tr0.dataset.shortfall = '1';
         tr0.innerHTML =
           '<td class="co-batch-col-idx">' +
           rowNo +
           '</td>' +
-          '<td class="co-batch-col-item"><span class="co-batch-item-code">' +
+          '<td class="co-batch-col-item"><span class="co-batch-item-line"><span class="co-batch-item-code">' +
           escAttr(String(ln.item || '')) +
           '</span><span class="co-batch-item-name">' +
           escAttr(String(ln.name || '')) +
-          '</span></td>' +
+          '</span></span></td>' +
           '<td class="co-batch-col-cat"></td>' +
-          '<td class="co-batch-col-need">' +
-          fmtBatchQty(ln.need) +
-          '</td>' +
+          '<td class="co-batch-col-need"></td>' +
           '<td class="co-batch-col-take">—</td>' +
           '<td class="co-batch-col-batch" colspan="2"><div class="co-batch-warn">التشغيلات لا تغطي المطلوب' +
           (Number(ln.shortfall) > 0 ? ' (نقص ' + fmtBatchQty(ln.shortfall) + ')' : '') +
@@ -2964,6 +3055,8 @@
           });
           tdCat0.appendChild(catSel0);
         }
+        var tdNeed0 = tr0.querySelector('.co-batch-col-need');
+        if (tdNeed0) tdNeed0.appendChild(buildNeedInput(ln));
         batchRows.appendChild(tr0);
         return;
       }
@@ -2974,6 +3067,7 @@
         tr.setAttribute('data-alloc-row', '1');
         tr.dataset.batches = JSON.stringify(batches);
         tr.dataset.srl = String(ln.srl || '');
+        tr.dataset.lineId = String(ln.line_id || '');
         tr.dataset.need = String(ln.need || '');
         if (!ln.allocation_ok && Number(ln.shortfall) > 0) {
           tr.dataset.shortfall = '1';
@@ -2987,11 +3081,11 @@
         tdName.className = 'co-batch-col-item';
         if (ai === 0) {
           tdName.innerHTML =
-            '<span class="co-batch-item-code">' +
+            '<span class="co-batch-item-line"><span class="co-batch-item-code">' +
             escAttr(String(ln.item || '')) +
             '</span><span class="co-batch-item-name">' +
             escAttr(String(ln.name || '')) +
-            '</span>';
+            '</span></span>';
         } else {
           tdName.innerHTML =
             '<span class="co-batch-item-cont muted">↳ استمرار نفس المادة</span>';
@@ -3009,7 +3103,7 @@
 
         var tdNeed = document.createElement('td');
         tdNeed.className = 'co-batch-col-need';
-        tdNeed.textContent = ai === 0 ? fmtBatchQty(ln.need) : '';
+        if (ai === 0) tdNeed.appendChild(buildNeedInput(ln));
 
         var tdTake = document.createElement('td');
         tdTake.className = 'co-batch-col-take';
@@ -3062,7 +3156,10 @@
     fetch('/api/sales/customer-orders/' + state.id + '/post-oracle', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ batch_picks: batchPicks || [] }),
+      body: JSON.stringify({
+        batch_picks: batchPicks || [],
+        need_overrides: collectNeedOverrides(),
+      }),
     })
       .then(function (r) {
         return r.json();

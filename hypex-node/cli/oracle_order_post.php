@@ -32,7 +32,16 @@ try {
         if ($path !== '' && is_file($path)) {
             $raw = json_decode((string) file_get_contents($path), true);
             if (is_array($raw)) {
-                $opts['batch_picks'] = $raw;
+                if (isset($raw['batch_picks']) || isset($raw['need_overrides'])) {
+                    if (isset($raw['batch_picks']) && is_array($raw['batch_picks'])) {
+                        $opts['batch_picks'] = $raw['batch_picks'];
+                    }
+                    if (isset($raw['need_overrides']) && is_array($raw['need_overrides'])) {
+                        $opts['need_overrides'] = $raw['need_overrides'];
+                    }
+                } else {
+                    $opts['batch_picks'] = $raw;
+                }
             }
         }
     }

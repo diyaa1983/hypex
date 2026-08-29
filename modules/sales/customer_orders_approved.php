@@ -179,7 +179,7 @@ sales_ora12_enqueue_assets();
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
             <div class="co-batch-head">
                 <h3 id="co-batch-title">ترحيل الكميات</h3>
-                <p id="co-batch-sub" class="muted"></p>
+                <p id="co-batch-sub" class="muted" hidden></p>
             </div>
             <div class="co-batch-body-wrap">
                 <table class="co-batch-table co-batch-table--alloc">

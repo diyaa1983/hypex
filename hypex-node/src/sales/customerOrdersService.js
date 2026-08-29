@@ -962,11 +962,16 @@ function fetchOracleBatches(orderId, opts = null) {
 
   const o = opts && typeof opts === 'object' ? opts : {};
   const catPicks = Array.isArray(o.cat_picks) ? o.cat_picks : [];
+  const needOverrides = Array.isArray(o.need_overrides) ? o.need_overrides : [];
   let optsFile = '';
-  if (catPicks.length) {
+  if (catPicks.length || needOverrides.length) {
     optsFile = path.join(os.tmpdir(), 'hypex-oracle-cat-' + process.pid + '-' + Date.now() + '.json');
     try {
-      fs.writeFileSync(optsFile, JSON.stringify({ cat_picks: catPicks }), 'utf8');
+      fs.writeFileSync(
+        optsFile,
+        JSON.stringify({ cat_picks: catPicks, need_overrides: needOverrides }),
+        'utf8'
+      );
     } catch (e) {
       return Promise.resolve({ ok: false, message: e.message, error: e.message });
     }
@@ -986,7 +991,7 @@ function fetchOracleBatches(orderId, opts = null) {
   });
 }
 
-function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null) {
+function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null, needOverrides = null) {
   const fs = require('fs');
   const os = require('os');
   const path = require('path');
@@ -997,11 +1002,16 @@ function postOrderToOracle(orderId, userId, dryRun = false, batchPicks = null) {
   }
 
   const picks = Array.isArray(batchPicks) ? batchPicks : [];
+  const needs = Array.isArray(needOverrides) ? needOverrides : [];
   let batchFile = '';
-  if (picks.length) {
+  if (picks.length || needs.length) {
     batchFile = path.join(os.tmpdir(), 'hypex-oracle-batch-' + process.pid + '-' + Date.now() + '.json');
     try {
-      fs.writeFileSync(batchFile, JSON.stringify(picks), 'utf8');
+      fs.writeFileSync(
+        batchFile,
+        JSON.stringify({ batch_picks: picks, need_overrides: needs }),
+        'utf8'
+      );
     } catch (e) {
       return Promise.resolve({ ok: false, message: e.message, error: e.message });
     }

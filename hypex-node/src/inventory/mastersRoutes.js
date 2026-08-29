@@ -205,21 +205,22 @@ router.get('/inventory/items', async (req, res) => {
     if (!viewList) return itemForm(req, res, 0);
 
     const rows = await svc.listItems({ q: qv, activeOnly: false });
+    const colCount = 11;
     const rowsHtml =
       rows
-        .map(
-          (r) => `<tr>
-        <td class="si-num" dir="ltr">${esc(r.barcode || svc.itemDisplayCode(r) || '—')}</td>
-        <td>
-          <strong>${esc(r.name_ar || '')}</strong>
-          ${
-            r.pack_label
-              ? `<div class="muted" style="font-size:.78rem;font-weight:600;margin-top:.15rem">التعبئة: ${esc(r.pack_label)}</div>`
-              : ''
-          }
-          ${r.name_en ? `<div class="muted" style="font-size:.78rem;font-weight:500" dir="ltr">${esc(r.name_en)}</div>` : ''}
-        </td>
-        <td>${esc(r.category_name || '—')}</td>
+        .map((r) => {
+          const sku = String(r.sku || '').trim() || '—';
+          const barcode = String(r.barcode || '').trim() || '—';
+          const pack = String(r.pack_label || '').trim();
+          const nameAr = String(r.name_ar || '').trim();
+          const nameEn = String(r.name_en || '').trim();
+          const nameTitle = [nameAr, nameEn].filter(Boolean).join(' — ');
+          return `<tr class="inv-item-row">
+        <td class="si-num inv-item-sku" dir="ltr"><code>${esc(sku)}</code></td>
+        <td class="si-num inv-item-barcode" dir="ltr"><code>${esc(barcode)}</code></td>
+        <td class="inv-item-name" title="${esc(nameTitle)}"><span class="inv-item-name-ar">${esc(nameAr)}</span></td>
+        <td class="inv-item-pack">${pack ? esc(pack) : '<span class="muted">—</span>'}</td>
+        <td class="inv-item-cat">${esc(r.category_name || '—')}</td>
         <td>${esc(r.unit_name || '—')}</td>
         <td class="si-num" dir="ltr">${esc(ui.fmtUnitPrice(r.default_sale))}</td>
         <td class="si-num" dir="ltr">${esc(ui.fmtUnitPrice(r.default_wholesale))}</td>
@@ -229,25 +230,63 @@ router.get('/inventory/items', async (req, res) => {
             ? ui.statusPill('ok', 'نشط')
             : ui.statusPill('lock', 'موقوف')
         }</td>
-        <td>
-          <div class="si-act">
-            <a class="si-btn" href="/inventory/items/${r.id}">بطاقة</a>
-            <form method="post" action="/inventory/items/${r.id}/toggle" style="display:inline">
-              <button type="submit" class="si-btn">${Number(r.is_active) === 1 ? 'إيقاف' : 'تفعيل'}</button>
-            </form>
-          </div>
+        <td class="inv-item-actions">
+          <a class="si-btn si-btn--primary" href="/inventory/items/${r.id}">بطاقة</a>
         </td>
-      </tr>`
-        )
-        .join('') || ui.emptyRow(9);
+      </tr>`;
+        })
+        .join('') || ui.emptyRow(colCount);
+
+    const resultLabel = qv.trim()
+      ? `${rows.length} نتيجة لـ «${qv.trim()}»`
+      : `${rows.length} صف`;
 
     const body = `
+      <style>
+        .inv-items-table .si-table-wrap { overflow-x: auto; }
+        .inv-items-table .si-table { table-layout: fixed; width: 100%; }
+        .inv-items-table .inv-item-sku code,
+        .inv-items-table .inv-item-barcode code {
+          font-family: ui-monospace, Consolas, monospace;
+          font-size: .8rem;
+          background: #f1f5f9;
+          border: 1px solid #e2e8f0;
+          border-radius: 4px;
+          padding: .1rem .3rem;
+          white-space: nowrap;
+        }
+        .inv-items-table .inv-item-sku code { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; font-weight: 700; }
+        .inv-items-table .inv-item-name {
+          max-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: .9rem;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .inv-items-table .inv-item-name-ar { white-space: nowrap; }
+        .inv-items-table .inv-item-pack,
+        .inv-items-table .inv-item-cat { font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .inv-items-table .inv-item-actions { white-space: nowrap; width: 4.5rem; }
+        .inv-items-table .inv-item-actions .si-btn { display: inline-flex; }
+        .inv-items-table .si-table th:nth-child(1),
+        .inv-items-table .si-table td:nth-child(1) { width: 5.2rem; }
+        .inv-items-table .si-table th:nth-child(2),
+        .inv-items-table .si-table td:nth-child(2) { width: 8rem; }
+        .inv-items-table .si-table th:nth-child(3),
+        .inv-items-table .si-table td:nth-child(3) { width: 28%; }
+        .inv-items-table .si-table th:nth-child(11),
+        .inv-items-table .si-table td:nth-child(11) { width: 4.8rem; }
+        .inv-items-table .si-search { display: flex; gap: .45rem; align-items: center; width: 100%; }
+        .inv-items-table .si-search input[type="search"] { flex: 1; min-width: 0; }
+      </style>
       <div class="si-stage">
         ${ui.hero({
           mark: 'It',
           kicker: KICKER,
           title: 'المواد والأصناف',
-          subtitle: 'الباركود هو المعرّف الظاهر في النظام · رقم المادة داخلي في بطاقة المادة فقط',
+          subtitle: 'رقم المادة والباركود ظاهران · ابحث بالاسم أو رقم المادة أو الباركود أو الفئة',
           actions: [
             { label: 'بطاقة المادة', href: '/inventory/items', primary: true },
             { label: '＋ مادة جديدة', href: '/inventory/items/new' },
@@ -258,12 +297,15 @@ router.get('/inventory/items', async (req, res) => {
         })}
         ${flash ? alertHtml('ok', flash) : ''}
         ${ui.railSearch('/inventory/items', qv, { view: 'list' })}
+        <div class="inv-items-table">
         ${ui.tableSurface(
           'المواد',
-          `${rows.length} صف`,
+          resultLabel,
           [
+            'رقم المادة',
             'الباركود',
-            'اسم المادة بالعربي مع التعبئة',
+            'اسم المادة',
+            'التعبئة',
             'الفئة',
             'الوحدة',
             'سعر البيع',
@@ -274,7 +316,24 @@ router.get('/inventory/items', async (req, res) => {
           ],
           rowsHtml
         )}
-      </div>`;
+        </div>
+      </div>
+      <script>
+      (function(){
+        var form = document.querySelector('.si-rail .si-search');
+        if (!form) return;
+        var inp = form.querySelector('input[name="q"]');
+        if (!inp) return;
+        var t = null;
+        inp.addEventListener('keydown', function(e){
+          if (e.key === 'Enter') { e.preventDefault(); form.submit(); }
+        });
+        inp.focus();
+        if (inp.value) {
+          try { inp.setSelectionRange(inp.value.length, inp.value.length); } catch (e) {}
+        }
+      })();
+      </script>`;
     res.send(page(req.session.user, 'المواد والأصناف', body));
   } catch (e) {
     console.error(e);

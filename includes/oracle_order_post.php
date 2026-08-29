@@ -176,6 +176,26 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         ];
     }
 
+    $needOverrides = is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : [];
+    if ($needOverrides !== [] && !$dryRun) {
+        $applied = oracle_order_apply_need_overrides($mysql, $orderId, $needOverrides);
+        if (empty($applied['ok'])) {
+            return $applied;
+        }
+        if (!empty($applied['changed'])) {
+            $order = sal_customer_order_fetch($mysql, $orderId);
+            if (!$order) {
+                return ['ok' => false, 'message' => 'الطلب غير موجود.'];
+            }
+        }
+    } elseif ($needOverrides !== [] && $dryRun) {
+        // معاينة جافة: طبّق التعديل على الذاكرة فقط دون حفظ
+        $order['lines'] = oracle_order_apply_need_overrides_in_memory(
+            is_array($order['lines'] ?? null) ? $order['lines'] : [],
+            $needOverrides
+        );
+    }
+
     $lines = is_array($order['lines'] ?? null) ? $order['lines'] : [];
     if ($lines === []) {
         return ['ok' => false, 'message' => 'لا بنود في الطلب.'];
@@ -4942,9 +4962,215 @@ function oracle_order_apply_cat_from_picks(array $mappedLines, array $picks): ar
 }
 
 /**
+ * @param list<array<string,mixed>> $raw
+ * @return array{by_srl:array<int,float>,by_line:array<int,float>}
+ */
+function oracle_order_parse_need_overrides(array $raw): array
+{
+    $bySrl = [];
+    $byLine = [];
+    foreach ($raw as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $need = isset($row['need']) ? (float) $row['need'] : -1.0;
+        if ($need <= 0.0000001) {
+            continue;
+        }
+        $srl = (int) ($row['srl'] ?? 0);
+        $lineId = (int) ($row['line_id'] ?? 0);
+        if ($lineId > 0) {
+            $byLine[$lineId] = $need;
+        }
+        if ($srl > 0) {
+            $bySrl[$srl] = $need;
+        }
+    }
+
+    return ['by_srl' => $bySrl, 'by_line' => $byLine];
+}
+
+/**
+ * تحويل الكمية المطلوبة (وحدات الرصيد) إلى كمية بند الطلب.
+ */
+function oracle_order_need_to_order_qty(float $need, float $bonus, float $trUnit): float
+{
+    $sc = oracle_order_stock_cfg();
+    $factor = 1.0;
+    if (!empty($sc['multiply_by_tr_unit']) && $trUnit > 1.000001) {
+        $factor = $trUnit;
+    }
+    $qty = ($need / $factor) - max(0.0, $bonus);
+
+    return round($qty, 6);
+}
+
+/**
+ * تطبيق تعديل الكميات على بنود الطلب في الذاكرة (معاينة).
+ *
+ * @param list<array<string,mixed>> $lines
+ * @param list<array<string,mixed>> $overrides
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_apply_need_overrides_in_memory(array $lines, array $overrides): array
+{
+    $parsed = oracle_order_parse_need_overrides($overrides);
+    if ($parsed['by_line'] === [] && $parsed['by_srl'] === []) {
+        return $lines;
+    }
+    $srl = 0;
+    foreach ($lines as &$ln) {
+        $qty = (float) ($ln['qty'] ?? 0);
+        if ($qty <= 0) {
+            continue;
+        }
+        $srl++;
+        $lineId = (int) ($ln['id'] ?? 0);
+        $need = null;
+        if ($lineId > 0 && isset($parsed['by_line'][$lineId])) {
+            $need = $parsed['by_line'][$lineId];
+        } elseif (isset($parsed['by_srl'][$srl])) {
+            $need = $parsed['by_srl'][$srl];
+        }
+        if ($need === null) {
+            continue;
+        }
+        $bonus = (float) ($ln['qty_extra'] ?? 0);
+        $trUnit = (float) ($ln['unit_factor'] ?? 1);
+        if ($trUnit <= 0) {
+            $trUnit = 1.0;
+        }
+        $newQty = oracle_order_need_to_order_qty((float) $need, $bonus, $trUnit);
+        if ($newQty <= 0.0000001) {
+            continue;
+        }
+        $oldQty = $qty;
+        if (abs($oldQty - $newQty) < 0.0000001) {
+            continue;
+        }
+        $ratio = $oldQty > 0.0000001 ? ($newQty / $oldQty) : 1.0;
+        $ln['qty'] = $newQty;
+        $ln['line_total'] = round((float) ($ln['line_total'] ?? 0) * $ratio, 6);
+        $ln['tax_amount'] = round((float) ($ln['tax_amount'] ?? 0) * $ratio, 6);
+        $ln['line_gross'] = round((float) ($ln['line_gross'] ?? 0) * $ratio, 6);
+        $ln['discount_amount'] = round((float) ($ln['discount_amount'] ?? 0) * $ratio, 6);
+        $ln['qty_base'] = ($newQty + $bonus) * $trUnit;
+    }
+    unset($ln);
+
+    return $lines;
+}
+
+/**
+ * حفظ تعديل الكميات على كامل الطلب قبل الترحيل.
+ *
+ * @param list<array<string,mixed>> $overrides
+ * @return array{ok:bool,changed?:bool,message?:string,error?:string}
+ */
+function oracle_order_apply_need_overrides(PDO $mysql, int $orderId, array $overrides): array
+{
+    $parsed = oracle_order_parse_need_overrides($overrides);
+    if ($parsed['by_line'] === [] && $parsed['by_srl'] === []) {
+        return ['ok' => true, 'changed' => false];
+    }
+
+    require_once app_path('includes/inv_item_units.php');
+
+    $order = sal_customer_order_fetch($mysql, $orderId);
+    if (!$order) {
+        return ['ok' => false, 'message' => 'الطلب غير موجود.', 'error' => 'الطلب غير موجود.'];
+    }
+    $lines = is_array($order['lines'] ?? null) ? $order['lines'] : [];
+    $srl = 0;
+    $changed = false;
+
+    try {
+        $mysql->beginTransaction();
+        foreach ($lines as $ln) {
+            $qty = (float) ($ln['qty'] ?? 0);
+            if ($qty <= 0) {
+                continue;
+            }
+            $srl++;
+            $lineId = (int) ($ln['id'] ?? 0);
+            if ($lineId < 1) {
+                continue;
+            }
+            $need = null;
+            if (isset($parsed['by_line'][$lineId])) {
+                $need = $parsed['by_line'][$lineId];
+            } elseif (isset($parsed['by_srl'][$srl])) {
+                $need = $parsed['by_srl'][$srl];
+            }
+            if ($need === null) {
+                continue;
+            }
+            $bonus = (float) ($ln['qty_extra'] ?? 0);
+            $trUnit = (float) ($ln['unit_factor'] ?? 1);
+            if ($trUnit <= 0) {
+                $trUnit = 1.0;
+            }
+            $newQty = oracle_order_need_to_order_qty((float) $need, $bonus, $trUnit);
+            if ($newQty <= 0.0000001) {
+                $mysql->rollBack();
+
+                return [
+                    'ok' => false,
+                    'message' => 'كمية غير صالحة بعد التعديل لسطر ' . $srl . '.',
+                    'error' => 'كمية غير صالحة بعد التعديل.',
+                ];
+            }
+            $oldQty = $qty;
+            if (abs($oldQty - $newQty) < 0.0000001) {
+                continue;
+            }
+            $ratio = $oldQty > 0.0000001 ? ($newQty / $oldQty) : 1.0;
+            $lineTotal = round((float) ($ln['line_total'] ?? 0) * $ratio, 6);
+            $taxAmt = round((float) ($ln['tax_amount'] ?? 0) * $ratio, 6);
+            $lineGross = round((float) ($ln['line_gross'] ?? 0) * $ratio, 6);
+            $discAmt = round((float) ($ln['discount_amount'] ?? 0) * $ratio, 6);
+            $qtyBase = inv_item_unit_to_base_qty($newQty + $bonus, $trUnit);
+
+            $upd = $mysql->prepare(
+                'UPDATE sal_customer_order_line
+                 SET qty = ?, qty_base = ?, line_total = ?, tax_amount = ?, line_gross = ?, discount_amount = ?
+                 WHERE id = ? AND order_id = ?'
+            );
+            $upd->execute([$newQty, $qtyBase, $lineTotal, $taxAmt, $lineGross, $discAmt, $lineId, $orderId]);
+            $changed = true;
+        }
+
+        if ($changed) {
+            $sum = $mysql->prepare(
+                'SELECT COALESCE(SUM(line_total),0), COALESCE(SUM(tax_amount),0),
+                        COALESCE(SUM(line_gross),0), COALESCE(SUM(discount_amount),0)
+                 FROM sal_customer_order_line WHERE order_id = ?'
+            );
+            $sum->execute([$orderId]);
+            $row = $sum->fetch(PDO::FETCH_NUM) ?: [0, 0, 0, 0];
+            $hdr = $mysql->prepare(
+                'UPDATE sal_customer_order
+                 SET subtotal = ?, tax_amount = ?, total = ?, discount_amount = ?
+                 WHERE id = ?'
+            );
+            $hdr->execute([(float) $row[0], (float) $row[1], (float) $row[2], (float) $row[3], $orderId]);
+        }
+        $mysql->commit();
+    } catch (Throwable $e) {
+        if ($mysql->inTransaction()) {
+            $mysql->rollBack();
+        }
+
+        return ['ok' => false, 'message' => $e->getMessage(), 'error' => $e->getMessage()];
+    }
+
+    return ['ok' => true, 'changed' => $changed];
+}
+
+/**
  * قوائم التشغيلات المتوفرة لبنود طلب عميل (معاينة التوزيع التلقائي قبل الترحيل).
  *
- * @param array{cat_picks?:list<array<string,mixed>>} $opts
+ * @param array{cat_picks?:list<array<string,mixed>>,need_overrides?:list<array<string,mixed>>} $opts
  * @return array{ok:bool,message?:string,store?:int,warehouse_name?:string,lines?:list<array<string,mixed>>,can_post?:bool,categories?:list<array{cat:string,name:string}>}
  */
 function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = []): array
@@ -4992,6 +5218,9 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
             $catPicksBySrl[$srl] = $cat;
         }
     }
+    $needParsed = oracle_order_parse_need_overrides(
+        is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : []
+    );
 
     $catNameMap = oracle_order_categories_name_map($mysql, $conn);
     oracle_order_sync_categories_to_hypex($mysql, $catNameMap);
@@ -5049,6 +5278,17 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         if (!empty($scfg['multiply_by_tr_unit']) && $trUnit > 1.000001) {
             $need *= $trUnit;
         }
+        $lineId = (int) ($ln['id'] ?? 0);
+        if ($lineId > 0 && isset($needParsed['by_line'][$lineId])) {
+            $need = (float) $needParsed['by_line'][$lineId];
+            $qty = oracle_order_need_to_order_qty($need, $bonus, $trUnit);
+        } elseif (isset($needParsed['by_srl'][$srl])) {
+            $need = (float) $needParsed['by_srl'][$srl];
+            $qty = oracle_order_need_to_order_qty($need, $bonus, $trUnit);
+        }
+        if ($qty <= 0.0000001 || $need <= 0.0000001) {
+            continue;
+        }
 
         $stock = oracle_order_picker_stock_batches($conn, $store, (string) $card['item'], $cat, true);
         /** @var list<array{batch:string,qty:float,exp_date?:string}> $batchOpts */
@@ -5068,6 +5308,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         $fifo = oracle_order_fifo_allocate($need, $batchOpts);
         $pickerLines[] = [
             'srl' => $srl,
+            'line_id' => $lineId,
             'item' => (string) $card['item'],
             'cat' => $cat,
             'cat_options' => $catOptions,
@@ -5075,6 +5316,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
             'need' => $need,
             'qty' => $qty,
             'bonus' => $bonus,
+            'unit_factor' => $trUnit,
             'batches' => $batchOpts,
             'allocations' => $fifo['allocations'],
             'allocation_ok' => !empty($fifo['ok']),

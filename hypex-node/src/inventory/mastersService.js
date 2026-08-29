@@ -163,12 +163,40 @@ async function listItems({ q = '', activeOnly = false } = {}) {
   const where = ['1=1'];
   const params = [];
   if (activeOnly) where.push('i.is_active = 1');
-  if (q) {
-    const like = `%${q}%`;
-    where.push(
-      `(i.name_ar LIKE ? OR IFNULL(i.name_en,'') LIKE ? OR IFNULL(i.sku,'') LIKE ? OR IFNULL(i.barcode,'') LIKE ?)`
-    );
-    params.push(like, like, like, like);
+  const qTrim = String(q || '').trim();
+  const qDigits = qTrim.replace(/\D+/g, '');
+  const hasOracleKey = await tableHasColumn('inv_item', 'oracle_key');
+  if (qTrim) {
+    const like = `%${qTrim}%`;
+    const parts = [
+      'i.name_ar LIKE ?',
+      "IFNULL(i.name_en,'') LIKE ?",
+      "IFNULL(i.sku,'') LIKE ?",
+      "IFNULL(i.barcode,'') LIKE ?",
+      "IFNULL(c.name_ar,'') LIKE ?",
+      "IFNULL(c.code,'') LIKE ?",
+    ];
+    params.push(like, like, like, like, like, like);
+    if (hasOracleKey) {
+      parts.push("IFNULL(i.oracle_key,'') LIKE ?");
+      params.push(like);
+    }
+    try {
+      const hasCatOracle = await tableHasColumn('inv_item_category', 'oracle_key');
+      if (hasCatOracle) {
+        parts.push("IFNULL(c.oracle_key,'') LIKE ?");
+        params.push(like);
+      }
+    } catch {
+      /* ignore */
+    }
+    if (qDigits) {
+      parts.push("REPLACE(IFNULL(i.sku,''),' ','') LIKE ?");
+      parts.push("REPLACE(IFNULL(i.barcode,''),' ','') LIKE ?");
+      const dLike = `%${qDigits}%`;
+      params.push(dLike, dLike);
+    }
+    where.push(`(${parts.join(' OR ')})`);
   }
   const hasWholesale = await tableHasColumn('inv_item', 'default_wholesale');
   const wholesaleSel = hasWholesale ? 'i.default_wholesale' : '0 AS default_wholesale';
@@ -191,6 +219,25 @@ async function listItems({ q = '', activeOnly = false } = {}) {
   } catch {
     /* جدول الوحدات غير موجود */
   }
+
+  const orderBy = qTrim
+    ? `CASE
+         WHEN TRIM(IFNULL(i.sku,'')) = ? THEN 0
+         WHEN TRIM(IFNULL(i.barcode,'')) = ? THEN 1
+         ${hasOracleKey ? "WHEN TRIM(IFNULL(i.oracle_key,'')) = ? THEN 2" : ''}
+         WHEN TRIM(IFNULL(i.sku,'')) LIKE ? THEN 3
+         WHEN TRIM(IFNULL(i.barcode,'')) LIKE ? THEN 4
+         WHEN i.name_ar LIKE ? THEN 5
+         ELSE 6
+       END, i.name_ar, i.id DESC`
+    : `i.id DESC`;
+  if (qTrim) {
+    const like = `%${qTrim}%`;
+    params.push(qTrim, qTrim);
+    if (hasOracleKey) params.push(qTrim);
+    params.push(like, like, like);
+  }
+
   return safeQuery(
     `SELECT i.id, i.sku, i.barcode, i.name_ar, i.name_en, i.default_cost, i.default_sale,
             ${wholesaleSel}, i.is_active, i.expiry_date,
@@ -202,7 +249,8 @@ async function listItems({ q = '', activeOnly = false } = {}) {
      LEFT JOIN inv_warehouse w ON w.id = i.default_warehouse_id
      ${packJoin}
      WHERE ${where.join(' AND ')}
-     ORDER BY i.id DESC LIMIT 300`,
+     ORDER BY ${orderBy}
+     LIMIT ${qTrim ? 500 : 300}`,
     params
   );
 }

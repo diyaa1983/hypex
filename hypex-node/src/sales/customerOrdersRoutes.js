@@ -514,7 +514,7 @@ async function renderForm(req, res, orderId) {
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">
           <div class="co-batch-head">
             <h3 id="co-batch-title">ترحيل الكميات</h3>
-            <p id="co-batch-sub" class="muted"></p>
+            <p id="co-batch-sub" class="muted" hidden></p>
           </div>
           <div class="co-batch-body-wrap">
             <table class="co-batch-table co-batch-table--alloc">
@@ -714,7 +714,11 @@ router.post('/api/sales/customer-orders/:id/oracle-batches', async (req, res) =>
       return res.status(403).json({ ok: false, error: 'لا صلاحية.' });
     }
     const catPicks = Array.isArray(req.body?.cat_picks) ? req.body.cat_picks : [];
-    const result = await svc.fetchOracleBatches(req.params.id, { cat_picks: catPicks });
+    const needOverrides = Array.isArray(req.body?.need_overrides) ? req.body.need_overrides : [];
+    const result = await svc.fetchOracleBatches(req.params.id, {
+      cat_picks: catPicks,
+      need_overrides: needOverrides,
+    });
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
   } catch (e) {
@@ -729,11 +733,13 @@ router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
     }
     const dry = String(req.query.dry || req.body?.dry || '') === '1';
     const batchPicks = Array.isArray(req.body?.batch_picks) ? req.body.batch_picks : [];
+    const needOverrides = Array.isArray(req.body?.need_overrides) ? req.body.need_overrides : [];
     const result = await svc.postOrderToOracle(
       req.params.id,
       req.session.user.id,
       dry,
-      batchPicks
+      batchPicks,
+      needOverrides
     );
     if (!result.ok) return res.status(400).json(result);
     res.json(result);

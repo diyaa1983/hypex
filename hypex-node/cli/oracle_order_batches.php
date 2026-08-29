@@ -5,7 +5,7 @@ declare(strict_types=1);
  * CLI: جلب التشغيلات المتاحة من Oracle لطلب معتمد.
  *   php oracle_order_batches.php <order_id> [--opts-file=/path/to.json]
  *
- * opts JSON: { "cat_picks": [ { "srl": 1, "cat": "6" } ] }
+ * opts JSON: { "cat_picks": [...], "need_overrides": [ { "srl": 1, "line_id": 10, "need": 4 } ] }
  */
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "cli only\n");
