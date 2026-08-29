@@ -2619,72 +2619,54 @@
     return name || code || '—';
   }
 
-  function buildCatSelect(ln, categories) {
-    var sel = document.createElement('select');
-    sel.className = 'si-field co-cat-select';
-    sel.dataset.srl = String(ln.srl || '');
-    sel.dataset.item = String(ln.item || '');
+  function buildCatFixed(ln, categories) {
+    var wrap = document.createElement('div');
+    wrap.className = 'co-cat-fixed';
+    wrap.dataset.srl = String(ln.srl || '');
+    wrap.dataset.item = String(ln.item || '');
 
-    var byCat = {};
-    function addOpt(opt) {
-      if (!opt) return;
-      var code = String(opt.cat || '').trim();
-      if (!code) return;
-      if (!byCat[code]) {
-        byCat[code] = { cat: code, name: String(opt.name || '') };
-        return;
-      }
-      if (!byCat[code].name && opt.name) byCat[code].name = String(opt.name);
-    }
-    // كل فئات Oracle أولاً، ثم خيارات السطر (مع الرصيد)
-    if (Array.isArray(categories)) categories.forEach(addOpt);
-    if (Array.isArray(ln.cat_options)) ln.cat_options.forEach(addOpt);
-    if (ln.cat) addOpt({ cat: ln.cat, name: 'فئة ' + ln.cat });
-
-    var options = Object.keys(byCat)
-      .map(function (k) {
-        return byCat[k];
-      })
-      .sort(function (a, b) {
-        return String(a.cat).localeCompare(String(b.cat), undefined, { numeric: true });
-      });
-
-    var opt0 = document.createElement('option');
-    opt0.value = '';
-    opt0.textContent = '— اختر الفئة —';
-    sel.appendChild(opt0);
-
-    options.forEach(function (opt) {
-      var o = document.createElement('option');
-      o.value = String(opt.cat || '');
-      o.textContent = catOptionLabel(opt);
-      sel.appendChild(o);
-    });
-
-    var cur = String(ln.cat || '');
-    if (cur) {
-      sel.value = cur;
-      if (sel.value !== cur) {
-        var extra = document.createElement('option');
-        extra.value = cur;
-        extra.textContent = cur + ' (غير موجودة بالقائمة)';
-        sel.appendChild(extra);
-        sel.value = cur;
+    var cat = String(ln.cat || '').trim();
+    var name = '';
+    function matchName(list) {
+      if (!Array.isArray(list) || !cat) return;
+      for (var i = 0; i < list.length; i++) {
+        if (String(list[i].cat || '').trim() === cat) {
+          name = String(list[i].name || '');
+          return;
+        }
       }
     }
+    matchName(ln.cat_options);
+    if (!name) matchName(categories);
 
-    return sel;
+    var hid = document.createElement('input');
+    hid.type = 'hidden';
+    hid.className = 'co-cat-select';
+    hid.dataset.srl = String(ln.srl || '');
+    hid.dataset.item = String(ln.item || '');
+    hid.value = cat;
+
+    var label = document.createElement('span');
+    label.className = 'co-cat-fixed-label';
+    label.title = 'فئة المادة من بطاقة Oracle (غير قابلة للتغيير)';
+    label.textContent = cat
+      ? catOptionLabel({ cat: cat, name: name })
+      : '— بلا فئة —';
+
+    wrap.appendChild(hid);
+    wrap.appendChild(label);
+    return wrap;
   }
 
   function collectCatPicks() {
     var picks = [];
     if (!batchRows) return picks;
     var seen = {};
-    batchRows.querySelectorAll('select.co-cat-select').forEach(function (sel) {
-      var srl = parseInt(sel.dataset.srl || '0', 10);
+    batchRows.querySelectorAll('.co-cat-select').forEach(function (el) {
+      var srl = parseInt(el.dataset.srl || '0', 10);
       if (srl < 1 || seen[srl]) return;
       seen[srl] = true;
-      var cat = (sel.value || '').trim();
+      var cat = (el.value || '').trim();
       if (!cat) return;
       picks.push({ srl: srl, cat: cat });
     });
@@ -2913,11 +2895,11 @@
     var needBySrl = {};
     var statusMsg = '';
 
-    batchRows.querySelectorAll('select.co-cat-select').forEach(function (sel) {
-      var srl = String(sel.dataset.srl || '');
-      if (!srl || !(sel.value || '').trim()) {
+    batchRows.querySelectorAll('.co-cat-select').forEach(function (el) {
+      var srl = String(el.dataset.srl || '');
+      if (!srl || !(el.value || '').trim()) {
         ok = false;
-        if (!statusMsg) statusMsg = 'اختر الفئة لكل مادة.';
+        if (!statusMsg) statusMsg = 'فئة المادة غير محددة في Oracle.';
       }
     });
 
@@ -3045,8 +3027,8 @@
 
   function catForSrl(srl) {
     if (!batchRows || srl < 1) return '';
-    var sel = batchRows.querySelector('select.co-cat-select[data-srl="' + srl + '"]');
-    return sel ? (sel.value || '').trim() : '';
+    var el = batchRows.querySelector('.co-cat-select[data-srl="' + srl + '"]');
+    return el ? (el.value || '').trim() : '';
   }
 
   function openBatchModal(data) {
@@ -3093,13 +3075,7 @@
           (Number(ln.shortfall) > 0 ? ' (نقص ' + fmtBatchQty(ln.shortfall) + ')' : '') +
           ' — لا يمكن الترحيل.</div></td>';
         var tdCat0 = tr0.querySelector('.co-batch-col-cat');
-        if (tdCat0) {
-          var catSel0 = buildCatSelect(ln, data.categories || []);
-          catSel0.addEventListener('change', function () {
-            reloadBatchesForCatChange(catSel0);
-          });
-          tdCat0.appendChild(catSel0);
-        }
+        if (tdCat0) tdCat0.appendChild(buildCatFixed(ln, data.categories || []));
         var tdQty0 = tr0.querySelector('.co-batch-col-qty');
         var tdBonus0 = tr0.querySelector('.co-batch-col-bonus');
         if (tdQty0) tdQty0.appendChild(buildQtyBonusInput(ln, 'qty'));
@@ -3139,11 +3115,7 @@
           var tdCat = document.createElement('td');
           tdCat.className = 'co-batch-col-cat';
           if (span) tdCat.rowSpan = span;
-          var catSel = buildCatSelect(ln, data.categories || []);
-          catSel.addEventListener('change', function () {
-            reloadBatchesForCatChange(catSel);
-          });
-          tdCat.appendChild(catSel);
+          tdCat.appendChild(buildCatFixed(ln, data.categories || []));
           tr.appendChild(tdCat);
 
           var tdQty = document.createElement('td');
