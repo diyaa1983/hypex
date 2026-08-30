@@ -7,13 +7,8 @@ import io.flutter.embedding.engine.FlutterEngine
 
 class MainActivity : FlutterActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
-    val smallest = resources.configuration.smallestScreenWidthDp
-    requestedOrientation = if (smallest >= 600) {
-      ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-    } else {
-      ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-    }
     super.onCreate(savedInstanceState)
+    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
   }
 
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

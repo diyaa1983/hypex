@@ -814,16 +814,23 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     Color? color,
   }) {
     final fill = color ?? (danger ? AppTheme.danger : AppTheme.primary);
+    final h = widget.embedded ? 38.0 : 46.0;
     final style = filled
         ? FilledButton.styleFrom(
             backgroundColor: fill,
-            minimumSize: const Size(0, 46),
+            minimumSize: Size(0, h),
+            visualDensity: widget.embedded
+                ? VisualDensity.compact
+                : VisualDensity.standard,
             textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           )
         : OutlinedButton.styleFrom(
             foregroundColor: danger ? AppTheme.danger : AppTheme.textMain,
             side: BorderSide(color: danger ? AppTheme.danger : AppTheme.border),
-            minimumSize: const Size(0, 46),
+            minimumSize: Size(0, h),
+            visualDensity: widget.embedded
+                ? VisualDensity.compact
+                : VisualDensity.standard,
             textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           );
     final child = filled
@@ -844,7 +851,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   Widget _buildActionBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: EdgeInsets.fromLTRB(12, widget.embedded ? 4 : 8, 12, widget.embedded ? 4 : 8),
       decoration: BoxDecoration(
         color: AppTheme.surface,
         border: Border(bottom: BorderSide(color: AppTheme.border)),
@@ -929,19 +936,685 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 )));
   }
 
+  bool _useWideOrderLayout(BuildContext context) {
+    final s = MediaQuery.sizeOf(context);
+    return s.shortestSide >= 550 || s.width >= 900;
+  }
+
+  double get _orderGross =>
+      _lines.fold<double>(0, (s, l) => s + l.lineGross);
+
+  Widget _wideHeaderCard() {
+    final no = (_orderNo == null || _orderNo!.isEmpty) ? '—' : _orderNo!;
+    final date = _orderDate.isEmpty ? Fmt.todayIso() : _orderDate;
+    return Card(
+      elevation: 2,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+      child: Padding(
+        padding: const EdgeInsets.all(8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _wideLabeledBox('رقم الطلب', no),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _wideLabeledBox('التاريخ', Fmt.dmy(date)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            _orderHeaderField(
+              label: 'اسم العميل',
+              child: _orderHeaderCustomer(),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _orderHeaderField(
+                    label: 'نوع الدفع',
+                    child: _paymentSeg(compact: true),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: _orderHeaderField(
+                    label: 'المستودع',
+                    child: _orderHeaderWarehouse(),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 36,
+              child: FilledButton.icon(
+                onPressed: _busy || !_editable ? null : _addLine,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2196F3),
+                  visualDensity: VisualDensity.compact,
+                ),
+                icon: const Icon(Icons.add_rounded, size: 16),
+                label: const Text(
+                  'إضافة مادة',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _wideLabeledBox(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSoft,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: AlignmentDirectional.centerStart,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _wideSummaryBar() {
+    final balance = Fmt.toDouble(_arSummary?['balance']);
+    final cheques = Fmt.toDouble(_arSummary?['cheque_total']);
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFFE0E0E0),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: _sumCell(
+              'رصيد العميل',
+              Fmt.money(balance),
+              const Color(0xFFD32F2F),
+            ),
+          ),
+          Expanded(
+            child: _sumCell(
+              'شيكات قيد التحصيل',
+              Fmt.money(cheques),
+              const Color(0xFFF57C00),
+            ),
+          ),
+          Expanded(
+            child: _sumCell(
+              'المجموع النهائي',
+              Fmt.money(_orderGross),
+              const Color(0xFF388E3C),
+              large: true,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sumCell(String label, String value, Color color, {bool large = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          '$label: ',
+          style: TextStyle(
+            fontSize: large ? 13 : 12,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Flexible(
+          child: Text(
+            value,
+            textDirection: TextDirection.ltr,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: large ? 14 : 12,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _wideActionBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 38,
+              child: FilledButton(
+                onPressed: _busy || !_editable ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFFFF9800),
+                ),
+                child: const Text(
+                  'حفظ',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 38,
+              child: FilledButton(
+                onPressed: _busy || !_canPost ? null : _post,
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                ),
+                child: const Text(
+                  'ترحيل',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWideOrderBody() {
+    return ColoredBox(
+      color: const Color(0xFFF5F5F5),
+      child: Column(
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(width: 340, child: _wideHeaderCard()),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppTheme.border),
+                      ),
+                      child: _lines.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'لا توجد مواد. اضغط «إضافة مادة».',
+                                style: TextStyle(
+                                  color: AppTheme.textSoft,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            )
+                          : _buildLinesTableScroll(compact: true),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          _wideSummaryBar(),
+          _wideActionBar(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLinesTableScroll({required bool compact}) {
+    return child: SingleChildScrollView(
+  scrollDirection: Axis.horizontal,
+  child: DefaultTextStyle.merge(
+    style: const TextStyle(
+      fontSize: 14,
+      height: 1.15,
+      fontWeight: FontWeight.w700,
+    ),
+    child: ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 1120),
+      child: DataTable(
+        headingRowHeight: compact ? 34 : 42,
+        dataRowMinHeight: compact ? 40 : 50,
+        dataRowMaxHeight: compact ? 44 : 54,
+        columnSpacing: 10,
+        horizontalMargin: 8,
+        headingTextStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFF475569),
+        ),
+        dataTextStyle: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF0F172A),
+        ),
+        columns: const [
+          DataColumn(label: Text('الباركود')),
+          DataColumn(label: Text('المادة')),
+          DataColumn(label: Text('الوحدة')),
+          DataColumn(label: Text('الكمية')),
+          DataColumn(label: Text('إضافية')),
+          DataColumn(label: Text('السعر غ ش')),
+          DataColumn(label: Text('السعر ش')),
+          DataColumn(label: Text('الضريبة')),
+          DataColumn(label: Text('خصم %')),
+          DataColumn(label: Text('المجموع')),
+          DataColumn(label: Text('')),
+        ],
+        rows: [
+          for (var i = 0; i < _lines.length; i++)
+            DataRow(cells: [
+              DataCell(
+                SizedBox(
+                  width: 96,
+                  child: Text(
+                    _lines[i].barcode.isEmpty
+                        ? '—'
+                        : _lines[i].barcode,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 130,
+                  child: Text(
+                    _lines[i].item.name,
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 92,
+                  child: DropdownButtonFormField<int>(
+                    key: ValueKey(
+                        'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
+                    isExpanded: true,
+                    isDense: true,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF0F172A),
+                    ),
+                    initialValue: _lines[i].unitId == 0
+                        ? (_lines[i].item.units.isEmpty
+                            ? null
+                            : _lines[i].item.units.first.unitId)
+                        : _lines[i].unitId,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final u in _lines[i].item.units)
+                        DropdownMenuItem(
+                          value: u.unitId,
+                          child: Text(
+                            u.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      if (_lines[i].item.units.isEmpty &&
+                          _lines[i].unitName.isNotEmpty)
+                        DropdownMenuItem(
+                          value: _lines[i].unitId,
+                          child: Text(
+                            _lines[i].unitName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontSize: 13),
+                          ),
+                        ),
+                    ],
+                    onChanged: !_editable
+                        ? null
+                        : (v) {
+                            final u = _lines[i]
+                                .item
+                                .units
+                                .where((x) => x.unitId == v)
+                                .cast<ItemUnitOpt?>()
+                                .followedBy([null]).first;
+                            setState(() {
+                              _lines[i].applyUnit(u,
+                                  unitIdOverride: v);
+                            });
+                          },
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 58,
+                  child: TextFormField(
+                    key:
+                        ValueKey('qty-${_lines[i].item.id}-$i'),
+                    initialValue: '${_lines[i].qty}',
+                    enabled: _editable,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly
+                    ],
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setState(() {
+                      _lines[i].qty = int.tryParse(v)
+                              ?.clamp(1, 999999999) ??
+                          1;
+                    }),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 58,
+                  child: TextFormField(
+                    key: ValueKey(
+                        'extra-${_lines[i].item.id}-$i'),
+                    initialValue: '${_lines[i].qtyExtra}',
+                    enabled: _editable,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly
+                    ],
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setState(() {
+                      _lines[i].qtyExtra = int.tryParse(v)
+                              ?.clamp(0, 999999999) ??
+                          0;
+                    }),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 86,
+                  child: TextFormField(
+                    key: ValueKey(
+                        'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
+                    initialValue:
+                        Fmt.trimNum(_lines[i].unitPrice),
+                    enabled: _editable,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (v) => setState(() {
+                      final p = double.tryParse(
+                            v.replaceAll(',', ''),
+                          ) ??
+                          0;
+                      _lines[i].unitPrice = p;
+                      if (_lines[i].unitFactor > 0) {
+                        _lines[i].basePrice =
+                            p / _lines[i].unitFactor;
+                      }
+                    }),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 86,
+                  child: Text(
+                    Fmt.money(_lines[i].unitPriceInclusive),
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF0F766E),
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 150,
+                  child: DropdownButtonFormField<int>(
+                    key: ValueKey(
+                        'tax-${_lines[i].item.id}-$i-${_lines[i].taxRateId}'),
+                    initialValue: _lines[i].taxRateId,
+                    isExpanded: true,
+                    isDense: true,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 3,
+                      ),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final tax in _taxRates)
+                        DropdownMenuItem(
+                          value: tax.id,
+                          child: Text(
+                            '${tax.name} (${Fmt.trimNum(tax.rate)}%)',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                    ],
+                    onChanged: !_editable
+                        ? null
+                        : (id) {
+                            final matches = _taxRates
+                                .where((t) => t.id == id);
+                            if (matches.isEmpty) return;
+                            setState(() {
+                              _lines[i].taxRateId =
+                                  matches.first.id;
+                              _lines[i].taxRatePercent =
+                                  matches.first.rate;
+                            });
+                          },
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 56,
+                  child: TextFormField(
+                    key: ValueKey(
+                        'disc-${_lines[i].item.id}-$i'),
+                    initialValue: _lines[i].discountPct <= 0
+                        ? ''
+                        : Fmt.trimNum(_lines[i].discountPct),
+                    enabled: _editable,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
+                      border: OutlineInputBorder(),
+                      hintText: '0',
+                    ),
+                    onChanged: (v) => setState(() {
+                      _lines[i].discountPct = (double.tryParse(
+                                v.replaceAll(',', ''),
+                              ) ??
+                              0)
+                          .clamp(0, 100);
+                    }),
+                  ),
+                ),
+              ),
+              DataCell(
+                SizedBox(
+                  width: 74,
+                  child: Text(
+                    Fmt.money(_lines[i].lineGross),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.ltr,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                _editable
+                    ? IconButton(
+                        visualDensity: VisualDensity.compact,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(
+                          minWidth: 28,
+                          minHeight: 28,
+                        ),
+                        onPressed: () =>
+                            setState(() => _lines.removeAt(i)),
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          size: 18,
+                          color: Color(0xFFB91C1C),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ]),
+        ],
+      ),
+    ),
+  ),
+),
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_useWideOrderLayout(context)) {
+      final wide = AsyncView(
+        loading: _loading,
+        error: _error,
+        onRetry: _load,
+        child: _buildWideOrderBody(),
+      );
+      if (widget.embedded) {
+        return Material(color: const Color(0xFFF5F5F5), child: wide);
+      }
+      return MobileScaffold(
+        title: const Text('طلب شراء عميل'),
+        body: wide,
+      );
+    }
     final body = AsyncView(
         loading: _loading,
         error: _error,
         onRetry: _load,
         child: ListView(
-          padding: const EdgeInsets.all(14),
+          padding: EdgeInsets.all(widget.embedded ? 8 : 14),
           children: [
             DocumentHeaderCard(
-                title: _orderNo == null || _orderNo!.isEmpty
-                    ? 'بيانات الطلب'
-                    : 'الطلب $_orderNo',
+                title: widget.embedded
+                    ? null
+                    : (_orderNo == null || _orderNo!.isEmpty
+                        ? 'بيانات الطلب'
+                        : 'الطلب $_orderNo'),
+                padding: EdgeInsets.all(widget.embedded ? 8 : 14),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -963,7 +1636,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     ],
                   ],
                 )),
-            if (_customer != null) ...[
+            if (_customer != null && !widget.embedded) ...[
               const DocumentSectionDivider('ملخص حساب العميل'),
               const Padding(
                 padding: EdgeInsets.only(bottom: 10),
@@ -1029,393 +1702,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             if (_lines.isNotEmpty)
               AppCard(
                 padding: EdgeInsets.zero,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: DefaultTextStyle.merge(
-                    style: const TextStyle(
-                      fontSize: 14,
-                      height: 1.15,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minWidth: 1120),
-                      child: DataTable(
-                        headingRowHeight: 42,
-                        dataRowMinHeight: 50,
-                        dataRowMaxHeight: 54,
-                        columnSpacing: 10,
-                        horizontalMargin: 8,
-                        headingTextStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          color: Color(0xFF475569),
-                        ),
-                        dataTextStyle: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF0F172A),
-                        ),
-                        columns: const [
-                          DataColumn(label: Text('الباركود')),
-                          DataColumn(label: Text('المادة')),
-                          DataColumn(label: Text('الوحدة')),
-                          DataColumn(label: Text('الكمية')),
-                          DataColumn(label: Text('إضافية')),
-                          DataColumn(label: Text('السعر غ ش')),
-                          DataColumn(label: Text('السعر ش')),
-                          DataColumn(label: Text('الضريبة')),
-                          DataColumn(label: Text('خصم %')),
-                          DataColumn(label: Text('المجموع')),
-                          DataColumn(label: Text('')),
-                        ],
-                        rows: [
-                          for (var i = 0; i < _lines.length; i++)
-                            DataRow(cells: [
-                              DataCell(
-                                SizedBox(
-                                  width: 96,
-                                  child: Text(
-                                    _lines[i].barcode.isEmpty
-                                        ? '—'
-                                        : _lines[i].barcode,
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    textDirection: TextDirection.ltr,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 130,
-                                  child: Text(
-                                    _lines[i].item.name,
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 92,
-                                  child: DropdownButtonFormField<int>(
-                                    key: ValueKey(
-                                        'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                                    isExpanded: true,
-                                    isDense: true,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                    initialValue: _lines[i].unitId == 0
-                                        ? (_lines[i].item.units.isEmpty
-                                            ? null
-                                            : _lines[i].item.units.first.unitId)
-                                        : _lines[i].unitId,
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: [
-                                      for (final u in _lines[i].item.units)
-                                        DropdownMenuItem(
-                                          value: u.unitId,
-                                          child: Text(
-                                            u.name,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style:
-                                                const TextStyle(fontSize: 13),
-                                          ),
-                                        ),
-                                      if (_lines[i].item.units.isEmpty &&
-                                          _lines[i].unitName.isNotEmpty)
-                                        DropdownMenuItem(
-                                          value: _lines[i].unitId,
-                                          child: Text(
-                                            _lines[i].unitName,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style:
-                                                const TextStyle(fontSize: 13),
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged: !_editable
-                                        ? null
-                                        : (v) {
-                                            final u = _lines[i]
-                                                .item
-                                                .units
-                                                .where((x) => x.unitId == v)
-                                                .cast<ItemUnitOpt?>()
-                                                .followedBy([null]).first;
-                                            setState(() {
-                                              _lines[i].applyUnit(u,
-                                                  unitIdOverride: v);
-                                            });
-                                          },
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 58,
-                                  child: TextFormField(
-                                    key:
-                                        ValueKey('qty-${_lines[i].item.id}-$i'),
-                                    initialValue: '${_lines[i].qty}',
-                                    enabled: _editable,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.digitsOnly
-                                    ],
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (v) => setState(() {
-                                      _lines[i].qty = int.tryParse(v)
-                                              ?.clamp(1, 999999999) ??
-                                          1;
-                                    }),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 58,
-                                  child: TextFormField(
-                                    key: ValueKey(
-                                        'extra-${_lines[i].item.id}-$i'),
-                                    initialValue: '${_lines[i].qtyExtra}',
-                                    enabled: _editable,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    inputFormatters: [
-                                      FilteringTextInputFormatter.digitsOnly
-                                    ],
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (v) => setState(() {
-                                      _lines[i].qtyExtra = int.tryParse(v)
-                                              ?.clamp(0, 999999999) ??
-                                          0;
-                                    }),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 86,
-                                  child: TextFormField(
-                                    key: ValueKey(
-                                        'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                                    initialValue:
-                                        Fmt.trimNum(_lines[i].unitPrice),
-                                    enabled: _editable,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    onChanged: (v) => setState(() {
-                                      final p = double.tryParse(
-                                            v.replaceAll(',', ''),
-                                          ) ??
-                                          0;
-                                      _lines[i].unitPrice = p;
-                                      if (_lines[i].unitFactor > 0) {
-                                        _lines[i].basePrice =
-                                            p / _lines[i].unitFactor;
-                                      }
-                                    }),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 86,
-                                  child: Text(
-                                    Fmt.money(_lines[i].unitPriceInclusive),
-                                    textDirection: TextDirection.ltr,
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFF0F766E),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 150,
-                                  child: DropdownButtonFormField<int>(
-                                    key: ValueKey(
-                                        'tax-${_lines[i].item.id}-$i-${_lines[i].taxRateId}'),
-                                    initialValue: _lines[i].taxRateId,
-                                    isExpanded: true,
-                                    isDense: true,
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 5,
-                                        vertical: 3,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    items: [
-                                      for (final tax in _taxRates)
-                                        DropdownMenuItem(
-                                          value: tax.id,
-                                          child: Text(
-                                            '${tax.name} (${Fmt.trimNum(tax.rate)}%)',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              fontSize: 12.5,
-                                              fontWeight: FontWeight.w700,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                    onChanged: !_editable
-                                        ? null
-                                        : (id) {
-                                            final matches = _taxRates
-                                                .where((t) => t.id == id);
-                                            if (matches.isEmpty) return;
-                                            setState(() {
-                                              _lines[i].taxRateId =
-                                                  matches.first.id;
-                                              _lines[i].taxRatePercent =
-                                                  matches.first.rate;
-                                            });
-                                          },
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 56,
-                                  child: TextFormField(
-                                    key: ValueKey(
-                                        'disc-${_lines[i].item.id}-$i'),
-                                    initialValue: _lines[i].discountPct <= 0
-                                        ? ''
-                                        : Fmt.trimNum(_lines[i].discountPct),
-                                    enabled: _editable,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                    keyboardType:
-                                        const TextInputType.numberWithOptions(
-                                      decimal: true,
-                                    ),
-                                    decoration: const InputDecoration(
-                                      isDense: true,
-                                      contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 4,
-                                        vertical: 2,
-                                      ),
-                                      border: OutlineInputBorder(),
-                                      hintText: '0',
-                                    ),
-                                    onChanged: (v) => setState(() {
-                                      _lines[i].discountPct = (double.tryParse(
-                                                v.replaceAll(',', ''),
-                                              ) ??
-                                              0)
-                                          .clamp(0, 100);
-                                    }),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                SizedBox(
-                                  width: 74,
-                                  child: Text(
-                                    Fmt.money(_lines[i].lineGross),
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    textDirection: TextDirection.ltr,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              DataCell(
-                                _editable
-                                    ? IconButton(
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                        constraints: const BoxConstraints(
-                                          minWidth: 28,
-                                          minHeight: 28,
-                                        ),
-                                        onPressed: () =>
-                                            setState(() => _lines.removeAt(i)),
-                                        icon: const Icon(
-                                          Icons.delete_outline_rounded,
-                                          size: 18,
-                                          color: Color(0xFFB91C1C),
-                                        ),
-                                      )
-                                    : const SizedBox.shrink(),
-                              ),
-                            ]),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                child: _buildLinesTableScroll(compact: widget.embedded),
               ),
             if (_lines.isNotEmpty) ...[
               const SizedBox(height: 8),

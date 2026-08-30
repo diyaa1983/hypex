@@ -15,6 +15,7 @@ import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import '../../widgets/ui_kit.dart';
 import 'visit_workspace_panel.dart';
 
 class RepVisitsScreen extends StatefulWidget {
@@ -60,8 +61,13 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     super.dispose();
   }
 
-  bool _isTablet(BuildContext context) =>
-      MediaQuery.sizeOf(context).shortestSide >= 600;
+  /// تخطيط BlueStacks (قائمة + تفاصيل) على التاب وأي شاشة عرضية كافية.
+  bool _useSplitLayout(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    return size.shortestSide >= 550 ||
+        size.width >= 900 ||
+        (size.width > size.height && size.shortestSide >= 500);
+  }
 
   void _selectTourCustomer(Map<String, dynamic> v) {
     if (_busy) return;
@@ -87,97 +93,47 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Future<bool?> _askVisitMethod({required bool checkout}) {
     return showDialog<bool>(
       context: context,
-      barrierColor: Colors.black38,
-      builder: (ctx) {
-        return Center(
-          child: Material(
-            color: Colors.white,
-            elevation: 10,
-            borderRadius: BorderRadius.circular(16),
-            child: SizedBox(
-              width: 300,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      checkout ? 'طريقة تسجيل الخروج' : 'طريقة تسجيل الدخول',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _methodBox(
-                            ctx,
-                            label: 'GPS',
-                            icon: Icons.my_location_rounded,
-                            color: AppTheme.primary,
-                            manual: false,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _methodBox(
-                            ctx,
-                            label: 'Manual',
-                            icon: Icons.edit_location_alt_rounded,
-                            color: AppTheme.teal,
-                            manual: true,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('إلغاء'),
-                    ),
-                  ],
-                ),
-              ),
+      builder: (ctx) => AlertDialog(
+        title: Text(checkout ? 'طريقة تسجيل الخروج' : 'طريقة تسجيل الدخول'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              checkout
+                  ? 'اختر طريقة تسجيل الخروج من العميل.'
+                  : (_radiusM > 0
+                      ? 'اختر طريقة تسجيل الدخول إلى العميل.\nنصف القطر المسموح: $_radiusM م'
+                      : 'اختر طريقة تسجيل الدخول إلى العميل.'),
             ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _methodBox(
-    BuildContext ctx, {
-    required String label,
-    required IconData icon,
-    required Color color,
-    required bool manual,
-  }) {
-    return Material(
-      color: color.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => Navigator.pop(ctx, manual),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  color: color,
-                  fontSize: 14,
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    icon: const Icon(Icons.edit_location_alt_rounded, size: 18),
+                    label: const Text('يدوي'),
+                  ),
                 ),
-              ),
-            ],
-          ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    icon: const Icon(Icons.my_location_rounded, size: 18),
+                    label: const Text('GPS'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('إلغاء'),
+            ),
+          ],
         ),
+        actions: const [],
       ),
     );
   }
@@ -951,9 +907,9 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               right: -50,
               child: _blob(200, AppTheme.teal.withValues(alpha: 0.07)),
             ),
-            if (_isTablet(context) && !_monthMode)
+            if (_useSplitLayout(context) && !_monthMode)
               _buildTabletDay()
-            else if (_isTablet(context) && _monthMode)
+            else if (_useSplitLayout(context) && _monthMode)
               _buildTabletMonth()
             else if (_selected == null)
               (_monthMode ? _buildMonthAgenda() : _buildHome())
@@ -995,6 +951,31 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     final list = _filterPlanned(planned);
     final open = _isVisitOpen(_selected);
     final pending = _statusOf(_selected) == 'pending_manual_checkout';
+    if (open) {
+      return Column(
+        children: [
+          _tabletCheckedInBar(),
+          Expanded(
+            child: VisitWorkspacePanel(
+              key: ValueKey(
+                'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
+              ),
+              customerId: Fmt.toInt(_selected!['customer_id']),
+              customerName: Fmt.str(_selected!['name']),
+              customerCode: Fmt.str(_selected!['code']),
+              visitRouteLineId: Fmt.toInt(_selected!['route_line_id']),
+              visitOpen: true,
+              orderId: Fmt.toInt(_selected!['order_id']) > 0
+                  ? Fmt.toInt(_selected!['order_id'])
+                  : null,
+              onOrderChanged: () => _load(
+                keepCustomerId: Fmt.toInt(_selected!['customer_id']),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1017,30 +998,51 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                   ? _tabletEmptyHint(
                       'تم إرسال الخروج اليدوي بانتظار اعتماد المدير.',
                     )
-                  : open
-                      ? VisitWorkspacePanel(
-                          key: ValueKey(
-                            'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
-                          ),
-                          customerId: Fmt.toInt(_selected!['customer_id']),
-                          customerName: Fmt.str(_selected!['name']),
-                          customerCode: Fmt.str(_selected!['code']),
-                          visitRouteLineId:
-                              Fmt.toInt(_selected!['route_line_id']),
-                          visitOpen: true,
-                          orderId: Fmt.toInt(_selected!['order_id']) > 0
-                              ? Fmt.toInt(_selected!['order_id'])
-                              : null,
-                          onOrderChanged: () => _load(
-                            keepCustomerId:
-                                Fmt.toInt(_selected!['customer_id']),
-                          ),
-                        )
-                      : _tabletEmptyHint(
-                          'اضغط «تسجيل دخول الى العميل» أسفل القائمة.',
-                        ),
+                  : _tabletEmptyHint(
+                      'اضغط «تسجيل دخول الى العميل» أسفل القائمة.',
+                    ),
         ),
       ],
+    );
+  }
+
+  Widget _tabletCheckedInBar() {
+    final v = _selected!;
+    return Material(
+      color: const Color(0xFFDCFCE7),
+      child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+          child: Row(
+            children: [
+              const Icon(Icons.login_rounded, color: AppTheme.success, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  [
+                    Fmt.str(v['name']),
+                    if (Fmt.str(v['code']).isNotEmpty) Fmt.str(v['code']),
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14,
+                    color: Color(0xFF0B6B3A),
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: _busy ? null : _startCheckout,
+                icon: const Icon(Icons.logout_rounded, size: 18),
+                label: const Text('تسجيل خروج'),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppTheme.danger,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ],
+          ),
+      ),
     );
   }
 
@@ -1062,10 +1064,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               foregroundColor: const Color(0xFF3D2E00),
               disabledBackgroundColor: const Color(0xFFF5C518).withValues(alpha: 0.45),
             ),
-            icon: const Icon(Icons.login_rounded),
+            icon: const Icon(Icons.login_rounded, size: 18),
             label: const Text(
               'تسجيل دخول الى العميل',
-              style: TextStyle(fontWeight: FontWeight.w800),
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
             ),
           ),
         ),
@@ -1092,16 +1094,16 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: AppTheme.danger.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: const Icon(
                       Icons.logout_rounded,
                       color: AppTheme.danger,
-                      size: 26,
+                      size: 20,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -2026,41 +2028,52 @@ class _PlanCustomerTile extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               )
             : null,
-        child: ListTile(
-      onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      leading: CircleAvatar(
-        radius: 18,
-        backgroundColor: statusColor.withValues(alpha: 0.12),
-        child: Text(
-          '$index',
-          style: TextStyle(
-            color: statusColor,
-            fontWeight: FontWeight.w800,
-            fontSize: 12,
+        child: Semantics(
+          label: '$index $name',
+          child: ListTile(
+          onTap: onTap,
+          dense: true,
+          visualDensity: VisualDensity.compact,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+          leading: CircleAvatar(
+            radius: 16,
+            backgroundColor: statusColor.withValues(alpha: 0.12),
+            child: Icon(
+              inVisit
+                  ? Icons.login_rounded
+                  : (status == 'checked_out'
+                      ? Icons.logout_rounded
+                      : Icons.storefront_rounded),
+              size: 16,
+              color: statusColor,
+            ),
+          ),
+          title: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 13.5,
+              color: inVisit ? const Color(0xFF0B6B3A) : AppTheme.textMain,
+            ),
+          ),
+          subtitle: Text(
+            [
+              if (code.isNotEmpty) code,
+              statusLabel,
+              hasGps ? 'GPS' : 'بدون موقع',
+            ].join(' · '),
+            style: const TextStyle(color: AppTheme.textSoft, fontSize: 11.5),
+          ),
+          trailing: inVisit
+              ? const StatusPill(text: 'مفتوحة', color: AppTheme.success)
+              : (status == 'checked_out'
+                  ? const StatusPill(text: 'منتهية', color: AppTheme.danger)
+                  : Icon(statusIcon, color: statusColor, size: 18)),
           ),
         ),
-      ),
-      title: Text(
-        name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontWeight: FontWeight.w800,
-          fontSize: 14.5,
-          color: inVisit ? const Color(0xFF0B6B3A) : null,
-        ),
-      ),
-      subtitle: Text(
-        [
-          if (code.isNotEmpty) code,
-          statusLabel,
-          hasGps ? 'GPS' : 'بدون موقع',
-        ].join(' · '),
-        style: const TextStyle(color: AppTheme.textSoft, fontSize: 12),
-      ),
-      trailing: Icon(statusIcon, color: statusColor, size: 22),
-    ),
       ),
     );
   }

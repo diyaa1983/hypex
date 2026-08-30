@@ -274,17 +274,25 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
             Material(
               color: Colors.white,
               child: TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
+                isScrollable: false,
+                labelPadding: EdgeInsets.zero,
                 labelColor: AppTheme.primary,
                 unselectedLabelColor: AppTheme.textSoft,
                 indicatorColor: AppTheme.primary,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
                 tabs: const [
-                  Tab(text: 'طلب شراء'),
-                  Tab(text: 'معلومات العميل'),
-                  Tab(text: 'الطلبات التاريخية'),
-                  Tab(text: 'الفواتير التاريخية'),
-                  Tab(text: 'كشف حساب'),
+                  Tab(height: 40, text: 'طلب شراء'),
+                  Tab(height: 40, text: 'معلومات العميل'),
+                  Tab(height: 40, text: 'الطلبات التاريخية'),
+                  Tab(height: 40, text: 'الفواتير التاريخية'),
+                  Tab(height: 40, text: 'كشف حساب'),
                 ],
               ),
             ),
@@ -405,51 +413,85 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
       loading: _infoLoading,
       error: _infoError,
       onRetry: _loadCustomer,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
-        children: [
-          Text(
-            widget.customerName,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-          ),
-          if (widget.customerCode.isNotEmpty) ...[
-            const SizedBox(height: 4),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             Text(
-              widget.customerCode,
-              style: const TextStyle(color: AppTheme.textSoft, fontSize: 13.5),
+              widget.customerName,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+            ),
+            if (widget.customerCode.isNotEmpty)
+              Text(
+                widget.customerCode,
+                style: const TextStyle(color: AppTheme.textSoft, fontSize: 12.5),
+              ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: AppCard(
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              children: [
+                                InfoRow(
+                                  'الهاتف',
+                                  Fmt.str(_customer?['phone']),
+                                  ltr: true,
+                                ),
+                                InfoRow(
+                                  'الرقم الضريبي',
+                                  Fmt.str(_customer?['tax_number']),
+                                ),
+                                InfoRow(
+                                  'البريد',
+                                  Fmt.str(_customer?['email']),
+                                  ltr: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              children: [
+                                InfoRow(
+                                  'العنوان',
+                                  Fmt.str(_customer?['address']).isEmpty
+                                      ? Fmt.str(_customer?['address_ar'])
+                                      : Fmt.str(_customer?['address']),
+                                ),
+                                InfoRow(
+                                  'فترة السداد',
+                                  Fmt.toInt(_customer?['payment_period']) > 0
+                                      ? '${Fmt.toInt(_customer?['payment_period'])} يوم'
+                                      : '',
+                                ),
+                                InfoRow(
+                                  'الموقع',
+                                  (_customer?['latitude'] != null &&
+                                          _customer?['longitude'] != null)
+                                      ? '${Fmt.toDouble(_customer?['latitude']).toStringAsFixed(6)} ، ${Fmt.toDouble(_customer?['longitude']).toStringAsFixed(6)}'
+                                      : 'غير محدد',
+                                  ltr: true,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
-          const SizedBox(height: 12),
-          AppCard(
-            child: Column(
-              children: [
-                InfoRow('الهاتف', Fmt.str(_customer?['phone']), ltr: true),
-                InfoRow('الرقم الضريبي', Fmt.str(_customer?['tax_number'])),
-                InfoRow('البريد', Fmt.str(_customer?['email']), ltr: true),
-                InfoRow(
-                  'العنوان',
-                  Fmt.str(_customer?['address']).isEmpty
-                      ? Fmt.str(_customer?['address_ar'])
-                      : Fmt.str(_customer?['address']),
-                ),
-                InfoRow(
-                  'فترة السداد',
-                  Fmt.toInt(_customer?['payment_period']) > 0
-                      ? '${Fmt.toInt(_customer?['payment_period'])} يوم'
-                      : '',
-                ),
-                InfoRow(
-                  'الموقع',
-                  (_customer?['latitude'] != null &&
-                          _customer?['longitude'] != null)
-                      ? '${Fmt.toDouble(_customer?['latitude']).toStringAsFixed(6)} ، ${Fmt.toDouble(_customer?['longitude']).toStringAsFixed(6)}'
-                      : 'غير محدد',
-                  ltr: true,
-                ),
-              ],
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
