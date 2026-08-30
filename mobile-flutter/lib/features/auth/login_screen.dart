@@ -136,7 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final s = context.watch<SessionController>();
     final size = MediaQuery.sizeOf(context);
     final tablet = size.shortestSide >= 600;
-    final wide = size.width >= 980;
     final fieldStyle = TextStyle(
       fontSize: tablet ? 18 : 16,
       fontWeight: FontWeight.w600,
@@ -190,39 +189,22 @@ class _LoginScreenState extends State<LoginScreen> {
               child: tablet
                   ? Align(
                       alignment: Alignment.topCenter,
-                      child: Padding(
+                      child: SingleChildScrollView(
                         padding: const EdgeInsets.fromLTRB(32, 20, 32, 12),
                         child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: wide ? 900 : 520,
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _brandBlock(tablet: true),
+                              const SizedBox(height: 16),
+                              _glassCard(
+                                tablet: true,
+                                session: s,
+                                fieldStyle: fieldStyle,
+                              ),
+                            ],
                           ),
-                          child: wide
-                              ? Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Expanded(child: _brandBlock(tablet: true)),
-                                    const SizedBox(width: 24),
-                                    Expanded(
-                                      child: _glassCard(
-                                        tablet: true,
-                                        session: s,
-                                        fieldStyle: fieldStyle,
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              : Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    _brandBlock(tablet: true),
-                                    const SizedBox(height: 16),
-                                    _glassCard(
-                                      tablet: true,
-                                      session: s,
-                                      fieldStyle: fieldStyle,
-                                    ),
-                                  ],
-                                ),
                         ),
                       ),
                     )

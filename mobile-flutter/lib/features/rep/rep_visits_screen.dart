@@ -999,49 +999,46 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _tourListPane(
-          width: (MediaQuery.sizeOf(context).width * 0.36).clamp(280.0, 400.0),
-          title: _weekdayLabel.isEmpty ? 'عملاء الجولة' : '$_weekdayLabel',
+          width: (MediaQuery.sizeOf(context).width * 0.34).clamp(320.0, 460.0),
+          title: _weekdayLabel.isEmpty ? 'عملاء الجولة' : _weekdayLabel,
           subtitle: '${planned.length} عميل ضمن الجولة',
           customers: list,
           header: _tabletDayHeader(),
           footer: _tabletVisitFooter(),
         ),
         Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 12, 16, 16),
-            child: _selected == null
-                ? _tabletEmptyHint(
-                    planned.isEmpty
-                        ? 'لا توجد جولة مخططة لهذا اليوم.'
-                        : 'اختر عميلاً من القائمة ثم اضغط تسجيل الدخول.',
-                  )
-                : pending
-                    ? _tabletEmptyHint(
-                        'تم إرسال الخروج اليدوي بانتظار اعتماد المدير.',
-                      )
-                    : open
-                        ? VisitWorkspacePanel(
-                            key: ValueKey(
-                              'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
-                            ),
-                            customerId: Fmt.toInt(_selected!['customer_id']),
-                            customerName: Fmt.str(_selected!['name']),
-                            customerCode: Fmt.str(_selected!['code']),
-                            visitRouteLineId:
-                                Fmt.toInt(_selected!['route_line_id']),
-                            visitOpen: true,
-                            orderId: Fmt.toInt(_selected!['order_id']) > 0
-                                ? Fmt.toInt(_selected!['order_id'])
-                                : null,
-                            onOrderChanged: () => _load(
-                              keepCustomerId:
-                                  Fmt.toInt(_selected!['customer_id']),
-                            ),
-                          )
-                        : _tabletEmptyHint(
-                            'اضغط «تسجيل دخول الى العميل» أسفل القائمة.',
+          child: _selected == null
+              ? _tabletEmptyHint(
+                  planned.isEmpty
+                      ? 'لا توجد جولة مخططة لهذا اليوم.'
+                      : 'اختر عميلاً من القائمة ثم اضغط تسجيل الدخول.',
+                )
+              : pending
+                  ? _tabletEmptyHint(
+                      'تم إرسال الخروج اليدوي بانتظار اعتماد المدير.',
+                    )
+                  : open
+                      ? VisitWorkspacePanel(
+                          key: ValueKey(
+                            'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
                           ),
-          ),
+                          customerId: Fmt.toInt(_selected!['customer_id']),
+                          customerName: Fmt.str(_selected!['name']),
+                          customerCode: Fmt.str(_selected!['code']),
+                          visitRouteLineId:
+                              Fmt.toInt(_selected!['route_line_id']),
+                          visitOpen: true,
+                          orderId: Fmt.toInt(_selected!['order_id']) > 0
+                              ? Fmt.toInt(_selected!['order_id'])
+                              : null,
+                          onOrderChanged: () => _load(
+                            keepCustomerId:
+                                Fmt.toInt(_selected!['customer_id']),
+                          ),
+                        )
+                      : _tabletEmptyHint(
+                          'اضغط «تسجيل دخول الى العميل» أسفل القائمة.',
+                        ),
         ),
       ],
     );
@@ -1075,21 +1072,64 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       );
     }
     if (_canCheckout(v)) {
+      final at = Fmt.str(v['visit_checkin_at']);
       return Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        child: SizedBox(
-          height: 48,
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: _busy ? null : _startCheckout,
-            style: FilledButton.styleFrom(
-              backgroundColor: AppTheme.danger,
-              foregroundColor: Colors.white,
-            ),
-            icon: const Icon(Icons.logout_rounded),
-            label: const Text(
-              'تسجيل خروج',
-              style: TextStyle(fontWeight: FontWeight.w800),
+        padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+        child: Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _busy ? null : _startCheckout,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: AppTheme.danger.withValues(alpha: 0.35),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: AppTheme.danger.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.logout_rounded,
+                      color: AppTheme.danger,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'تسجيل خروج من العميل',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
+                            color: AppTheme.danger,
+                          ),
+                        ),
+                        if (at.isNotEmpty)
+                          Text(
+                            'بداية الزيارة : $at',
+                            style: const TextStyle(
+                              color: AppTheme.textSoft,
+                              fontSize: 12,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1162,7 +1202,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _tourListPane(
-          width: (MediaQuery.sizeOf(context).width * 0.36).clamp(280.0, 400.0),
+          width: (MediaQuery.sizeOf(context).width * 0.34).clamp(320.0, 460.0),
           title: _monthTitleAr(),
           subtitle: '${rows.length} زيارة مخططة هذا الشهر',
           customers: list,
@@ -1261,12 +1301,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     final selectedId = Fmt.toInt(_selected?['customer_id']);
     return Container(
       width: width,
-      margin: const EdgeInsets.fromLTRB(0, 12, 8, 16),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: AppTheme.softShadow,
+        border: Border(
+          left: BorderSide(color: AppTheme.border),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

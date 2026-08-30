@@ -39,7 +39,7 @@ class CustomerVisitHubScreen extends StatefulWidget {
 
 class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     with WidgetsBindingObserver {
-  static const _wideBreak = 700.0;
+  static const _wideBreak = 600.0;
 
   final _search = TextEditingController();
   final _searchFocus = FocusNode();

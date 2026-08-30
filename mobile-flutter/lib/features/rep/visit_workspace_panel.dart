@@ -265,14 +265,8 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.border),
-        boxShadow: AppTheme.softShadow,
-      ),
-      clipBehavior: Clip.antiAlias,
+    return ColoredBox(
+      color: Colors.white,
       child: DefaultTabController(
         length: 5,
         child: Column(

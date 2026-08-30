@@ -14,12 +14,17 @@ import 'services/location_tracking_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setSystemUIOverlayStyle(AppTheme.overlayLight);
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final logical = view.physicalSize / view.devicePixelRatio;
+  final tablet = logical.shortestSide >= 600;
+  await SystemChrome.setPreferredOrientations(
+    tablet
+        ? const [
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ]
+        : const [DeviceOrientation.portraitUp],
+  );
 
   // قناة التواصل بين isolate الخدمة والواجهة.
   FlutterForegroundTask.initCommunicationPort();
