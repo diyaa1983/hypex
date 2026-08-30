@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +9,8 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
+import '../../services/document_print_helper.dart';
+import '../../services/report_table_pdf.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
@@ -28,6 +32,8 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
   int _customerId = 0;
   int _orderCount = 0;
   double _orderTotal = 0;
+  bool _pdfBusy = false;
+  bool _shareBusy = false;
 
   @override
   void initState() {
@@ -146,19 +152,103 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
     await _load();
   }
 
-  Color _statusColor(String s) {
-    switch (s) {
-      case 'closed':
-        return AppTheme.success;
-      case 'pending':
-        return AppTheme.warn;
-      default:
-        return AppTheme.teal;
+  List<String> _visitHeaders() => const [
+        '#',
+        'العميل',
+        'الرمز',
+        'التاريخ',
+        'الحالة',
+        'الجولة',
+        'رقم الطلب',
+        'مبلغ الطلب',
+        'سبب عدم الطلب',
+        'دخول',
+        'طريقة الدخول',
+        'خروج',
+        'طريقة الخروج',
+        'المدة',
+      ];
+
+  List<String> _visitCells(Map<String, dynamic> row, int i) {
+    final inMethod = Fmt.str(row['checkin_method_label']).isEmpty
+        ? Fmt.str(row['checkin_method'])
+        : Fmt.str(row['checkin_method_label']);
+    final outMethod = Fmt.str(row['checkout_method_label']).isEmpty
+        ? Fmt.str(row['checkout_method'])
+        : Fmt.str(row['checkout_method_label']);
+    final inPlan = row['in_plan'] == true || Fmt.toInt(row['in_plan']) == 1;
+    return [
+      '${i + 1}',
+      Fmt.str(row['customer_name']),
+      Fmt.str(row['customer_code']),
+      Fmt.dmy(Fmt.str(row['route_date'])),
+      Fmt.str(row['status_label']),
+      inPlan ? 'داخل الجولة' : 'خارج الجولة',
+      Fmt.str(row['order_numbers']).isEmpty ? '—' : Fmt.str(row['order_numbers']),
+      Fmt.toInt(row['order_count']) > 0
+          ? Fmt.money(Fmt.toDouble(row['order_total']))
+          : '—',
+      Fmt.str(row['no_order_reasons']).isEmpty
+          ? '—'
+          : Fmt.str(row['no_order_reasons']),
+      Fmt.dmyHm(Fmt.str(row['visit_checkin_at'])),
+      inMethod.isEmpty ? '—' : inMethod,
+      Fmt.dmyHm(Fmt.str(row['visit_checkout_at'])),
+      outMethod.isEmpty ? '—' : outMethod,
+      Fmt.str(row['duration_label']).isEmpty
+          ? '—'
+          : Fmt.str(row['duration_label']),
+    ];
+  }
+
+  Future<Uint8List> _buildPdf() {
+    return ReportTablePdf.build(
+      title: 'تقرير الزيارات',
+      subtitle:
+          'من ${Fmt.dmy(_from)} إلى ${Fmt.dmy(_to)} · ${_rows.length} زيارة · طلبات: $_orderCount · الإجمالي: ${Fmt.money(_orderTotal)}',
+      headers: _visitHeaders(),
+      rows: [
+        for (var i = 0; i < _rows.length; i++) _visitCells(_rows[i], i),
+      ],
+      footer:
+          'عدد الزيارات: ${_rows.length}  ·  عدد الطلبيات: $_orderCount  ·  إجمالي الطلبيات: ${Fmt.money(_orderTotal)}',
+      landscape: true,
+    );
+  }
+
+  Future<void> _openPdf() async {
+    if (_rows.isEmpty || _pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      final bytes = await _buildPdf();
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'تقرير الزيارات',
+        fileName: 'تقرير-زيارات-$_from-$_to',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
     }
   }
 
-  Color _methodColor(String m) {
-    return m.toUpperCase() == 'GPS' ? AppTheme.primary : AppTheme.warn;
+  Future<void> _sharePdf() async {
+    if (_rows.isEmpty || _shareBusy) return;
+    setState(() => _shareBusy = true);
+    try {
+      final bytes = await _buildPdf();
+      await DocumentPrintHelper.sharePdfBytes(
+        bytes,
+        fileName: 'تقرير-زيارات-$_from-$_to',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _shareBusy = false);
+    }
   }
 
   @override
@@ -214,6 +304,32 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
                             _load();
                           },
                   ),
+                  if (_rows.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ActionChipButton(
+                            icon: Icons.picture_as_pdf_outlined,
+                            label: 'PDF',
+                            color: AppTheme.primary,
+                            busy: _pdfBusy,
+                            onTap: _openPdf,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ActionChipButton(
+                            icon: Icons.share_outlined,
+                            label: 'مشاركة PDF',
+                            color: AppTheme.teal,
+                            busy: _shareBusy,
+                            onTap: _sharePdf,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -263,14 +379,41 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
                       message: 'لا تسجيلات دخول/خروج في هذه الفترة.',
                       icon: Icons.assignment_outlined,
                     )
-                  : ListView.separated(
-                      padding: const EdgeInsets.fromLTRB(14, 4, 14, 24),
-                      itemCount: _rows.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _VisitCard(
-                        row: _rows[i],
-                        statusColor: _statusColor(Fmt.str(_rows[i]['status'])),
-                        methodColor: _methodColor,
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.fromLTRB(8, 4, 8, 20),
+                        children: [
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              headingRowHeight: 38,
+                              dataRowMinHeight: 36,
+                              dataRowMaxHeight: 52,
+                              headingTextStyle: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 11.5,
+                                color: AppTheme.textMain,
+                              ),
+                              columns: [
+                                for (final h in _visitHeaders())
+                                  DataColumn(label: Text(h)),
+                              ],
+                              rows: [
+                                for (var i = 0; i < _rows.length; i++)
+                                  DataRow(
+                                    cells: [
+                                      for (final c in _visitCells(_rows[i], i))
+                                        DataCell(Text(
+                                          c,
+                                          style: const TextStyle(fontSize: 12),
+                                        )),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
             ),
@@ -312,138 +455,6 @@ class _DateChip extends StatelessWidget {
   }
 }
 
-class _VisitCard extends StatelessWidget {
-  const _VisitCard({
-    required this.row,
-    required this.statusColor,
-    required this.methodColor,
-  });
-
-  final Map<String, dynamic> row;
-  final Color statusColor;
-  final Color Function(String) methodColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final inMethod = Fmt.str(row['checkin_method_label']).isEmpty
-        ? Fmt.str(row['checkin_method'])
-        : Fmt.str(row['checkin_method_label']);
-    final outMethod = Fmt.str(row['checkout_method_label']).isEmpty
-        ? Fmt.str(row['checkout_method'])
-        : Fmt.str(row['checkout_method_label']);
-    final inPlan = row['in_plan'] == true || Fmt.toInt(row['in_plan']) == 1;
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              MiniIcon(Icons.storefront_rounded, color: statusColor),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      Fmt.str(row['customer_name']),
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
-                    ),
-                    Text(
-                      '${Fmt.str(row['customer_code'])} · ${Fmt.dmy(Fmt.str(row['route_date']))}',
-                      style: const TextStyle(color: AppTheme.textSoft, fontSize: 12.5),
-                    ),
-                  ],
-                ),
-              ),
-              StatusPill(text: Fmt.str(row['status_label']), color: statusColor),
-            ],
-          ),
-          const SizedBox(height: 8),
-          StatusPill(
-            text: inPlan ? 'داخل الجولة' : 'خارج الجولة',
-            color: inPlan ? AppTheme.success : AppTheme.warn,
-          ),
-          if (Fmt.str(row['no_order_reasons']).isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              'سبب عدم الطلب: ${Fmt.str(row['no_order_reasons'])}',
-              style: const TextStyle(
-                color: AppTheme.textSoft,
-                fontWeight: FontWeight.w700,
-                fontSize: 12.5,
-              ),
-            ),
-          ],
-          if (Fmt.toInt(row['order_count']) > 0) ...[
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-              decoration: BoxDecoration(
-                color: AppTheme.success.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(11),
-                border: Border.all(
-                  color: AppTheme.success.withValues(alpha: 0.22),
-                ),
-              ),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.shopping_cart_checkout_rounded,
-                    color: AppTheme.success,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'طلب رقم: ${Fmt.str(row['order_numbers'])}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ),
-                  Text(
-                    Fmt.money(Fmt.toDouble(row['order_total'])),
-                    style: const TextStyle(
-                      color: AppTheme.success,
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _Pair(
-            icon: Icons.login_rounded,
-            title: 'دخول',
-            time: Fmt.dmyHm(Fmt.str(row['visit_checkin_at'])),
-            method: inMethod,
-            methodColor: methodColor(Fmt.str(row['checkin_method'])),
-          ),
-          const SizedBox(height: 8),
-          _Pair(
-            icon: Icons.logout_rounded,
-            title: 'خروج',
-            time: Fmt.dmyHm(Fmt.str(row['visit_checkout_at'])),
-            method: outMethod,
-            methodColor: methodColor(Fmt.str(row['checkout_method'])),
-          ),
-          if (Fmt.str(row['duration_label']) != '' && Fmt.str(row['duration_label']) != '—') ...[
-            const SizedBox(height: 10),
-            Text(
-              'المدة: ${Fmt.str(row['duration_label'])}',
-              style: const TextStyle(color: AppTheme.textSoft, fontWeight: FontWeight.w700, fontSize: 12.5),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _ReportStat extends StatelessWidget {
   const _ReportStat({
     required this.label,
@@ -479,39 +490,6 @@ class _ReportStat extends StatelessWidget {
           textAlign: TextAlign.center,
           style: const TextStyle(color: AppTheme.textSoft, fontSize: 10.5),
         ),
-      ],
-    );
-  }
-}
-
-class _Pair extends StatelessWidget {
-  const _Pair({
-    required this.icon,
-    required this.title,
-    required this.time,
-    required this.method,
-    required this.methodColor,
-  });
-
-  final IconData icon;
-  final String title;
-  final String time;
-  final String method;
-  final Color methodColor;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 18, color: AppTheme.textSoft),
-        const SizedBox(width: 8),
-        Text(title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(time, style: const TextStyle(fontSize: 13, fontFeatures: [FontFeature.tabularFigures()])),
-        ),
-        if (method.isNotEmpty && method != '—')
-          StatusPill(text: method, color: methodColor, icon: Icons.tune_rounded),
       ],
     );
   }

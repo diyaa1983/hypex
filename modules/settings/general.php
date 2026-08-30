@@ -595,10 +595,10 @@ if ($flash && $msg === '') {
         <div class="settings-ora-panel-body">
             <label class="field" style="flex-direction:row;align-items:center;gap:.5rem">
                 <input type="checkbox" name="mobile_order_auto_send" value="1" <?= !empty($row['mobile_order_auto_send']) ? 'checked' : '' ?>>
-                <span>إرسال طلبات شراء العملاء تلقائياً عند الحفظ</span>
+                <span>إظهار زر ترحيل طلب الشراء في تطبيق الموبايل</span>
             </label>
             <p class="field-hint" style="margin:.35rem 0 0">
-                مفعّل: يظهر الطلب فوراً في نظام ويندوز بعد حفظه من الموبايل.
+                مفعّل: بعد حفظ الطلب يظهر زر «ترحيل» لإرساله إلى النظام.
                 غير مفعّل: يبقى في «الطلبات غير المرسلة» حتى يرسله المندوب.
             </p>
         </div>

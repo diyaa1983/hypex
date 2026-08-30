@@ -349,14 +349,6 @@ class OfflineController extends ChangeNotifier {
           orderNo: orderNo,
         );
       }
-      final sentId = serverId > 0 ? serverId : (localId > 0 ? localId : 0);
-      final isSent = res['is_sent'] == true ||
-          res['is_sent'] == 1 ||
-          res['auto_sent'] == true ||
-          res['auto_sent'] == 1;
-      if (isSent && sentId != 0) {
-        await store.markOrderSent([sentId]);
-      }
       return;
     }
     if (kind == 'customer_order_send') {

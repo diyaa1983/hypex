@@ -135,6 +135,27 @@ class DocumentPrintHelper {
     }
   }
 
+  static Future<void> openPdfBytes(
+    BuildContext context, {
+    required Uint8List bytes,
+    required String title,
+    String? fileName,
+  }) async {
+    if (bytes.isEmpty) {
+      showSnack(context, 'ملف PDF فارغ.', error: true);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PdfA4ViewerScreen(
+          bytes: bytes,
+          title: title,
+          fileName: fileName ?? title,
+        ),
+      ),
+    );
+  }
+
   static Future<void> sharePdfBytes(
     Uint8List bytes, {
     required String fileName,

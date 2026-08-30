@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -8,8 +10,9 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
+import '../../services/document_print_helper.dart';
+import '../../services/report_table_pdf.dart';
 import '../../widgets/async_view.dart';
-import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/ui_kit.dart';
@@ -33,8 +36,8 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
   bool _ran = false;
   String? _error;
   List<Map<String, dynamic>> _orders = [];
-  Map<String, dynamic>? _pager;
-  int _page = 1;
+  bool _pdfBusy = false;
+  bool _shareBusy = false;
 
   String get _fromIso =>
       '${_from.year.toString().padLeft(4, '0')}-${_from.month.toString().padLeft(2, '0')}-${_from.day.toString().padLeft(2, '0')}';
@@ -70,33 +73,22 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
     });
   }
 
+  double get _grandTotal =>
+      _orders.fold<double>(0, (s, o) => s + Fmt.toDouble(o['total']));
+
   Future<void> _loadLocal() async {
-    const perPage = 30;
     final store = OfflineStore.instance;
     final cid = (!_allCustomers && _customer != null) ? _customer!.id : null;
-    final total = await store.countOrders(
-      customerId: cid,
-      from: _fromIso,
-      to: _toIso,
-    );
-    final offset = (_page - 1) * perPage;
     final orders = await store.listOrders(
       customerId: cid,
       from: _fromIso,
       to: _toIso,
-      limit: perPage,
-      offset: offset,
+      limit: 500,
+      offset: 0,
     );
-    final pages = total == 0 ? 1 : ((total + perPage - 1) ~/ perPage);
     if (!mounted) return;
     setState(() {
       _orders = orders;
-      _pager = {
-        'page': _page,
-        'pages': pages,
-        'total': total,
-        'per_page': perPage,
-      };
       _loading = false;
     });
   }
@@ -106,7 +98,6 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
       showSnack(context, 'اختر العميل أو فعّل جميع العملاء.', error: true);
       return;
     }
-    if (resetPage) _page = 1;
     setState(() {
       _loading = true;
       _error = null;
@@ -118,30 +109,39 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
         await _loadLocal();
         return;
       }
-      final query = <String, dynamic>{
-        'from': _fromIso,
-        'to': _toIso,
-        'page': _page,
-      };
-      if (!_allCustomers && _customer != null) {
-        query['customer_id'] = _customer!.id;
+      final all = <Map<String, dynamic>>[];
+      var page = 1;
+      var pages = 1;
+      while (page <= pages && all.length < 500) {
+        final query = <String, dynamic>{
+          'from': _fromIso,
+          'to': _toIso,
+          'page': page,
+        };
+        if (!_allCustomers && _customer != null) {
+          query['customer_id'] = _customer!.id;
+        }
+        final data = await context.read<ApiClient>().getJson(
+              AppConfig.customerOrderListPath,
+              query: query,
+            );
+        final pager = (data['pager'] is Map)
+            ? (data['pager'] as Map).cast<String, dynamic>()
+            : null;
+        pages = (pager?['pages'] as num?)?.toInt() ??
+            (pager?['total_pages'] as num?)?.toInt() ??
+            1;
+        all.addAll(
+          (data['orders'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>()),
+        );
+        if ((data['orders'] as List? ?? []).isEmpty) break;
+        page++;
       }
-      final data = await context.read<ApiClient>().getJson(
-            AppConfig.customerOrderListPath,
-            query: query,
-          );
       if (!mounted) return;
-      final pager = (data['pager'] is Map)
-          ? (data['pager'] as Map).cast<String, dynamic>()
-          : null;
-      final serverPage = (pager?['page'] as num?)?.toInt();
       setState(() {
-        _orders = (data['orders'] as List? ?? [])
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList();
-        _pager = pager;
-        if (serverPage != null && serverPage > 0) _page = serverPage;
+        _orders = all;
         _loading = false;
       });
     } on ApiException catch (e) {
@@ -157,10 +157,60 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
     }
   }
 
-  void _changePage(int page) {
-    if (page < 1 || page == _page) return;
-    setState(() => _page = page);
-    _load();
+  Future<Uint8List> _buildPdf() {
+    return ReportTablePdf.build(
+      title: 'تقرير طلبات العملاء',
+      subtitle:
+          'من ${Fmt.dmy(_fromIso)} إلى ${Fmt.dmy(_toIso)} · ${_orders.length} طلب',
+      headers: const ['#', 'اسم العميل', 'تاريخ الطلبية', 'المجموع'],
+      rows: [
+        for (var i = 0; i < _orders.length; i++)
+          [
+            '${i + 1}',
+            Fmt.str(_orders[i]['customer_name']).isEmpty
+                ? '—'
+                : Fmt.str(_orders[i]['customer_name']),
+            Fmt.dmy(Fmt.str(_orders[i]['order_date'])),
+            Fmt.money(Fmt.toDouble(_orders[i]['total'])),
+          ],
+      ],
+      footer: 'الإجمالي: ${Fmt.money(_grandTotal)}',
+    );
+  }
+
+  Future<void> _openPdf() async {
+    if (_orders.isEmpty || _pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      final bytes = await _buildPdf();
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'تقرير طلبات العملاء',
+        fileName: 'طلبات-عملاء-$_fromIso-$_toIso',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
+  Future<void> _sharePdf() async {
+    if (_orders.isEmpty || _shareBusy) return;
+    setState(() => _shareBusy = true);
+    try {
+      final bytes = await _buildPdf();
+      await DocumentPrintHelper.sharePdfBytes(
+        bytes,
+        fileName: 'طلبات-عملاء-$_fromIso-$_toIso',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _shareBusy = false);
+    }
   }
 
   @override
@@ -260,6 +310,32 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                     label: const Text('عرض الطلبات'),
                   ),
                 ),
+                if (_ran && _orders.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ActionChipButton(
+                          icon: Icons.picture_as_pdf_outlined,
+                          label: 'تحويل',
+                          color: AppTheme.primary,
+                          busy: _pdfBusy,
+                          onTap: _openPdf,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ActionChipButton(
+                          icon: Icons.share_outlined,
+                          label: 'مشاركة PDF',
+                          color: AppTheme.teal,
+                          busy: _shareBusy,
+                          onTap: _sharePdf,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -287,69 +363,74 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                           )
                         : RefreshIndicator(
                             onRefresh: () => _load(),
-                            child: ListView.builder(
+                            child: ListView(
                               padding:
-                                  const EdgeInsets.fromLTRB(14, 4, 14, 24),
-                              itemCount: _orders.length,
-                              itemBuilder: (_, i) {
-                                final o = _orders[i];
-                                return AppCard(
-                                  onTap: () => context.push(
-                                    '/customer-orders/${Fmt.toInt(o['id'])}',
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      Text(
-                                        Fmt.str(o['customer_name']).isEmpty
-                                            ? '—'
-                                            : Fmt.str(o['customer_name']),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14.5,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              Fmt.dmy(Fmt.str(o['order_date'])),
-                                              style: const TextStyle(
-                                                color: AppTheme.textSoft,
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                            ),
-                                          ),
-                                          Text(
-                                            'مواد: ${Fmt.trimNum(Fmt.toDouble(o['total_qty'] ?? o['line_count']))}',
-                                            style: const TextStyle(
-                                              color: AppTheme.textSoft,
-                                              fontWeight: FontWeight.w700,
-                                              fontSize: 12.5,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 12),
-                                          Text(
-                                            Fmt.money(Fmt.toDouble(o['total'])),
-                                            textDirection: TextDirection.ltr,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w800,
-                                              fontSize: 14.5,
-                                            ),
-                                          ),
-                                        ],
+                                  const EdgeInsets.fromLTRB(10, 4, 10, 16),
+                              children: [
+                                SingleChildScrollView(
+                                  scrollDirection: Axis.horizontal,
+                                  child: DataTable(
+                                    headingRowHeight: 40,
+                                    dataRowMinHeight: 40,
+                                    dataRowMaxHeight: 48,
+                                    headingTextStyle: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12.5,
+                                      color: AppTheme.textMain,
+                                    ),
+                                    columns: const [
+                                      DataColumn(label: Text('#')),
+                                      DataColumn(label: Text('اسم العميل')),
+                                      DataColumn(label: Text('تاريخ الطلبية')),
+                                      DataColumn(
+                                        label: Text('المجموع'),
+                                        numeric: true,
                                       ),
                                     ],
+                                    rows: [
+                                      for (var i = 0; i < _orders.length; i++)
+                                        DataRow(
+                                          onSelectChanged: (_) => context.push(
+                                            '/customer-orders/${Fmt.toInt(_orders[i]['id'])}',
+                                          ),
+                                          cells: [
+                                            DataCell(Text('${i + 1}')),
+                                            DataCell(Text(
+                                              Fmt.str(_orders[i]
+                                                          ['customer_name'])
+                                                      .isEmpty
+                                                  ? '—'
+                                                  : Fmt.str(_orders[i]
+                                                      ['customer_name']),
+                                            )),
+                                            DataCell(Text(Fmt.dmy(Fmt.str(
+                                                _orders[i]['order_date'])))),
+                                            DataCell(Text(
+                                              Fmt.money(Fmt.toDouble(
+                                                  _orders[i]['total'])),
+                                              textDirection: TextDirection.ltr,
+                                            )),
+                                          ],
+                                        ),
+                                    ],
                                   ),
-                                );
-                              },
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    'الإجمالي: ${Fmt.money(_grandTotal)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 15,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                   ),
           ),
-          if (_ran) ListPageBar.fromPager(_pager, onPageChanged: _changePage),
         ],
       ),
     );

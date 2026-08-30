@@ -44,16 +44,6 @@ try {
  }
  require_once app_path('includes/company_settings.php');
  $autoSend = company_mobile_order_auto_send($pdo);
- $autoSent = false;
- if ($autoSend && sal_customer_order_has_column($pdo, 'sal_customer_order', 'is_sent')) {
-     $now = date('Y-m-d H:i:s');
-     $st = $pdo->prepare(
-         'UPDATE sal_customer_order SET is_sent=1, sent_at=?, sent_by=?, updated_by=?
-          WHERE id=? AND IFNULL(is_sent,0)=0'
-     );
-     $st->execute([$now, $uid, $uid, $saved]);
-     $autoSent = $st->rowCount() > 0;
- }
  $order=sal_customer_order_fetch($pdo,$saved);
  $isSent = (int) ($order['is_sent'] ?? 0) === 1;
  require_once app_path('includes/header_check_notifications.php');
@@ -61,8 +51,10 @@ try {
  header_check_notifications_invalidate_cache();
  $order = document_header_attach_brand(is_array($order) ? $order : [], $pdo);
  $message = $isSent
-     ? 'تم حفظ الطلب وإرساله إلى النظام.'
-     : 'تم حفظ الطلب. أرسله من «الطلبات غير المرسلة» ليظهر في النظام.';
+     ? 'تم حفظ الطلب.'
+     : ($autoSend
+         ? 'تم حفظ الطلب. اضغط «ترحيل» لإرساله إلى النظام.'
+         : 'تم حفظ الطلب. أرسله من «الطلبات غير المرسلة» ليظهر في النظام.');
  echo json_encode([
      'ok'=>true,
      'order_id'=>$saved,
@@ -70,7 +62,6 @@ try {
      'order'=>$order,
      'is_sent'=>$isSent ? 1 : 0,
      'auto_send'=>$autoSend,
-     'auto_sent'=>$autoSent,
      'message'=>$message,
  ],JSON_UNESCAPED_UNICODE);
 } catch(Throwable $e) { http_response_code(422); echo json_encode(['ok'=>false,'message'=>$e->getMessage()],JSON_UNESCAPED_UNICODE); }

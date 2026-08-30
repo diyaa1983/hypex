@@ -168,9 +168,10 @@ void showSnack(BuildContext context, String message, {bool error = false}) {
       backgroundColor: Colors.white,
       behavior: SnackBarBehavior.floating,
       elevation: 10,
-      width: boxWidth,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
       margin: EdgeInsets.only(
+        left: ((media.size.width - boxWidth) / 2).clamp(16.0, 400.0),
+        right: ((media.size.width - boxWidth) / 2).clamp(16.0, 400.0),
         bottom: bottomGap.clamp(72.0, media.size.height - boxWidth - 48),
       ),
       shape: RoundedRectangleBorder(

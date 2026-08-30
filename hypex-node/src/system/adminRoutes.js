@@ -793,9 +793,9 @@ router.get('/system/settings', async (req, res) => {
             <input type="checkbox" name="mobile_order_auto_send" value="1" ${
               Number(row.mobile_order_auto_send) === 1 ? 'checked' : ''
             }>
-            <span>إرسال طلبات شراء العملاء تلقائياً عند الحفظ</span>
+            <span>إظهار زر ترحيل طلب الشراء في تطبيق الموبايل</span>
           </label>
-          <p class="ss-hint">مفعّل: يظهر الطلب فوراً في نظام ويندوز بعد حفظه من الموبايل. غير مفعّل: يبقى في «الطلبات غير المرسلة» حتى يرسله المندوب.</p>
+          <p class="ss-hint">مفعّل: بعد حفظ الطلب يظهر زر «ترحيل» لإرساله إلى النظام. غير مفعّل: يبقى في «الطلبات غير المرسلة» حتى يرسله المندوب.</p>
         </section>
 
         <section class="ss-panel">
