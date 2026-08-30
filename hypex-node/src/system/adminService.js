@@ -377,6 +377,7 @@ function isValidEmail(s) {
 
 async function getCompanySettings() {
   await ensurePrintWatermarkColumn();
+  await ensureMobileOrderAutoSendColumn();
   const rows = await q(`SELECT * FROM sys_company_settings WHERE id = 1 LIMIT 1`);
   return rows[0] || null;
 }
@@ -391,6 +392,23 @@ async function ensurePrintWatermarkColumn() {
         `ALTER TABLE sys_company_settings
          ADD COLUMN print_watermark_enabled TINYINT(1) NOT NULL DEFAULT 1
          COMMENT 'إظهار علامة الشعار المائية عند الطباعة'`
+      );
+    } catch {
+      /* ignore race / privilege */
+    }
+  }
+}
+
+/** إرسال طلبات الموبايل تلقائياً عند الحفظ */
+async function ensureMobileOrderAutoSendColumn() {
+  try {
+    await q(`SELECT mobile_order_auto_send FROM sys_company_settings LIMIT 1`);
+  } catch {
+    try {
+      await q(
+        `ALTER TABLE sys_company_settings
+         ADD COLUMN mobile_order_auto_send TINYINT(1) NOT NULL DEFAULT 0
+         COMMENT 'إرسال طلبات الموبايل تلقائياً عند الحفظ'`
       );
     } catch {
       /* ignore race / privilege */
@@ -552,6 +570,14 @@ async function saveCompanySettings(payload, logoFile) {
     : row.print_watermark_enabled == null
       ? true
       : Number(row.print_watermark_enabled) === 1;
+
+  const mobileOrderAutoSend = formComplete
+    ? !!(
+        payload.mobile_order_auto_send === '1' ||
+        payload.mobile_order_auto_send === 'on' ||
+        payload.mobile_order_auto_send === true
+      )
+    : Number(row.mobile_order_auto_send) === 1;
 
   let loginRecaptchaEnabled = formComplete
     ? !!(
@@ -835,6 +861,14 @@ async function saveCompanySettings(payload, logoFile) {
         logo_path: after.logo_path,
         print_watermark_enabled: printWatermarkEnabled ? 1 : 0,
       });
+    } catch {
+      /* عمود قديم غير موجود */
+    }
+    try {
+      await ensureMobileOrderAutoSendColumn();
+      await q(`UPDATE sys_company_settings SET mobile_order_auto_send = ? WHERE id = 1`, [
+        mobileOrderAutoSend ? 1 : 0,
+      ]);
     } catch {
       /* عمود قديم غير موجود */
     }

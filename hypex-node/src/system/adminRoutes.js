@@ -788,6 +788,17 @@ router.get('/system/settings', async (req, res) => {
         </section>
 
         <section class="ss-panel">
+          <h2>تطبيق الموبايل</h2>
+          <label class="ss-check">
+            <input type="checkbox" name="mobile_order_auto_send" value="1" ${
+              Number(row.mobile_order_auto_send) === 1 ? 'checked' : ''
+            }>
+            <span>إرسال طلبات شراء العملاء تلقائياً عند الحفظ</span>
+          </label>
+          <p class="ss-hint">مفعّل: يظهر الطلب فوراً في نظام ويندوز بعد حفظه من الموبايل. غير مفعّل: يبقى في «الطلبات غير المرسلة» حتى يرسله المندوب.</p>
+        </section>
+
+        <section class="ss-panel">
           <h2>إعدادات إرسال البريد (SMTP)</h2>
           <p class="ss-hint" style="margin:0 0 .75rem">لإرسال الفواتير والمرتجعات كـ PDF. لـ Gmail: <code>smtp.gmail.com</code> منفذ 587 مع TLS وكلمة مرور تطبيق.</p>
           <div class="ss-row ss-row--3">

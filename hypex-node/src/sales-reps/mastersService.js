@@ -854,34 +854,57 @@ async function deleteTour(id) {
   }
 }
 
-/** تفاصيل الطباعة: صف لكل يوم + عميل (حسب يوم الأسبوع المعيّن) */
+/** تفاصيل الطباعة: العملاء مجمّعون حسب يوم الأسبوع للمندوب */
 async function getTourPrintRows(id) {
   const tour = await getTour(id);
   if (!tour) return null;
   const tourFrom = String(tour.date_from || '').slice(0, 10);
   const tourTo = String(tour.date_to || '').slice(0, 10);
   const days = daysBetween(tourFrom, tourTo);
-  const rows = [];
+  const datesByWd = new Map();
   for (const day of days) {
     const wd = weekdayOfIso(day);
-    for (const ln of tour.lines || []) {
-      const lineWd = ln.weekday == null || ln.weekday === '' ? null : Number(ln.weekday);
-      if (lineWd != null && Number.isFinite(lineWd) && lineWd !== wd) continue;
+    if (wd == null) continue;
+    if (!datesByWd.has(wd)) datesByWd.set(wd, []);
+    datesByWd.get(wd).push(day);
+  }
+  const byWd = new Map();
+  for (const ln of tour.lines || []) {
+    let wd = Number(ln.weekday);
+    if (!Number.isFinite(wd) || wd < 0 || wd > 6) wd = 0;
+    if (!byWd.has(wd)) byWd.set(wd, []);
+    byWd.get(wd).push({
+      customer_code: ln.customer_code || '',
+      customer_name: ln.customer_name || '',
+      region_name: ln.region_name || '',
+      address_name: ln.address_name || '',
+    });
+  }
+  for (const list of byWd.values()) {
+    list.sort((a, b) => String(a.customer_name).localeCompare(String(b.customer_name), 'ar'));
+  }
+  const groups = [];
+  for (let wd = 0; wd <= 6; wd++) {
+    const customers = byWd.get(wd) || [];
+    if (!customers.length) continue;
+    groups.push({
+      weekday: wd,
+      weekday_label: WEEKDAY_LABELS[wd] || '',
+      dates: datesByWd.get(wd) || [],
+      customers,
+    });
+  }
+  const rows = [];
+  for (const g of groups) {
+    for (const c of g.customers) {
       rows.push({
-        visit_date: day,
-        weekday_label: WEEKDAY_LABELS[wd] || '',
-        customer_code: ln.customer_code || '',
-        customer_name: ln.customer_name || '',
-        region_name: ln.region_name || '',
-        address_name: ln.address_name || '',
+        ...c,
+        weekday_label: g.weekday_label,
+        visit_date: g.dates[0] || tourFrom,
       });
     }
   }
-  rows.sort((a, b) => {
-    if (a.visit_date !== b.visit_date) return a.visit_date < b.visit_date ? -1 : 1;
-    return String(a.customer_name).localeCompare(String(b.customer_name), 'ar');
-  });
-  return { tour, rows };
+  return { tour, groups, rows, day_count: days.length };
 }
 
 /**

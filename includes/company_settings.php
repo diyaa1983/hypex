@@ -268,6 +268,7 @@ function company_settings_ensure_schema(PDO $pdo): void
     company_settings_ensure_ui_lang_column($pdo);
     company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
     company_settings_ensure_invoice_print_decimal_places_columns($pdo);
+    company_settings_ensure_mobile_order_auto_send_column($pdo);
 
     try {
         require_once app_path('includes/acc_coa_bootstrap.php');
@@ -410,6 +411,41 @@ function company_settings_ensure_invoice_print_decimal_places_columns(PDO $pdo):
         } catch (Throwable $e2) {
             // ignore
         }
+    }
+}
+
+/** إرسال طلب الموبايل تلقائياً عند الحفظ (يظهر في ويندوز فوراً). الافتراضي: معطّل. */
+function company_settings_ensure_mobile_order_auto_send_column(PDO $pdo): void
+{
+    try {
+        $pdo->query('SELECT mobile_order_auto_send FROM sys_company_settings LIMIT 1');
+    } catch (Throwable $e) {
+        if (strpos($e->getMessage(), 'Unknown column') === false) {
+            return;
+        }
+        try {
+            $pdo->exec(
+                'ALTER TABLE sys_company_settings
+                 ADD COLUMN mobile_order_auto_send TINYINT(1) NOT NULL DEFAULT 0
+                 COMMENT \'إرسال طلبات الموبايل تلقائياً عند الحفظ\''
+            );
+        } catch (Throwable $e2) {
+            // ignore
+        }
+    }
+}
+
+function company_mobile_order_auto_send(?PDO $pdo = null): bool
+{
+    try {
+        $pdo = $pdo ?? db();
+        company_settings_ensure_mobile_order_auto_send_column($pdo);
+        $v = $pdo->query('SELECT mobile_order_auto_send FROM sys_company_settings WHERE id = 1 LIMIT 1')
+            ->fetchColumn();
+
+        return (int) $v === 1;
+    } catch (Throwable $e) {
+        return false;
     }
 }
 

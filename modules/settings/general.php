@@ -17,6 +17,7 @@ company_settings_ensure_invoice_print_decimal_places_columns($pdo);
 company_settings_ensure_currency_column($pdo);
 company_settings_ensure_ui_theme_column($pdo);
 company_settings_ensure_ui_lang_column($pdo);
+company_settings_ensure_mobile_order_auto_send_column($pdo);
 company_smtp_ensure_schema($pdo);
 company_whatsapp_ensure_schema($pdo);
 fin_check_due_email_ensure_settings_columns($pdo);
@@ -325,6 +326,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         company_settings_ensure_invoice_unit_price_decimal_places_column($pdo);
                         try {
+                            $mobileOrderAutoSend = !empty($_POST['mobile_order_auto_send']);
+                            $pdo->prepare(
+                                'UPDATE sys_company_settings SET mobile_order_auto_send = ? WHERE id = 1'
+                            )->execute([$mobileOrderAutoSend ? 1 : 0]);
+                        } catch (Throwable $autoSendEx) {
+                            // عمود قديم غير موجود
+                        }
+                        try {
                             if ($documentArchiveDir !== '') {
                                 fin_voucher_archive_save_dir($pdo, $documentArchiveDir);
                             } else {
@@ -578,6 +587,20 @@ if ($flash && $msg === '') {
                 <img src="<?= esc(app_url((string) $row['logo_path'])) ?>" alt="">
             </div>
         <?php endif; ?>
+        </div>
+    </div>
+
+    <div class="settings-ora-panel">
+        <h2 class="settings-ora-panel-head">تطبيق الموبايل</h2>
+        <div class="settings-ora-panel-body">
+            <label class="field" style="flex-direction:row;align-items:center;gap:.5rem">
+                <input type="checkbox" name="mobile_order_auto_send" value="1" <?= !empty($row['mobile_order_auto_send']) ? 'checked' : '' ?>>
+                <span>إرسال طلبات شراء العملاء تلقائياً عند الحفظ</span>
+            </label>
+            <p class="field-hint" style="margin:.35rem 0 0">
+                مفعّل: يظهر الطلب فوراً في نظام ويندوز بعد حفظه من الموبايل.
+                غير مفعّل: يبقى في «الطلبات غير المرسلة» حتى يرسله المندوب.
+            </p>
         </div>
     </div>
 

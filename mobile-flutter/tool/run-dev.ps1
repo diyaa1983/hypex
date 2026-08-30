@@ -1,16 +1,16 @@
-# Run Hypex Flutter on a tablet with Hot Reload (USB or Wireless ADB).
+# Run Hypex Flutter with Hot Reload (no uninstall/reinstall after first debug install).
 #
-# USB:
-#   powershell -ExecutionPolicy Bypass -File tool\run-dev.ps1
+# BlueStacks:
+#   powershell -ExecutionPolicy Bypass -File tool\run-dev.ps1 -BlueStacks
 #
-# Wireless:
-#   powershell -ExecutionPolicy Bypass -File tool\run-dev.ps1 -Pair "192.168.1.139:37123" -PairCode 123456 -Connect "192.168.1.139:41234"
-#   Use the IP and ports shown on the tablet (not these sample numbers).
+# Tablet wireless (already paired):
+#   powershell -ExecutionPolicy Bypass -File tool\run-dev.ps1 -Connect "192.168.1.139:41963"
 
 param(
     [string]$Pair = "",
     [string]$PairCode = "",
-    [string]$Connect = ""
+    [string]$Connect = "",
+    [switch]$BlueStacks
 )
 
 $ErrorActionPreference = "Stop"
@@ -73,6 +73,11 @@ if ($Pair) {
     }
 }
 
+if ($BlueStacks) {
+    Write-Host "==> BlueStacks: 127.0.0.1:5555"
+    & $adb connect 127.0.0.1:5555
+}
+
 if ($Connect) {
     Write-Host "==> connect: $Connect"
     & $adb connect $Connect
@@ -85,8 +90,9 @@ if (-not $serials -or $serials.Count -eq 0) {
     Write-Host ""
     Write-Host "No tablet connected."
     Write-Host ""
+    Write-Host "  BlueStacks: open BlueStacks, enable Android Debug Bridge, then rerun with -BlueStacks."
     Write-Host "  USB: enable USB debugging, plug the cable, allow the prompt."
-    Write-Host "  Wireless: same Wi-Fi, enable Wireless debugging, then rerun with -Pair -PairCode -Connect."
+    Write-Host "  Wireless: same Wi-Fi, enable Wireless debugging, then rerun with -Connect IP:port."
     Write-Host ""
     Write-Host "Waiting 60 seconds..."
     $deadline = (Get-Date).AddSeconds(60)
@@ -113,8 +119,12 @@ Write-Host "  r = reload   R = restart   q = quit"
 Write-Host ""
 
 $device = $serials[0]
+if ($BlueStacks) {
+    $bs = $serials | Where-Object { $_ -like '127.0.0.1:*' } | Select-Object -First 1
+    if ($bs) { $device = $bs }
+}
 if ($serials.Count -gt 1) {
-    Write-Host "Using first device: $device"
+    Write-Host "Using device: $device"
 }
 
 flutter run -d $device

@@ -519,6 +519,14 @@ class OfflineStore {
         'default_tax_percent',
         '${meta['default_tax_percent'] ?? 0}',
       );
+      await putMeta(
+        'auto_send_orders',
+        (meta['auto_send_orders'] == true ||
+                meta['auto_send_orders'] == 1 ||
+                '${meta['auto_send_orders']}' == '1')
+            ? '1'
+            : '0',
+      );
       await putMeta('decimal_places', '${meta['decimal_places'] ?? 3}');
       await putMeta(
         'visit_radius_m',

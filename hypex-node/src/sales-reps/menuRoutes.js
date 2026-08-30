@@ -10,6 +10,7 @@ const ui = require('../lib/salesUi');
 const { salesRepsCatalog } = require('./catalog');
 const { esc } = require('../lib/html');
 const { todayIso } = require('../lib/html');
+const { renderStandalonePrintPage } = require('../lib/printBrand');
 
 const router = express.Router();
 const HUB = '/sales-reps';
@@ -473,6 +474,15 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         title: formTitle,
         subtitle: 'عملاء المندوب فقط · فترة شهرية قابلة للتعديل · اختر يوم الأسبوع ثم العملاء لذلك اليوم',
         actions: [
+          ...(edit
+            ? [
+                {
+                  label: 'طباعة الجولة',
+                  href: `/sales-reps/route/${edit.id}/print`,
+                  primary: isPosted,
+                },
+              ]
+            : []),
           ...(isPosted
             ? [
                 {
@@ -482,18 +492,13 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                   name: 'tour_action',
                   value: 'unpost',
                 },
-                {
-                  label: 'طباعة الجولة',
-                  href: `/sales-reps/route/${edit.id}/print`,
-                  primary: true,
-                },
               ]
             : [
                 {
                   label: 'حفظ',
                   submit: true,
                   form: 'srr-form',
-                  primary: true,
+                  primary: !edit,
                   hxSave: true,
                   title: 'F10',
                 },
@@ -1146,64 +1151,90 @@ router.post('/sales-reps/route/:id/delete', guard('sales_rep_route'), async (req
 router.get('/sales-reps/route/:id/print', guard('sales_rep_route'), async (req, res) => {
   const data = await masters.getTourPrintRows(req.params.id);
   if (!data) return res.status(404).send('الجولة غير موجودة');
-  const { tour, rows } = data;
-  const rowsHtml =
-    rows
-      .map(
-        (r, i) => `<tr>
-      <td class="si-num" dir="ltr">${i + 1}</td>
-      <td><strong>${ui.esc(r.weekday_label || '')}</strong></td>
-      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.visit_date))}</td>
-      <td>${ui.esc(r.customer_name || '')}</td>
-      <td class="si-num" dir="ltr">${dash(r.customer_code)}</td>
-      <td>${dash(r.region_name)}</td>
-      <td>${dash(r.address_name)}</td>
-    </tr>`
-      )
-      .join('') || ui.emptyRow(7, 'لا تفاصيل');
-
-  const body = `
-    <div class="si-stage si-report-page srr-print-page">
-      ${ui.hero({
-        mark: '🖨',
-        kicker: KICKER,
-        title: 'طباعة جولة مندوب',
-        subtitle: `${ui.esc(tour.sales_rep_name || '')} · ${ui.esc(ui.isoToDmy(tour.date_from))} → ${ui.esc(
-          ui.isoToDmy(tour.date_to)
-        )} · ${statusLabel(tour.status)}`,
-        actions: [
-          ui.printAction(),
-          ui.backAction('/sales-reps/route?id=' + tour.id, 'العودة للجولة'),
-        ],
-      })}
-      <div class="si-print-area">
-        <div class="srr-print-meta">
-          <table class="si-table" style="margin-bottom:1rem">
-            <tbody>
-              <tr><th style="width:9rem">المندوب</th><td>${ui.esc(tour.sales_rep_name || '')}${
-                tour.sales_rep_code ? ' (' + ui.esc(tour.sales_rep_code) + ')' : ''
-              }</td></tr>
-              <tr><th>تاريخ البداية</th><td dir="ltr">${ui.esc(ui.isoToDmy(tour.date_from))}</td></tr>
-              <tr><th>تاريخ النهاية</th><td dir="ltr">${ui.esc(ui.isoToDmy(tour.date_to))}</td></tr>
-              <tr><th>الحالة</th><td>${statusLabel(tour.status)}</td></tr>
-              ${tour.notes ? `<tr><th>ملاحظات</th><td>${ui.esc(tour.notes)}</td></tr>` : ''}
-            </tbody>
+  const { tour, groups = [], day_count: dayCount = 0 } = data;
+  const totalCust = groups.reduce((n, g) => n + g.customers.length, 0);
+  const repName = String(tour.sales_rep_name || '').trim() || 'مندوب';
+  const repCode = String(tour.sales_rep_code || '').trim();
+  const period = ui.isoToDmy(tour.date_from) + ' → ' + ui.isoToDmy(tour.date_to);
+  const groupsHtml =
+    groups
+      .map((g) => {
+        const dates = (g.dates || []).map((d) => ui.isoToDmy(d)).join(' · ');
+        const body =
+          g.customers
+            .map(
+              (c, i) => `<tr>
+            <td class="c-idx" dir="ltr">${i + 1}</td>
+            <td class="c-code" dir="ltr">${dash(c.customer_code)}</td>
+            <td class="c-name">${ui.esc(c.customer_name || '')}</td>
+            <td>${dash(c.region_name)}</td>
+            <td>${dash(c.address_name)}</td>
+          </tr>`
+            )
+            .join('') || '<tr><td colspan="5" class="empty">لا عملاء لهذا اليوم</td></tr>';
+        return `<section class="srr-prt-day">
+          <h3>
+            <span>${ui.esc(g.weekday_label || '')}</span>
+            <span class="srr-prt-day__n">${g.customers.length} عميل</span>
+          </h3>
+          ${dates ? `<p class="srr-prt-dates" dir="ltr">${ui.esc(dates)}</p>` : ''}
+          <table class="srr-prt-table">
+            <thead>
+              <tr>
+                <th style="width:2.2rem">#</th>
+                <th style="width:7rem">الرمز</th>
+                <th>العميل</th>
+                <th>المنطقة</th>
+                <th>العنوان</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
           </table>
-        </div>
-        ${ui.tableSurface(
-          'تفاصيل الجولة',
-          `${rows.length} صف`,
-          ['#', 'اليوم', 'التاريخ', 'العميل', 'الرمز', 'المنطقة', 'العنوان'],
-          rowsHtml
-        )}
-      </div>
-    </div>`;
+        </section>`;
+      })
+      .join('') || '<p class="empty">لا عملاء في هذه الجولة.</p>';
+
+  const contentHtml = `
+    <style>
+      .srr-prt-meta{width:100%;border-collapse:collapse;margin:0 0 14px;font-size:10.5pt}
+      .srr-prt-meta th{width:7.5rem;text-align:start;padding:5px 8px;background:#f1f5f9;border:1px solid #cbd5e1;font-weight:700}
+      .srr-prt-meta td{padding:5px 8px;border:1px solid #cbd5e1}
+      .srr-prt-day{margin:0 0 16px;break-inside:avoid}
+      .srr-prt-day h3{margin:0 0 4px;font:800 12pt/1.3 Arial,Helvetica,sans-serif;color:#1e3a5f;
+        display:flex;align-items:center;justify-content:space-between;gap:.5rem;
+        padding:6px 8px;background:#e8eef5;border:1px solid #94a3b8}
+      .srr-prt-day__n{font:700 9.5pt Arial,Helvetica,sans-serif;color:#334155}
+      .srr-prt-dates{margin:0 0 6px;font:500 8.5pt/1.4 Arial,Helvetica,sans-serif;color:#475569}
+      .srr-prt-table{width:100%;border-collapse:collapse;font-size:9pt}
+      .srr-prt-table th{background:#5b6b7c;color:#fff;font-weight:700;padding:5px 6px;border:1px solid #4a5568;text-align:center}
+      .srr-prt-table td{border:1px solid #94a3b8;padding:4px 6px;vertical-align:middle}
+      .srr-prt-table .c-idx,.srr-prt-table .c-code{text-align:center;font-variant-numeric:tabular-nums}
+      .srr-prt-table .c-name{font-weight:700}
+      @media print{
+        .srr-prt-table th{background:#5b6b7c!important;color:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .srr-prt-day h3{background:#e8eef5!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      }
+    </style>
+    <table class="srr-prt-meta">
+      <tbody>
+        <tr><th>المندوب</th><td>${ui.esc(repName)}${repCode ? ' (' + ui.esc(repCode) + ')' : ''}</td></tr>
+        <tr><th>رقم الجولة</th><td dir="ltr">#${Number(tour.id) || ''}</td></tr>
+        <tr><th>الفترة</th><td dir="ltr">${ui.esc(period)}${dayCount ? ' · ' + dayCount + ' يوم' : ''}</td></tr>
+        <tr><th>الحالة</th><td>${statusLabel(tour.status)}</td></tr>
+        <tr><th>عدد العملاء</th><td>${totalCust} عميل · ${groups.length} يوم عمل</td></tr>
+        ${tour.notes ? `<tr><th>ملاحظات</th><td>${ui.esc(tour.notes)}</td></tr>` : ''}
+      </tbody>
+    </table>
+    ${groupsHtml}`;
+
   res.send(
-    ui.salesPage({
+    await renderStandalonePrintPage({
       user: req.session.user,
-      title: 'طباعة جولة — ' + (tour.sales_rep_name || ''),
-      bodyHtml: body,
-      js: ['/assets/js/sales-print.js'],
+      documentTitle: 'جولة مندوب — ' + repName,
+      backHref: '/sales-reps/route?id=' + tour.id,
+      contentHtml,
+      autoPrint: false,
+      printMode: 'sheet',
     })
   );
 });

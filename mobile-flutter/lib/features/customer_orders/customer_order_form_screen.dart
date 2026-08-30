@@ -147,6 +147,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   Map<String, dynamic>? _arSummary;
   bool _arLoading = false;
   String? _arError;
+  bool _autoSendOrders = false;
 
   bool get _editable => !_approved;
 
@@ -313,6 +314,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       setState(() {
         _warehouses = ws;
         _taxRates = rates;
+        _autoSendOrders = meta['auto_send_orders'] == true ||
+            meta['auto_send_orders'] == 1 ||
+            '${meta['auto_send_orders']}' == '1';
         _defaultTaxPercent = defaultTax > 0
             ? defaultTax
             : (rates.isEmpty ? 0 : rates.first.rate);
@@ -455,6 +459,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           .toList(),
       'default_warehouse_id': defWh,
       'default_tax_percent': defTax,
+      'auto_send_orders':
+          (await store.getMeta('auto_send_orders')) == '1' ? 1 : 0,
     };
   }
 
@@ -554,7 +560,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           });
           showSnack(
             context,
-            'حُفظ الطلب محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
+            _autoSendOrders
+                ? 'حُفظ الطلب محلياً — سيُحفظ ويُرسل تلقائياً عند عودة الاتصال.'
+                : 'حُفظ الطلب محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
           );
           widget.onSaved?.call(localId);
         }
@@ -567,6 +575,13 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               body: body,
             );
         final id = Fmt.toInt(result['order_id'] ?? result['id']);
+        final sent = result['is_sent'] == true ||
+            result['is_sent'] == 1 ||
+            result['auto_sent'] == true ||
+            result['auto_sent'] == 1;
+        if (id > 0 && sent) {
+          await OfflineStore.instance.markOrderSent([id]);
+        }
         if (mounted) {
           setState(() {
             _id = id == 0 ? _id : id;
@@ -577,7 +592,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           showSnack(
               context,
               Fmt.str(result['message']).isEmpty
-                  ? 'تم حفظ الطلب.'
+                  ? (sent ? 'تم حفظ الطلب وإرساله.' : 'تم حفظ الطلب.')
                   : Fmt.str(result['message']));
           widget.onSaved?.call(_id);
         }
@@ -621,7 +636,9 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             });
             showSnack(
               context,
-              'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
+              _autoSendOrders
+                  ? 'انقطع الاتصال — حُفظ محلياً وسيُرسل تلقائياً عند عودة الاتصال.'
+                  : 'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
             );
             widget.onSaved?.call(localId);
           }
@@ -769,7 +786,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             const SizedBox(width: 8),
           ],
           _actionBtn(
-            label: 'حفظ',
+            label: _autoSendOrders ? 'حفظ وإرسال' : 'حفظ',
             icon: Icons.save_outlined,
             filled: true,
             onPressed: _busy || !_editable ? null : _save,
