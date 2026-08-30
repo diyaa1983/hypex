@@ -38,7 +38,32 @@ try {
         $scopedRepId = null;
     }
 
-    // —— عملاء ——
+    // —— عملاء (كامل أو تزايدي منذ آخر تحديث) ——
+    $sinceRaw = trim((string) ($_GET['since'] ?? ''));
+    $sinceDt = null;
+    if ($sinceRaw !== '') {
+        $ts = strtotime($sinceRaw);
+        if ($ts !== false) {
+            $sinceDt = date('Y-m-d H:i:s', $ts);
+        }
+    }
+    $hasUpdatedAt = false;
+    try {
+        $pdo->query('SELECT updated_at FROM crm_customer LIMIT 1');
+        $hasUpdatedAt = true;
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec(
+                'ALTER TABLE crm_customer ADD COLUMN updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP'
+            );
+            $hasUpdatedAt = true;
+        } catch (Throwable $e2) {
+            $hasUpdatedAt = false;
+        }
+    }
+    $customersDelta = $sinceDt !== null;
+    $customersRemoved = [];
+
     $custParams = [];
     $custSql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude,
                        c.oracle_key, c.payment_period, c.oracle_pending
@@ -47,6 +72,16 @@ try {
         [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
         $custSql .= ' AND ' . $linkSql;
         $custParams = array_merge($custParams, $linkParams);
+    }
+    if ($customersDelta) {
+        if ($hasUpdatedAt) {
+            $custSql .= ' AND (c.created_at >= ? OR IFNULL(c.updated_at, c.created_at) >= ?)';
+            $custParams[] = $sinceDt;
+            $custParams[] = $sinceDt;
+        } else {
+            $custSql .= ' AND c.created_at >= ?';
+            $custParams[] = $sinceDt;
+        }
     }
     $custSql .= ' ORDER BY c.name_ar LIMIT 20000';
     $st = $pdo->prepare($custSql);
@@ -86,6 +121,29 @@ try {
             $c['use_wholesale_price'] = $map[(int) $c['id']] ?? 0;
         }
         unset($c);
+    }
+
+    if ($customersDelta && $hasUpdatedAt && $sinceDt !== null) {
+        try {
+            $rmSql = 'SELECT c.id FROM crm_customer c WHERE c.is_active = 0 AND IFNULL(c.updated_at, c.created_at) >= ?';
+            $rmParams = [$sinceDt];
+            if ($scopedRepId !== null) {
+                [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+                $rmSql .= ' AND ' . $linkSql;
+                $rmParams = array_merge($rmParams, $linkParams);
+            }
+            $rmSql .= ' LIMIT 5000';
+            $stRm = $pdo->prepare($rmSql);
+            $stRm->execute($rmParams);
+            foreach ($stRm->fetchAll(PDO::FETCH_ASSOC) ?: [] as $rr) {
+                $rid = (int) ($rr['id'] ?? 0);
+                if ($rid > 0) {
+                    $customersRemoved[] = $rid;
+                }
+            }
+        } catch (Throwable $e) {
+            $customersRemoved = [];
+        }
     }
 
     // —— مستودعات ——
@@ -411,7 +469,34 @@ try {
                     $planIds[$cid] = true;
                 }
             }
-            // إن لم توجد خطة، خذ أول عملاء الجولة الظاهرين
+            foreach ($routeMonths as $rm) {
+                if (!is_array($rm)) {
+                    continue;
+                }
+                foreach ($rm['days'] ?? [] as $day) {
+                    if (!is_array($day)) {
+                        continue;
+                    }
+                    foreach ($day['visits'] ?? [] as $v) {
+                        if (!is_array($v)) {
+                            continue;
+                        }
+                        $cid = (int) ($v['customer_id'] ?? 0);
+                        if ($cid > 0) {
+                            $planIds[$cid] = true;
+                        }
+                    }
+                }
+            }
+            foreach ($visitReportRows as $vr) {
+                if (!is_array($vr)) {
+                    continue;
+                }
+                $cid = (int) ($vr['customer_id'] ?? 0);
+                if ($cid > 0) {
+                    $planIds[$cid] = true;
+                }
+            }
             if ($planIds === []) {
                 foreach ($todayVisits as $v) {
                     if (!is_array($v)) {
@@ -421,12 +506,12 @@ try {
                     if ($cid > 0) {
                         $planIds[$cid] = true;
                     }
-                    if (count($planIds) >= 20) {
+                    if (count($planIds) >= 80) {
                         break;
                     }
                 }
             }
-            $limit = 20;
+            $limit = 80;
             $n = 0;
             foreach (array_keys($planIds) as $cid) {
                 if ($n >= $limit) {
@@ -494,7 +579,10 @@ try {
             'orders_pending' => $pendingOrders,
             'orders_sent' => $sentOrders,
             'oracle_statements' => count($oracleStatements),
+            'customers_removed' => count($customersRemoved),
         ],
+        'customers_delta' => $customersDelta,
+        'customers_removed' => $customersRemoved,
         'customers' => $customers,
         'warehouses' => $warehouses,
         'tax_rates' => $taxRatesOut,

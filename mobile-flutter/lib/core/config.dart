@@ -73,6 +73,7 @@ class AppConfig {
   static const String partiesPath = 'api/mobile_parties.php';
   static const String customerSavePath = 'api/mobile_customer_save.php';
   static const String customerUpdatePath = 'api/mobile_customer_update.php';
+  static const String customerDeletePath = 'api/mobile_customer_delete.php';
   static const String customerViewPath = 'api/mobile_customer_view.php';
   static const String visitGpsPreviewPath = 'api/mobile_visit_gps_preview.php';
 

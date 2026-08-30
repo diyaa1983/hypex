@@ -81,6 +81,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     });
     final offline = context.read<OfflineController>();
     try {
+      if (offline.online) {
+        await offline.syncIfOnline();
+        if (!mounted) return;
+      }
       if (!offline.online && offline.catalogReady) {
         final local = await OfflineStore.instance.monthAgenda(_monthYm);
         if (!mounted) return;
@@ -268,6 +272,10 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     });
     final offline = context.read<OfflineController>();
     try {
+      if (offline.online) {
+        await offline.syncIfOnline();
+        if (!mounted) return;
+      }
       if (!offline.online && offline.catalogReady) {
         final local = await _localDayPayload();
         if (!mounted) return;

@@ -215,21 +215,29 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
         </p>
         <form method="get" class="report-filters hx-visits-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
-            <label class="hx-visits-f--date">
+            <label class="hx-visits-f hx-visits-f--from">
                 <span class="hx-visits-f-label">من تاريخ</span>
                 <span class="hx-date-field">
                     <input type="date" class="input" name="from" id="hx-visits-from" value="<?= esc($from) ?>" dir="ltr">
                     <span class="hx-date-weekday" id="hx-weekday-from"><?= esc(sal_rep_visit_weekday_ar($from)) ?></span>
                 </span>
             </label>
-            <label class="hx-visits-f--date">
+            <label class="hx-visits-f hx-visits-f--to">
                 <span class="hx-visits-f-label">إلى تاريخ</span>
                 <span class="hx-date-field">
                     <input type="date" class="input" name="to" id="hx-visits-to" value="<?= esc($to) ?>" dir="ltr">
                     <span class="hx-date-weekday" id="hx-weekday-to"><?= esc(sal_rep_visit_weekday_ar($to)) ?></span>
                 </span>
             </label>
-            <label>
+            <label class="hx-visits-f hx-visits-f--method">
+                <span class="hx-visits-f-label">النوع</span>
+                <select class="input" name="method">
+                    <option value="" <?= $method === '' ? 'selected' : '' ?>>— الكل —</option>
+                    <option value="GPS" <?= $method === 'GPS' ? 'selected' : '' ?>>GPS</option>
+                    <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>يدوي</option>
+                </select>
+            </label>
+            <label class="hx-visits-f hx-visits-f--rep">
                 <span class="hx-visits-f-label">المندوب</span>
                 <select class="input" name="sales_rep_id">
                     <option value="0">— الكل —</option>
@@ -240,7 +248,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label class="hx-visits-f--customer">
+            <label class="hx-visits-f hx-visits-f--customer">
                 <span class="hx-visits-f-label">العميل</span>
                 <select class="input" name="customer_id">
                     <option value="0">— الكل —</option>
@@ -251,15 +259,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                     <?php endforeach; ?>
                 </select>
             </label>
-            <label>
-                <span class="hx-visits-f-label">النوع</span>
-                <select class="input" name="method">
-                    <option value="" <?= $method === '' ? 'selected' : '' ?>>— الكل —</option>
-                    <option value="GPS" <?= $method === 'GPS' ? 'selected' : '' ?>>GPS</option>
-                    <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>يدوي</option>
-                </select>
-            </label>
-            <label>
+            <label class="hx-visits-f hx-visits-f--status">
                 <span class="hx-visits-f-label">الحالة</span>
                 <select class="input" name="status">
                     <option value="" <?= $status === '' ? 'selected' : '' ?>>— الكل —</option>

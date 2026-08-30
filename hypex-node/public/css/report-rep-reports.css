@@ -2,16 +2,13 @@
 
 .hx-visits-filters {
   display: grid;
-  grid-template-columns:
-    minmax(10.5rem, 1fr)
-    minmax(10.5rem, 1fr)
-    minmax(12rem, 1.2fr)
-    minmax(16rem, 1.8fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
-    'from to rep customer'
-    'method status actions actions';
-  gap: 0.7rem 1rem;
-  align-items: end;
+    'from to method'
+    'rep customer status'
+    'actions actions actions';
+  gap: 0.75rem 1rem;
+  align-items: start;
 }
 
 .hx-visits-filters > .hx-visits-f,
@@ -55,8 +52,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
   gap: 0.5rem;
-  padding: 0;
+  padding: 0.15rem 0 0;
   margin: 0;
   border: 0;
   min-height: 2.35rem;
@@ -65,14 +63,11 @@
 .si-meta.hx-visits-filters {
   padding: 0;
   display: grid;
-  grid-template-columns:
-    minmax(10.5rem, 1fr)
-    minmax(10.5rem, 1fr)
-    minmax(12rem, 1.2fr)
-    minmax(16rem, 1.8fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-template-areas:
-    'from to rep customer'
-    'method status actions actions';
+    'from to method'
+    'rep customer status'
+    'actions actions actions';
 }
 
 .si-meta.hx-visits-filters > label {
@@ -83,7 +78,8 @@
 }
 
 @media (max-width: 1100px) {
-  .hx-visits-filters {
+  .hx-visits-filters,
+  .si-meta.hx-visits-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       'from to'
@@ -94,7 +90,8 @@
 }
 
 @media (max-width: 640px) {
-  .hx-visits-filters {
+  .hx-visits-filters,
+  .si-meta.hx-visits-filters {
     grid-template-columns: 1fr;
     grid-template-areas:
       'from'

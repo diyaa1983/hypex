@@ -245,41 +245,63 @@ class OfflineStore {
     await db.transaction((txn) async {
       await _ensureV3(txn);
 
-      // احتفظ بالعملاء المحليين المؤقتين (id سالب) حتى الترحيل
-      final localCustomers = await txn.query(
-        'customers',
-        where: 'id < 0',
-      );
+      final customersDelta = payload['customers_delta'] == true;
+      final removedIds = (payload['customers_removed'] as List? ?? [])
+          .map((e) => (e as num?)?.toInt() ?? 0)
+          .where((e) => e > 0)
+          .toSet();
 
-      await txn.delete('customers');
+      Map<String, Object?> custRow(Map r) => {
+            'id': (r['id'] as num?)?.toInt() ?? 0,
+            'name': (r['name'] ?? '').toString(),
+            'code': (r['code'] ?? '').toString(),
+            'phone': (r['phone'] ?? '').toString(),
+            'address': (r['address'] ?? '').toString(),
+            'latitude': r['latitude'],
+            'longitude': r['longitude'],
+            'payment_period': (r['payment_period'] as num?)?.toInt() ?? 0,
+            'use_wholesale_price':
+                (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
+          };
+
+      if (customersDelta) {
+        final custBatch = txn.batch();
+        for (final r in customers) {
+          custBatch.insert(
+            'customers',
+            custRow(r),
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await custBatch.commit(noResult: true);
+        for (final id in removedIds) {
+          await txn.delete('customers', where: 'id = ?', whereArgs: [id]);
+        }
+      } else {
+        // احتفظ بالعملاء المحليين المؤقتين (id سالب) حتى الترحيل
+        final localCustomers = await txn.query(
+          'customers',
+          where: 'id < 0',
+        );
+        await txn.delete('customers');
+        final custBatch = txn.batch();
+        for (final r in customers) {
+          custBatch.insert('customers', custRow(r));
+        }
+        for (final r in localCustomers) {
+          custBatch.insert(
+            'customers',
+            r,
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+        await custBatch.commit(noResult: true);
+      }
+
       await txn.delete('warehouses');
       await txn.delete('tax_rates');
       await txn.delete('items');
       await txn.delete('stock');
-
-      final custBatch = txn.batch();
-      for (final r in customers) {
-        custBatch.insert('customers', {
-          'id': (r['id'] as num?)?.toInt() ?? 0,
-          'name': (r['name'] ?? '').toString(),
-          'code': (r['code'] ?? '').toString(),
-          'phone': (r['phone'] ?? '').toString(),
-          'address': (r['address'] ?? '').toString(),
-          'latitude': r['latitude'],
-          'longitude': r['longitude'],
-          'payment_period': (r['payment_period'] as num?)?.toInt() ?? 0,
-          'use_wholesale_price':
-              (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
-        });
-      }
-      for (final r in localCustomers) {
-        custBatch.insert(
-          'customers',
-          r,
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-      await custBatch.commit(noResult: true);
 
       final whBatch = txn.batch();
       for (final r in warehouses) {
@@ -603,6 +625,35 @@ class OfflineStore {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  Future<void> deleteLocalCustomer(int id) async {
+    if (id == 0) return;
+    final db = await _db;
+    await db.delete('customers', where: 'id = ?', whereArgs: [id]);
+  }
+
+  /// يلغي إضافة/تعديل معلّق لنفس العميل قبل حذف محلي.
+  Future<void> dropPendingCustomerMutations(int customerId) async {
+    if (customerId == 0) return;
+    final db = await _db;
+    final rows = await db.query(
+      'outbox',
+      where:
+          "status IN ('pending','error') AND kind IN ('customer_save','customer_update')",
+    );
+    for (final row in rows) {
+      try {
+        final body =
+            jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+        final cid = (body['id'] as num?)?.toInt() ??
+            (body['customer_id'] as num?)?.toInt() ??
+            (body['local_customer_id'] as num?)?.toInt() ??
+            0;
+        if (cid != customerId) continue;
+        await db.delete('outbox', where: 'id = ?', whereArgs: [row['id']]);
+      } catch (_) {}
+    }
   }
 
   Future<void> rewriteLocalCustomerId(int localId, int serverId) async {
@@ -1370,10 +1421,12 @@ class OfflineStore {
         CASE kind
           WHEN 'visit_checkin' THEN 1
           WHEN 'customer_save' THEN 2
-          WHEN 'customer_order_save' THEN 3
-          WHEN 'customer_order_send' THEN 4
-          WHEN 'visit_checkout' THEN 5
-          WHEN 'customer_order_delete' THEN 6
+          WHEN 'customer_update' THEN 3
+          WHEN 'customer_delete' THEN 4
+          WHEN 'customer_order_save' THEN 5
+          WHEN 'customer_order_send' THEN 6
+          WHEN 'visit_checkout' THEN 7
+          WHEN 'customer_order_delete' THEN 8
           ELSE 9
         END,
         id ASC

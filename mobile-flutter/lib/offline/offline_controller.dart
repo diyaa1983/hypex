@@ -36,7 +36,7 @@ class OfflineController extends ChangeNotifier {
 
   bool get canWorkOffline => catalogReady;
 
-  static const reconnectFlushDelay = Duration(seconds: 60);
+  static const reconnectFlushDelay = Duration(seconds: 8);
 
   Future<void> start() async {
     await refreshInfo();
@@ -62,7 +62,7 @@ class OfflineController extends ChangeNotifier {
     _reconnectFlushTimer?.cancel();
     flushScheduledAt = DateTime.now().add(reconnectFlushDelay);
     statusMessage =
-        'عادت الشبكة — سيتم ترحيل العمليات المعلّقة خلال دقيقة…';
+        'عادت الشبكة — سيتم ترحيل العمليات المعلّقة خلال ثوانٍ…';
     notifyListeners();
     _reconnectFlushTimer = Timer(reconnectFlushDelay, () {
       flushScheduledAt = null;
@@ -112,8 +112,10 @@ class OfflineController extends ChangeNotifier {
     onStep?.call(statusMessage!);
     notifyListeners();
     try {
+      final since = (info.syncedAt ?? '').trim();
       final res = await api.getJson(
         AppConfig.syncPullPath,
+        query: since.isEmpty ? const {} : {'since': since},
         receiveTimeout: const Duration(minutes: 5),
       );
       pullProgress = 0.65;
@@ -123,8 +125,10 @@ class OfflineController extends ChangeNotifier {
       await store.replaceCatalog(res);
       pullProgress = 1;
       await refreshInfo();
-      statusMessage =
-          'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.ordersPending} طلب غير مرسل، ${info.oracleStatements} كشف حساب.';
+      final delta = res['customers_delta'] == true;
+      statusMessage = delta
+          ? 'تحديث تزايدي: ${info.customers} عميل محلي، ${info.oracleStatements} كشف، ${info.routeDays} يوم جولة.'
+          : 'تم التحديث: ${info.customers} عميل، ${info.items} مادة، ${info.ordersPending} طلب غير مرسل، ${info.oracleStatements} كشف حساب.';
       onStep?.call(statusMessage!);
       if (info.noOrderReasons < 1) {
         statusMessage =
@@ -174,6 +178,12 @@ class OfflineController extends ChangeNotifier {
     return id;
   }
 
+  /// ترحيل فوري عند فتح شاشة تحتاج مزامنة، إن كان الجهاز متصلاً.
+  Future<int> syncIfOnline() async {
+    if (!online) return 0;
+    return flushOutbox(silent: true);
+  }
+
   Future<int> flushOutbox({bool silent = false}) async {
     if (!online || _flushing) return 0;
     if (busy && phase == OfflinePhase.pulling) return 0;
@@ -211,6 +221,7 @@ class OfflineController extends ChangeNotifier {
           final sendBody = Map<String, dynamic>.from(body);
           sendBody.remove('local_customer_id');
           sendBody.remove('local_order_id');
+          sendBody.remove('snapshot');
 
           Map<String, dynamic> res;
           if (method == 'POST_FORM') {
@@ -234,8 +245,16 @@ class OfflineController extends ChangeNotifier {
             online = false;
             break;
           }
+          final kind = (row['kind'] as String?) ?? '';
+          if (kind == 'customer_delete') {
+            await _restoreDeletedCustomer(body);
+          }
           await store.markOutboxError(id, e.message);
         } catch (e) {
+          final kind = (row['kind'] as String?) ?? '';
+          if (kind == 'customer_delete') {
+            await _restoreDeletedCustomer(body);
+          }
           await store.markOutboxError(id, e.toString());
         }
       }
@@ -272,6 +291,37 @@ class OfflineController extends ChangeNotifier {
           customerId: cid,
           routeLineId: lineId,
         );
+      }
+      return;
+    }
+    if (kind == 'customer_update') {
+      final cid = (body['id'] as num?)?.toInt() ??
+          (body['customer_id'] as num?)?.toInt() ??
+          0;
+      if (cid != 0) {
+        final existing = await store.getCustomerById(cid);
+        await store.upsertLocalCustomer(
+          id: cid,
+          name: (existing?['name'] ?? '').toString(),
+          code: (existing?['code'] ?? '').toString(),
+          phone: (body['phone'] ?? existing?['phone'] ?? '').toString(),
+          address:
+              (body['address_ar'] ?? existing?['address'] ?? '').toString(),
+          latitude: (body['latitude'] as num?)?.toDouble() ??
+              (existing?['latitude'] as num?)?.toDouble(),
+          longitude: (body['longitude'] as num?)?.toDouble() ??
+              (existing?['longitude'] as num?)?.toDouble(),
+          paymentPeriod: (existing?['payment_period'] as num?)?.toInt() ?? 0,
+        );
+      }
+      return;
+    }
+    if (kind == 'customer_delete') {
+      final cid = (body['id'] as num?)?.toInt() ??
+          (body['customer_id'] as num?)?.toInt() ??
+          0;
+      if (cid != 0) {
+        await store.deleteLocalCustomer(cid);
       }
       return;
     }
@@ -317,6 +367,25 @@ class OfflineController extends ChangeNotifier {
         await store.deleteLocalOrder(oid);
       }
     }
+  }
+
+  Future<void> _restoreDeletedCustomer(Map<String, dynamic> body) async {
+    final snap = body['snapshot'];
+    if (snap is! Map) return;
+    final id = (snap['id'] as num?)?.toInt() ??
+        (body['id'] as num?)?.toInt() ??
+        0;
+    if (id == 0) return;
+    await store.upsertLocalCustomer(
+      id: id,
+      name: (snap['name'] ?? '').toString(),
+      code: (snap['code'] ?? '').toString(),
+      phone: (snap['phone'] ?? '').toString(),
+      address: (snap['address'] ?? '').toString(),
+      latitude: (snap['latitude'] as num?)?.toDouble(),
+      longitude: (snap['longitude'] as num?)?.toDouble(),
+      paymentPeriod: (snap['payment_period'] as num?)?.toInt() ?? 0,
+    );
   }
 
   @override

@@ -91,7 +91,12 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _restoreLocalVisit().then((_) {
+    final off = context.read<OfflineController>();
+    _restoreLocalVisit().then((_) async {
+      if (off.online) {
+        await off.syncIfOnline();
+      }
+      if (!mounted) return;
       _loadCustomers();
       _refreshOpenVisit();
     });
@@ -157,6 +162,12 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      final off = context.read<OfflineController>();
+      if (off.online) {
+        unawaited(off.syncIfOnline().then((_) {
+          if (mounted) _loadCustomers();
+        }));
+      }
       _refreshOpenVisit();
     }
   }
@@ -420,7 +431,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   Future<void> _selectCustomer(int id, {bool openNarrowDetail = false}) async {
-    if (id < 1) return;
+    if (id == 0) return;
     FocusScope.of(context).unfocus();
     _searchFocus.unfocus();
     if (_searchEnabled) {
@@ -491,7 +502,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         };
       }
 
-      if (!offline.online && offline.catalogReady) {
+      if ((!offline.online && offline.catalogReady) || id < 0) {
         await applyLocal();
       } else {
         try {
@@ -1697,6 +1708,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                         _InfoTab(
                           customer: _customer!,
                           onSaved: () => _selectCustomer(_selectedId!),
+                          onDeleted: () {
+                            setState(() {
+                              _selectedId = null;
+                              _customer = null;
+                              _showNarrowDetail = false;
+                            });
+                            _loadCustomers();
+                          },
                         ),
                         _StatementTab(customer: _customer!),
                         _OrdersTab(
@@ -1865,9 +1884,14 @@ class _GpsPreviewDialog extends StatelessWidget {
 }
 
 class _InfoTab extends StatefulWidget {
-  const _InfoTab({required this.customer, required this.onSaved});
+  const _InfoTab({
+    required this.customer,
+    required this.onSaved,
+    required this.onDeleted,
+  });
   final Map<String, dynamic> customer;
   final VoidCallback onSaved;
+  final VoidCallback onDeleted;
 
   @override
   State<_InfoTab> createState() => _InfoTabState();
@@ -1992,6 +2016,7 @@ class _InfoTabState extends State<_InfoTab> {
       if (go != true || !mounted) return;
     }
     setState(() => _saving = true);
+    final offline = context.read<OfflineController>();
     try {
       final fields = <String, dynamic>{
         'id': Fmt.toInt(widget.customer['id']),
@@ -2007,32 +2032,177 @@ class _InfoTabState extends State<_InfoTab> {
       } else {
         fields['clear_gps'] = '1';
       }
-      final res = await context.read<ApiClient>().postForm(
-            AppConfig.customerUpdatePath,
-            csrf: s.csrf,
-            fields: fields,
-          );
-      if (!mounted) return;
-      final msg = Fmt.str(res['message']);
-      showSnack(
-        context,
-        msg.isEmpty ? 'تم حفظ بيانات العميل.' : msg,
-      );
-      if (res['pending'] == true) {
-        setState(() {
-          _lat = _origLat;
-          _lng = _origLng;
-          _accuracy = null;
-        });
-      } else {
+
+      Future<void> saveLocal({String? note}) async {
+        final id = Fmt.toInt(widget.customer['id']);
+        await OfflineStore.instance.upsertLocalCustomer(
+          id: id,
+          name: Fmt.str(widget.customer['name']),
+          code: Fmt.str(widget.customer['code']),
+          phone: _phone.text.trim(),
+          address: _address.text.trim(),
+          latitude: _lat,
+          longitude: _lng,
+          paymentPeriod: Fmt.toInt(widget.customer['payment_period']),
+        );
+        await offline.enqueue(
+          kind: 'customer_update',
+          path: AppConfig.customerUpdatePath,
+          body: fields,
+          method: 'POST_FORM',
+        );
+        if (!mounted) return;
+        showSnack(
+          context,
+          note ?? 'حُفظ التعديل محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
+        );
         _origLat = _lat;
         _origLng = _lng;
         _hadSavedGps = _lat != null && _lng != null;
+        widget.onSaved();
       }
-      widget.onSaved();
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      showSnack(context, e.message, error: true);
+
+      if (!offline.online && offline.catalogReady) {
+        await saveLocal();
+        return;
+      }
+
+      try {
+        final res = await context.read<ApiClient>().postForm(
+              AppConfig.customerUpdatePath,
+              csrf: s.csrf,
+              fields: fields,
+            );
+        if (!mounted) return;
+        final msg = Fmt.str(res['message']);
+        showSnack(
+          context,
+          msg.isEmpty ? 'تم حفظ بيانات العميل.' : msg,
+        );
+        if (res['pending'] == true) {
+          setState(() {
+            _lat = _origLat;
+            _lng = _origLng;
+            _accuracy = null;
+          });
+        } else {
+          _origLat = _lat;
+          _origLng = _lng;
+          _hadSavedGps = _lat != null && _lng != null;
+        }
+        widget.onSaved();
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await saveLocal(note: 'لا اتصال — حُفظ التعديل محلياً.');
+        } else if (mounted) {
+          showSnack(context, e.message, error: true);
+        }
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _delete() async {
+    final id = Fmt.toInt(widget.customer['id']);
+    if (id == 0) return;
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('حذف العميل'),
+        content: Text(
+          id < 0
+              ? 'سيُحذف العميل من الجهاز فقط (لم يُرحَّل بعد).'
+              : 'سيتم حذف العميل من الجهاز، ثم من النظام عند عودة الاتصال إن لم يكن مرتبطاً بحركات.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (go != true || !mounted) return;
+    setState(() => _saving = true);
+    final offline = context.read<OfflineController>();
+    final s = context.read<SessionController>();
+    final api = context.read<ApiClient>();
+    try {
+      await OfflineStore.instance.dropPendingCustomerMutations(id);
+      await OfflineStore.instance.deleteLocalCustomer(id);
+
+      if (id < 0) {
+        if (!mounted) return;
+        showSnack(context, 'حُذف العميل المحلي.');
+        widget.onDeleted();
+        return;
+      }
+
+      final fields = <String, dynamic>{
+        'id': id,
+        'snapshot': {
+          'id': id,
+          'name': Fmt.str(widget.customer['name']),
+          'code': Fmt.str(widget.customer['code']),
+          'phone': Fmt.str(widget.customer['phone']),
+          'address': Fmt.str(widget.customer['address']),
+          'latitude': widget.customer['latitude'],
+          'longitude': widget.customer['longitude'],
+          'payment_period': widget.customer['payment_period'],
+        },
+      };
+      if (!offline.online) {
+        await offline.enqueue(
+          kind: 'customer_delete',
+          path: AppConfig.customerDeletePath,
+          body: fields,
+          method: 'POST_FORM',
+        );
+        if (!mounted) return;
+        showSnack(context, 'سيُحذف من النظام عند عودة الاتصال.');
+        widget.onDeleted();
+        return;
+      }
+
+      try {
+        final res = await api.postForm(
+              AppConfig.customerDeletePath,
+              csrf: s.csrf,
+              fields: fields,
+            );
+        if (!mounted) return;
+        showSnack(
+          context,
+          Fmt.str(res['message']).isEmpty
+              ? 'تم حذف العميل.'
+              : Fmt.str(res['message']),
+        );
+        widget.onDeleted();
+      } on ApiException catch (e) {
+        if (offline.catalogReady &&
+            (e.message.contains('تعذر الاتصال') ||
+                e.message.contains('الإنترنت'))) {
+          await offline.enqueue(
+            kind: 'customer_delete',
+            path: AppConfig.customerDeletePath,
+            body: fields,
+            method: 'POST_FORM',
+          );
+          if (!mounted) return;
+          showSnack(context, 'سيُحذف من النظام عند عودة الاتصال.');
+          widget.onDeleted();
+        } else if (mounted) {
+          showSnack(context, e.message, error: true);
+        }
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -2214,6 +2384,13 @@ class _InfoTabState extends State<_InfoTab> {
                       )
                     : const Icon(Icons.save_rounded),
                 label: Text(_saving ? 'جاري الحفظ...' : 'حفظ التعديلات'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _saving || _locating ? null : _delete,
+                icon: const Icon(Icons.delete_outline_rounded),
+                style: OutlinedButton.styleFrom(foregroundColor: AppTheme.danger),
+                label: const Text('حذف العميل'),
               ),
             ],
           ),

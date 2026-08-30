@@ -1998,6 +1998,14 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
               <span class="muted hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span>
             </span>
           </label>
+          <label class="hx-visits-f hx-visits-f--method">
+            <span class="hx-visits-f-label">النوع</span>
+            <select class="si-field" name="method">
+              <option value="" ${method === '' ? 'selected' : ''}>— الكل —</option>
+              <option value="GPS" ${method === 'GPS' ? 'selected' : ''}>GPS</option>
+              <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>يدوي</option>
+            </select>
+          </label>
           <label class="hx-visits-f hx-visits-f--rep">
             <span class="hx-visits-f-label">المندوب</span>
             <select class="si-field" name="sales_rep_id">
@@ -2010,14 +2018,6 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             <select class="si-field" name="customer_id">
               <option value="0">— الكل —</option>
               ${custOpts}
-            </select>
-          </label>
-          <label class="hx-visits-f hx-visits-f--method">
-            <span class="hx-visits-f-label">النوع</span>
-            <select class="si-field" name="method">
-              <option value="" ${method === '' ? 'selected' : ''}>— الكل —</option>
-              <option value="GPS" ${method === 'GPS' ? 'selected' : ''}>GPS</option>
-              <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>يدوي</option>
             </select>
           </label>
           <label class="hx-visits-f hx-visits-f--status">

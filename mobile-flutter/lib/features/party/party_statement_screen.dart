@@ -115,6 +115,10 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       _fromCache = false;
     });
     final offline = context.read<OfflineController>();
+    if (offline.online) {
+      await offline.syncIfOnline();
+      if (!mounted) return;
+    }
     final fromIso = _iso(_from);
     final toIso = _iso(_to);
 
