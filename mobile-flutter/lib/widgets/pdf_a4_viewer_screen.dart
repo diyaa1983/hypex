@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:printing/printing.dart';
 
 import '../core/theme.dart';
+import '../services/document_print_helper.dart';
 
 /// معاينة PDF داخل التطبيق عبر تحويل الصفحات إلى صور
 /// (أكثر ثباتاً من PdfPreview مع ملفات mPDF العربية).
@@ -69,9 +70,10 @@ class _PdfA4ViewerScreenState extends State<PdfA4ViewerScreen> {
         actions: [
           IconButton(
             tooltip: 'مشاركة PDF',
-            onPressed: () => Printing.sharePdf(
-              bytes: widget.bytes,
-              filename: _fileName,
+            onPressed: () => DocumentPrintHelper.sharePdfBytes(
+              widget.bytes,
+              fileName: _fileName,
+              context: context,
             ),
             icon: const Icon(Icons.share_outlined),
           ),
@@ -106,9 +108,10 @@ class _PdfA4ViewerScreenState extends State<PdfA4ViewerScreen> {
                     ),
                     const SizedBox(height: 16),
                     FilledButton.icon(
-                      onPressed: () => Printing.sharePdf(
-                        bytes: widget.bytes,
-                        filename: _fileName,
+                      onPressed: () => DocumentPrintHelper.sharePdfBytes(
+                        widget.bytes,
+                        fileName: _fileName,
+                        context: context,
                       ),
                       icon: const Icon(Icons.share_outlined),
                       label: const Text('مشاركة الملف'),

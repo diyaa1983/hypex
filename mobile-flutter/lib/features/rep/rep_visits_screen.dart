@@ -15,6 +15,7 @@ import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/app_confirm_dialog.dart';
+import 'visit_workspace_panel.dart';
 
 class RepVisitsScreen extends StatefulWidget {
   const RepVisitsScreen({super.key});
@@ -34,6 +35,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Map<String, dynamic>? _selected;
   bool _busy = false;
   final _dateCtrl = TextEditingController();
+  final _listSearch = TextEditingController();
 
   /// أجندة الشهر: كل يوم + عملاء الجولة المرحّلة
   String _monthYm = '';
@@ -54,7 +56,146 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   @override
   void dispose() {
     _dateCtrl.dispose();
+    _listSearch.dispose();
     super.dispose();
+  }
+
+  bool _isTablet(BuildContext context) =>
+      MediaQuery.sizeOf(context).shortestSide >= 600;
+
+  void _selectTourCustomer(Map<String, dynamic> v) {
+    if (_busy) return;
+    if (v['in_plan'] != true) return;
+    setState(() => _selected = v);
+  }
+
+  bool _isVisitOpen(Map<String, dynamic>? v) {
+    final s = _statusOf(v);
+    return s == 'checked_in' || s == 'pending_manual_checkout';
+  }
+
+  bool _canCheckin(Map<String, dynamic>? v) {
+    if (v == null || v['in_plan'] != true) return false;
+    final s = _statusOf(v);
+    return s == 'idle' || s == 'checked_out' || s.isEmpty;
+  }
+
+  bool _canCheckout(Map<String, dynamic>? v) {
+    return v != null && _statusOf(v) == 'checked_in';
+  }
+
+  Future<bool?> _askVisitMethod({required bool checkout}) {
+    return showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black38,
+      builder: (ctx) {
+        return Center(
+          child: Material(
+            color: Colors.white,
+            elevation: 10,
+            borderRadius: BorderRadius.circular(16),
+            child: SizedBox(
+              width: 300,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      checkout ? 'طريقة تسجيل الخروج' : 'طريقة تسجيل الدخول',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _methodBox(
+                            ctx,
+                            label: 'GPS',
+                            icon: Icons.my_location_rounded,
+                            color: AppTheme.primary,
+                            manual: false,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _methodBox(
+                            ctx,
+                            label: 'Manual',
+                            icon: Icons.edit_location_alt_rounded,
+                            color: AppTheme.teal,
+                            manual: true,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('إلغاء'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _methodBox(
+    BuildContext ctx, {
+    required String label,
+    required IconData icon,
+    required Color color,
+    required bool manual,
+  }) {
+    return Material(
+      color: color.withValues(alpha: 0.08),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.pop(ctx, manual),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 28),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startCheckin() async {
+    if (_selected == null || _busy) return;
+    if (!_canCheckin(_selected)) return;
+    final method = await _askVisitMethod(checkout: false);
+    if (method == null || !mounted) return;
+    await _checkin(manual: method);
+  }
+
+  Future<void> _startCheckout() async {
+    if (_selected == null || _busy) return;
+    if (!_canCheckout(_selected)) return;
+    final method = await _askVisitMethod(checkout: true);
+    if (method == null || !mounted) return;
+    await _checkout(manual: method);
   }
 
   Future<void> _applyMonthPayload(Map<String, dynamic> res) async {
@@ -810,7 +951,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               right: -50,
               child: _blob(200, AppTheme.teal.withValues(alpha: 0.07)),
             ),
-            if (_selected == null)
+            if (_isTablet(context) && !_monthMode)
+              _buildTabletDay()
+            else if (_isTablet(context) && _monthMode)
+              _buildTabletMonth()
+            else if (_selected == null)
               (_monthMode ? _buildMonthAgenda() : _buildHome())
             else
               _buildVisit(),
@@ -833,6 +978,403 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         width: size,
         height: size,
         decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      ),
+    );
+  }
+
+  List<Map<String, dynamic>> _filterPlanned(List<Map<String, dynamic>> planned) {
+    final q = _listSearch.text.trim();
+    if (q.isEmpty) return planned;
+    return planned.where((v) {
+      return Fmt.str(v['name']).contains(q) || Fmt.str(v['code']).contains(q);
+    }).toList();
+  }
+
+  Widget _buildTabletDay() {
+    final planned = _plannedVisits;
+    final list = _filterPlanned(planned);
+    final open = _isVisitOpen(_selected);
+    final pending = _statusOf(_selected) == 'pending_manual_checkout';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tourListPane(
+          width: (MediaQuery.sizeOf(context).width * 0.36).clamp(280.0, 400.0),
+          title: _weekdayLabel.isEmpty ? 'عملاء الجولة' : '$_weekdayLabel',
+          subtitle: '${planned.length} عميل ضمن الجولة',
+          customers: list,
+          header: _tabletDayHeader(),
+          footer: _tabletVisitFooter(),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 16, 16),
+            child: _selected == null
+                ? _tabletEmptyHint(
+                    planned.isEmpty
+                        ? 'لا توجد جولة مخططة لهذا اليوم.'
+                        : 'اختر عميلاً من القائمة ثم اضغط تسجيل الدخول.',
+                  )
+                : pending
+                    ? _tabletEmptyHint(
+                        'تم إرسال الخروج اليدوي بانتظار اعتماد المدير.',
+                      )
+                    : open
+                        ? VisitWorkspacePanel(
+                            key: ValueKey(
+                              'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
+                            ),
+                            customerId: Fmt.toInt(_selected!['customer_id']),
+                            customerName: Fmt.str(_selected!['name']),
+                            customerCode: Fmt.str(_selected!['code']),
+                            visitRouteLineId:
+                                Fmt.toInt(_selected!['route_line_id']),
+                            visitOpen: true,
+                            orderId: Fmt.toInt(_selected!['order_id']) > 0
+                                ? Fmt.toInt(_selected!['order_id'])
+                                : null,
+                            onOrderChanged: () => _load(
+                              keepCustomerId:
+                                  Fmt.toInt(_selected!['customer_id']),
+                            ),
+                          )
+                        : _tabletEmptyHint(
+                            'اضغط «تسجيل دخول الى العميل» أسفل القائمة.',
+                          ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tabletVisitFooter() {
+    final v = _selected;
+    if (v == null || v['in_plan'] != true) {
+      return const SizedBox.shrink();
+    }
+    if (_canCheckin(v)) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: SizedBox(
+          height: 48,
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _busy ? null : _startCheckin,
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFF5C518),
+              foregroundColor: const Color(0xFF3D2E00),
+              disabledBackgroundColor: const Color(0xFFF5C518).withValues(alpha: 0.45),
+            ),
+            icon: const Icon(Icons.login_rounded),
+            label: const Text(
+              'تسجيل دخول الى العميل',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_canCheckout(v)) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: SizedBox(
+          height: 48,
+          width: double.infinity,
+          child: FilledButton.icon(
+            onPressed: _busy ? null : _startCheckout,
+            style: FilledButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text(
+              'تسجيل خروج',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_statusOf(v) == 'pending_manual_checkout') {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(12, 10, 12, 12),
+        child: Text(
+          'بانتظار موافقة المدير على الخروج اليدوي.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: AppTheme.warn,
+            fontWeight: FontWeight.w700,
+            fontSize: 12.5,
+          ),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  Widget _tabletDayHeader() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextField(
+          controller: _dateCtrl,
+          readOnly: true,
+          onTap: _pickDate,
+          decoration: const InputDecoration(
+            labelText: 'تاريخ الجولة',
+            suffixIcon: Icon(Icons.calendar_month_rounded),
+            isDense: true,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'نصف القطر: $_radiusM م · الزيارة لعملاء الجولة فقط',
+          style: const TextStyle(color: AppTheme.textSoft, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTabletMonth() {
+    final rows = <Map<String, dynamic>>[];
+    for (final day in _agendaDays) {
+      final date = Fmt.str(day['route_date']);
+      final wd = Fmt.str(day['weekday_label']);
+      for (final raw in (day['customers'] as List? ?? [])) {
+        if (raw is! Map) continue;
+        final c = raw.cast<String, dynamic>();
+        rows.add({
+          ...c,
+          'in_plan': true,
+          'route_date': date,
+          'weekday_label': wd,
+        });
+      }
+    }
+    final q = _listSearch.text.trim();
+    final list = q.isEmpty
+        ? rows
+        : rows.where((v) {
+            return Fmt.str(v['name']).contains(q) ||
+                Fmt.str(v['code']).contains(q);
+          }).toList();
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _tourListPane(
+          width: (MediaQuery.sizeOf(context).width * 0.36).clamp(280.0, 400.0),
+          title: _monthTitleAr(),
+          subtitle: '${rows.length} زيارة مخططة هذا الشهر',
+          customers: list,
+          useAgendaDate: true,
+          header: Row(
+            children: [
+              IconButton(
+                onPressed: _busy ? null : () => _shiftMonth(-1),
+                icon: const Icon(Icons.chevron_right_rounded),
+              ),
+              const Expanded(
+                child: Text(
+                  'عملاء الجولة',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                onPressed: _busy ? null : () => _shiftMonth(1),
+                icon: const Icon(Icons.chevron_left_rounded),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(8, 12, 16, 16),
+            child: _tabletEmptyHint(
+              rows.isEmpty
+                  ? 'انتظر ترحيل الجولة من الإدارة.'
+                  : 'اختر عميلاً من القائمة لفتح زيارة ذلك اليوم.',
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openAgendaCustomer(String date, Map<String, dynamic> c) async {
+    if (_busy) return;
+    setState(() {
+      _monthMode = false;
+      _routeDate = date;
+      _dateCtrl.text = date;
+      _selected = null;
+    });
+    await _load(keepCustomerId: Fmt.toInt(c['customer_id']));
+  }
+
+  Widget _tabletEmptyHint(String text) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.touch_app_rounded,
+                size: 48,
+                color: AppTheme.primary.withValues(alpha: 0.45),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 15,
+                  height: 1.45,
+                  color: AppTheme.textSoft,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _tourListPane({
+    required String title,
+    required String subtitle,
+    required List<Map<String, dynamic>> customers,
+    Widget? header,
+    Widget? footer,
+    bool useAgendaDate = false,
+    double width = 360,
+  }) {
+    final selectedId = Fmt.toInt(_selected?['customer_id']);
+    return Container(
+      width: width,
+      margin: const EdgeInsets.fromLTRB(0, 12, 8, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
+        border: Border.all(color: AppTheme.border),
+        boxShadow: AppTheme.softShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: AppTheme.textSoft,
+                    fontSize: 12.5,
+                  ),
+                ),
+                if (header != null) ...[
+                  const SizedBox(height: 10),
+                  header,
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _listSearch,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    hintText: 'بحث في عملاء الجولة',
+                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                    isDense: true,
+                    suffixIcon: _listSearch.text.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 18),
+                            onPressed: () {
+                              _listSearch.clear();
+                              setState(() {});
+                            },
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: customers.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Text(
+                        'لا يوجد عملاء ضمن الجولة.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppTheme.textSoft),
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    itemCount: customers.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (_, i) {
+                      final v = customers[i];
+                      final date = Fmt.str(v['route_date']);
+                      final st = _statusOf(
+                        v,
+                        referenceDate: date.isEmpty ? null : date,
+                      );
+                      final id = Fmt.toInt(v['customer_id']);
+                      return _PlanCustomerTile(
+                        index: i + 1,
+                        name: Fmt.str(v['name']),
+                        code: [
+                          Fmt.str(v['code']),
+                          if (useAgendaDate && date.isNotEmpty)
+                            '${Fmt.str(v['weekday_label'])} ${Fmt.dmy(date)}',
+                        ].where((s) => s.isNotEmpty).join(' · '),
+                        status: st,
+                        statusLabel: _statusLabel(st),
+                        statusColor: _statusColor(st),
+                        statusIcon: _statusIcon(st),
+                        hasGps: v['has_gps'] == true,
+                        selected: id == selectedId &&
+                            (!useAgendaDate || date == _routeDate),
+                        onTap: _busy
+                            ? null
+                            : () {
+                                if (useAgendaDate) {
+                                  _openAgendaCustomer(date, v);
+                                } else {
+                                  _selectTourCustomer(v);
+                                }
+                              },
+                      );
+                    },
+                  ),
+          ),
+          if (footer != null) ...[
+            const Divider(height: 1),
+            footer,
+          ],
+        ],
       ),
     );
   }
@@ -911,7 +1453,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                 Text(
                   totalCustomers == 0
                       ? 'لا توجد زيارات مخططة في جولة مرحّلة لهذا الشهر.'
-                      : '$totalCustomers زيارة مخططة · اضغط العميل للدخول وتبويبات الحساب',
+                      : '$totalCustomers زيارة مخططة ضمن الجولة · اختر عميلاً لفتح الزيارة',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     color: AppTheme.textSoft,
@@ -936,16 +1478,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                               _load();
                             },
                       icon: const Icon(Icons.today_rounded, size: 18),
-                      label: const Text('زيارات اليوم'),
-                    ),
-                    OutlinedButton.icon(
-                      onPressed: _busy
-                          ? null
-                          : () => context.push('/customers').then((_) {
-                                if (mounted) _loadMonth();
-                              }),
-                      icon: const Icon(Icons.person_search_rounded, size: 18),
-                      label: const Text('زيارة خارج الجولة'),
+                      label: const Text('جولة اليوم'),
                     ),
                   ],
                 ),
@@ -958,7 +1491,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               padding: EdgeInsets.only(top: 40),
               child: Center(
                 child: Text(
-                  'انتظر ترحيل الجولة من الإدارة، أو اختر زيارة خارج الجولة.',
+                  'انتظر ترحيل الجولة من الإدارة.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppTheme.textSoft),
                 ),
@@ -1033,8 +1566,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                           statusColor: _statusColor(st),
                           statusIcon: _statusIcon(st),
                           hasGps: c['has_gps'] == true,
-                          onTap: () =>
-                              _openCustomerHub(Fmt.toInt(c['customer_id'])),
+                          onTap: () => _openAgendaCustomer(date, c),
                         );
                       }),
                     ],
@@ -1048,9 +1580,8 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   }
 
   Widget _buildHome() {
-    final open = _openVisits;
+    final open = _openVisits.where((v) => v['in_plan'] == true).toList();
     final planned = _plannedVisits;
-    final extras = _extraOpenOrDone;
     return RefreshIndicator(
       onRefresh: () => _load(),
       child: ListView(
@@ -1079,7 +1610,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                 ),
                 const SizedBox(height: 4),
                 const Text(
-                  'سجّل الدخول/الخروج GPS أو يدوياً حسب الشروط المعتادة. يمكنك أيضاً زيارة عميل خارج الخطة.',
+                  'عملاء هذه الشاشة من ضمن الجولة فقط. اختر عميلاً ثم سجّل الدخول أو الخروج.',
                   style: TextStyle(color: AppTheme.textSoft, fontSize: 12.5, height: 1.45),
                 ),
                 const SizedBox(height: 10),
@@ -1117,7 +1648,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
             ),
             const SizedBox(height: 8),
-            ...open.map(
+            ...open.where((v) => v['in_plan'] == true).map(
               (v) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _OpenVisitTile(
@@ -1126,9 +1657,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                   status: _statusLabel(_statusOf(v)),
                   color: _statusColor(_statusOf(v)),
                   checkinAt: Fmt.str(v['visit_checkin_at']),
-                  onTap: _busy
-                      ? null
-                      : () => _openCustomerHub(Fmt.toInt(v['customer_id'])),
+                  onTap: _busy ? null : () => _selectTourCustomer(v),
                 ),
               ),
             ),
@@ -1185,56 +1714,13 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                       hasGps: planned[i]['has_gps'] == true,
                       onTap: _busy
                           ? null
-                          : () => _openCustomerHub(
-                                Fmt.toInt(planned[i]['customer_id']),
-                              ),
+                          : () => _selectTourCustomer(planned[i]),
                     ),
                   ],
                 ],
               ),
             ),
-          if (extras.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Text(
-              'زيارات خارج الجولة',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
-            ),
-            const SizedBox(height: 8),
-            ...extras.map(
-              (v) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _OpenVisitTile(
-                  name: Fmt.str(v['name']),
-                  code: Fmt.str(v['code']),
-                  status: _statusLabel(_statusOf(v)),
-                  color: _statusColor(_statusOf(v)),
-                  checkinAt: Fmt.str(v['visit_checkin_at']),
-                  onTap: _busy
-                      ? null
-                      : () => _openCustomerHub(Fmt.toInt(v['customer_id'])),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton.icon(
-              onPressed: _busy ? null : () => _pickCustomer(outsidePlanOnly: true),
-              icon: const Icon(Icons.person_add_alt_1_rounded),
-              label: const Text(
-                'زيارة عميل خارج الجولة',
-                style: TextStyle(fontWeight: FontWeight.w700),
-              ),
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -1249,68 +1735,107 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     );
   }
 
-  Widget _buildVisit() {
+  Widget _buildVisit({bool tablet = false}) {
     final v = _selected!;
+    if (v['in_plan'] != true) {
+      return _tabletEmptyHint('هذا العميل ليس ضمن الجولة.');
+    }
     final status = _statusOf(v);
     final color = _statusColor(status);
     final canIn = status == 'idle' || status == 'checked_out' || status.isEmpty;
     final canOut = status == 'checked_in';
     final pending = status == 'pending_manual_checkout';
+    final gap = tablet ? 12.0 : 28.0;
+
+    Widget actions(List<Widget> buttons) {
+      if (tablet && buttons.length >= 2) {
+        return Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            for (final b in buttons)
+              SizedBox(
+                width: 280,
+                child: b,
+              ),
+          ],
+        );
+      }
+      return Column(
+        children: [
+          for (var i = 0; i < buttons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            buttons[i],
+          ],
+        ],
+      );
+    }
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      padding: EdgeInsets.fromLTRB(tablet ? 8 : 20, tablet ? 4 : 12, tablet ? 8 : 20, 24),
       child: Column(
         children: [
           _CustomerChip(
             name: Fmt.str(v['name']),
             code: Fmt.str(v['code']),
-            badge: v['in_plan'] == true ? 'ضمن الجولة' : 'خارج الجولة',
-            onChange: _busy
+            badge: 'ضمن الجولة',
+            onChange: tablet
                 ? null
-                : () {
-                    setState(() => _selected = null);
-                    _pickCustomer();
-                  },
-            onClear: _busy ? null : () => setState(() => _selected = null),
+                : (_busy
+                    ? null
+                    : () => setState(() => _selected = null)),
+            onClear: tablet
+                ? null
+                : (_busy ? null : () => setState(() => _selected = null)),
           ),
-          const SizedBox(height: 28),
+          if (tablet) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: _busy
+                    ? null
+                    : () => _openCustomerHub(Fmt.toInt(v['customer_id'])),
+                icon: const Icon(Icons.badge_outlined, size: 18),
+                label: const Text('حساب العميل'),
+              ),
+            ),
+          ],
+          SizedBox(height: gap),
           _StatusHero(
             icon: _statusIcon(status),
             color: color,
             label: _statusLabel(status),
             subtitle: _statusSubtitle(v, status),
+            compact: tablet,
           ),
-          const SizedBox(height: 28),
+          SizedBox(height: gap),
           if (canIn)
             _ActionCard(
               title: 'تسجيل الدخول',
-              child: Column(
-                children: [
-                  _BigActionButton(
-                    label: 'دخول GPS',
-                    hint: 'الافتراضي · داخل $_radiusM م',
-                    icon: Icons.my_location_rounded,
-                    color: AppTheme.primary,
-                    onPressed: _busy ? null : () => _checkin(manual: false),
-                  ),
-                  const SizedBox(height: 10),
-                  _BigActionButton(
-                    label: 'دخول يدوي',
-                    hint: 'بدون شرط الموقع',
-                    icon: Icons.edit_location_alt_rounded,
-                    color: AppTheme.teal,
-                    outlined: true,
-                    onPressed: _busy ? null : () => _checkin(manual: true),
-                  ),
-                ],
-              ),
+              child: actions([
+                _BigActionButton(
+                  label: 'دخول GPS',
+                  hint: 'الافتراضي · داخل $_radiusM م',
+                  icon: Icons.my_location_rounded,
+                  color: AppTheme.primary,
+                  onPressed: _busy ? null : () => _checkin(manual: false),
+                ),
+                _BigActionButton(
+                  label: 'دخول يدوي',
+                  hint: 'بدون شرط الموقع',
+                  icon: Icons.edit_location_alt_rounded,
+                  color: AppTheme.teal,
+                  outlined: true,
+                  onPressed: _busy ? null : () => _checkin(manual: true),
+                ),
+              ]),
             ),
           if (canOut)
             _ActionCard(
               title: 'الطلب والخروج',
-              child: Column(
-                children: [
-                  _BigActionButton(
+              child: actions([
+                _BigActionButton(
                     label: 'عمل طلب شراء',
                     hint: 'إنشاء طلبية أثناء الزيارة',
                     icon: Icons.shopping_cart_checkout_rounded,
@@ -1336,7 +1861,6 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                             });
                           },
                   ),
-                  const SizedBox(height: 10),
                   _BigActionButton(
                     label: 'خروج GPS',
                     hint: 'من موقع العميل',
@@ -1344,7 +1868,6 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                     color: AppTheme.teal,
                     onPressed: _busy ? null : () => _checkout(manual: false),
                   ),
-                  const SizedBox(height: 10),
                   _BigActionButton(
                     label: 'خروج يدوي',
                     hint: 'يحتاج موافقة إذا كان الدخول GPS',
@@ -1353,8 +1876,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                     outlined: true,
                     onPressed: _busy ? null : () => _checkout(manual: true),
                   ),
-                ],
-              ),
+              ]),
             ),
           if (pending)
             const _ActionCard(
@@ -1428,6 +1950,7 @@ class _PlanCustomerTile extends StatelessWidget {
     required this.statusIcon,
     required this.hasGps,
     this.onTap,
+    this.selected = false,
   });
 
   final int index;
@@ -1439,18 +1962,32 @@ class _PlanCustomerTile extends StatelessWidget {
   final IconData statusIcon;
   final bool hasGps;
   final VoidCallback? onTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
-    final bg = (status == 'checked_in' || status == 'pending_manual_checkout')
-        ? AppTheme.success.withValues(alpha: 0.12)
-        : (status == 'checked_out'
-            ? AppTheme.danger.withValues(alpha: 0.12)
-            : null);
+    final inVisit =
+        status == 'checked_in' || status == 'pending_manual_checkout';
+    final bg = inVisit
+        ? AppTheme.success.withValues(alpha: selected ? 0.32 : 0.22)
+        : (selected
+            ? AppTheme.primary.withValues(alpha: 0.12)
+            : (status == 'checked_out'
+                ? AppTheme.danger.withValues(alpha: 0.12)
+                : null));
     return Material(
       color: bg ?? Colors.transparent,
       borderRadius: BorderRadius.circular(12),
-      child: ListTile(
+      child: Container(
+        decoration: inVisit
+            ? BoxDecoration(
+                border: Border.all(
+                  color: AppTheme.success.withValues(alpha: 0.55),
+                ),
+                borderRadius: BorderRadius.circular(12),
+              )
+            : null,
+        child: ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       leading: CircleAvatar(
@@ -1469,7 +2006,11 @@ class _PlanCustomerTile extends StatelessWidget {
         name,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 14.5,
+          color: inVisit ? const Color(0xFF0B6B3A) : null,
+        ),
       ),
       subtitle: Text(
         [
@@ -1481,6 +2022,7 @@ class _PlanCustomerTile extends StatelessWidget {
       ),
       trailing: Icon(statusIcon, color: statusColor, size: 22),
     ),
+      ),
     );
   }
 }
@@ -1635,20 +2177,22 @@ class _StatusHero extends StatelessWidget {
     required this.color,
     required this.label,
     required this.subtitle,
+    this.compact = false,
   });
 
   final IconData icon;
   final Color color;
   final String label;
   final String subtitle;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Container(
-          width: 148,
-          height: 148,
+          width: compact ? 108 : 148,
+          height: compact ? 108 : 148,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white,
@@ -1662,8 +2206,8 @@ class _StatusHero extends StatelessWidget {
           ),
           child: Center(
             child: Container(
-              width: 118,
-              height: 118,
+              width: compact ? 86 : 118,
+              height: compact ? 86 : 118,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
@@ -1674,7 +2218,7 @@ class _StatusHero extends StatelessWidget {
                 ),
                 border: Border.all(color: color.withValues(alpha: 0.35), width: 2),
               ),
-              child: Icon(icon, size: 56, color: color),
+              child: Icon(icon, size: compact ? 40 : 56, color: color),
             ),
           ),
         ),

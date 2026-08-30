@@ -77,6 +77,14 @@
             <data android:mimeType="application/pdf" />
         </intent>
         <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="application/pdf" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SEND" />
+            <data android:mimeType="*/*" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.PRINT" />
         </intent>
     </queries>

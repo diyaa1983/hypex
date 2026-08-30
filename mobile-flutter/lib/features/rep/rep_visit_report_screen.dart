@@ -240,9 +240,11 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
     setState(() => _shareBusy = true);
     try {
       final bytes = await _buildPdf();
+      if (!mounted) return;
       await DocumentPrintHelper.sharePdfBytes(
         bytes,
-        fileName: 'تقرير-زيارات-$_from-$_to',
+        fileName: 'visits-$_from-$_to',
+        context: context,
       );
     } catch (e) {
       if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
@@ -384,34 +386,13 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
                       child: ListView(
                         padding: const EdgeInsets.fromLTRB(8, 4, 8, 20),
                         children: [
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
-                              headingRowHeight: 38,
-                              dataRowMinHeight: 36,
-                              dataRowMaxHeight: 52,
-                              headingTextStyle: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11.5,
-                                color: AppTheme.textMain,
-                              ),
-                              columns: [
-                                for (final h in _visitHeaders())
-                                  DataColumn(label: Text(h)),
-                              ],
-                              rows: [
-                                for (var i = 0; i < _rows.length; i++)
-                                  DataRow(
-                                    cells: [
-                                      for (final c in _visitCells(_rows[i], i))
-                                        DataCell(Text(
-                                          c,
-                                          style: const TextStyle(fontSize: 12),
-                                        )),
-                                    ],
-                                  ),
-                              ],
-                            ),
+                          LinedReportTable(
+                            headers: _visitHeaders(),
+                            numericCols: const {0, 7},
+                            rows: [
+                              for (var i = 0; i < _rows.length; i++)
+                                _visitCells(_rows[i], i),
+                            ],
                           ),
                         ],
                       ),

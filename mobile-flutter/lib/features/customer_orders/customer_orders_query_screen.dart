@@ -202,9 +202,11 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
     setState(() => _shareBusy = true);
     try {
       final bytes = await _buildPdf();
+      if (!mounted) return;
       await DocumentPrintHelper.sharePdfBytes(
         bytes,
-        fileName: 'طلبات-عملاء-$_fromIso-$_toIso',
+        fileName: 'customer-orders-$_fromIso-$_toIso',
+        context: context,
       );
     } catch (e) {
       if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
@@ -367,64 +369,36 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                               padding:
                                   const EdgeInsets.fromLTRB(10, 4, 10, 16),
                               children: [
-                                SingleChildScrollView(
-                                  scrollDirection: Axis.horizontal,
-                                  child: DataTable(
-                                    headingRowHeight: 40,
-                                    dataRowMinHeight: 40,
-                                    dataRowMaxHeight: 48,
-                                    headingTextStyle: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 12.5,
-                                      color: AppTheme.textMain,
-                                    ),
-                                    columns: const [
-                                      DataColumn(label: Text('#')),
-                                      DataColumn(label: Text('اسم العميل')),
-                                      DataColumn(label: Text('تاريخ الطلبية')),
-                                      DataColumn(
-                                        label: Text('المجموع'),
-                                        numeric: true,
-                                      ),
-                                    ],
-                                    rows: [
-                                      for (var i = 0; i < _orders.length; i++)
-                                        DataRow(
-                                          onSelectChanged: (_) => context.push(
-                                            '/customer-orders/${Fmt.toInt(_orders[i]['id'])}',
-                                          ),
-                                          cells: [
-                                            DataCell(Text('${i + 1}')),
-                                            DataCell(Text(
-                                              Fmt.str(_orders[i]
-                                                          ['customer_name'])
-                                                      .isEmpty
-                                                  ? '—'
-                                                  : Fmt.str(_orders[i]
-                                                      ['customer_name']),
-                                            )),
-                                            DataCell(Text(Fmt.dmy(Fmt.str(
-                                                _orders[i]['order_date'])))),
-                                            DataCell(Text(
-                                              Fmt.money(Fmt.toDouble(
-                                                  _orders[i]['total'])),
-                                              textDirection: TextDirection.ltr,
-                                            )),
-                                          ],
-                                        ),
-                                    ],
+                                LinedReportTable(
+                                  headers: const [
+                                    '#',
+                                    'اسم العميل',
+                                    'تاريخ الطلبية',
+                                    'المجموع',
+                                  ],
+                                  numericCols: const {0, 3},
+                                  onRowTap: (i) => context.push(
+                                    '/customer-orders/${Fmt.toInt(_orders[i]['id'])}',
                                   ),
+                                  rows: [
+                                    for (var i = 0; i < _orders.length; i++)
+                                      [
+                                        '${i + 1}',
+                                        Fmt.str(_orders[i]['customer_name'])
+                                                .isEmpty
+                                            ? '—'
+                                            : Fmt.str(
+                                                _orders[i]['customer_name']),
+                                        Fmt.dmy(Fmt.str(
+                                            _orders[i]['order_date'])),
+                                        Fmt.money(Fmt.toDouble(
+                                            _orders[i]['total'])),
+                                      ],
+                                  ],
                                 ),
                                 const SizedBox(height: 8),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'الإجمالي: ${Fmt.money(_grandTotal)}',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w900,
-                                      fontSize: 15,
-                                    ),
-                                  ),
+                                ReportTotalBar(
+                                  label: 'الإجمالي: ${Fmt.money(_grandTotal)}',
                                 ),
                               ],
                             ),

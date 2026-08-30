@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +7,8 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/theme.dart';
+import '../../services/document_print_helper.dart';
+import '../../services/report_table_pdf.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
@@ -30,6 +34,8 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
   List<Map<String, dynamic>> _rows = [];
   double _totalQty = 0;
   double _totalAmount = 0;
+  bool _pdfBusy = false;
+  bool _shareBusy = false;
 
   @override
   void initState() {
@@ -141,6 +147,84 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
     _load();
   }
 
+  List<String> _headers() => const [
+        '#',
+        'التاريخ',
+        'النوع / الرقم',
+        'اسم العميل',
+        'المادة',
+        'الكمية',
+        'المجموع',
+      ];
+
+  List<String> _cells(Map<String, dynamic> r, int i) {
+    final invNo = Fmt.str(r['invoice_no']);
+    final source = Fmt.str(r['source_label']);
+    final item = Fmt.str(r['item_name']);
+    final code = Fmt.str(r['item_code']);
+    return [
+      '${i + 1}',
+      Fmt.dmy(Fmt.str(r['invoice_date'])),
+      source.isNotEmpty ? '$source $invNo' : invNo,
+      Fmt.str(r['customer_name']).isEmpty ? '—' : Fmt.str(r['customer_name']),
+      code.isNotEmpty ? '$item ($code)' : item,
+      Fmt.trimNum(Fmt.toDouble(r['qty'])),
+      Fmt.money(Fmt.toDouble(r['line_total'])),
+    ];
+  }
+
+  Future<Uint8List> _buildPdf() {
+    return ReportTablePdf.build(
+      title: 'كشف حركات المبيعات',
+      subtitle:
+          'من ${Fmt.dmy(_from)} إلى ${Fmt.dmy(_to)} · ${_rows.length} سطر · كمية ${Fmt.trimNum(_totalQty)} · الإجمالي ${Fmt.money(_totalAmount)}',
+      headers: _headers(),
+      rows: [
+        for (var i = 0; i < _rows.length; i++) _cells(_rows[i], i),
+      ],
+      footer:
+          'الإجمالي: ${Fmt.money(_totalAmount)}  ·  الكمية: ${Fmt.trimNum(_totalQty)}',
+      landscape: true,
+    );
+  }
+
+  Future<void> _openPdf() async {
+    if (_rows.isEmpty || _pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      final bytes = await _buildPdf();
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'كشف حركات المبيعات',
+        fileName: 'حركات-مبيعات-$_from-$_to',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
+  Future<void> _sharePdf() async {
+    if (_rows.isEmpty || _shareBusy) return;
+    setState(() => _shareBusy = true);
+    try {
+      final bytes = await _buildPdf();
+      if (!mounted) return;
+      await DocumentPrintHelper.sharePdfBytes(
+        bytes,
+        fileName: 'sales-movement-$_from-$_to',
+        context: context,
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _shareBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
@@ -212,6 +296,32 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
                       icon: const Icon(Icons.search_rounded),
                       label: const Text('عرض'),
                     ),
+                    if (_rows.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ActionChipButton(
+                              icon: Icons.picture_as_pdf_outlined,
+                              label: 'تحويل',
+                              color: AppTheme.primary,
+                              busy: _pdfBusy,
+                              onTap: _openPdf,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ActionChipButton(
+                              icon: Icons.share_outlined,
+                              label: 'مشاركة PDF',
+                              color: AppTheme.teal,
+                              busy: _shareBusy,
+                              onTap: _sharePdf,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -224,80 +334,23 @@ class _SalesMovementScreenState extends State<SalesMovementScreen> {
                   ),
                 )
               else ...[
-                AppCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        '${_rows.length} سطر · كمية ${Fmt.trimNum(_totalQty)} · ${Fmt.money(_totalAmount)}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      ..._rows.map((r) {
-                        final date = Fmt.dmy(Fmt.str(r['invoice_date']));
-                        final invNo = Fmt.str(r['invoice_no']);
-                        final sourceLabel = Fmt.str(r['source_label']);
-                        final cust = Fmt.str(r['customer_name']);
-                        final item = Fmt.str(r['item_name']);
-                        final code = Fmt.str(r['item_code']);
-                        final qty = Fmt.toDouble(r['qty']);
-                        final amt = Fmt.toDouble(r['line_total']);
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      sourceLabel.isNotEmpty
-                                          ? '$date · $sourceLabel · $invNo'
-                                          : '$date · $invNo',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                  Text(
-                                    Fmt.money(amt),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      color: AppTheme.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                cust,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.textSoft,
-                                ),
-                              ),
-                              Text(
-                                code.isNotEmpty ? '$item ($code)' : item,
-                                style: const TextStyle(fontSize: 13),
-                              ),
-                              Text(
-                                'كمية: ${Fmt.trimNum(qty)}',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppTheme.textSoft,
-                                ),
-                              ),
-                              const Divider(height: 16),
-                            ],
-                          ),
-                        );
-                      }),
-                    ],
+                Text(
+                  '${_rows.length} سطر · كمية ${Fmt.trimNum(_totalQty)}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
                   ),
                 ),
+                const SizedBox(height: 8),
+                LinedReportTable(
+                  headers: _headers(),
+                  rows: [
+                    for (var i = 0; i < _rows.length; i++) _cells(_rows[i], i),
+                  ],
+                  numericCols: const {0, 5, 6},
+                ),
+                const SizedBox(height: 8),
+                ReportTotalBar(label: 'الإجمالي: ${Fmt.money(_totalAmount)}'),
               ],
             ],
           ),

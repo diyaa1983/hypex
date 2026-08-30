@@ -423,7 +423,12 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: AppTheme.primary,
-      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      padding: EdgeInsets.fromLTRB(
+        10,
+        MediaQuery.sizeOf(context).shortestSide >= 600 ? 4 : 6,
+        4,
+        MediaQuery.sizeOf(context).shortestSide >= 600 ? 4 : 6,
+      ),
       child: Row(
         children: [
           Container(
@@ -566,27 +571,47 @@ class _TileGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tablet = MediaQuery.sizeOf(context).shortestSide >= 600;
     return LayoutBuilder(
       builder: (context, box) {
-        // عمود لكل ~125 بكسل لتقارب الأيقونات.
-        final cols = (box.maxWidth / 125).floor().clamp(3, 6);
+        final n = tiles.isEmpty ? 1 : tiles.length;
+        final cols = tablet
+            ? (box.maxWidth / 148).floor().clamp(5, 8)
+            : (box.maxWidth / 125).floor().clamp(3, 6);
+        final rows = (n / cols).ceil().clamp(1, 20);
+        final padH = tablet ? 12.0 : 8.0;
+        final padV = tablet ? 8.0 : 10.0;
+        final availW = (box.maxWidth - padH * 2).clamp(1.0, 4000.0);
+        final availH = (box.maxHeight - padV * 2).clamp(1.0, 4000.0);
+        final cellW = availW / cols;
+        final cellH = availH / rows;
+        final minCellH = tablet ? 88.0 : 96.0;
+        final fit = tablet && cellH >= minCellH;
+        final aspect = fit ? (cellW / cellH) : 0.9;
         return GridView.builder(
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 24),
+          physics: fit
+              ? const NeverScrollableScrollPhysics()
+              : const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(padH, padV, padH, padV),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 4,
-            childAspectRatio: 0.9,
+            mainAxisSpacing: tablet ? 4 : 8,
+            crossAxisSpacing: tablet ? 4 : 4,
+            childAspectRatio: aspect,
           ),
           itemCount: tiles.length,
           itemBuilder: (_, i) {
             final t = tiles[i];
-            return _TileButton(
-              label: t.label,
-              icon: t.spec.icon,
-              color: t.spec.color,
-              asset: t.spec.asset,
-              onTap: () => context.push(t.spec.route),
+            return FittedBox(
+              fit: BoxFit.scaleDown,
+              child: _TileButton(
+                label: t.label,
+                icon: t.spec.icon,
+                color: t.spec.color,
+                asset: t.spec.asset,
+                compact: tablet,
+                onTap: () => context.push(t.spec.route),
+              ),
             );
           },
         );
@@ -603,6 +628,7 @@ class _TileButton extends StatelessWidget {
     required this.color,
     required this.onTap,
     this.asset,
+    this.compact = false,
   });
 
   final String label;
@@ -610,6 +636,7 @@ class _TileButton extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final String? asset;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -623,15 +650,18 @@ class _TileButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 112),
+            constraints: BoxConstraints(maxWidth: compact ? 128 : 112),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
+              padding: EdgeInsets.symmetric(
+                horizontal: 2,
+                vertical: compact ? 4 : 6,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    height: 68,
-                    width: 68,
+                    height: compact ? 58 : 68,
+                    width: compact ? 58 : 68,
                     child: art != null
                         ? Image.asset(art, fit: BoxFit.contain)
                         : ShaderMask(
@@ -647,7 +677,7 @@ class _TileButton extends StatelessWidget {
                             ).createShader(rect),
                             child: Icon(
                               icon,
-                              size: 60,
+                              size: compact ? 50 : 60,
                               color: Colors.white,
                               shadows: const [
                                 Shadow(
@@ -665,9 +695,9 @@ class _TileButton extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12.5,
-                      height: 1.2,
+                    style: TextStyle(
+                      fontSize: compact ? 12 : 12.5,
+                      height: 1.15,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textMain,
                     ),

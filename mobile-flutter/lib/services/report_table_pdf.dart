@@ -52,30 +52,78 @@ class ReportTablePdf {
           ],
         ),
         build: (ctx) {
-          final table = pw.TableHelper.fromTextArray(
-            headers: headers,
-            data: rows,
-            headerStyle: pw.TextStyle(
-              font: fontBold,
-              fontSize: 8,
-              color: PdfColors.white,
-              fontWeight: pw.FontWeight.bold,
-            ),
-            headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF5B6B7C)),
-            cellStyle: pw.TextStyle(font: fontReg, fontSize: 7.5),
-            cellAlignment: pw.Alignment.center,
-            headerAlignment: pw.Alignment.center,
-            cellPadding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 4),
-            border: pw.TableBorder.all(color: PdfColors.blueGrey300, width: 0.4),
+          const line = PdfColor.fromInt(0xFF475569);
+          const headBg = PdfColor.fromInt(0xFF334155);
+          const stripe = PdfColor.fromInt(0xFFEEF2F7);
+          pw.Widget cell(
+            String text, {
+            required pw.Font font,
+            bool header = false,
+            bool stripeRow = false,
+          }) {
+            return pw.Container(
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+              decoration: pw.BoxDecoration(
+                color: header
+                    ? headBg
+                    : (stripeRow ? stripe : PdfColors.white),
+                border: pw.Border.all(color: line, width: 0.7),
+              ),
+              child: pw.Text(
+                text,
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  font: font,
+                  fontSize: header ? 8 : 7.5,
+                  color: header ? PdfColors.white : PdfColors.black,
+                  fontWeight: header ? pw.FontWeight.bold : pw.FontWeight.normal,
+                ),
+              ),
+            );
+          }
+
+          final table = pw.Table(
+            border: pw.TableBorder.all(color: line, width: 0.8),
+            defaultColumnWidth: const pw.FlexColumnWidth(),
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+            children: [
+              pw.TableRow(
+                children: [
+                  for (final h in headers)
+                    cell(h, font: fontBold, header: true),
+                ],
+              ),
+              for (var i = 0; i < rows.length; i++)
+                pw.TableRow(
+                  children: [
+                    for (var c = 0; c < headers.length; c++)
+                      cell(
+                        c < rows[i].length ? rows[i][c] : '',
+                        font: fontReg,
+                        stripeRow: i.isOdd,
+                      ),
+                  ],
+                ),
+            ],
           );
           return [
             table,
             if (footer != null && footer.isNotEmpty) ...[
-              pw.SizedBox(height: 10),
-              pw.Align(
-                alignment: pw.Alignment.centerRight,
+              pw.SizedBox(height: 8),
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 6,
+                ),
+                decoration: pw.BoxDecoration(
+                  color: stripe,
+                  border: pw.Border.all(color: line, width: 0.8),
+                ),
                 child: pw.Text(
                   footer,
+                  textAlign: pw.TextAlign.right,
                   style: pw.TextStyle(
                     font: fontBold,
                     fontSize: 10,

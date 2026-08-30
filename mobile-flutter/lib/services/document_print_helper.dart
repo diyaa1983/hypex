@@ -1,8 +1,12 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../core/api_client.dart';
 import '../widgets/async_view.dart';
@@ -124,8 +128,11 @@ class DocumentPrintHelper {
         showSnack(context, 'تعذر إنشاء PDF على السيرفر.', error: true);
         return;
       }
-      final name = fileName.toLowerCase().endsWith('.pdf') ? fileName : '$fileName.pdf';
-      await Printing.sharePdf(bytes: Uint8List.fromList(bytes), filename: name);
+      await sharePdfBytes(
+        Uint8List.fromList(bytes),
+        fileName: fileName,
+        context: context,
+      );
     } on ApiException catch (e) {
       if (!context.mounted) return;
       showSnack(context, e.message, error: true);
@@ -156,11 +163,59 @@ class DocumentPrintHelper {
     );
   }
 
+  static String _asciiPdfName(String fileName) {
+    var base = fileName.trim();
+    if (base.toLowerCase().endsWith('.pdf')) {
+      base = base.substring(0, base.length - 4);
+    }
+    final ascii = base
+        .replaceAll(RegExp(r'[^\w.\-]+'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-+|-+$'), '');
+    final name = ascii.isEmpty
+        ? 'hypex-${DateTime.now().millisecondsSinceEpoch}'
+        : ascii;
+    return '$name.pdf';
+  }
+
+  static Rect? _shareOrigin(BuildContext? context) {
+    if (context == null || !context.mounted) return null;
+    final box = context.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return null;
+    return box.localToGlobal(Offset.zero) & box.size;
+  }
+
   static Future<void> sharePdfBytes(
     Uint8List bytes, {
     required String fileName,
+    BuildContext? context,
   }) async {
-    final name = fileName.toLowerCase().endsWith('.pdf') ? fileName : '$fileName.pdf';
-    await Printing.sharePdf(bytes: bytes, filename: name);
+    if (bytes.isEmpty) {
+      throw StateError('ملف PDF فارغ.');
+    }
+    final name = _asciiPdfName(fileName);
+    final origin = _shareOrigin(context);
+    final dir = await getTemporaryDirectory();
+    final file = File(p.join(dir.path, name));
+    await file.writeAsBytes(bytes, flush: true);
+    try {
+      await Share.shareXFiles(
+        [
+          XFile(
+            file.path,
+            mimeType: 'application/pdf',
+            name: name,
+          ),
+        ],
+        subject: name,
+        sharePositionOrigin: origin,
+      );
+    } catch (_) {
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: name,
+        bounds: origin,
+      );
+    }
   }
 }

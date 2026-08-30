@@ -147,7 +147,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   Map<String, dynamic>? _arSummary;
   bool _arLoading = false;
   String? _arError;
-  bool _autoSendOrders = false;
+  bool _autoSendOrders = true;
   bool _isSent = false;
 
   bool get _editable => !_approved;
@@ -315,9 +315,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       setState(() {
         _warehouses = ws;
         _taxRates = rates;
-        _autoSendOrders = meta['auto_send_orders'] == true ||
-            meta['auto_send_orders'] == 1 ||
-            '${meta['auto_send_orders']}' == '1';
+        _autoSendOrders = _flagOn(
+          meta.containsKey('auto_send_orders')
+              ? meta['auto_send_orders']
+              : meta['auto_send'],
+          defaultOn: true,
+        );
         _defaultTaxPercent = defaultTax > 0
             ? defaultTax
             : (rates.isEmpty ? 0 : rates.first.rate);
@@ -579,14 +582,21 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               body: body,
             );
         final id = Fmt.toInt(result['order_id'] ?? result['id']);
-        final sent = result['is_sent'] == true || result['is_sent'] == 1;
+        final sent = _flagOn(result['is_sent']);
         if (mounted) {
           setState(() {
             _id = id == 0 ? _id : id;
             _orderNo = Fmt.str(result['order_no']) == ''
                 ? _orderNo
                 : Fmt.str(result['order_no']);
-            if (sent) _isSent = true;
+            _isSent = sent;
+            if (result.containsKey('auto_send') ||
+                result.containsKey('auto_send_orders')) {
+              _autoSendOrders = _flagOn(
+                result['auto_send'] ?? result['auto_send_orders'],
+                defaultOn: true,
+              );
+            }
           });
           showSnack(
               context,
@@ -690,11 +700,20 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       };
   }
 
-  bool get _canPost =>
-      _autoSendOrders && _id != 0 && !_isSent && !_approved;
+  bool _flagOn(dynamic v, {bool defaultOn = false}) {
+    if (v == null) return defaultOn;
+    return v == true || v == 1 || '$v' == '1';
+  }
+
+  bool get _canPost => _autoSendOrders && !_isSent && !_approved;
 
   Future<void> _post() async {
-    if (!_canPost) return;
+    if (!_canPost || _busy) return;
+    if (_id == 0) {
+      final saved = await _save();
+      if (saved == 0 || !mounted) return;
+    }
+    if (_isSent) return;
     setState(() => _busy = true);
     final offline = context.read<OfflineController>();
     try {
@@ -792,10 +811,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     required VoidCallback? onPressed,
     bool filled = false,
     bool danger = false,
+    Color? color,
   }) {
+    final fill = color ?? (danger ? AppTheme.danger : AppTheme.primary);
     final style = filled
         ? FilledButton.styleFrom(
-            backgroundColor: danger ? AppTheme.danger : AppTheme.primary,
+            backgroundColor: fill,
             minimumSize: const Size(0, 46),
             textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           )
@@ -856,6 +877,8 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             _actionBtn(
               label: 'ترحيل',
               icon: Icons.send_rounded,
+              filled: true,
+              color: AppTheme.teal,
               onPressed: _busy ? null : _post,
             ),
           ],

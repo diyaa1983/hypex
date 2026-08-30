@@ -364,3 +364,147 @@ class _ShimmerState extends State<_Shimmer>
     );
   }
 }
+
+/// جدول مسطّر للتقارير: حدود كاملة + ترويسة + صفوف متناوبة.
+class LinedReportTable extends StatelessWidget {
+  const LinedReportTable({
+    super.key,
+    required this.headers,
+    required this.rows,
+    this.onRowTap,
+    this.numericCols = const {},
+  });
+
+  final List<String> headers;
+  final List<List<String>> rows;
+  final void Function(int index)? onRowTap;
+  final Set<int> numericCols;
+
+  static const _line = Color(0xFF94A3B8);
+  static const _headBg = Color(0xFF334155);
+  static const _stripe = Color(0xFFEEF2F7);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final parentW =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : 0.0;
+        final tableW = parentW > headers.length * 78
+            ? parentW
+            : headers.length * 78.0;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: tableW,
+            child: Material(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(6),
+              clipBehavior: Clip.antiAlias,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: _line, width: 1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Table(
+                  border: TableBorder.symmetric(
+                    inside: const BorderSide(color: _line, width: 0.7),
+                  ),
+                  defaultColumnWidth: const FlexColumnWidth(),
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  children: [
+                    TableRow(
+                      decoration: const BoxDecoration(color: _headBg),
+                      children: [
+                        for (var c = 0; c < headers.length; c++)
+                          _cell(
+                            headers[c],
+                            header: true,
+                            numeric: numericCols.contains(c),
+                          ),
+                      ],
+                    ),
+                    for (var i = 0; i < rows.length; i++)
+                      TableRow(
+                        decoration: BoxDecoration(
+                          color: i.isOdd ? _stripe : Colors.white,
+                        ),
+                        children: [
+                          for (var c = 0; c < headers.length; c++)
+                            _cell(
+                              c < rows[i].length ? rows[i][c] : '',
+                              numeric: numericCols.contains(c),
+                              onTap: onRowTap == null
+                                  ? null
+                                  : () => onRowTap!(i),
+                            ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _cell(
+    String text, {
+    bool header = false,
+    bool numeric = false,
+    VoidCallback? onTap,
+  }) {
+    final child = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 36),
+        child: Text(
+          text,
+          textAlign: numeric ? TextAlign.left : TextAlign.right,
+          textDirection: numeric ? TextDirection.ltr : TextDirection.rtl,
+          maxLines: header ? 2 : 3,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: header ? Colors.white : AppTheme.textMain,
+            fontWeight: header ? FontWeight.w800 : FontWeight.w600,
+            fontSize: header ? 12 : 12.5,
+            height: 1.25,
+          ),
+        ),
+      ),
+    );
+    if (onTap == null) return child;
+    return Material(color: Colors.transparent, child: InkWell(onTap: onTap, child: child));
+  }
+}
+
+class ReportTotalBar extends StatelessWidget {
+  const ReportTotalBar({super.key, required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFEEF2F7),
+        border: Border.all(color: const Color(0xFF94A3B8)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        textAlign: TextAlign.left,
+        textDirection: TextDirection.rtl,
+        style: const TextStyle(
+          fontWeight: FontWeight.w900,
+          fontSize: 14.5,
+          color: AppTheme.textMain,
+        ),
+      ),
+    );
+  }
+}
