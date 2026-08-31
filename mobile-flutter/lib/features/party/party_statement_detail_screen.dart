@@ -71,7 +71,7 @@ class _PartyStatementDetailScreenState
         context,
         apiPath: path,
         query: widget.pdfQuery,
-        title: 'كشف حساب تفصيلي',
+        title: 'كشف حساب',
         fileName: widget.fileName,
       );
     } finally {
@@ -88,7 +88,7 @@ class _PartyStatementDetailScreenState
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ThermalPreviewScreen(
-            title: 'عرض حراري',
+            title: 'عرض',
             buildPdf: (paperMm) =>
                 PartyStatementBluetoothReceipt.buildThermalPdf(
               payload,
@@ -130,7 +130,7 @@ class _PartyStatementDetailScreenState
     return Scaffold(
       backgroundColor: const Color(0xFFF0F4F8),
       appBar: AppBar(
-        title: const Text('كشف حساب تفصيلي'),
+        title: const Text('كشف حساب'),
       ),
       body: Column(
         children: [
@@ -272,7 +272,7 @@ class _PartyStatementDetailScreenState
                 child: OutlinedButton.icon(
                   onPressed: _previewBusy ? null : _openThermal,
                   icon: const Icon(Icons.receipt_long_outlined, size: 20),
-                  label: const Text('حراري'),
+                  label: const Text('عرض'),
                 ),
               ),
             ],
@@ -369,7 +369,7 @@ class _PartyStatementDetailScreenState
     );
     final docNo = Fmt.str(row['doc_no']);
     final type = Fmt.str(row['doc_type'] ?? row['type']);
-    final desc = Fmt.str(row['description'] ?? row['remark']);
+    final desc = Fmt.statementDesc(row['description'] ?? row['remark']);
     final debit = Fmt.toDouble(row['debit']);
     final credit = Fmt.toDouble(row['credit']);
     final balance = Fmt.toDouble(row['balance'] ?? row['running_balance']);

@@ -109,7 +109,9 @@ foreach ((array) ($stmt['lines'] ?? []) as $ln) {
     $lnDate = (string) ($ln['trn_date'] ?? $ln['date'] ?? $ln['doc_date'] ?? '');
     $rows[] = [
         'date' => $lnDate,
-        'description' => (string) ($ln['description'] ?? $ln['remark'] ?? $ln['desc'] ?? ''),
+        'description' => oracle_statement_clean_description(
+            (string) ($ln['description'] ?? $ln['remark'] ?? $ln['desc'] ?? '')
+        ),
         'doc_no' => (string) ($ln['doc_no'] ?? $ln['num'] ?? $ln['number'] ?? ''),
         'debit' => (float) ($ln['debit'] ?? 0),
         'credit' => (float) ($ln['credit'] ?? 0),

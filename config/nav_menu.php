@@ -579,7 +579,7 @@ return [
                         ['r' => 'm_home', 'label' => 'الرئيسية', 'icon' => '📱'],
                         ['r' => 'm_sales_invoices', 'label' => 'فواتير المبيعات', 'icon' => '🧾'],
                         ['r' => 'm_customer_add', 'label' => 'إضافة عميل', 'icon' => '👤'],
-                        ['r' => 'm_party_statement', 'label' => 'كشف حساب عميل Oracle', 'icon' => '📋'],
+                        ['r' => 'm_party_statement', 'label' => 'كشف حساب', 'icon' => '📋'],
                         ['r' => 'm_receipt', 'label' => 'سند قبض', 'icon' => '⬆'],
                         ['r' => 'm_sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
                         ['r' => 'm_user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '📍'],

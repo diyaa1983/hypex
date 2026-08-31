@@ -26,6 +26,26 @@ class Fmt {
 
   static String str(dynamic v) => v == null ? '' : v.toString();
 
+  /// بيان حركة الكشف بدون «من المستودع رقم 4».
+  static String statementDesc(dynamic v) {
+    var s = str(v).trim();
+    if (s.isEmpty) return '';
+    s = s.replaceAll(
+      RegExp(r'\s*من\s+المستودع\s*(?:رقم\s*)?4\s*', unicode: true),
+      ' ',
+    );
+    s = s.replaceAll(
+      RegExp(r'\s*المستودع\s*(?:رقم\s*)?4\s*', unicode: true),
+      ' ',
+    );
+    s = s.replaceAll(
+      RegExp(r'\s*مستودع\s*(?:رقم\s*)?4\s*', unicode: true),
+      ' ',
+    );
+    s = s.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
+    return s.replaceAll(RegExp(r'^[\s\-/·|,]+|[\s\-/·|,]+$'), '');
+  }
+
   /// رقم بدون أصفار زائدة — مناسب لحقول الإدخال.
   static String trimNum(double v) {
     if (v == v.roundToDouble()) return v.toInt().toString();

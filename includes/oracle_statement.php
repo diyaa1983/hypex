@@ -85,6 +85,29 @@ function oracle_statement_doc_type_label(int $flag, int $type, string $remark): 
         : '');
 }
 
+/** إزالة «من المستودع رقم 4» من بيان الحركة — لا يُعرض في الكشف. */
+function oracle_statement_clean_description(string $desc): string
+{
+    $s = trim($desc);
+    if ($s === '') {
+        return '';
+    }
+    $patterns = [
+        '/\s*من\s+المستودع\s*(?:رقم\s*)?4\s*/u',
+        '/\s*المستودع\s*(?:رقم\s*)?4\s*/u',
+        '/\s*مستودع\s*(?:رقم\s*)?4\s*/u',
+        '/\s*(?:WH|STORE|WAREHOUSE)\s*(?:NO\.?|NUM(?:BER)?)?\s*0*4\s*/iu',
+    ];
+    foreach ($patterns as $p) {
+        $s = preg_replace($p, ' ', $s) ?? $s;
+    }
+    $s = preg_replace('/[ \t]{2,}/u', ' ', $s) ?? $s;
+    $s = trim($s);
+    $s = trim($s, " \t-/·|,");
+
+    return $s;
+}
+
 /**
  * @param mixed $v
  */
@@ -442,7 +465,7 @@ function oracle_fetch_customer_statement(string $accountNo, string $dateFrom, st
             'debit' => $debit,
             'credit' => $credit,
             'balance' => $run,
-            'description' => $remark,
+            'description' => oracle_statement_clean_description($remark),
             'is_opening' => false,
         ];
     }

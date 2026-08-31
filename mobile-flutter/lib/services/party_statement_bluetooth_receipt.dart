@@ -52,8 +52,6 @@ class PartyStatementBluetoothReceipt {
       marginAll: paperMm == 80 ? 3 * PdfPageFormat.mm : 2 * PdfPageFormat.mm,
     );
 
-    final partyType = Fmt.str(data['party_type']);
-    final partyLabel = partyType == 'supplier' ? 'مورد' : 'عميل';
     final partyName =
         Fmt.str(data['party_name']).isEmpty ? '—' : Fmt.str(data['party_name']);
     final partyCode = Fmt.str(data['party_code']);
@@ -89,7 +87,7 @@ class PartyStatementBluetoothReceipt {
     final brandHeader = await PrintBrand.header(
       paperMm: paperMm,
       bold: fontBold,
-      title: 'كشف حساب $partyLabel',
+      title: 'كشف حساب',
       companyFromDocument: Fmt.str(data['company_name']),
       logoUrlFromDocument: Fmt.str(data['logo_url']),
     );
@@ -232,7 +230,7 @@ class PartyStatementBluetoothReceipt {
             row['trn_date'] ?? row['date'] ?? row['doc_date'] ?? row['date_dmy'],
           ),
         );
-        var desc = Fmt.str(
+        var desc = Fmt.statementDesc(
           row['description'] ??
               row['remark'] ??
               row['doc_type'] ??

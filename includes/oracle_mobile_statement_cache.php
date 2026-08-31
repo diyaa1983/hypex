@@ -83,7 +83,9 @@ function oracle_mobile_customer_statement_payload(
             continue;
         }
         $lnDate = (string) ($ln['trn_date'] ?? $ln['date'] ?? $ln['doc_date'] ?? '');
-        $lnDesc = (string) ($ln['description'] ?? $ln['remark'] ?? $ln['desc'] ?? '');
+        $lnDesc = oracle_statement_clean_description(
+            (string) ($ln['description'] ?? $ln['remark'] ?? $ln['desc'] ?? '')
+        );
         $lines[] = [
             'date' => $lnDate,
             'trn_date' => $lnDate,

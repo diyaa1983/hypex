@@ -291,7 +291,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => ThermalPreviewScreen(
-            title: 'عرض كشف الحساب',
+            title: 'عرض',
             buildPdf: (paperMm) =>
                 PartyStatementBluetoothReceipt.buildThermalPdf(
               payload,
@@ -404,7 +404,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                   Row(
                     children: [
                       ChoiceChip(
-                        label: const Text('عميل Oracle'),
+                        label: const Text('عميل'),
                         selected: _type == 'customer',
                         onSelected: (_) => setState(() {
                           _type = 'customer';
@@ -495,7 +495,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                     child: Text(
                       'عرض من الكاش المحلي'
                       '${Fmt.str(_result?['cached_at']).isEmpty ? '' : ' — ${Fmt.str(_result?['cached_at'])}'}.\n'
-                      'الأرصدة قد لا تكون أحدث ما في Oracle حتى تُحدَّث وأنت متصل.',
+                      'الأرصدة قد لا تكون أحدث ما على السيرفر حتى تُحدَّث وأنت متصل.',
                       style: const TextStyle(
                         fontSize: 12.5,
                         height: 1.35,
@@ -550,7 +550,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                       Expanded(
                         child: ActionChipButton(
                           icon: Icons.receipt_long_outlined,
-                          label: 'عرض حراري',
+                          label: 'عرض',
                           busy: _previewBusy,
                           onTap: _openPreview,
                         ),
@@ -607,7 +607,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
     }
 
     return MobileScaffold(
-      title: Text(_type == 'customer' ? 'كشف حساب عميل (Oracle)' : 'كشف حساب'),
+      title: const Text('كشف حساب'),
       body: body,
     );
   }
@@ -716,7 +716,7 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
 
   Widget _rowTile(Map<String, dynamic> row) {
     final type = Fmt.str(row['doc_type'] ?? row['type']);
-    var desc = Fmt.str(row['description'] ?? row['remark']);
+    var desc = Fmt.statementDesc(row['description'] ?? row['remark']);
     final docNo = Fmt.str(row['doc_no']);
     if (desc.isEmpty) {
       desc = type.isNotEmpty ? type : (docNo.isNotEmpty ? docNo : '—');
