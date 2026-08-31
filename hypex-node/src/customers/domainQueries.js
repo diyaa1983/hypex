@@ -20,6 +20,7 @@ function customerListWhere({
   q = '',
   activeOnly = true,
   regionId = 0,
+  salesRepId = 0,
   oraclePendingOnly = false,
 } = {}) {
   const where = ['1=1'];
@@ -35,6 +36,16 @@ function customerListWhere({
   if (regionId > 0) {
     where.push('c.region_id = ?');
     params.push(regionId);
+  }
+  if (salesRepId > 0) {
+    where.push(`(
+      c.sales_rep_id = ?
+      OR EXISTS (
+        SELECT 1 FROM crm_customer_sales_rep csr
+        WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+      )
+    )`);
+    params.push(salesRepId, salesRepId);
   }
   if (q) {
     const like = `%${q}%`;
@@ -68,6 +79,7 @@ async function listCustomers({
   q = '',
   activeOnly = true,
   regionId = 0,
+  salesRepId = 0,
   oraclePendingOnly = false,
   limit = 10000,
 } = {}) {
@@ -75,6 +87,7 @@ async function listCustomers({
     q,
     activeOnly,
     regionId,
+    salesRepId,
     oraclePendingOnly,
   });
   const cap = Math.min(20000, Math.max(1, Number(limit) || 10000));

@@ -187,6 +187,8 @@ function customerListQueryString(src = {}) {
   if (String(src.oracle_pending || '') === '1') p.set('oracle_pending', '1');
   const customerId = Number(src.customer_id || 0) || 0;
   if (customerId > 0) p.set('customer_id', String(customerId));
+  const salesRepId = Number(src.sales_rep_id || 0) || 0;
+  if (salesRepId > 0) p.set('sales_rep_id', String(salesRepId));
   return p.toString();
 }
 
@@ -197,7 +199,8 @@ function rememberCustomerListFilter(req) {
     Object.prototype.hasOwnProperty.call(req.query, 'region_id') ||
     Object.prototype.hasOwnProperty.call(req.query, 'all') ||
     Object.prototype.hasOwnProperty.call(req.query, 'oracle_pending') ||
-    Object.prototype.hasOwnProperty.call(req.query, 'customer_id');
+    Object.prototype.hasOwnProperty.call(req.query, 'customer_id') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'sales_rep_id');
   if (hasFilter) {
     req.session.customerListQs = customerListQueryString(req.query);
   }
@@ -241,11 +244,13 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
   const oraclePending = String(req.query.oracle_pending || '') === '1';
   const regionId = Number(req.query.region_id || 0) || 0;
   const customerId = Number(req.query.customer_id || 0) || 0;
-  const regions = await q.regionOptions();
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const [regions, reps] = await Promise.all([q.regionOptions(), q.salesRepOptions()]);
   const filter = {
     q: '',
     activeOnly: !showAll,
     regionId,
+    salesRepId,
     oraclePendingOnly: oraclePending,
   };
   const [rows, total] = await Promise.all([
@@ -257,6 +262,14 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     .map(
       (r) =>
         `<option value="${r.id}" ${regionId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}</option>`
+    )
+    .join('');
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar || '')}${
+          r.code ? ' (' + ui.esc(r.code) + ')' : ''
+        }</option>`
     )
     .join('');
 
@@ -284,6 +297,13 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:9rem">
             <option value="0">كل المناطق</option>
             ${regionOpts}
+          </select>
+        </label>
+        <label class="si-list-f" style="display:flex;flex-direction:column;gap:.18rem;min-width:11rem">
+          <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">المندوب</span>
+          <select name="sales_rep_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:11rem">
+            <option value="0">كل المندوبين</option>
+            ${repOpts}
           </select>
         </label>
         <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem">
@@ -374,6 +394,8 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           }
           var region = form.querySelector('[name="region_id"]');
           if (region && region.value && region.value !== '0') u.searchParams.set('region_id', region.value);
+          var rep = form.querySelector('[name="sales_rep_id"]');
+          if (rep && rep.value && rep.value !== '0') u.searchParams.set('sales_rep_id', rep.value);
           var all = form.querySelector('[name="all"]');
           if (all && all.checked) u.searchParams.set('all', '1');
           var ora = form.querySelector('[name="oracle_pending"]');
