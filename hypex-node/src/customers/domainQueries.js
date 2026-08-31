@@ -16,7 +16,12 @@ const repNamesSub = `(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r
                 INNER JOIN crm_sales_rep r2 ON r2.id = csr2.sales_rep_id
                 WHERE csr2.customer_id = c.id)`;
 
-async function listCustomers({ q = '', activeOnly = true, regionId = 0, oraclePendingOnly = false, limit = 150 } = {}) {
+function customerListWhere({
+  q = '',
+  activeOnly = true,
+  regionId = 0,
+  oraclePendingOnly = false,
+} = {}) {
   const where = ['1=1'];
   const params = [];
   if (activeOnly) where.push('c.is_active = 1');
@@ -41,19 +46,48 @@ async function listCustomers({ q = '', activeOnly = true, regionId = 0, oraclePe
     )`);
     params.push(like, like, like, like, like, like, like, like);
   }
+  return { where, params };
+}
+
+const CUSTOMER_LIST_FROM = `FROM crm_customer c
+     LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
+     LEFT JOIN crm_region rg ON rg.id = c.region_id
+     LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id`;
+
+async function countCustomers(opts = {}) {
+  const { where, params } = customerListWhere(opts);
+  const rows = await safeQuery(
+    `SELECT COUNT(*) AS c ${CUSTOMER_LIST_FROM}
+     WHERE ${where.join(' AND ')}`,
+    params
+  );
+  return Number((rows && rows[0] && rows[0].c) || 0);
+}
+
+async function listCustomers({
+  q = '',
+  activeOnly = true,
+  regionId = 0,
+  oraclePendingOnly = false,
+  limit = 10000,
+} = {}) {
+  const { where, params } = customerListWhere({
+    q,
+    activeOnly,
+    regionId,
+    oraclePendingOnly,
+  });
+  const cap = Math.min(20000, Math.max(1, Number(limit) || 10000));
   return safeQuery(
     `SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active,
             c.oracle_key, c.oracle_pending, c.payment_period, c.region_id,
             rg.name_ar AS region_name,
             ra.name_ar AS region_address_name,
             COALESCE(${repNamesSub}, r.name_ar) AS sales_rep_name
-     FROM crm_customer c
-     LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
-     LEFT JOIN crm_region rg ON rg.id = c.region_id
-     LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
+     ${CUSTOMER_LIST_FROM}
      WHERE ${where.join(' AND ')}
      ORDER BY c.id DESC
-     LIMIT ${Math.min(300, limit)}`,
+     LIMIT ${cap}`,
     params
   );
 }
@@ -251,6 +285,7 @@ async function reportRegionAddresses({ activeOnly = false, regionId = 0 } = {}) 
 
 module.exports = {
   listCustomers,
+  countCustomers,
   listRegions,
   listRegionAddresses,
   regionOptions,

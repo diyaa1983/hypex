@@ -181,7 +181,16 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
   const oraclePending = String(req.query.oracle_pending || '') === '1';
   const regionId = Number(req.query.region_id || 0) || 0;
   const regions = await q.regionOptions();
-  const rows = await q.listCustomers({ q: qv, activeOnly: !showAll, regionId, oraclePendingOnly: oraclePending });
+  const filter = {
+    q: qv,
+    activeOnly: !showAll,
+    regionId,
+    oraclePendingOnly: oraclePending,
+  };
+  const [rows, total] = await Promise.all([
+    q.listCustomers({ ...filter, limit: 20000 }),
+    q.countCustomers(filter),
+  ]);
 
   const regionOpts = regions
     .map(
@@ -242,7 +251,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     subtitle: 'دليل العملاء — إضافة وتعديل على Node',
     headers: ['الرمز', 'الاسم', 'الهاتف', 'المنطقة', 'المندوب', 'الحالة', ''],
     rowsHtml,
-    count: rows.length,
+    count: total > rows.length ? `${rows.length} من ${total}` : total,
     phpRoute: 'customers',
     filtersHtml,
     extraActions: [
