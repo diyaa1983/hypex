@@ -140,6 +140,16 @@ class SessionController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// يُعيد CSRF الحالي، ويحدّث الجلسة إن كان فارغاً.
+  Future<String> ensureCsrf() async {
+    if (csrf.isNotEmpty) return csrf;
+    if (!authenticated && api.base.isEmpty) return '';
+    try {
+      await refreshMe();
+    } catch (_) {}
+    return csrf;
+  }
+
   /// فحص الاتصال بالسيرفر.
   Future<bool> ping() async {
     try {

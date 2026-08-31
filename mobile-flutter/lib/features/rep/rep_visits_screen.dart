@@ -150,6 +150,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Future<void> _startCheckout() async {
     if (_selected == null || _busy) return;
     if (!_canCheckout(_selected)) return;
+    final checkin = Fmt.str(_selected!['checkin_method']).toUpperCase();
+    if (checkin == 'MANUAL') {
+      await _checkout(manual: true);
+      return;
+    }
     final method = await _askVisitMethod(checkout: true);
     if (method == null || !mounted) return;
     await _checkout(manual: method);
@@ -434,16 +439,34 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     await _load();
   }
 
-  List<Map<String, dynamic>> get _plannedVisits =>
-      _visits.where((v) => v['in_plan'] == true).toList();
+  List<Map<String, dynamic>> get _plannedVisits {
+    final list = _visits.where((v) => v['in_plan'] == true).toList();
+    _sortOpenVisitsFirst(list);
+    return list;
+  }
 
-  List<Map<String, dynamic>> get _extraOpenOrDone => _visits.where((v) {
+  List<Map<String, dynamic>> get _extraOpenOrDone {
+    final list = _visits.where((v) {
         if (v['in_plan'] == true) return false;
         final s = Fmt.str(v['status']);
         return s == 'checked_in' ||
             s == 'pending_manual_checkout' ||
             s == 'checked_out';
       }).toList();
+    _sortOpenVisitsFirst(list);
+    return list;
+  }
+
+  void _sortOpenVisitsFirst(List<Map<String, dynamic>> list) {
+    list.sort((a, b) {
+      int rank(Map<String, dynamic> v) {
+        final s = _statusOf(v);
+        if (s == 'checked_in' || s == 'pending_manual_checkout') return 0;
+        return 1;
+      }
+      return rank(a).compareTo(rank(b));
+    });
+  }
 
   String _statusOf(Map<String, dynamic>? v, {String? referenceDate}) {
     if (v == null) return '';
@@ -1376,6 +1399,8 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                     ),
                   )
                 : ListView.separated(
+                    cacheExtent: 600,
+                    addAutomaticKeepAlives: false,
                     padding: const EdgeInsets.symmetric(vertical: 6),
                     itemCount: customers.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
@@ -1906,16 +1931,19 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                             });
                           },
                   ),
-                  _BigActionButton(
-                    label: 'خروج GPS',
-                    hint: 'من موقع العميل',
-                    icon: Icons.logout_rounded,
-                    color: AppTheme.teal,
-                    onPressed: _busy ? null : () => _checkout(manual: false),
-                  ),
+                  if (Fmt.str(v['checkin_method']).toUpperCase() != 'MANUAL')
+                    _BigActionButton(
+                      label: 'خروج GPS',
+                      hint: 'من موقع العميل',
+                      icon: Icons.logout_rounded,
+                      color: AppTheme.teal,
+                      onPressed: _busy ? null : () => _checkout(manual: false),
+                    ),
                   _BigActionButton(
                     label: 'خروج يدوي',
-                    hint: 'يحتاج موافقة إذا كان الدخول GPS',
+                    hint: Fmt.str(v['checkin_method']).toUpperCase() == 'MANUAL'
+                        ? 'نفس طريقة الدخول اليدوي'
+                        : 'يحتاج موافقة إذا كان الدخول GPS',
                     icon: Icons.output_rounded,
                     color: AppTheme.warn,
                     outlined: true,

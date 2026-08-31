@@ -20,10 +20,12 @@ class OfflineController extends ChangeNotifier {
   final _uuid = const Uuid();
 
   Future<String> Function()? csrfProvider;
+  Future<String> Function()? csrfRefresh;
 
   StreamSubscription<List<ConnectivityResult>>? _sub;
   Timer? _reconnectFlushTimer;
   Timer? _pingTimer;
+  Timer? _autoFlushTimer;
   bool _probing = false;
   bool online = true;
   /// نتيجة فحص السيرفر (`m/ping.php`) وليس مجرد وجود شبكة.
@@ -67,6 +69,12 @@ class OfflineController extends ChangeNotifier {
     _pingTimer?.cancel();
     _pingTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       unawaited(_recoverConnection());
+    });
+    _autoFlushTimer?.cancel();
+    _autoFlushTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (info.pendingOutbox > 0 || info.ordersPending > 0) {
+        unawaited(flushAndAutoPost());
+      }
     });
     unawaited(_recoverConnection(initial: true));
   }
@@ -150,7 +158,8 @@ class OfflineController extends ChangeNotifier {
         final was = serverReachable;
         _setReachable(ok);
         if (ok) {
-          if (!was || initial || info.pendingOutbox > 0) {
+          await refreshInfo();
+          if (!was || initial || info.pendingOutbox > 0 || info.ordersPending > 0) {
             await flushAndAutoPost();
           }
           return;
@@ -165,13 +174,26 @@ class OfflineController extends ChangeNotifier {
   }
 
   /// ترحيل الطابور ثم إرسال الطلبات المحفوظة غير المرحَّلة تلقائياً.
-  Future<void> flushAndAutoPost() async {
+  Future<int> flushAndAutoPost({bool silent = true}) async {
     await _waitNotFlushing();
-    await flushOutbox(silent: true);
-    final queued = await _queueUnsentOrderSends();
-    if (queued > 0) {
-      await flushOutbox(silent: true);
+    var total = 0;
+    for (var round = 0; round < 4; round++) {
+      final n = await flushOutbox(silent: silent || round > 0);
+      total += n;
+      final queued = await _queueUnsentOrderSends();
+      await refreshInfo();
+      if (queued == 0 && n == 0) break;
+      if (info.pendingOutbox < 1) break;
     }
+    if (!silent) {
+      statusMessage = total > 0
+          ? 'تم ترحيل $total عملية.'
+          : (info.pendingOutbox > 0
+              ? (lastError ?? 'بقي ${info.pendingOutbox} بانتظار الترحيل.')
+              : 'لا توجد عمليات معلّقة.');
+      notifyListeners();
+    }
+    return total;
   }
 
   Future<void> _waitNotFlushing() async {
@@ -179,6 +201,7 @@ class OfflineController extends ChangeNotifier {
       if (!_flushing) return;
       await Future<void>.delayed(const Duration(milliseconds: 150));
     }
+    _flushing = false;
   }
 
   Future<int> _queueUnsentOrderSends() async {
@@ -260,7 +283,7 @@ class OfflineController extends ChangeNotifier {
         statusMessage =
             '$statusMessage\nتنبيه: لم تُحمَّل أسباب عدم الطلب — أعد التحديث بعد نشر API المحدّث.';
       }
-      unawaited(flushOutbox(silent: true));
+      unawaited(flushAndAutoPost());
       return true;
     } on ApiException catch (e) {
       lastError = e.message;
@@ -310,10 +333,15 @@ class OfflineController extends ChangeNotifier {
     if (_flushing) return 0;
     if (busy && phase == OfflinePhase.pulling) return 0;
 
-    final csrf = csrfProvider == null ? '' : await csrfProvider!();
-    if (csrf.isEmpty) return 0;
+    var csrf = csrfProvider == null ? '' : await csrfProvider!();
+    if (csrf.isEmpty) {
+      lastError = 'تعذر الترحيل: لا توجد جلسة صالحة. أعد تسجيل الدخول.';
+      statusMessage = lastError;
+      if (!silent) notifyListeners();
+      return 0;
+    }
 
-    final rows = await store.pendingOutbox();
+    final rows = await store.pendingOutbox(limit: 200);
     if (rows.isEmpty) return 0;
 
     _flushing = true;
@@ -339,23 +367,44 @@ class OfflineController extends ChangeNotifier {
           continue;
         }
         try {
-          // لا نرسل حقول محلية للسيرفر
           final sendBody = Map<String, dynamic>.from(body);
           sendBody.remove('local_customer_id');
           sendBody.remove('local_order_id');
           sendBody.remove('snapshot');
 
           Map<String, dynamic> res;
-          if (method == 'POST_FORM') {
-            // postForm يتوقع قيم نصية/بسيطة
-            final fields = <String, dynamic>{};
-            sendBody.forEach((k, v) {
-              if (v == null) return;
-              fields[k] = v;
-            });
-            res = await api.postForm(path, fields: fields, csrf: csrf);
-          } else {
-            res = await api.postJson(path, body: sendBody, csrf: csrf);
+          Future<Map<String, dynamic>> send() async {
+            if (method == 'POST_FORM') {
+              final fields = <String, dynamic>{};
+              sendBody.forEach((k, v) {
+                if (v == null) return;
+                fields[k] = v;
+              });
+              return api.postForm(path, fields: fields, csrf: csrf);
+            }
+            return api.postJson(path, body: sendBody, csrf: csrf);
+          }
+
+          try {
+            res = await send();
+          } on ApiException catch (e) {
+            final csrfFail = e.code == 'csrf' ||
+                e.isUnauthorized ||
+                e.message.toLowerCase().contains('csrf');
+            if (csrfFail) {
+              if (csrfRefresh != null) {
+                csrf = await csrfRefresh!();
+              } else if (csrfProvider != null) {
+                csrf = await csrfProvider!();
+              }
+              if (csrf.isNotEmpty) {
+                res = await send();
+              } else {
+                rethrow;
+              }
+            } else {
+              rethrow;
+            }
           }
           final kind = (row['kind'] as String?) ?? '';
           await _afterFlushSuccess(kind: kind, body: body, res: res);
@@ -365,18 +414,21 @@ class OfflineController extends ChangeNotifier {
           if (e.message.contains('تعذر الاتصال') ||
               e.message.contains('الإنترنت')) {
             _setReachable(false);
+            lastError = e.message;
             break;
           }
           final kind = (row['kind'] as String?) ?? '';
           if (kind == 'customer_delete') {
             await _restoreDeletedCustomer(body);
           }
+          lastError = e.message;
           await store.markOutboxError(id, e.message);
         } catch (e) {
           final kind = (row['kind'] as String?) ?? '';
           if (kind == 'customer_delete') {
             await _restoreDeletedCustomer(body);
           }
+          lastError = e.toString();
           await store.markOutboxError(id, e.toString());
         }
       }
@@ -389,8 +441,11 @@ class OfflineController extends ChangeNotifier {
         statusMessage = okCount > 0
             ? 'تم ترحيل $okCount عملية.'
             : (info.pendingOutbox > 0
-                ? 'بقي ${info.pendingOutbox} بانتظار الترحيل.'
+                ? (lastError ?? 'بقي ${info.pendingOutbox} بانتظار الترحيل.')
                 : 'لا توجد عمليات معلّقة.');
+      } else if (okCount > 0) {
+        lastError = null;
+        statusMessage = 'تم ترحيل $okCount عملية تلقائياً.';
       }
       notifyListeners();
     }
@@ -515,6 +570,7 @@ class OfflineController extends ChangeNotifier {
   void dispose() {
     _sub?.cancel();
     _pingTimer?.cancel();
+    _autoFlushTimer?.cancel();
     _cancelReconnectFlush();
     api.onHttpSuccess = null;
     super.dispose();

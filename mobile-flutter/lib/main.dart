@@ -13,6 +13,8 @@ import 'services/location_tracking_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  PaintingBinding.instance.imageCache.maximumSize = 80;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 40 << 20;
   SystemChrome.setSystemUIOverlayStyle(AppTheme.overlayLight);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await SystemChrome.setPreferredOrientations(const [
@@ -29,7 +31,16 @@ Future<void> main() async {
   final api = await ApiClient.create();
   final session = SessionController(api);
   final offline = OfflineController(api);
-  offline.csrfProvider = () async => session.csrf;
+  offline.csrfProvider = () async {
+    if (session.csrf.isNotEmpty) return session.csrf;
+    return session.ensureCsrf();
+  };
+  offline.csrfRefresh = () async {
+    try {
+      await session.refreshMe();
+    } catch (_) {}
+    return session.csrf;
+  };
   LocationPresenceService.onSessionConflict = (msg) {
     session.handleDeviceConflict(msg);
   };

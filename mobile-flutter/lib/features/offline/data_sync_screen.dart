@@ -21,8 +21,12 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<OfflineController>().refreshInfo();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final off = context.read<OfflineController>();
+      await off.refreshInfo();
+      if (!mounted) return;
+      await off.flushAndAutoPost();
     });
   }
 
@@ -43,13 +47,13 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
 
   Future<void> _flush() async {
     final off = context.read<OfflineController>();
-    final n = await off.flushOutbox(silent: false);
+    final n = await off.flushAndAutoPost(silent: false);
     if (!mounted) return;
     showSnack(
       context,
       off.statusMessage ??
           (n > 0 ? 'تم ترحيل $n عملية.' : 'لا توجد عمليات معلّقة.'),
-      error: off.lastError != null && n == 0,
+      error: off.lastError != null && n == 0 && off.info.pendingOutbox > 0,
     );
   }
 
@@ -92,7 +96,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
           child: Column(
             children: [
               _StatusBanner(
-                online: off.online,
+                online: off.serverConnected || off.online,
                 catalogReady: off.catalogReady,
                 compact: tablet || compact,
               ),
@@ -199,9 +203,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
-                onPressed: off.busy || !off.online || info.pendingOutbox < 1
-                    ? null
-                    : _flush,
+                onPressed: off.busy || info.pendingOutbox < 1 ? null : _flush,
                 icon: const Icon(Icons.cloud_upload_rounded),
                 label: Text(
                   info.pendingOutbox > 0

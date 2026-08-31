@@ -69,6 +69,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   /// عميل الزيارة المفتوحة حالياً (إن وُجدت).
   int _openVisitCustomerId = 0;
   String _openVisitCheckinAt = '';
+  String _openVisitCheckinMethod = '';
 
   bool _busy = false;
   bool _showNarrowDetail = false;
@@ -118,10 +119,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       setState(() {
         _openVisitCustomerId = cid;
         _openVisitCheckinAt = Fmt.str(v['visit_checkin_at']);
+        _openVisitCheckinMethod = Fmt.str(v['method']).isEmpty
+            ? 'MANUAL'
+            : Fmt.str(v['method']);
         _visitStatusByCustomer[cid] = 'checked_in';
         _visitCheckinAtByCustomer[cid] = Fmt.str(v['visit_checkin_at']);
         final r = Fmt.toInt(v['visit_radius_m']);
         if (r > 0) _radiusM = r;
+        _putOpenCustomerFirst();
       });
     } catch (_) {}
   }
@@ -283,6 +288,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       setState(() {
         _customers = list;
         _listLoading = false;
+        _putOpenCustomerFirst();
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -294,6 +300,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
             _customers = list;
             _listLoading = false;
             _listError = null;
+            _putOpenCustomerFirst();
           });
           return;
         } catch (_) {}
@@ -312,6 +319,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
             _customers = list;
             _listLoading = false;
             _listError = null;
+            _putOpenCustomerFirst();
           });
           return;
         } catch (_) {}
@@ -337,6 +345,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           .map((e) => e.cast<String, dynamic>());
       var openId = 0;
       var checkinAt = '';
+      var checkinMethod = '';
       final statusMap = <int, String>{};
       final checkinMap = <int, String>{};
       final checkoutMap = <int, String>{};
@@ -353,6 +362,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
             (s == 'checked_in' || s == 'pending_manual_checkout')) {
           openId = cid;
           checkinAt = Fmt.str(v['visit_checkin_at']);
+          checkinMethod = Fmt.str(v['checkin_method']);
         }
       }
       setState(() {
@@ -367,6 +377,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           ..addAll(checkoutMap);
         _openVisitCustomerId = openId;
         _openVisitCheckinAt = checkinAt;
+        if (checkinMethod.isNotEmpty) {
+          _openVisitCheckinMethod = checkinMethod;
+        }
+        _putOpenCustomerFirst();
         final r = Fmt.toInt(res['visit_radius_m']);
         if (r > 0) _radiusM = r;
       });
@@ -397,6 +411,21 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       _selectedId != null &&
       _selectedId! > 0 &&
       _selectedId == _openVisitCustomerId;
+
+  bool get _openVisitWasManual {
+    final m = Fmt.str(_visit?['checkin_method']);
+    final raw = m.isNotEmpty ? m : _openVisitCheckinMethod;
+    return raw.toUpperCase() == 'MANUAL';
+  }
+
+  void _putOpenCustomerFirst() {
+    final id = _openVisitCustomerId;
+    if (id <= 0 || _customers.length < 2) return;
+    final i = _customers.indexWhere((c) => Fmt.toInt(c['id']) == id);
+    if (i <= 0) return;
+    final row = _customers.removeAt(i);
+    _customers.insert(0, row);
+  }
 
   bool get _hasOpenVisit => _openVisitCustomerId > 0;
 
@@ -538,9 +567,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         if (_visitOpenFromMap(v)) {
           _openVisitCustomerId = id;
           _openVisitCheckinAt = Fmt.str(v?['visit_checkin_at']);
+          final m = Fmt.str(v?['checkin_method']);
+          if (m.isNotEmpty) _openVisitCheckinMethod = m;
         } else if (_openVisitCustomerId == id) {
           _openVisitCustomerId = 0;
           _openVisitCheckinAt = '';
+          _openVisitCheckinMethod = '';
+          _openVisitCheckinMethod = '';
         }
       });
       _loadHistOrders(id);
@@ -872,14 +905,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         'status': 'checked_in',
         'visit_checkin_at': now,
         'visit_checkout_at': '',
+        'checkin_method': manual ? 'MANUAL' : 'GPS',
         'has_order': false,
         'order_id': 0,
         'offline': true,
       };
       _openVisitCustomerId = id;
       _openVisitCheckinAt = now;
+      _openVisitCheckinMethod = manual ? 'MANUAL' : 'GPS';
       _visitStatusByCustomer[id] = 'checked_in';
       _visitCheckinAtByCustomer[id] = now;
+      _putOpenCustomerFirst();
     });
     showSnack(
       context,
@@ -955,11 +991,21 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
               : Fmt.str(res['message']),
         );
         setState(() {
-          _visit = visit ?? _visit;
+          _visit = {
+            ...?visit,
+            'checkin_method':
+                Fmt.str(visit?['checkin_method']).isEmpty
+                    ? (manual ? 'MANUAL' : 'GPS')
+                    : Fmt.str(visit?['checkin_method']),
+          };
           _openVisitCustomerId = id;
           _openVisitCheckinAt = Fmt.str(
             visit?['visit_checkin_at'] ?? DateTime.now().toIso8601String(),
           );
+          _openVisitCheckinMethod = Fmt.str(
+            (_visit ?? const {})['checkin_method'],
+          );
+          _putOpenCustomerFirst();
         });
         await OfflineStore.instance.clearOpenVisit();
         await _refreshOpenVisit();
@@ -1121,6 +1167,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         setState(() {
           _openVisitCustomerId = 0;
           _openVisitCheckinAt = '';
+          _openVisitCheckinMethod = '';
           _visitOrderId = 0;
           _visitStatusByCustomer[id] = 'checked_out';
           _visitCheckoutAtByCustomer[id] = DateTime.now().toIso8601String();
@@ -1340,6 +1387,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                       await _refreshOpenVisit();
                     },
                     child: ListView.separated(
+                      cacheExtent: 800,
+                      addAutomaticKeepAlives: false,
                       padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
                       itemCount: _customers.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 4),
@@ -1354,7 +1403,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                         final rowBg = selected
                             ? AppTheme.primary.withValues(alpha: 0.10)
                             : (_visitRowColor(id) ?? Colors.white);
-                        return Material(
+                        return RepaintBoundary(
+                          child: Material(
                           color: rowBg,
                           borderRadius: BorderRadius.circular(12),
                           child: InkWell(
@@ -1435,6 +1485,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                               ),
                             ),
                           ),
+                        ),
                         );
                       },
                     ),
@@ -1620,6 +1671,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   Future<void> _showCheckoutMethodDialog() async {
+    if (_openVisitWasManual) {
+      await _checkout(manual: true);
+      return;
+    }
     final method = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(

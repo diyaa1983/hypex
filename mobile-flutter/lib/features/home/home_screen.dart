@@ -12,6 +12,7 @@ import '../../services/location_tracking_service.dart';
 import '../../services/print_brand.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/notification_bell.dart';
 import '../../widgets/server_status_dot.dart';
 
 /// وصف شاشة داخل التطبيق: المسار + الأيقونة + اللون + القسم.
@@ -480,6 +481,7 @@ class _TopBar extends StatelessWidget {
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh_rounded, color: Colors.white, size: 21),
           ),
+          const NotificationBellButton(),
           const ServerStatusDot(),
           TextButton.icon(
             onPressed: onLogout,
