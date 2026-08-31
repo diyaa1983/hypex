@@ -81,11 +81,6 @@ class InboxController extends ChangeNotifier with WidgetsBindingObserver {
   int unreadCount = 0;
   AppLifecycleState _life = AppLifecycleState.resumed;
 
-  bool get _inBackground =>
-      _life == AppLifecycleState.paused ||
-      _life == AppLifecycleState.hidden ||
-      _life == AppLifecycleState.inactive;
-
   void start() {
     if (_started) return;
     _started = true;
@@ -185,15 +180,13 @@ class InboxController extends ChangeNotifier with WidgetsBindingObserver {
       }
       return;
     }
-    if (_inBackground) {
-      for (final it in list) {
-        if (it.isRead || it.id <= watermark) continue;
-        await LocalAlertService.showInbox(
-          id: it.id,
-          title: it.title,
-          body: it.body,
-        );
-      }
+    for (final it in list) {
+      if (it.isRead || it.id <= watermark) continue;
+      await LocalAlertService.showInbox(
+        id: it.id,
+        title: it.title,
+        body: it.body,
+      );
     }
     if (maxId > watermark) {
       await FlutterForegroundTask.saveData(
