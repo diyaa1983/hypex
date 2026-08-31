@@ -262,7 +262,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   final _orderNoCtrl = TextEditingController();
   String _cleanFingerprint = '';
 
-  bool get _editable => !_approved;
+  bool get _editable => !_approved && !_isSent;
+
+  bool get _canDelete => !_isSent && !_approved && (_id > 0 || _lines.isNotEmpty);
 
   String _fingerprint() {
     final lines = _lines
@@ -925,15 +927,26 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   Future<void> _delete() async {
-    if (_id < 1 || _approved) return;
+    if (!_canDelete) return;
     final ok = await showAppConfirmDialog(
       context,
       title: 'حذف الطلب',
-      message: 'هل تريد حذف هذا الطلب نهائياً؟',
+      message: _id > 0
+          ? 'هل تريد حذف هذا الطلب نهائياً؟'
+          : 'هل تريد مسح مواد الطلب الحالي؟',
       confirmLabel: 'حذف',
       destructive: true,
     );
     if (ok != true || !mounted) return;
+    if (_id < 1) {
+      setState(() {
+        _lines.clear();
+        _orderNo = '';
+        _orderNoCtrl.clear();
+      });
+      _markClean();
+      return;
+    }
     setState(() => _busy = true);
     try {
       final res = await context.read<ApiClient>().postJson(
@@ -950,7 +963,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _orderNo = '';
         _orderNoCtrl.clear();
         _lines.clear();
+        _isSent = false;
+        _approved = false;
       });
+      _markClean();
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
     } finally {
@@ -1048,7 +1064,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             icon: Icons.print_outlined,
             onPressed: _busy ? null : _print,
           ),
-          if (widget.embedded && _id > 0 && !_approved) ...[
+          if (_canDelete) ...[
             const SizedBox(width: 8),
             _actionBtn(
               label: 'حذف',
@@ -1110,25 +1126,6 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       );
     } catch (e) {
       if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
-    }
-  }
-
-  Future<void> _sharePdf() async {
-    if (_lines.isEmpty) {
-      showSnack(context, 'أضف مادة أولاً.', error: true);
-      return;
-    }
-    showSnack(context, 'جاري تجهيز PDF...');
-    try {
-      final bytes = await CustomerOrderBluetoothReceipt.buildA4Pdf(_printData());
-      if (!mounted) return;
-      await DocumentPrintHelper.sharePdfBytes(
-        bytes,
-        fileName: 'طلب شراء - ${_orderNo ?? 'جديد'}',
-        context: context,
-      );
-    } catch (e) {
-      if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
     }
   }
 
@@ -1336,6 +1333,18 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
               ),
             ),
+            if (_isSent || _approved) ...[
+              const SizedBox(height: 6),
+              Text(
+                _approved ? 'طلب معتمد — عرض فقط' : 'طلب مرحّل — عرض فقط',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFFB45309),
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             Row(
               children: [
@@ -1352,14 +1361,6 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     'PDF',
                     Icons.picture_as_pdf_outlined,
                     _busy ? null : _openPdf,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: _wideDocBtn(
-                    'مشاركة',
-                    Icons.share_outlined,
-                    _busy ? null : _sharePdf,
                   ),
                 ),
               ],
@@ -1615,6 +1616,24 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
       child: Row(
         children: [
+          if (_canDelete) ...[
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: FilledButton(
+                  onPressed: _busy ? null : _delete,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFFE0453C),
+                  ),
+                  child: const Text(
+                    'حذف',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           Expanded(
             child: SizedBox(
               height: 38,

@@ -38,10 +38,12 @@ class VisitWorkspacePanel extends StatefulWidget {
   State<VisitWorkspacePanel> createState() => _VisitWorkspacePanelState();
 }
 
-class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
+class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _customer;
   bool _infoLoading = true;
   String? _infoError;
+  late final TabController _tabs;
 
   List<Map<String, dynamic>> _orders = [];
   bool _ordersLoading = false;
@@ -62,9 +64,19 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
   void initState() {
     super.initState();
     _orderId = widget.orderId;
+    _tabs = TabController(length: 5, vsync: this);
+    _tabs.addListener(() {
+      if (!_tabs.indexIsChanging && mounted) setState(() {});
+    });
     _loadCustomer();
     _loadOrders();
     _loadInvoices();
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   @override
@@ -267,52 +279,38 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
   Widget build(BuildContext context) {
     return ColoredBox(
       color: Colors.white,
-      child: DefaultTabController(
-        length: 5,
-        child: Column(
+      child: Column(
           children: [
             Material(
               color: Colors.white,
-              child: Builder(
-                builder: (tabCtx) => TabBar(
-                  isScrollable: false,
-                  labelPadding: EdgeInsets.zero,
-                  labelColor: AppTheme.primary,
-                  unselectedLabelColor: AppTheme.textSoft,
-                  indicatorColor: AppTheme.primary,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                  ),
-                  unselectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.5,
-                  ),
-                  onTap: (i) async {
-                    final tabs = DefaultTabController.of(tabCtx);
-                    if (tabs.previousIndex == 0 && i != 0) {
-                      final ok = await CustomerOrderFormScreenState.active
-                              ?.confirmLeave() ??
-                          true;
-                      if (!ok && tabCtx.mounted) {
-                        tabs.animateTo(0);
-                      }
-                    }
-                  },
-                  tabs: const [
-                    Tab(height: 40, text: 'طلب شراء'),
-                    Tab(height: 40, text: 'معلومات العميل'),
-                    Tab(height: 40, text: 'الطلبات التاريخية'),
-                    Tab(height: 40, text: 'الفواتير التاريخية'),
-                    Tab(height: 40, text: 'كشف حساب'),
-                  ],
+              child: TabBar(
+                controller: _tabs,
+                isScrollable: false,
+                labelPadding: EdgeInsets.zero,
+                labelColor: AppTheme.primary,
+                unselectedLabelColor: AppTheme.textSoft,
+                indicatorColor: AppTheme.primary,
+                labelStyle: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5,
                 ),
+                unselectedLabelStyle: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+                tabs: const [
+                  Tab(height: 40, text: 'طلب شراء'),
+                  Tab(height: 40, text: 'معلومات العميل'),
+                  Tab(height: 40, text: 'الطلبات التاريخية'),
+                  Tab(height: 40, text: 'الفواتير التاريخية'),
+                  Tab(height: 40, text: 'كشف حساب'),
+                ],
               ),
             ),
             const Divider(height: 1),
             Expanded(
-              child: TabBarView(
-                physics: const NeverScrollableScrollPhysics(),
+              child: IndexedStack(
+                index: _tabs.index,
                 children: [
                   _buildOrderTab(),
                   _buildInfoTab(),
@@ -378,7 +376,6 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
             ),
           ],
         ),
-      ),
     );
   }
 

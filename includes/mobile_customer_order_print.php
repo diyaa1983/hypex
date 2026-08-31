@@ -42,8 +42,8 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
             . '<td dir="ltr">' . esc(number_format($qtyExtra, 0, '.', '')) . '</td>'
             . '<td dir="ltr">' . esc(number_format($price, 3, '.', ',')) . '</td>'
             . '<td dir="ltr">' . esc(number_format($priceInc, 3, '.', ',')) . '</td>'
-            . '<td dir="ltr">' . esc(number_format($taxP, 2, '.', '') . '%') . '</td>'
             . '<td dir="ltr">' . esc(number_format($disc, 2, '.', '') . '%') . '</td>'
+            . '<td dir="ltr">' . esc(number_format($taxP, 2, '.', '') . '%') . '</td>'
             . '<td dir="ltr">' . esc(number_format($gross, 3, '.', ',')) . '</td>'
             . '</tr>';
     }
@@ -57,7 +57,7 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
         . 'th,td{border:1px solid #94a3b8;padding:4px 3px;text-align:center;font-size:11px}'
         . 'th{background:#f1f5f9;font-weight:800}'
         . '.meta{margin:8px 0;line-height:1.6}'
-        . '.totals{margin-top:12px;width:50%;margin-inline-start:auto}'
+        . '.totals{margin-top:12px;width:50%;margin-inline-end:auto;margin-inline-start:0}'
         . '.totals td{border:none;padding:4px 8px}'
         . '.totals .lbl{text-align:right;font-weight:700}'
         . '.totals .val{text-align:left;font-weight:800;direction:ltr}';
@@ -72,8 +72,8 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
         . ($warehouse !== '' ? '<div><strong>المستودع:</strong> ' . $warehouse . '</div>' : '')
         . '</div>'
         . '<table><thead><tr>'
-        . '<th>#</th><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>إضافية</th>'
-        . '<th>السعر غ ش</th><th>السعر ش</th><th>الضريبة</th><th>خصم %</th><th>المجموع</th>'
+        . '<th>تسلسل</th><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>إضافي</th>'
+        . '<th>السعر غ ش</th><th>السعر ش</th><th>الخصم</th><th>الضريبة</th><th>المجموع</th>'
         . '</tr></thead><tbody>' . $rowsHtml . '</tbody></table>'
         . '<table class="totals"><tr><td class="lbl">المجموع</td><td class="val">' . $subtotal . '</td></tr>'
         . '<tr><td class="lbl">الخصم</td><td class="val">' . $discount . '</td></tr>'

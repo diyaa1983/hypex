@@ -320,17 +320,21 @@ class CustomerOrderBluetoothReceipt {
           ),
         );
 
-    final headers = [
+    // الجدول LTR داخلياً → نعكس الخلايا ليُقرأ من اليمين:
+    // تسلسل | المادة | الوحدة | الكمية | إضافي | السعر غ ش | السعر ش | الخصم | الضريبة | المجموع
+    List<pw.Widget> rtlCells(List<pw.Widget> cells) => cells.reversed.toList();
+    final headers = rtlCells([
+      th('تسلسل'),
       th('المادة'),
       th('الوحدة'),
       th('الكمية'),
-      th('إضافية'),
+      th('إضافي'),
       th('السعر غ ش'),
       th('السعر ش'),
+      th('الخصم'),
       th('الضريبة'),
-      th('خصم %'),
       th('المجموع'),
-    ];
+    ]);
 
     final doc = pw.Document();
     doc.addPage(
@@ -354,15 +358,16 @@ class CustomerOrderBluetoothReceipt {
           pw.Table(
             border: pw.TableBorder.all(color: PdfColors.blueGrey300, width: 0.4),
             columnWidths: {
-              0: const pw.FlexColumnWidth(2.2),
-              1: const pw.FlexColumnWidth(1.0),
+              0: const pw.FlexColumnWidth(1.0),
+              1: const pw.FlexColumnWidth(0.8),
               2: const pw.FlexColumnWidth(0.7),
-              3: const pw.FlexColumnWidth(0.7),
+              3: const pw.FlexColumnWidth(1.0),
               4: const pw.FlexColumnWidth(1.0),
-              5: const pw.FlexColumnWidth(1.0),
-              6: const pw.FlexColumnWidth(0.8),
-              7: const pw.FlexColumnWidth(0.7),
-              8: const pw.FlexColumnWidth(1.0),
+              5: const pw.FlexColumnWidth(0.7),
+              6: const pw.FlexColumnWidth(0.7),
+              7: const pw.FlexColumnWidth(1.0),
+              8: const pw.FlexColumnWidth(2.2),
+              9: const pw.FlexColumnWidth(0.55),
             },
             children: [
               pw.TableRow(
@@ -383,7 +388,8 @@ class CustomerOrderBluetoothReceipt {
                     decoration: pw.BoxDecoration(
                       color: i.isOdd ? PdfColors.grey100 : PdfColors.white,
                     ),
-                    children: [
+                    children: rtlCells([
+                      td('${i + 1}', ltr: true),
                       td(Fmt.str(line['item_name'])),
                       td(Fmt.str(line['unit_name'])),
                       td(Fmt.trimNum(Fmt.toDouble(line['qty'])), ltr: true),
@@ -391,23 +397,23 @@ class CustomerOrderBluetoothReceipt {
                           ltr: true),
                       td(Fmt.money(price), ltr: true),
                       td(Fmt.money(priceInc), ltr: true),
-                      td('${Fmt.trimNum(taxP)}%', ltr: true),
                       td('${Fmt.trimNum(Fmt.toDouble(line['discount_pct']))}%',
                           ltr: true),
+                      td('${Fmt.trimNum(taxP)}%', ltr: true),
                       td(
                         Fmt.money(Fmt.toDouble(
                             line['line_gross'] ?? line['line_total'])),
                         ltr: true,
                         boldText: true,
                       ),
-                    ],
+                    ]),
                   );
                 }(),
             ],
           ),
           pw.SizedBox(height: 10),
           pw.Align(
-            alignment: pw.Alignment.centerLeft,
+            alignment: pw.Alignment.centerRight,
             child: pw.SizedBox(
               width: 220,
               child: pw.Column(
