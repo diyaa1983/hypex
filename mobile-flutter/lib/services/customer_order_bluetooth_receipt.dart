@@ -281,4 +281,168 @@ class CustomerOrderBluetoothReceipt {
     ));
     return Uint8List.fromList(await doc.save());
   }
+
+  /// PDF أفقي A4 بنفس أعمدة جدول التطبيق (بدون باركود).
+  static Future<Uint8List> buildA4Pdf(Map<String, dynamic> order) async {
+    final reg = pw.Font.ttf(await rootBundle.load('assets/fonts/Arial.ttf'));
+    final bold =
+        pw.Font.ttf(await rootBundle.load('assets/fonts/Arial-Bold.ttf'));
+    final lines = (order['lines'] as List? ?? order['items'] as List? ?? [])
+        .whereType<Map>()
+        .map((e) => e.cast<String, dynamic>())
+        .toList();
+    final brandHeader = await PrintBrand.header(
+      paperMm: 80,
+      bold: bold,
+      title: 'طلب شراء عميل',
+      companyFromDocument: Fmt.str(order['company_name']),
+      logoUrlFromDocument: Fmt.str(order['logo_url']),
+    );
+    final salesRep = Fmt.str(
+      order['sales_rep_name'] ?? order['sales_rep'] ?? order['rep_name'],
+    );
+    final headStyle = pw.TextStyle(font: bold, fontSize: 8);
+    final cellStyle = pw.TextStyle(font: reg, fontSize: 8);
+    final cellBold = pw.TextStyle(font: bold, fontSize: 8);
+
+    pw.Widget th(String t) => pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 4),
+          child: pw.Text(t, style: headStyle, textAlign: pw.TextAlign.center),
+        );
+    pw.Widget td(String t, {bool ltr = false, bool boldText = false}) =>
+        pw.Padding(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+          child: pw.Text(
+            t,
+            style: boldText ? cellBold : cellStyle,
+            textAlign: ltr ? pw.TextAlign.left : pw.TextAlign.center,
+            textDirection: ltr ? pw.TextDirection.ltr : pw.TextDirection.rtl,
+          ),
+        );
+
+    final headers = [
+      th('المادة'),
+      th('الوحدة'),
+      th('الكمية'),
+      th('إضافية'),
+      th('السعر غ ش'),
+      th('السعر ش'),
+      th('الضريبة'),
+      th('خصم %'),
+      th('المجموع'),
+    ];
+
+    final doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        textDirection: pw.TextDirection.rtl,
+        theme: pw.ThemeData.withFont(base: reg, bold: bold),
+        margin: const pw.EdgeInsets.all(16),
+        build: (_) => [
+          brandHeader,
+          pw.SizedBox(height: 8),
+          pw.Text(
+            'رقم الطلب: ${Fmt.str(order['order_no']).isEmpty ? '—' : Fmt.str(order['order_no'])}'
+            '   التاريخ: ${Fmt.dmy(Fmt.str(order['order_date']))}'
+            '   العميل: ${Fmt.str(order['customer_name'])}'
+            '${salesRep.isEmpty ? '' : '   المندوب: $salesRep'}'
+            '   النوع: ${Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم'}',
+            style: pw.TextStyle(font: bold, fontSize: 10),
+          ),
+          pw.SizedBox(height: 8),
+          pw.Table(
+            border: pw.TableBorder.all(color: PdfColors.blueGrey300, width: 0.4),
+            columnWidths: {
+              0: const pw.FlexColumnWidth(2.2),
+              1: const pw.FlexColumnWidth(1.0),
+              2: const pw.FlexColumnWidth(0.7),
+              3: const pw.FlexColumnWidth(0.7),
+              4: const pw.FlexColumnWidth(1.0),
+              5: const pw.FlexColumnWidth(1.0),
+              6: const pw.FlexColumnWidth(0.8),
+              7: const pw.FlexColumnWidth(0.7),
+              8: const pw.FlexColumnWidth(1.0),
+            },
+            children: [
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColors.blueGrey50),
+                children: headers,
+              ),
+              for (var i = 0; i < lines.length; i++)
+                () {
+                  final line = lines[i];
+                  final price =
+                      Fmt.toDouble(line['unit_price'] ?? line['price']);
+                  final taxP = Fmt.toDouble(line['tax_rate_percent']);
+                  final priceInc = Fmt.toDouble(line['unit_price_inclusive']) >
+                          0
+                      ? Fmt.toDouble(line['unit_price_inclusive'])
+                      : price * (1 + taxP / 100);
+                  return pw.TableRow(
+                    decoration: pw.BoxDecoration(
+                      color: i.isOdd ? PdfColors.grey100 : PdfColors.white,
+                    ),
+                    children: [
+                      td(Fmt.str(line['item_name'])),
+                      td(Fmt.str(line['unit_name'])),
+                      td(Fmt.trimNum(Fmt.toDouble(line['qty'])), ltr: true),
+                      td(Fmt.trimNum(Fmt.toDouble(line['qty_extra'])),
+                          ltr: true),
+                      td(Fmt.money(price), ltr: true),
+                      td(Fmt.money(priceInc), ltr: true),
+                      td('${Fmt.trimNum(taxP)}%', ltr: true),
+                      td('${Fmt.trimNum(Fmt.toDouble(line['discount_pct']))}%',
+                          ltr: true),
+                      td(
+                        Fmt.money(Fmt.toDouble(
+                            line['line_gross'] ?? line['line_total'])),
+                        ltr: true,
+                        boldText: true,
+                      ),
+                    ],
+                  );
+                }(),
+            ],
+          ),
+          pw.SizedBox(height: 10),
+          pw.Align(
+            alignment: pw.Alignment.centerLeft,
+            child: pw.SizedBox(
+              width: 220,
+              child: pw.Column(
+                children: [
+                  _a4Money(reg, bold, 'المجموع الفرعي',
+                      Fmt.toDouble(order['subtotal'])),
+                  _a4Money(reg, bold, 'الخصم',
+                      Fmt.toDouble(order['discount_total'])),
+                  _a4Money(
+                      reg, bold, 'الضريبة', Fmt.toDouble(order['tax_total'])),
+                  _a4Money(
+                      reg, bold, 'الصافي', Fmt.toDouble(order['grand_total'])),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    return Uint8List.fromList(await doc.save());
+  }
+
+  static pw.Widget _a4Money(
+      pw.Font reg, pw.Font bold, String label, double v) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 2),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(font: bold, fontSize: 10)),
+          pw.Text(Fmt.money(v),
+              textDirection: pw.TextDirection.ltr,
+              style: pw.TextStyle(font: bold, fontSize: 10)),
+        ],
+      ),
+    );
+  }
 }

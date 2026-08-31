@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -17,6 +16,7 @@ import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/item_picker.dart';
 import '../../widgets/mobile_scaffold.dart';
+import '../../widgets/numeric_keypad_dialog.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/cheques_under_collection.dart';
 import '../../widgets/order_statement_workflow_note.dart';
@@ -52,8 +52,8 @@ class CustomerOrderFormScreen extends StatefulWidget {
   final VoidCallback? onDeleted;
 
   @override
-  State<CustomerOrderFormScreen> createState() =>
-      _CustomerOrderFormScreenState();
+  CustomerOrderFormScreenState createState() =>
+      CustomerOrderFormScreenState();
 }
 
 class _TaxRate {
@@ -135,7 +135,6 @@ class _OrderLine {
 
 class _LineTableMetrics {
   const _LineTableMetrics({
-    required this.barcode,
     required this.item,
     required this.unit,
     required this.qty,
@@ -153,7 +152,6 @@ class _LineTableMetrics {
     required this.compactTax,
   });
 
-  final double barcode;
   final double item;
   final double unit;
   final double qty;
@@ -171,7 +169,6 @@ class _LineTableMetrics {
   final bool compactTax;
 
   double get minWidth =>
-      barcode +
       item +
       unit +
       qty +
@@ -183,40 +180,38 @@ class _LineTableMetrics {
       total +
       del +
       hMargin * 2 +
-      colSpacing * 10;
+      colSpacing * 9;
 
   factory _LineTableMetrics.fit(double avail, {required bool compact}) {
     const weights = [
-      1.15,
-      1.70,
+      2.10,
       1.05,
+      0.72,
+      0.72,
+      0.98,
+      0.98,
+      0.80,
       0.70,
-      0.70,
-      0.92,
-      0.92,
-      0.78,
-      0.68,
-      0.88,
-      0.40,
+      0.95,
+      0.42,
     ];
     final sum = weights.fold<double>(0, (s, w) => s + w);
     final tight = avail < 780;
     final spacing = tight ? 3.0 : (avail < 1000 ? 5.0 : 10.0);
     final margin = tight ? 3.0 : 6.0;
-    final inner = (avail - margin * 2 - spacing * 10).clamp(360.0, 4000.0);
+    final inner = (avail - margin * 2 - spacing * 9).clamp(360.0, 4000.0);
     final w = weights.map((x) => inner * x / sum).toList();
     return _LineTableMetrics(
-      barcode: w[0],
-      item: w[1],
-      unit: w[2],
-      qty: w[3],
-      extra: w[4],
-      price: w[5],
-      priceInc: w[6],
-      tax: w[7],
-      disc: w[8],
-      total: w[9],
-      del: w[10],
+      item: w[0],
+      unit: w[1],
+      qty: w[2],
+      extra: w[3],
+      price: w[4],
+      priceInc: w[5],
+      tax: w[6],
+      disc: w[7],
+      total: w[8],
+      del: w[9],
       font: avail < 700 ? 10.5 : (avail < 900 ? 11.5 : 13),
       heading: avail < 700 ? 10 : (avail < 900 ? 11 : 13),
       colSpacing: spacing,
@@ -227,14 +222,13 @@ class _LineTableMetrics {
 
   factory _LineTableMetrics.scroll({required bool compact}) {
     return _LineTableMetrics(
-      barcode: 96,
-      item: 130,
+      item: 160,
       unit: 92,
       qty: 58,
       extra: 58,
       price: 86,
       priceInc: 86,
-      tax: compact ? 110 : 150,
+      tax: compact ? 90 : 120,
       disc: 56,
       total: 74,
       del: 32,
@@ -247,7 +241,8 @@ class _LineTableMetrics {
   }
 }
 
-class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
+class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
+  static CustomerOrderFormScreenState? active;
   bool _loading = true, _busy = false, _approved = false;
   String? _error, _orderNo, _salesRepName;
   String _paymentType = 'credit';
@@ -265,18 +260,46 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   bool _autoSendOrders = true;
   bool _isSent = false;
   final _orderNoCtrl = TextEditingController();
+  String _cleanFingerprint = '';
 
   bool get _editable => !_approved;
+
+  String _fingerprint() {
+    final lines = _lines
+        .map((l) =>
+            '${l.item.id}:${l.qty}:${l.qtyExtra}:${l.unitId}:${l.unitPrice}:${l.discountPct}:${l.taxRateId}')
+        .join('|');
+    return '${_customer?.id}|$_warehouseId|$_paymentType|$lines';
+  }
+
+  bool get isDirty => _fingerprint() != _cleanFingerprint;
+
+  void _markClean() {
+    _cleanFingerprint = _fingerprint();
+  }
+
+  Future<bool> confirmLeave() async {
+    if (!isDirty) return true;
+    final choice = await showUnsavedChangesDialog(context);
+    if (choice == 'discard') return true;
+    if (choice == 'save') {
+      final id = await _save();
+      return id != 0;
+    }
+    return false;
+  }
 
   @override
   void initState() {
     super.initState();
+    active = this;
     _id = widget.orderId ?? 0;
     _load();
   }
 
   @override
   void dispose() {
+    if (identical(active, this)) active = null;
     _orderNoCtrl.dispose();
     super.dispose();
   }
@@ -487,6 +510,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _loading = false;
       });
       _orderNoCtrl.text = _orderNo ?? '';
+      _markClean();
       if (_customer != null) {
         await _loadArSummary(_customer!.id);
       }
@@ -689,6 +713,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             _orderNo = orderNo;
           });
           _orderNoCtrl.text = orderNo;
+          _markClean();
           showSnack(
             context,
             _autoSendOrders
@@ -715,6 +740,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 : Fmt.str(result['order_no']);
             _orderNoCtrl.text = _orderNo ?? '';
             _isSent = sent;
+            _markClean();
             if (result.containsKey('auto_send') ||
                 result.containsKey('auto_send_orders')) {
               _autoSendOrders = _flagOn(
@@ -769,6 +795,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               _orderNo = orderNo;
             });
             _orderNoCtrl.text = orderNo;
+            _markClean();
             showSnack(
               context,
               'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
@@ -810,12 +837,11 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'lines': _lines
             .map((l) => {
                   'item_name': l.item.name,
-                  'item_barcode': l.barcode,
-                  'barcode': l.barcode,
                   'unit_name': l.unitName,
                   'qty': l.qty,
                   'qty_extra': l.qtyExtra,
                   'unit_price': l.unitPrice,
+                  'unit_price_inclusive': l.unitPriceInclusive,
                   'tax_rate_percent': l.taxRatePercent,
                   'tax_amount': l.taxAmount,
                   'discount_pct': l.discountPct,
@@ -1068,26 +1094,54 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   Future<void> _openPdf() async {
-    final id = await _ensureSavedId();
-    if (id == 0 || !mounted) return;
-    await DocumentPrintHelper.openPdfFromApi(
-      context,
-      apiPath: AppConfig.customerOrderPdfPath,
-      query: {'id': id},
-      title: 'طلب شراء',
-      fileName: 'طلب شراء - ${_orderNo ?? id}',
-    );
+    if (_lines.isEmpty) {
+      showSnack(context, 'أضف مادة أولاً.', error: true);
+      return;
+    }
+    showSnack(context, 'جاري تجهيز PDF...');
+    try {
+      final bytes = await CustomerOrderBluetoothReceipt.buildA4Pdf(_printData());
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'طلب شراء',
+        fileName: 'طلب شراء - ${_orderNo ?? 'جديد'}',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
+    }
   }
 
   Future<void> _sharePdf() async {
-    final id = await _ensureSavedId();
-    if (id == 0 || !mounted) return;
-    await DocumentPrintHelper.sharePdfFromApi(
+    if (_lines.isEmpty) {
+      showSnack(context, 'أضف مادة أولاً.', error: true);
+      return;
+    }
+    showSnack(context, 'جاري تجهيز PDF...');
+    try {
+      final bytes = await CustomerOrderBluetoothReceipt.buildA4Pdf(_printData());
+      if (!mounted) return;
+      await DocumentPrintHelper.sharePdfBytes(
+        bytes,
+        fileName: 'طلب شراء - ${_orderNo ?? 'جديد'}',
+        context: context,
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر مشاركة PDF: $e', error: true);
+    }
+  }
+
+  Future<void> _searchOrderByNoPad() async {
+    final v = await showNumericKeypadDialog(
       context,
-      apiPath: AppConfig.customerOrderPdfPath,
-      query: {'id': id},
-      fileName: 'طلب شراء - ${_orderNo ?? id}',
+      title: 'رقم الطلب',
+      initial: _orderNoCtrl.text,
+      decimal: false,
     );
+    if (v == null || !mounted) return;
+    setState(() => _orderNoCtrl.text = v);
+    await _searchOrderByNo();
   }
 
   Future<void> _searchOrderByNo() async {
@@ -1101,21 +1155,15 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     try {
       final api = context.read<ApiClient>();
       final offline = context.read<OfflineController>();
-      final scopedCustomer =
-          widget.hideCustomerPicker ? _customer?.id : null;
       List<Map<String, dynamic>> orders = [];
       if (!offline.online && offline.catalogReady) {
         orders = await OfflineStore.instance.listOrders(
-          customerId: scopedCustomer,
           q: q,
           limit: 30,
         );
       } else {
         try {
           final query = <String, dynamic>{'q': q, 'page': 1};
-          if (scopedCustomer != null && scopedCustomer > 0) {
-            query['customer_id'] = scopedCustomer;
-          }
           final data = await api.getJson(
             AppConfig.customerOrderListPath,
             query: query,
@@ -1127,7 +1175,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         } on ApiException {
           if (!offline.catalogReady) rethrow;
           orders = await OfflineStore.instance.listOrders(
-            customerId: scopedCustomer,
             q: q,
             limit: 30,
           );
@@ -1234,9 +1281,10 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Row(
               children: [
                 Expanded(child: _wideOrderNoSearch()),
@@ -1249,6 +1297,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             const SizedBox(height: 6),
             _orderHeaderField(
               label: 'اسم العميل',
+              expand: false,
               child: _orderHeaderCustomer(),
             ),
             const SizedBox(height: 6),
@@ -1257,6 +1306,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 Expanded(
                   child: _orderHeaderField(
                     label: 'نوع الدفع',
+                    expand: false,
                     child: _paymentSeg(compact: true),
                   ),
                 ),
@@ -1264,6 +1314,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 Expanded(
                   child: _orderHeaderField(
                     label: 'المستودع',
+                    expand: false,
                     child: _orderHeaderWarehouse(),
                   ),
                 ),
@@ -1314,6 +1365,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ],
             ),
           ],
+          ),
         ),
       ),
     );
@@ -1334,29 +1386,43 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         const SizedBox(height: 4),
         SizedBox(
           height: 38,
-          child: TextField(
-            controller: _orderNoCtrl,
-            enabled: !_busy,
-            textDirection: TextDirection.ltr,
-            textInputAction: TextInputAction.search,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-            onSubmitted: (_) => _searchOrderByNo(),
-            decoration: InputDecoration(
-              hintText: 'بحث برقم الطلب',
-              hintStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
-              isDense: true,
-              contentPadding: const EdgeInsetsDirectional.only(
-                start: 8,
-                end: 4,
-                top: 8,
-                bottom: 8,
-              ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              suffixIcon: IconButton(
-                tooltip: 'بحث',
-                visualDensity: VisualDensity.compact,
-                onPressed: _busy ? null : _searchOrderByNo,
-                icon: const Icon(Icons.search_rounded, size: 20),
+          child: Material(
+            color: Colors.white,
+            child: InkWell(
+              onTap: _busy ? null : _searchOrderByNoPad,
+              borderRadius: BorderRadius.circular(8),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  hintText: 'بحث برقم الطلب',
+                  hintStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  isDense: true,
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 8,
+                    end: 4,
+                    top: 8,
+                    bottom: 8,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  suffixIcon: const Icon(Icons.search_rounded, size: 20),
+                ),
+                child: Text(
+                  _orderNoCtrl.text.isEmpty ? 'بحث برقم الطلب' : _orderNoCtrl.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textDirection: TextDirection.ltr,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: _orderNoCtrl.text.isEmpty
+                        ? AppTheme.textSoft
+                        : AppTheme.textMain,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1436,17 +1502,23 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       child: Row(
         children: [
           Expanded(
-            child: _sumCell(
-              'رصيد العميل',
-              Fmt.money(balance),
-              const Color(0xFFD32F2F),
+            child: InkWell(
+              onTap: () => _showArDetails(focusCheques: false),
+              child: _sumCell(
+                'رصيد العميل',
+                Fmt.money(balance),
+                const Color(0xFFD32F2F),
+              ),
             ),
           ),
           Expanded(
-            child: _sumCell(
-              'شيكات قيد التحصيل',
-              Fmt.money(cheques),
-              const Color(0xFFF57C00),
+            child: InkWell(
+              onTap: () => _showArDetails(focusCheques: true),
+              child: _sumCell(
+                'شيكات قيد التحصيل',
+                Fmt.money(cheques),
+                const Color(0xFFF57C00),
+              ),
             ),
           ),
           Expanded(
@@ -1456,6 +1528,54 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               const Color(0xFF388E3C),
               large: true,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showArDetails({required bool focusCheques}) async {
+    final cheques = ChequeUnderCollection.fromResult(_arSummary);
+    final total = ChequeUnderCollection.totalOf(cheques, _arSummary);
+    final balance = Fmt.toDouble(_arSummary?['balance']);
+    final debit = Fmt.toDouble(_arSummary?['total_debit']);
+    final credit = Fmt.toDouble(_arSummary?['total_credit']);
+    final opening = Fmt.toDouble(_arSummary?['opening']);
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          focusCheques ? 'شيكات قيد التحصيل' : 'رصيد العميل',
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InfoRow('الرصيد', Fmt.money(balance), ltr: true),
+                InfoRow('مدين', Fmt.money(debit), ltr: true),
+                InfoRow('دائن', Fmt.money(credit), ltr: true),
+                InfoRow('افتتاحي', Fmt.money(opening), ltr: true),
+                const SizedBox(height: 10),
+                if (cheques.isEmpty)
+                  const Text(
+                    'لا توجد شيكات قيد التحصيل.',
+                    style: TextStyle(color: AppTheme.textSoft),
+                  )
+                else
+                  ChequesUnderCollectionTable(rows: cheques, total: total),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
           ),
         ],
       ),
@@ -1598,11 +1718,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         final table = _buildLinesDataTable(metrics, compact: compact);
         if (fitToWidth && avail.isFinite && avail > 80) {
           return SingleChildScrollView(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: AlignmentDirectional.topStart,
-              child: SizedBox(width: avail, child: table),
-            ),
+            child: SizedBox(width: avail, child: table),
           );
         }
         return SingleChildScrollView(
@@ -1624,6 +1740,57 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         vertical: 2,
       ),
       border: const OutlineInputBorder(),
+    );
+  }
+
+  Future<void> _editLineNumber({
+    required String title,
+    required String initial,
+    required bool decimal,
+    double? maxValue,
+    required void Function(String value) apply,
+  }) async {
+    if (!_editable || _busy) return;
+    final v = await showNumericKeypadDialog(
+      context,
+      title: title,
+      initial: initial,
+      decimal: decimal,
+      maxValue: maxValue,
+    );
+    if (v == null || !mounted) return;
+    setState(() => apply(v));
+  }
+
+  Widget _numPadField({
+    required double width,
+    required String text,
+    required TextStyle style,
+    required _LineTableMetrics m,
+    String hint = '',
+    required VoidCallback? onTap,
+  }) {
+    return SizedBox(
+      width: width,
+      child: Material(
+        color: Colors.white,
+        child: InkWell(
+          onTap: onTap,
+          child: InputDecorator(
+            decoration: _lineFieldDecoration(m),
+            child: Text(
+              text.isEmpty ? hint : text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.ltr,
+              style: text.isEmpty
+                  ? style.copyWith(color: AppTheme.textSoft)
+                  : style,
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1649,7 +1816,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         ),
         dataTextStyle: cellStyle,
         columns: [
-          DataColumn(label: _tableHead('الباركود', m.barcode, m.heading)),
           DataColumn(label: _tableHead('المادة', m.item, m.heading)),
           DataColumn(label: _tableHead('الوحدة', m.unit, m.heading)),
           DataColumn(label: _tableHead('الكمية', m.qty, m.heading)),
@@ -1664,22 +1830,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         rows: [
           for (var i = 0; i < _lines.length; i++)
             DataRow(cells: [
-              DataCell(
-                SizedBox(
-                  width: m.barcode,
-                  child: Text(
-                    _lines[i].barcode.isEmpty ? '—' : _lines[i].barcode,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.ltr,
-                    style: TextStyle(
-                      fontSize: m.font,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ),
               DataCell(
                 SizedBox(
                   width: m.item,
@@ -1750,39 +1900,41 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
               ),
               DataCell(
-                SizedBox(
+                _numPadField(
                   width: m.qty,
-                  child: TextFormField(
-                    key: ValueKey('qty-${_lines[i].item.id}-$i'),
-                    initialValue: '${_lines[i].qty}',
-                    enabled: _editable,
-                    style: cellStyle,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: _lineFieldDecoration(m),
-                    onChanged: (v) => setState(() {
-                      _lines[i].qty =
-                          int.tryParse(v)?.clamp(1, 999999999) ?? 1;
-                    }),
-                  ),
+                  text: '${_lines[i].qty}',
+                  style: cellStyle,
+                  m: m,
+                  onTap: !_editable
+                      ? null
+                      : () => _editLineNumber(
+                            title: 'الكمية',
+                            initial: '${_lines[i].qty}',
+                            decimal: false,
+                            apply: (v) {
+                              _lines[i].qty =
+                                  int.tryParse(v)?.clamp(1, 999999999) ?? 1;
+                            },
+                          ),
                 ),
               ),
               DataCell(
-                SizedBox(
+                _numPadField(
                   width: m.extra,
-                  child: TextFormField(
-                    key: ValueKey('extra-${_lines[i].item.id}-$i'),
-                    initialValue: '${_lines[i].qtyExtra}',
-                    enabled: _editable,
-                    style: cellStyle,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: _lineFieldDecoration(m),
-                    onChanged: (v) => setState(() {
-                      _lines[i].qtyExtra =
-                          int.tryParse(v)?.clamp(0, 999999999) ?? 0;
-                    }),
-                  ),
+                  text: '${_lines[i].qtyExtra}',
+                  style: cellStyle,
+                  m: m,
+                  onTap: !_editable
+                      ? null
+                      : () => _editLineNumber(
+                            title: 'كمية إضافية',
+                            initial: '${_lines[i].qtyExtra}',
+                            decimal: false,
+                            apply: (v) {
+                              _lines[i].qtyExtra =
+                                  int.tryParse(v)?.clamp(0, 999999999) ?? 0;
+                            },
+                          ),
                 ),
               ),
               DataCell(
@@ -1867,27 +2019,31 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
               ),
               DataCell(
-                SizedBox(
+                _numPadField(
                   width: m.disc,
-                  child: TextFormField(
-                    key: ValueKey('disc-${_lines[i].item.id}-$i'),
-                    initialValue: _lines[i].discountPct <= 0
-                        ? ''
-                        : Fmt.trimNum(_lines[i].discountPct),
-                    enabled: _editable,
-                    style: cellStyle,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: _lineFieldDecoration(m).copyWith(hintText: '0'),
-                    onChanged: (v) => setState(() {
-                      _lines[i].discountPct = (double.tryParse(
-                                v.replaceAll(',', ''),
-                              ) ??
-                              0)
-                          .clamp(0, 100);
-                    }),
-                  ),
+                  text: _lines[i].discountPct <= 0
+                      ? ''
+                      : Fmt.trimNum(_lines[i].discountPct),
+                  style: cellStyle,
+                  m: m,
+                  hint: '0',
+                  onTap: !_editable
+                      ? null
+                      : () => _editLineNumber(
+                            title: 'خصم %',
+                            initial: _lines[i].discountPct <= 0
+                                ? ''
+                                : Fmt.trimNum(_lines[i].discountPct),
+                            decimal: true,
+                            maxValue: 100,
+                            apply: (v) {
+                              _lines[i].discountPct = (double.tryParse(
+                                        v.replaceAll(',', ''),
+                                      ) ??
+                                      0)
+                                  .clamp(0, 100);
+                            },
+                          ),
                 ),
               ),
               DataCell(
@@ -1950,6 +2106,18 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
 
+  Widget _wrapLeaveGuard(Widget child) {
+    return PopScope(
+      canPop: !isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final ok = await confirmLeave();
+        if (ok && mounted) Navigator.of(context).maybePop();
+      },
+      child: child,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_useWideOrderLayout(context)) {
@@ -1960,11 +2128,15 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         child: _buildWideOrderBody(),
       );
       if (widget.embedded) {
-        return Material(color: const Color(0xFFF5F5F5), child: wide);
+        return _wrapLeaveGuard(
+          Material(color: const Color(0xFFF5F5F5), child: wide),
+        );
       }
-      return MobileScaffold(
-        title: const Text('طلب شراء عميل'),
-        body: wide,
+      return _wrapLeaveGuard(
+        MobileScaffold(
+          title: const Text('طلب شراء عميل'),
+          body: wide,
+        ),
       );
     }
     final body = AsyncView(
@@ -2109,23 +2281,27 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           ],
         ));
     if (widget.embedded) {
-      return Material(
-        color: Colors.transparent,
-        child: Column(
+      return _wrapLeaveGuard(
+        Material(
+          color: Colors.transparent,
+          child: Column(
+            children: [
+              _buildActionBar(),
+              Expanded(child: body),
+            ],
+          ),
+        ),
+      );
+    }
+    return _wrapLeaveGuard(
+      MobileScaffold(
+        title: Text(_id > 0 ? 'تعديل طلب شراء' : 'طلب شراء جديد'),
+        body: Column(
           children: [
             _buildActionBar(),
             Expanded(child: body),
           ],
         ),
-      );
-    }
-    return MobileScaffold(
-      title: Text(_id > 0 ? 'تعديل طلب شراء' : 'طلب شراء جديد'),
-      body: Column(
-        children: [
-          _buildActionBar(),
-          Expanded(child: body),
-        ],
       ),
     );
   }
@@ -2133,26 +2309,27 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   Widget _orderHeaderField({
     required String label,
     required Widget child,
+    bool expand = true,
   }) {
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              color: AppTheme.textSoft,
-            ),
+    final field = Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSoft,
           ),
-          const SizedBox(height: 6),
-          SizedBox(height: 42, child: child),
-        ],
-      ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(height: 38, child: child),
+      ],
     );
+    return expand ? Expanded(child: field) : field;
   }
 
   Widget _orderHeaderShell({required Widget child}) {

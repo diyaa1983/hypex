@@ -2,6 +2,61 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
+/// حفظ / عدم الحفظ / إلغاء — عند الخروج من طلب فيه تعديلات.
+Future<String?> showUnsavedChangesDialog(BuildContext context) {
+  return showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Text(
+        'حفظ الطلب',
+        style: TextStyle(fontWeight: FontWeight.w800),
+      ),
+      content: const Text(
+        'تم إدخال بيانات على الطلب. هل تريد الحفظ قبل الخروج؟',
+        style: TextStyle(height: 1.45),
+      ),
+      actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+      actions: [
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'cancel'),
+                child: const Text(
+                  'إلغاء',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, 'discard'),
+                child: const Text(
+                  'عدم الحفظ',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: FilledButton(
+                onPressed: () => Navigator.pop(ctx, 'save'),
+                child: const Text(
+                  'حفظ',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
 /// أزرار تأكيد متساوية 50/50.
 Future<bool?> showAppConfirmDialog(
   BuildContext context, {

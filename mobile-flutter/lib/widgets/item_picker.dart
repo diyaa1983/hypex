@@ -273,10 +273,17 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
                                     it['name_ar'] ?? it['name'] ?? it['sku']);
                                 final stock = Fmt.toDouble(it['stock_qty']);
                                 final price = _price(it);
+                                final barcode = Fmt.str(
+                                  it['barcode'] ?? it['sku'],
+                                );
                                 return ListTile(
                                   title: Text(name),
                                   subtitle: Text(
-                                    'رصيد: ${Fmt.money(stock)}  •  سعر: ${Fmt.money(price)}',
+                                    [
+                                      if (barcode.isNotEmpty) barcode,
+                                      'رصيد: ${Fmt.money(stock)}',
+                                      'سعر: ${Fmt.money(price)}',
+                                    ].join('  •  '),
                                     textDirection: TextDirection.ltr,
                                   ),
                                   onTap: () => Navigator.pop(

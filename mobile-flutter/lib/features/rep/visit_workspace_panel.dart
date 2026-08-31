@@ -273,32 +273,46 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
           children: [
             Material(
               color: Colors.white,
-              child: TabBar(
-                isScrollable: false,
-                labelPadding: EdgeInsets.zero,
-                labelColor: AppTheme.primary,
-                unselectedLabelColor: AppTheme.textSoft,
-                indicatorColor: AppTheme.primary,
-                labelStyle: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12.5,
+              child: Builder(
+                builder: (tabCtx) => TabBar(
+                  isScrollable: false,
+                  labelPadding: EdgeInsets.zero,
+                  labelColor: AppTheme.primary,
+                  unselectedLabelColor: AppTheme.textSoft,
+                  indicatorColor: AppTheme.primary,
+                  labelStyle: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                  ),
+                  unselectedLabelStyle: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                  onTap: (i) async {
+                    final tabs = DefaultTabController.of(tabCtx);
+                    if (tabs.previousIndex == 0 && i != 0) {
+                      final ok = await CustomerOrderFormScreenState.active
+                              ?.confirmLeave() ??
+                          true;
+                      if (!ok && tabCtx.mounted) {
+                        tabs.animateTo(0);
+                      }
+                    }
+                  },
+                  tabs: const [
+                    Tab(height: 40, text: 'طلب شراء'),
+                    Tab(height: 40, text: 'معلومات العميل'),
+                    Tab(height: 40, text: 'الطلبات التاريخية'),
+                    Tab(height: 40, text: 'الفواتير التاريخية'),
+                    Tab(height: 40, text: 'كشف حساب'),
+                  ],
                 ),
-                unselectedLabelStyle: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  fontSize: 12.5,
-                ),
-                tabs: const [
-                  Tab(height: 40, text: 'طلب شراء'),
-                  Tab(height: 40, text: 'معلومات العميل'),
-                  Tab(height: 40, text: 'الطلبات التاريخية'),
-                  Tab(height: 40, text: 'الفواتير التاريخية'),
-                  Tab(height: 40, text: 'كشف حساب'),
-                ],
               ),
             ),
             const Divider(height: 1),
             Expanded(
               child: TabBarView(
+                physics: const NeverScrollableScrollPhysics(),
                 children: [
                   _buildOrderTab(),
                   _buildInfoTab(),
@@ -388,7 +402,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel> {
     }
     return CustomerOrderFormScreen(
       key: ValueKey(
-        'po-${widget.customerId}-${widget.visitRouteLineId}-${_orderId ?? 0}',
+        'po-${widget.customerId}-${widget.visitRouteLineId}',
       ),
       embedded: true,
       hideCustomerPicker: true,

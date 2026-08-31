@@ -27,23 +27,34 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
             continue;
         }
         $i++;
+        $qty = (float) ($ln['qty'] ?? 0);
+        $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
+        $price = (float) ($ln['unit_price'] ?? 0);
+        $taxP = (float) ($ln['tax_rate_percent'] ?? 0);
+        $priceInc = $price * (1 + $taxP / 100);
+        $disc = (float) ($ln['discount_pct'] ?? 0);
+        $gross = (float) ($ln['line_gross'] ?? $ln['line_total'] ?? 0);
         $rowsHtml .= '<tr>'
             . '<td>' . $i . '</td>'
             . '<td style="text-align:right">' . esc((string) ($ln['item_name'] ?? '')) . '</td>'
             . '<td>' . esc((string) ($ln['unit_name'] ?? $ln['unit_code'] ?? '')) . '</td>'
-            . '<td dir="ltr">' . esc(number_format((float) ($ln['qty'] ?? 0), 3, '.', '')) . '</td>'
-            . '<td dir="ltr">' . esc(number_format((float) ($ln['unit_price'] ?? 0), 2, '.', ',')) . '</td>'
-            . '<td dir="ltr">' . esc(number_format((float) ($ln['line_total'] ?? 0), 2, '.', ',')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($qty, 0, '.', '')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($qtyExtra, 0, '.', '')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($price, 3, '.', ',')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($priceInc, 3, '.', ',')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($taxP, 2, '.', '') . '%') . '</td>'
+            . '<td dir="ltr">' . esc(number_format($disc, 2, '.', '') . '%') . '</td>'
+            . '<td dir="ltr">' . esc(number_format($gross, 3, '.', ',')) . '</td>'
             . '</tr>';
     }
     if ($rowsHtml === '') {
-        $rowsHtml = '<tr><td colspan="6" style="text-align:center;padding:1rem">لا توجد بنود.</td></tr>';
+        $rowsHtml = '<tr><td colspan="10" style="text-align:center;padding:1rem">لا توجد بنود.</td></tr>';
     }
 
     $styles = document_print_header_css()
         . 'body{font-family:Arial,Helvetica,sans-serif;direction:rtl;margin:8mm;color:#0f172a;font-size:12px}'
         . 'table{width:100%;border-collapse:collapse;margin-top:10px}'
-        . 'th,td{border:1px solid #94a3b8;padding:6px;text-align:center}'
+        . 'th,td{border:1px solid #94a3b8;padding:4px 3px;text-align:center;font-size:11px}'
         . 'th{background:#f1f5f9;font-weight:800}'
         . '.meta{margin:8px 0;line-height:1.6}'
         . '.totals{margin-top:12px;width:50%;margin-inline-start:auto}'
@@ -61,7 +72,8 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
         . ($warehouse !== '' ? '<div><strong>المستودع:</strong> ' . $warehouse . '</div>' : '')
         . '</div>'
         . '<table><thead><tr>'
-        . '<th>#</th><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th>'
+        . '<th>#</th><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>إضافية</th>'
+        . '<th>السعر غ ش</th><th>السعر ش</th><th>الضريبة</th><th>خصم %</th><th>المجموع</th>'
         . '</tr></thead><tbody>' . $rowsHtml . '</tbody></table>'
         . '<table class="totals"><tr><td class="lbl">المجموع</td><td class="val">' . $subtotal . '</td></tr>'
         . '<tr><td class="lbl">الخصم</td><td class="val">' . $discount . '</td></tr>'

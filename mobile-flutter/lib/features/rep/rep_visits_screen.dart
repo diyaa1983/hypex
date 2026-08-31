@@ -16,6 +16,7 @@ import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/party_picker.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/ui_kit.dart';
+import '../customer_orders/customer_order_form_screen.dart';
 import 'visit_workspace_panel.dart';
 
 class RepVisitsScreen extends StatefulWidget {
@@ -736,6 +737,9 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   }
 
   Future<void> _checkout({required bool manual}) async {
+    final leave =
+        await CustomerOrderFormScreenState.active?.confirmLeave() ?? true;
+    if (!leave || !mounted) return;
     final v = _selected;
     if (v == null || _busy) return;
     final name = Fmt.str(v['name']);
