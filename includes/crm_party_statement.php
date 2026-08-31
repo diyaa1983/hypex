@@ -218,6 +218,7 @@ function crm_party_statement_txn_type_label(string $txnType, string $partyType =
     $map = [
         'sale_invoice' => 'فاتورة بيع',
         'sale_return' => 'مرتجع مبيعات',
+        'customer_order' => 'طلب شراء',
         'purchase_invoice' => 'فاتورة شراء',
         'purchase_return' => 'مردود مشتريات',
         'cash_receipt' => 'سند قبض',
@@ -750,6 +751,11 @@ function crm_party_statement_build(
         $out['total_debit'],
         $out['total_credit']
     );
+
+    if ($partyType === 'customer') {
+        require_once app_path('includes/sal_customer_order_statement.php');
+        $out = sal_customer_order_statement_merge_crm($pdo, $partyId, $out, $from, $to);
+    }
 
     return $out;
 }

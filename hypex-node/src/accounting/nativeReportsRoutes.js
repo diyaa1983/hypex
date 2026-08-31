@@ -1012,6 +1012,7 @@ router.get(
       from,
       to,
       account_no: accountNo,
+      customer_id: customerId,
     });
     if (!data || data.ok === false) {
       return res
@@ -1164,6 +1165,7 @@ router.get(
       from,
       to,
       account_no: accountNo,
+      customer_id: customerId,
     });
 
     if (!data || data.ok === false) {

@@ -60,8 +60,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       await session.refreshMe();
       if (!mounted) return;
       final offline = context.read<OfflineController>();
-      if (offline.online &&
-          (offline.info.pendingOutbox > 0 || offline.info.ordersPending > 0)) {
+      if (offline.online && offline.info.flushableOutbox > 0) {
         await offline.flushAndAutoPost();
       }
     } catch (_) {}

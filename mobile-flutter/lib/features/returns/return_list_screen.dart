@@ -229,6 +229,23 @@ class _ReturnListScreenState extends State<ReturnListScreen> {
                                     const Icon(Icons.print_outlined, size: 19),
                                 color: AppTheme.primary,
                               ),
+                              IconButton(
+                                tooltip: 'PDF',
+                                visualDensity: VisualDensity.compact,
+                                onPressed: id < 1
+                                    ? null
+                                    : () => ReturnPrintHelper.openPdfA4(
+                                          context,
+                                          returnId: id,
+                                          returnNo:
+                                              '${r['return_no'] ?? ''}',
+                                        ),
+                                icon: const Icon(
+                                  Icons.picture_as_pdf_outlined,
+                                  size: 19,
+                                ),
+                                color: AppTheme.violet,
+                              ),
                             ],
                           ),
                         ],

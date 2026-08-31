@@ -5,9 +5,10 @@ import '../core/api_client.dart';
 import '../core/config.dart';
 import '../widgets/async_view.dart';
 import '../widgets/thermal_preview_screen.dart';
+import 'document_print_helper.dart';
 import 'return_bluetooth_receipt.dart';
 
-/// طباعة ومعاينة مرتجع المبيعات حرارياً (58/80 مم).
+/// طباعة ومعاينة مرتجع المبيعات حرارياً (58/80 مم) وPDF A4.
 class ReturnPrintHelper {
   ReturnPrintHelper._();
 
@@ -93,6 +94,43 @@ class ReturnPrintHelper {
           },
         ),
       ),
+    );
+  }
+
+  static Future<void> openPdfA4(
+    BuildContext context, {
+    required int returnId,
+    String returnNo = '',
+  }) async {
+    if (returnId < 1) {
+      showSnack(context, 'احفظ المرتجع أولاً قبل PDF.', error: true);
+      return;
+    }
+    final no = returnNo.trim();
+    await DocumentPrintHelper.openPdfFromApi(
+      context,
+      apiPath: AppConfig.returnPdfPath,
+      query: {'id': returnId},
+      title: no.isEmpty ? 'مرتجع مبيعات' : 'مرتجع $no',
+      fileName: no.isEmpty ? 'مرتجع.pdf' : 'مرتجع-$no.pdf',
+    );
+  }
+
+  static Future<void> sharePdf(
+    BuildContext context, {
+    required int returnId,
+    String returnNo = '',
+  }) async {
+    if (returnId < 1) {
+      showSnack(context, 'احفظ المرتجع أولاً قبل المشاركة.', error: true);
+      return;
+    }
+    final no = returnNo.trim();
+    await DocumentPrintHelper.sharePdfFromApi(
+      context,
+      apiPath: AppConfig.returnPdfPath,
+      query: {'id': returnId},
+      fileName: no.isEmpty ? 'مرتجع.pdf' : 'مرتجع-$no.pdf',
     );
   }
 }

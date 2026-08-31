@@ -319,19 +319,48 @@ try {
     /* ─── oracle statement ─── */
     if ($action === 'oracle_statement') {
         require_once app_path('includes/oracle_statement.php');
+        require_once app_path('includes/sal_customer_order_statement.php');
         $accountNo = trim((string) ($payload['account_no'] ?? $payload['customer_code'] ?? ''));
-        if ($accountNo === '') {
+        $customerId = (int) ($payload['customer_id'] ?? 0);
+        if ($accountNo === '' && $customerId < 1) {
             cli_out(['ok' => true, 'from' => $from, 'to' => $to, 'rows' => [], 'message' => 'أدخل رقم حساب العميل.']);
         }
         try {
+            if ($customerId > 0 && $accountNo === '') {
+                $st = $pdo->prepare(
+                    'SELECT COALESCE(NULLIF(TRIM(oracle_key), \'\'), code) AS acc
+                     FROM crm_customer WHERE id = ? LIMIT 1'
+                );
+                $st->execute([$customerId]);
+                $accountNo = preg_replace('/\D+/', '', (string) ($st->fetchColumn() ?: '')) ?? '';
+            }
+            if ($customerId < 1 && $accountNo !== '') {
+                $st = $pdo->prepare(
+                    'SELECT id FROM crm_customer
+                     WHERE oracle_key = ? OR code = ? OR REPLACE(code, \' \', \'\') = ?
+                     LIMIT 1'
+                );
+                $st->execute([$accountNo, $accountNo, $accountNo]);
+                $customerId = (int) ($st->fetchColumn() ?: 0);
+            }
             $result = oracle_fetch_customer_statement($accountNo, $from, $to);
+            if (is_array($result) && !empty($result['ok']) && $customerId > 0) {
+                $result = sal_customer_order_statement_merge_oracle(
+                    $pdo,
+                    $customerId,
+                    $result,
+                    $from,
+                    $to
+                );
+            }
             if (is_array($result) && isset($result['ok'])) {
-                cli_out(array_merge(['from' => $from, 'to' => $to], $result));
+                cli_out(array_merge(['from' => $from, 'to' => $to, 'customer_id' => $customerId], $result));
             }
             cli_out([
                 'ok' => true,
                 'from' => $from,
                 'to' => $to,
+                'customer_id' => $customerId,
                 'rows' => is_array($result) ? $result : [],
             ]);
         } catch (Throwable $e) {

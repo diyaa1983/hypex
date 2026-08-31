@@ -565,44 +565,56 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
         ],
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _orders.length,
-      itemBuilder: (_, i) {
-        final o = _orders[i];
-        return AppCard(
-          onTap: () => context.push('/customer-orders/${Fmt.toInt(o['id'])}'),
-          child: Row(
-            children: [
-              const MiniIcon(
-                Icons.shopping_cart_checkout_rounded,
-                color: AppTheme.success,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  Fmt.dmy(Fmt.str(o['order_date'])),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-              Text(
-                Fmt.money(Fmt.toDouble(o['total'])),
-                textDirection: TextDirection.ltr,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.chevron_left_rounded, color: AppTheme.textSoft),
-            ],
-          ),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
+      children: [
+        LinedReportTable(
+          headers: const [
+            '#',
+            'رقم الطلبية',
+            'تاريخ الطلبية',
+            'الحالة',
+            'اسم العميل',
+            'اسم المندوب',
+            'مجموع الطلبية',
+          ],
+          numericCols: const {0, 6},
+          onRowTap: (i) =>
+              context.push('/customer-orders/${Fmt.toInt(_orders[i]['id'])}'),
+          rows: [
+            for (var i = 0; i < _orders.length; i++)
+              [
+                '${i + 1}',
+                Fmt.str(_orders[i]['order_no']).isEmpty
+                    ? '#${Fmt.toInt(_orders[i]['id'])}'
+                    : Fmt.str(_orders[i]['order_no']),
+                Fmt.dmy(Fmt.str(_orders[i]['order_date'])),
+                _histOrderStatusLabel(_orders[i]),
+                Fmt.str(_orders[i]['customer_name']).isEmpty
+                    ? '—'
+                    : Fmt.str(_orders[i]['customer_name']),
+                Fmt.str(_orders[i]['sales_rep_name']).isEmpty
+                    ? '—'
+                    : Fmt.str(_orders[i]['sales_rep_name']),
+                Fmt.money(Fmt.toDouble(_orders[i]['total'])),
+              ],
+          ],
+        ),
+      ],
     );
+  }
+
+  static String _histOrderStatusLabel(Map<String, dynamic> o) {
+    final status = Fmt.str(o['status']).toLowerCase();
+    if (status == 'approved') return 'معتمد';
+    if (status == 'draft') {
+      final sent = o['is_sent'] == true ||
+          o['is_sent'] == 1 ||
+          '${o['is_sent']}' == '1';
+      return sent ? 'مسودة · مرحّل' : 'مسودة';
+    }
+    final label = Fmt.str(o['status_label']);
+    return label.isEmpty ? (status.isEmpty ? '—' : status) : label;
   }
 
   Widget _invoicesList() {
@@ -617,54 +629,53 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
         ],
       );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: _invoices.length,
-      itemBuilder: (_, i) {
-        final inv = _invoices[i];
-        return AppCard(
-          onTap: () => context.push('/invoices/${Fmt.toInt(inv['id'])}'),
-          child: Row(
-            children: [
-              const MiniIcon(
-                Icons.receipt_long_rounded,
-                color: AppTheme.primarySoft,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      Fmt.str(inv['invoice_no']).isEmpty
-                          ? '#${Fmt.toInt(inv['id'])}'
-                          : Fmt.str(inv['invoice_no']),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      Fmt.dmy(Fmt.str(inv['invoice_date'])),
-                      style: const TextStyle(
-                        color: AppTheme.textSoft,
-                        fontSize: 12.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                Fmt.money(Fmt.toDouble(inv['total'])),
-                textDirection: TextDirection.ltr,
-                style: const TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.chevron_left_rounded, color: AppTheme.textSoft),
-            ],
-          ),
-        );
-      },
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
+      children: [
+        LinedReportTable(
+          headers: const [
+            '#',
+            'رقم الفاتورة',
+            'تاريخ الفاتورة',
+            'الحالة',
+            'اسم العميل',
+            'اسم المندوب',
+            'مجموع الفاتورة',
+          ],
+          numericCols: const {0, 6},
+          onRowTap: (i) =>
+              context.push('/invoices/${Fmt.toInt(_invoices[i]['id'])}'),
+          rows: [
+            for (var i = 0; i < _invoices.length; i++)
+              [
+                '${i + 1}',
+                Fmt.str(_invoices[i]['invoice_no']).isEmpty
+                    ? '#${Fmt.toInt(_invoices[i]['id'])}'
+                    : Fmt.str(_invoices[i]['invoice_no']),
+                Fmt.dmy(Fmt.str(_invoices[i]['invoice_date'])),
+                _histInvoiceStatusLabel(_invoices[i]),
+                Fmt.str(_invoices[i]['customer_name']).isEmpty
+                    ? '—'
+                    : Fmt.str(_invoices[i]['customer_name']),
+                Fmt.str(_invoices[i]['sales_rep_name']).isEmpty
+                    ? '—'
+                    : Fmt.str(_invoices[i]['sales_rep_name']),
+                Fmt.money(Fmt.toDouble(_invoices[i]['total'])),
+              ],
+          ],
+        ),
+      ],
     );
+  }
+
+  static String _histInvoiceStatusLabel(Map<String, dynamic> inv) {
+    final posted = inv['is_posted'] == true ||
+        inv['is_posted'] == 1 ||
+        '${inv['is_posted']}' == '1';
+    final pay = Fmt.str(inv['payment_label']).isNotEmpty
+        ? Fmt.str(inv['payment_label'])
+        : (Fmt.str(inv['payment_type']) == 'credit' ? 'ذمة' : 'نقدي');
+    final base = posted ? 'مرحّلة' : 'غير مرحّلة';
+    return pay.isEmpty ? base : '$base · $pay';
   }
 }

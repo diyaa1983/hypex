@@ -120,7 +120,7 @@ function oracle_mobile_customer_statement_payload(
         'ok' => true,
         'message' => '',
         'source' => 'oracle',
-        'includes_approved_orders' => (int) ($stmt['approved_orders_merged'] ?? 0) > 0,
+        'includes_approved_orders' => false,
         'company_name' => (string) ($brand['company_name'] ?? 'الشركة'),
         'logo_url' => $brand['logo_url'] ?? null,
         'customer_id' => $customerId,

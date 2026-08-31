@@ -13,6 +13,7 @@ class OfflineSyncInfo {
     this.warehouses = 0,
     this.stockRows = 0,
     this.pendingOutbox = 0,
+    this.errorOutbox = 0,
     this.noOrderReasons = 0,
     this.visitRadiusM = 200,
     this.routeDays = 0,
@@ -30,7 +31,10 @@ class OfflineSyncInfo {
   final int items;
   final int warehouses;
   final int stockRows;
+  /// عمليات بانتظار الترحيل فعلياً (status=pending فقط).
   final int pendingOutbox;
+  /// عمليات فشلت سابقاً — لا تُحسب كـ«معلّقة» في الشريط.
+  final int errorOutbox;
   final int noOrderReasons;
   final int visitRadiusM;
   final int routeDays;
@@ -40,6 +44,8 @@ class OfflineSyncInfo {
   final int oracleStatements;
   final String? cacheFrom;
   final String? cacheTo;
+
+  int get flushableOutbox => pendingOutbox + errorOutbox;
 }
 
 class OfflineStore {
@@ -92,7 +98,13 @@ class OfflineStore {
             0;
     final pending = Sqflite.firstIntValue(
           await db.rawQuery(
-            "SELECT COUNT(*) FROM outbox WHERE status = 'pending' OR status = 'error'",
+            "SELECT COUNT(*) FROM outbox WHERE status = 'pending'",
+          ),
+        ) ??
+        0;
+    final errored = Sqflite.firstIntValue(
+          await db.rawQuery(
+            "SELECT COUNT(*) FROM outbox WHERE status = 'error'",
           ),
         ) ??
         0;
@@ -166,6 +178,7 @@ class OfflineStore {
       warehouses: warehouses,
       stockRows: stockRows,
       pendingOutbox: pending,
+      errorOutbox: errored,
       noOrderReasons: reasons,
       visitRadiusM: radius,
       routeDays: routeDays,
@@ -1619,6 +1632,86 @@ class OfflineStore {
       WHERE id = ?
       ''',
       [error, DateTime.now().toIso8601String(), id],
+    );
+  }
+
+  /// هل الإرسال التلقائي للطلبات مفعّل من إعدادات الشركة؟
+  Future<bool> autoSendOrdersEnabled() async {
+    final v = await getMeta('auto_send_orders');
+    return v == '1' || v == 'true';
+  }
+
+  /// تنظيف الطابور: حذف المنتهية، وإغلاق إرسال طلبات أصبحت مرسلة محلياً.
+  Future<int> cleanupOutbox() async {
+    final db = await _db;
+    var n = 0;
+    n += await db.delete('outbox', where: "status = 'done'");
+
+    final errors = await db.query(
+      'outbox',
+      where: "status = 'error' AND kind = 'customer_order_send'",
+    );
+    for (final row in errors) {
+      final id = row['id'] as int? ?? 0;
+      if (id < 1) continue;
+      try {
+        final body =
+            jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+        final ids = (body['ids'] as List? ?? [])
+            .map((e) => (e as num?)?.toInt() ?? 0)
+            .where((e) => e != 0)
+            .toList();
+        if (ids.isEmpty) {
+          await markOutboxDone(id);
+          n++;
+          continue;
+        }
+        var allSent = true;
+        for (final oid in ids) {
+          final rows = await db.query(
+            'orders',
+            columns: ['is_sent'],
+            where: 'id = ?',
+            whereArgs: [oid],
+            limit: 1,
+          );
+          if (rows.isEmpty) continue;
+          if ((rows.first['is_sent'] as int? ?? 0) != 1) {
+            allSent = false;
+            break;
+          }
+        }
+        if (allSent) {
+          await markOutboxDone(id);
+          n++;
+        }
+      } catch (_) {}
+    }
+
+    // أخطاء تجاوزت محاولات كثيرة — أرشفة حتى لا تظهر كمعلّقة إلى الأبد.
+    n += await db.rawUpdate(
+      "UPDATE outbox SET status = 'failed' WHERE status = 'error' AND attempts >= 8",
+    );
+    n += await db.delete(
+      'outbox',
+      where: "status = 'failed' AND updated_at < ?",
+      whereArgs: [
+        DateTime.now().subtract(const Duration(days: 7)).toIso8601String(),
+      ],
+    );
+    return n;
+  }
+
+  /// إعادة محاولة الأخطاء (error → pending) قبل الترحيل.
+  Future<int> requeueOutboxErrors({int maxAttempts = 7}) async {
+    final db = await _db;
+    return db.rawUpdate(
+      '''
+      UPDATE outbox
+      SET status = 'pending', updated_at = ?
+      WHERE status = 'error' AND attempts < ?
+      ''',
+      [DateTime.now().toIso8601String(), maxAttempts],
     );
   }
 }

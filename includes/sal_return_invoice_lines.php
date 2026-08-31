@@ -44,6 +44,7 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId, int $excludeRe
     $sql = "SELECT il.id AS invoice_line_id, il.item_id, il.line_desc, il.qty AS qty_sold,
                    {$extraSoldCol} AS qty_extra_sold,
                    il.unit_price, il.line_total, il.tax_rate_percent,
+                   COALESCE(il.tax_amount, 0) AS tax_amount,
                    COALESCE(SUM(rl.qty), 0) AS qty_returned,
                    {$extraRetCol} AS qty_extra_returned,
                    {$barcodeCol}, i.name_ar
@@ -89,6 +90,7 @@ function sal_return_fetch_invoice_lines(PDO $pdo, int $invoiceId, int $excludeRe
             'unit_price' => (float) ($row['unit_price'] ?? 0),
             'line_total' => (float) ($row['line_total'] ?? 0),
             'tax_rate_percent' => (float) ($row['tax_rate_percent'] ?? 0),
+            'tax_amount' => (float) ($row['tax_amount'] ?? 0),
         ];
     }
 

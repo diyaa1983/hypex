@@ -60,6 +60,8 @@ class AppConfig {
   static const String returnEinvoiceSendPath =
       'api/sales_return_einvoice_send.php';
   static const String returnSaveRoute = 'm/index.php?r=m_sales_returns';
+  static const String returnPdfPath = 'api/mobile_return_pdf.php';
+  static const String returnPrintPath = 'api/mobile_return_print.php';
 
   static const String partyStatementPath = 'api/mobile_party_statement.php';
   static const String partyStatementPdfPath =

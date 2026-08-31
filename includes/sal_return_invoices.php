@@ -61,30 +61,55 @@ function sal_return_calc_line_amounts(float $qty, float $unitPrice, float $taxRa
 
 /**
  * مبالغ إرجاع بند فاتورة — تُوزَّع تناسبياً مع خصم البند أو خصم الفاتورة.
+ * الضريبة: نسبة البند، وإلا تناسبياً من ضريبة البند، وإلا نسبة الشركة الافتراضية.
  *
- * @return array{line_subtotal: float, tax_amount: float, line_gross: float}
+ * @return array{line_subtotal: float, tax_amount: float, line_gross: float, tax_rate_percent: float}
  */
 function sal_return_calc_line_amounts_from_invoice(
     float $returnQty,
     float $qtySold,
     float $lineTotalSold,
     float $unitPrice,
-    float $taxRatePercent
+    float $taxRatePercent,
+    float $lineTaxSold = 0.0,
+    ?float $fallbackTaxRate = null
 ): array {
     if ($returnQty <= 0) {
-        return ['line_subtotal' => 0.0, 'tax_amount' => 0.0, 'line_gross' => 0.0];
+        return [
+            'line_subtotal' => 0.0,
+            'tax_amount' => 0.0,
+            'line_gross' => 0.0,
+            'tax_rate_percent' => 0.0,
+        ];
     }
     if ($qtySold > 0.000001) {
         $sub = company_round_amount(($lineTotalSold / $qtySold) * $returnQty);
     } else {
         $sub = company_round_amount($returnQty * $unitPrice);
     }
-    $tax = company_round_amount($sub * ($taxRatePercent / 100));
+
+    $rate = $taxRatePercent;
+    if ($rate > 0.000001) {
+        $tax = company_round_amount($sub * ($rate / 100));
+    } elseif ($qtySold > 0.000001 && $lineTaxSold > 0.000001) {
+        $tax = company_round_amount(($lineTaxSold / $qtySold) * $returnQty);
+        $rate = $sub > 0.000001 ? round(($tax / $sub) * 100, 3) : 0.0;
+    } else {
+        if ($fallbackTaxRate === null) {
+            require_once app_path('includes/company_settings.php');
+            $fallbackTaxRate = (float) (company_settings()['tax_rate_percent'] ?? 0);
+        }
+        $rate = (float) $fallbackTaxRate;
+        $tax = $rate > 0.000001
+            ? company_round_amount($sub * ($rate / 100))
+            : 0.0;
+    }
     $gross = company_round_amount($sub + $tax);
 
     return [
         'line_subtotal' => $sub,
         'tax_amount' => $tax,
         'line_gross' => $gross,
+        'tax_rate_percent' => $rate,
     ];
 }

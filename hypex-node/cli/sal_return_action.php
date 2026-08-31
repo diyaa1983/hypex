@@ -208,6 +208,7 @@ try {
                 $st = $pdo->prepare(
                     'SELECT il.id, il.item_id, il.qty AS qty_sold, ' . $extraSoldSql . ' AS qty_extra_sold,
                             il.unit_price, il.line_total, il.tax_rate_percent,
+                            COALESCE(il.tax_amount, 0) AS tax_amount,
                             COALESCE(SUM(rl.qty), 0) AS qty_returned,
                             ' . $extraRetSql . ' AS qty_extra_returned
                      FROM sal_invoice_line il
@@ -244,7 +245,8 @@ try {
                     (float) $row['qty_sold'],
                     (float) $row['line_total'],
                     $unitPrice,
-                    $taxRate
+                    $taxRate,
+                    (float) ($row['tax_amount'] ?? 0)
                 );
                 $checkedLines[] = [
                     'invoice_line_id' => $lineId,
@@ -252,7 +254,7 @@ try {
                     'qty' => $qty,
                     'qty_extra' => $qtyExtra,
                     '_unit_price' => $unitPrice,
-                    '_tax_rate' => $taxRate,
+                    '_tax_rate' => (float) ($amounts['tax_rate_percent'] ?? $taxRate),
                     'line_subtotal' => $amounts['line_subtotal'],
                     'tax_amount' => $amounts['tax_amount'],
                     'line_gross' => $amounts['line_gross'],

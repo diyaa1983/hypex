@@ -2,20 +2,18 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 
-/// توضيح ظهور طلبات الشراء المعتمدة في كشف الحساب.
+/// توضيح أن طلب الشراء لا يُعرض في كشف الحساب.
 class OrderStatementWorkflowNote extends StatelessWidget {
   const OrderStatementWorkflowNote({super.key, this.compact = false});
 
   final bool compact;
 
   static const String fullText =
-      'كشف الحساب يعرض بيانات Oracle مع طلبات الشراء المعتمدة. '
-      'يظهر الطلب في الكشف بعد اعتماد الإدارة، '
-      'ويختفي إذا تم فك الاعتماد. '
-      'الترحيل إلى Oracle اختياري.';
+      'طلب الشراء لا يظهر في كشف الحساب. '
+      'الكشف يعرض حركات الحساب (فواتير، سندات، مرتجعات…) فقط.';
 
   static const String compactText =
-      'الطلب يظهر في الكشف بعد الاعتماد ويختفي عند فك الاعتماد.';
+      'طلب الشراء لا يظهر في كشف الحساب.';
 
   @override
   Widget build(BuildContext context) {

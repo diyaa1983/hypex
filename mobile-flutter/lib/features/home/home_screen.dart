@@ -732,19 +732,20 @@ class _OfflineHomeBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final off = context.watch<OfflineController>();
     final pending = off.info.pendingOutbox;
-    if (off.online && off.catalogReady && pending < 1) {
+    final connected = off.serverConnected || off.online;
+    if (connected && off.catalogReady && pending < 1) {
       return const SizedBox.shrink();
     }
     final Color bg;
     final Color fg;
     final String text;
-    if (!off.online && off.catalogReady) {
+    if (!connected && off.catalogReady) {
       bg = const Color(0xFFFFF7E6);
       fg = const Color(0xFF9A6700);
       text = pending > 0
           ? 'Offline — $pending عملية بانتظار الترحيل عند الاتصال'
           : 'Offline — يعمل من البيانات المحلية';
-    } else if (!off.online) {
+    } else if (!connected) {
       bg = const Color(0xFFFEECEC);
       fg = AppTheme.danger;
       text = 'Offline بدون بيانات — افتح «تحديث البيانات» عند الاتصال';

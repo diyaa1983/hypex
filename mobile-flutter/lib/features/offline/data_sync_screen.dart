@@ -26,7 +26,10 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
       final off = context.read<OfflineController>();
       await off.refreshInfo();
       if (!mounted) return;
-      await off.flushAndAutoPost();
+      // ترحيل المعلّق الحقيقي فقط — بدون إنشاء طابور وهمي.
+      if (off.serverConnected && off.info.flushableOutbox > 0) {
+        await off.flushAndAutoPost();
+      }
     });
   }
 
@@ -36,7 +39,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
       if (mounted) setState(() => _step = s);
     });
     if (!mounted) return;
-    if (ok) {
+    if (ok && off.info.flushableOutbox > 0) {
       await off.flushAndAutoPost();
     }
     if (!mounted) return;
@@ -90,6 +93,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
               _StatusBanner(
                 online: off.serverConnected || off.online,
                 catalogReady: off.catalogReady,
+                pending: info.pendingOutbox,
                 compact: tablet || compact,
               ),
               SizedBox(height: gap),
@@ -168,7 +172,9 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   ),
                 ),
               ],
-              if (off.lastError != null && !off.busy)
+              if (off.lastError != null &&
+                  !off.busy &&
+                  info.flushableOutbox > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
@@ -193,14 +199,26 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   ),
                 ),
               ),
-              if (info.pendingOutbox > 0 || info.ordersPending > 0)
+              if (info.pendingOutbox > 0)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    'عمليات بانتظار الإرسال تُرحَّل تلقائياً عند عودة الاتصال.',
+                    '${info.pendingOutbox} عملية بانتظار الترحيل — تُرحَّل تلقائياً عند عودة الاتصال بدون الحاجة لتحديث البيانات.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: Colors.black.withValues(alpha: 0.6),
+                      fontSize: tablet ? 12 : 13,
+                    ),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'لا توجد عمليات معلّقة. عند قطع الاتصال يمكنك العمل من البيانات المحلية، وعند عودة الشبكة تُرحَّل التعديلات تلقائياً.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.black.withValues(alpha: 0.55),
                       fontSize: tablet ? 12 : 13,
                     ),
                   ),
@@ -234,7 +252,11 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
         v: '${info.visitReportRows}',
         highlight: false,
       ),
-      (k: 'طلبات غير مرسلة (محلي)', v: '${info.ordersPending}', highlight: false),
+      (
+        k: 'طلبات غير مرسلة (محلي)',
+        v: '${info.ordersPending}',
+        highlight: false,
+      ),
       (k: 'طلبات مرسلة (محلي)', v: '${info.ordersSent}', highlight: false),
       (
         k: 'كشوف حساب Oracle (محلي)',
@@ -248,10 +270,16 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
           highlight: false,
         ),
       (
-        k: 'تُرحَّل تلقائياً',
+        k: 'عمليات معلّقة (ترحيل)',
         v: '${info.pendingOutbox}',
         highlight: info.pendingOutbox > 0,
       ),
+      if (info.errorOutbox > 0)
+        (
+          k: 'عمليات بحاجة لإعادة محاولة',
+          v: '${info.errorOutbox}',
+          highlight: true,
+        ),
       if (off.flushScheduledAt != null)
         (
           k: 'ترحيل تلقائي مجدول',
@@ -283,10 +311,10 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
             SizedBox(height: compact ? 6 : 8),
             Text(
               compact
-                  ? 'حدّث وأنت متصل لجلب عملاء المندوب والجولات. عند عودة الشبكة تُرحَّل العمليات تلقائياً.'
-                  : '1) اضغط «تحديث البيانات» وأنت متصل: تُحمَّل عملاء المندوب فقط، والجولات، والمواد والطلبات.\n'
-                      '2) بدون إنترنت يمكنك العمل من البيانات المحلية.\n'
-                      '3) عند عودة الاتصال تُرحَّل العمليات تلقائياً ويُحدَّث الربط والجولات بدون زر ترحيل يدوي.',
+                  ? 'حدّث وأنت متصل لتحميل بيانات شاشات التابلت. عند قطع الشبكة تعمل محلياً، وعند عودتها تُرحَّل العمليات تلقائياً دون تحديث يدوي.'
+                  : '1) اضغط «تحديث البيانات» وأنت متصل: تُحمَّل بيانات الشاشات (عملاء المندوب، الجولات، المواد، الطلبات، كشوف الحساب…).\n'
+                      '2) عند قطع الاتصال تعمل كل الشاشات من البيانات المحلية بشكل طبيعي.\n'
+                      '3) عند عودة الاتصال تُرحَّل العمليات المعلّقة تلقائياً إلى النظام — بدون الحاجة لضغط تحديث البيانات مرة أخرى.',
               style: TextStyle(
                 color: Colors.black.withValues(alpha: 0.7),
                 height: 1.4,
@@ -397,10 +425,12 @@ class _StatusBanner extends StatelessWidget {
   const _StatusBanner({
     required this.online,
     required this.catalogReady,
+    required this.pending,
     this.compact = false,
   });
   final bool online;
   final bool catalogReady;
+  final int pending;
   final bool compact;
 
   @override
@@ -413,7 +443,9 @@ class _StatusBanner extends StatelessWidget {
       bg = const Color(0xFFFFF7E6);
       fg = const Color(0xFF9A6700);
       icon = Icons.cloud_off_rounded;
-      text = 'Offline — يعمل من البيانات المحمّلة على الجهاز';
+      text = pending > 0
+          ? 'Offline — $pending عملية ستُرحَّل تلقائياً عند الاتصال'
+          : 'Offline — يعمل من البيانات المحمّلة على الجهاز';
     } else if (!online && !catalogReady) {
       bg = const Color(0xFFFEECEC);
       fg = AppTheme.danger;
@@ -423,7 +455,9 @@ class _StatusBanner extends StatelessWidget {
       bg = const Color(0xFFE8F7EE);
       fg = AppTheme.success;
       icon = Icons.cloud_done_rounded;
-      text = 'متصل — البيانات المحلية جاهزة للعمل Offline';
+      text = pending > 0
+          ? 'متصل — جاري/بانتظار ترحيل $pending عملية تلقائياً'
+          : 'متصل — البيانات المحلية جاهزة للعمل Offline';
     } else {
       bg = const Color(0xFFEEF3FA);
       fg = AppTheme.primary;

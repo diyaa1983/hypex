@@ -966,9 +966,13 @@ class _ReturnLineEdit {
     out['order_line_id'] = Fmt.toInt(source['id']);
     final unitPrice = Fmt.toDouble(source['unit_price']);
     final disc = Fmt.toDouble(source['discount_pct']);
+    final taxPct = Fmt.toDouble(source['tax_rate_percent']);
     final lineTotal = qty * unitPrice * (1 - disc / 100);
+    final taxAmt = lineTotal * taxPct / 100;
     out['line_total'] = lineTotal;
-    out['line_gross'] = lineTotal;
+    out['tax_rate_percent'] = taxPct;
+    out['tax_amount'] = taxAmt;
+    out['line_gross'] = lineTotal + taxAmt;
     return out;
   }
 }

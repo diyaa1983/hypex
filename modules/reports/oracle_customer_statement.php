@@ -135,6 +135,16 @@ if ($submitted) {
             if (!$result['ok']) {
                 $err = (string) ($result['message'] ?? 'تعذر جلب الكشف من Oracle.');
             } else {
+                if ($customerId > 0) {
+                    require_once app_path('includes/sal_customer_order_statement.php');
+                    $result = sal_customer_order_statement_merge_oracle(
+                        $pdo,
+                        $customerId,
+                        $result,
+                        $from,
+                        $to
+                    );
+                }
                 $showResult = true;
                 if ($partyName === '' && ($result['name'] ?? '') !== '') {
                     $partyName = (string) $result['name'];

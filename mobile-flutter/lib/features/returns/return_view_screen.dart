@@ -26,6 +26,7 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
   bool _posting = false;
   bool _printBusy = false;
   bool _previewBusy = false;
+  bool _pdfBusy = false;
   bool _einvoiceBusy = false;
   bool _deleting = false;
   String? _error;
@@ -106,6 +107,34 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
       );
     } finally {
       if (mounted) setState(() => _previewBusy = false);
+    }
+  }
+
+  Future<void> _openPdf() async {
+    if (_pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      await ReturnPrintHelper.openPdfA4(
+        context,
+        returnId: widget.returnId,
+        returnNo: Fmt.str(_ret['return_no']),
+      );
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
+    }
+  }
+
+  Future<void> _sharePdf() async {
+    if (_pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      await ReturnPrintHelper.sharePdf(
+        context,
+        returnId: widget.returnId,
+        returnNo: Fmt.str(_ret['return_no']),
+      );
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
     }
   }
 
@@ -331,6 +360,18 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
                       color: AppTheme.rose,
                     ),
                   ),
+                  if (Fmt.toDouble(_ret['subtotal']) > 0 ||
+                      Fmt.toDouble(_ret['tax_amount']) > 0) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      'بدون ضريبة: ${Fmt.money(Fmt.toDouble(_ret['subtotal']))}'
+                      '  •  ضريبة: ${Fmt.money(Fmt.toDouble(_ret['tax_amount']))}',
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        color: AppTheme.textSoft,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -353,6 +394,30 @@ class _ReturnViewScreenState extends State<ReturnViewScreen> {
                     color: AppTheme.teal,
                     busy: _previewBusy,
                     onTap: _openPreview,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: ActionChipButton(
+                    icon: Icons.picture_as_pdf_outlined,
+                    label: 'PDF',
+                    color: AppTheme.violet,
+                    busy: _pdfBusy,
+                    onTap: _openPdf,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: ActionChipButton(
+                    icon: Icons.share_outlined,
+                    label: 'مشاركة PDF',
+                    color: AppTheme.amber,
+                    busy: _pdfBusy,
+                    onTap: _sharePdf,
                   ),
                 ),
               ],

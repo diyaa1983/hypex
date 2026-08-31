@@ -181,6 +181,7 @@ function handle_sales_return_post(): void
             $st = $pdo->prepare(
                 'SELECT il.id, il.item_id, il.qty AS qty_sold, ' . $extraSoldSql . ' AS qty_extra_sold,
                         il.unit_price, il.line_total, il.tax_rate_percent,
+                        COALESCE(il.tax_amount, 0) AS tax_amount,
                         COALESCE(SUM(rl.qty), 0) AS qty_returned,
                         ' . $extraRetSql . ' AS qty_extra_returned
                  FROM sal_invoice_line il
@@ -217,16 +218,18 @@ function handle_sales_return_post(): void
             $taxRate = (float) $row['tax_rate_percent'];
             $qtySold = (float) $row['qty_sold'];
             $lineTotalSold = (float) $row['line_total'];
+            $lineTaxSold = (float) ($row['tax_amount'] ?? 0);
             $amounts = sal_return_calc_line_amounts_from_invoice(
                 $qty,
                 $qtySold,
                 $lineTotalSold,
                 $unitPrice,
-                $taxRate
+                $taxRate,
+                $lineTaxSold
             );
             $ln['item_id'] = (int) $row['item_id'];
             $ln['_unit_price'] = $unitPrice;
-            $ln['_tax_rate'] = $taxRate;
+            $ln['_tax_rate'] = (float) ($amounts['tax_rate_percent'] ?? $taxRate);
             $ln['qty'] = $qty;
             $ln['qty_extra'] = $qtyExtra;
             $ln['line_subtotal'] = $amounts['line_subtotal'];

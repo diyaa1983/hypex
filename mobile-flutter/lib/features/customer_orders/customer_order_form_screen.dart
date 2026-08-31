@@ -1223,11 +1223,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       if (!offline.online && offline.catalogReady) {
         orders = await OfflineStore.instance.listOrders(
           q: q,
+          customerId: _customer?.id ?? widget.initialCustomerId,
           limit: 30,
         );
       } else {
         try {
           final query = <String, dynamic>{'q': q, 'page': 1};
+          final cid = _customer?.id ?? widget.initialCustomerId ?? 0;
+          if (cid > 0) query['customer_id'] = cid;
           final data = await api.getJson(
             AppConfig.customerOrderListPath,
             query: query,
@@ -1651,7 +1654,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   ),
                 ),
                 child: Text(
-                  _orderNoCtrl.text.isEmpty ? 'بحث برقم الطلب' : _orderNoCtrl.text,
+                  _orderNoCtrl.text.isEmpty
+                      ? 'بحث برقم الطلب'
+                      : _orderNoCtrl.text,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textDirection: TextDirection.ltr,

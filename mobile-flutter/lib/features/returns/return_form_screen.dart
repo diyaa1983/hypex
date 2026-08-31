@@ -23,6 +23,11 @@ class _RetLine {
     required this.barcode,
     required this.qtyRemaining,
     required this.unitPrice,
+    required this.qtySold,
+    required this.lineTotalSold,
+    required this.taxRatePercent,
+    required this.taxAmountSold,
+    this.fallbackTaxPercent = 0,
   });
 
   final int invoiceLineId;
@@ -31,9 +36,42 @@ class _RetLine {
   final String barcode;
   final double qtyRemaining;
   final double unitPrice;
+  final double qtySold;
+  final double lineTotalSold;
+  final double taxRatePercent;
+  final double taxAmountSold;
+  final double fallbackTaxPercent;
   double qty = 0;
   final qtyCtrl = TextEditingController();
   final qtyFocus = FocusNode();
+
+  double get returnSubtotal {
+    if (qty <= 0) return 0;
+    if (qtySold > 0.000001) {
+      return (lineTotalSold / qtySold) * qty;
+    }
+    return qty * unitPrice;
+  }
+
+  double get returnTax {
+    if (qty <= 0) return 0;
+    final sub = returnSubtotal;
+    var rate = taxRatePercent;
+    if (rate <= 0.000001 &&
+        qtySold > 0.000001 &&
+        taxAmountSold > 0.000001) {
+      return (taxAmountSold / qtySold) * qty;
+    }
+    if (rate <= 0.000001) {
+      rate = fallbackTaxPercent;
+    }
+    if (rate > 0.000001) {
+      return sub * rate / 100;
+    }
+    return 0;
+  }
+
+  double get returnGross => returnSubtotal + returnTax;
 
   void dispose() {
     qtyCtrl.dispose();
@@ -57,6 +95,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
   int _invoiceId = 0;
   String _invoiceNo = '';
   String _returnDate = '';
+  double _defaultTaxPercent = 0;
   List<_RetLine> _lines = [];
 
   bool _loadingInvoices = false;
@@ -72,6 +111,13 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
   final _nameFilterCtrl = TextEditingController();
 
   bool get _isEdit => _editReturnId > 0;
+
+  double get _previewSubtotal =>
+      _lines.fold<double>(0, (s, l) => s + l.returnSubtotal);
+
+  double get _previewTax => _lines.fold<double>(0, (s, l) => s + l.returnTax);
+
+  double get _previewTotal => _previewSubtotal + _previewTax;
 
   @override
   void initState() {
@@ -239,6 +285,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
       if (!mounted) return;
       setState(() {
         _invoiceNo = (res['invoice_no'] ?? '').toString();
+        _defaultTaxPercent = Fmt.toDouble(res['default_tax_percent']);
         _lines = (res['lines'] as List? ?? []).whereType<Map>().map((e) {
           final m = e.cast<String, dynamic>();
           final line = _RetLine(
@@ -248,6 +295,11 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
             barcode: Fmt.str(m['barcode'] ?? m['sku']),
             qtyRemaining: Fmt.toDouble(m['qty_remaining']),
             unitPrice: Fmt.toDouble(m['unit_price']),
+            qtySold: Fmt.toDouble(m['qty_sold']),
+            lineTotalSold: Fmt.toDouble(m['line_total']),
+            taxRatePercent: Fmt.toDouble(m['tax_rate_percent']),
+            taxAmountSold: Fmt.toDouble(m['tax_amount']),
+            fallbackTaxPercent: _defaultTaxPercent,
           );
           final q = prefill[line.invoiceLineId] ?? 0;
           if (q > 0) {
@@ -646,19 +698,45 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: FilledButton.icon(
-                onPressed: _saving ? null : _save,
-                icon: _saving
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.save_outlined),
-                label: Text(_isEdit ? 'حفظ التعديلات' : 'حفظ المرتجع'),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (_previewSubtotal > 0 || _previewTax > 0) ...[
+                    AppCard(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                      child: Column(
+                        children: [
+                          _totalRow('بدون ضريبة', _previewSubtotal),
+                          const SizedBox(height: 4),
+                          _totalRow('ضريبة المبيعات', _previewTax),
+                          const Divider(height: 14),
+                          _totalRow('الإجمالي', _previewTotal, bold: true),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_outlined),
+                      label: Text(_isEdit ? 'حفظ التعديلات' : 'حفظ المرتجع'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -775,7 +853,7 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
               onChanged: (v) {
                 var q = double.tryParse(v.replaceAll(',', '')) ?? 0;
                 if (q > l.qtyRemaining) q = l.qtyRemaining;
-                l.qty = q;
+                setState(() => l.qty = q);
               },
               onSubmitted: (_) {
                 _barcodeFocus.requestFocus();
@@ -784,6 +862,32 @@ class _ReturnFormScreenState extends State<ReturnFormScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _totalRow(String label, double value, {bool bold = false}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
+              fontSize: bold ? 14 : 12.5,
+              color: bold ? AppTheme.textMain : AppTheme.textSoft,
+            ),
+          ),
+        ),
+        Text(
+          Fmt.money(value),
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            fontWeight: bold ? FontWeight.w900 : FontWeight.w700,
+            fontSize: bold ? 16 : 13,
+            color: bold ? AppTheme.rose : AppTheme.textMain,
+          ),
+        ),
+      ],
     );
   }
 }

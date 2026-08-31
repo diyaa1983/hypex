@@ -52,8 +52,12 @@ if (!sal_invoice_is_posted($pdo, $invoiceId)) {
 
 $lines = sal_return_fetch_invoice_lines($pdo, $invoiceId, $excludeReturnId);
 
+require_once app_path('includes/company_settings.php');
+$defaultTax = (float) (company_settings($pdo)['tax_rate_percent'] ?? 0);
+
 echo json_encode([
     'ok' => true,
     'invoice_no' => (string) ($inv['invoice_no'] ?? ''),
+    'default_tax_percent' => $defaultTax,
     'lines' => $lines,
 ], JSON_UNESCAPED_UNICODE);

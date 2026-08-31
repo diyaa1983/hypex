@@ -24,6 +24,7 @@ import '../../widgets/location_map_picker.dart';
 import '../gps/gps_map_tiles.dart';
 import '../party/party_statement_screen.dart';
 import '../customer_orders/customer_order_form_screen.dart';
+import '../rep/visit_workspace_panel.dart';
 
 /// مركز زيارة العملاء: قائمة + تفاصيل مع تبويبات (لوحة عريضة / ضيقة).
 class CustomerVisitHubScreen extends StatefulWidget {
@@ -1291,6 +1292,71 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     final screen = _displayLogicalSize(context);
     final imeOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
     final wide = screen.shortestSide >= 550 || screen.width >= 900;
+    final visitOpen = _selectedId != null &&
+        _customer != null &&
+        (_selectedIsOpen ||
+            (_visitOpenFromMap(_visit) &&
+                _selectedId == _openVisitCustomerId));
+
+    // بعد تسجيل الدخول: نفس تبويبات الجولات (طلب شراء / معلومات / سجل / كشف)
+    if (visitOpen) {
+      final cid = Fmt.toInt(_customer!['id']);
+      final cname = Fmt.str(_customer!['name']);
+      final ccode = Fmt.str(_customer!['code']);
+      final lineId = Fmt.toInt(_visit?['route_line_id']);
+      return MobileScaffold(
+        title: const Text('العملاء'),
+        backgroundColor: const Color(0xFFF0F4F8),
+        actions: [
+          IconButton(
+            onPressed: _busy
+                ? null
+                : () async {
+                    await _loadCustomers();
+                    await _refreshOpenVisit();
+                    if (_selectedId != null) {
+                      await _selectCustomer(_selectedId!);
+                    }
+                  },
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
+        body: Stack(
+          children: [
+            Column(
+              children: [
+                _hubCheckedInBar(cname, ccode),
+                Expanded(
+                  child: VisitWorkspacePanel(
+                    key: ValueKey('hub-ws-$cid-$lineId-$_visitOrderId'),
+                    customerId: cid,
+                    customerName: cname,
+                    customerCode: ccode,
+                    visitRouteLineId: lineId,
+                    visitOpen: true,
+                    orderId: _visitOrderId > 0 ? _visitOrderId : null,
+                    onOrderChanged: () async {
+                      await _refreshOpenVisit();
+                      if (_selectedId != null) {
+                        await _selectCustomer(_selectedId!);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+            if (_busy)
+              const Positioned(
+                left: 0,
+                right: 0,
+                top: 0,
+                child: LinearProgressIndicator(minHeight: 2),
+              ),
+          ],
+        ),
+      );
+    }
+
     return MobileScaffold(
       title: const Text('العملاء'),
       backgroundColor: const Color(0xFFF0F4F8),
@@ -1357,6 +1423,45 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
               child: LinearProgressIndicator(minHeight: 2),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _hubCheckedInBar(String name, String code) {
+    return Material(
+      color: const Color(0xFFDCFCE7),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+        child: Row(
+          children: [
+            const Icon(Icons.login_rounded, color: AppTheme.success, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                [
+                  name,
+                  if (code.isNotEmpty) code,
+                ].join(' · '),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF0B6B3A),
+                ),
+              ),
+            ),
+            TextButton.icon(
+              onPressed: _busy ? null : () => _showCheckoutMethodDialog(),
+              icon: const Icon(Icons.logout_rounded, size: 18),
+              label: const Text('تسجيل خروج'),
+              style: TextButton.styleFrom(
+                foregroundColor: AppTheme.danger,
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2647,54 +2752,62 @@ class _OrdersTab extends StatelessWidget {
                       ),
                     ],
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: orders.length,
-                    itemBuilder: (_, i) {
-                      final o = orders[i];
-                      return AppCard(
-                        onTap: () => context.push(
-                          '/customer-orders/${Fmt.toInt(o['id'])}',
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
+                    children: [
+                      LinedReportTable(
+                        headers: const [
+                          '#',
+                          'رقم الطلبية',
+                          'تاريخ الطلبية',
+                          'الحالة',
+                          'اسم العميل',
+                          'اسم المندوب',
+                          'مجموع الطلبية',
+                        ],
+                        numericCols: const {0, 6},
+                        onRowTap: (i) => context.push(
+                          '/customer-orders/${Fmt.toInt(orders[i]['id'])}',
                         ),
-                        child: Row(
-                          children: [
-                            const MiniIcon(
-                              Icons.shopping_cart_checkout_rounded,
-                              color: AppTheme.success,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                Fmt.dmy(Fmt.str(o['order_date'])),
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w800,
-                                  fontSize: 14,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              Fmt.money(Fmt.toDouble(o['total'])),
-                              textDirection: TextDirection.ltr,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.chevron_left_rounded,
-                              color: AppTheme.textSoft,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                        rows: [
+                          for (var i = 0; i < orders.length; i++)
+                            [
+                              '${i + 1}',
+                              Fmt.str(orders[i]['order_no']).isEmpty
+                                  ? '#${Fmt.toInt(orders[i]['id'])}'
+                                  : Fmt.str(orders[i]['order_no']),
+                              Fmt.dmy(Fmt.str(orders[i]['order_date'])),
+                              _orderStatusLabel(orders[i]),
+                              Fmt.str(orders[i]['customer_name']).isEmpty
+                                  ? '—'
+                                  : Fmt.str(orders[i]['customer_name']),
+                              Fmt.str(orders[i]['sales_rep_name']).isEmpty
+                                  ? '—'
+                                  : Fmt.str(orders[i]['sales_rep_name']),
+                              Fmt.money(Fmt.toDouble(orders[i]['total'])),
+                            ],
+                        ],
+                      ),
+                    ],
                   ),
           ),
         ),
       ],
     );
   }
+}
+
+String _orderStatusLabel(Map<String, dynamic> o) {
+  final status = Fmt.str(o['status']).toLowerCase();
+  if (status == 'approved') return 'معتمد';
+  if (status == 'draft') {
+    final sent = o['is_sent'] == true ||
+        o['is_sent'] == 1 ||
+        '${o['is_sent']}' == '1';
+    return sent ? 'مسودة · مرحّل' : 'مسودة';
+  }
+  final label = Fmt.str(o['status_label']);
+  return label.isEmpty ? (status.isEmpty ? '—' : status) : label;
 }
 
 class _InvoicesTab extends StatelessWidget {
@@ -2777,65 +2890,58 @@ class _InvoicesTab extends StatelessWidget {
                       ),
                     ],
                   )
-                : ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: invoices.length,
-                    itemBuilder: (_, i) {
-                      final inv = invoices[i];
-                      return AppCard(
-                        onTap: () => context.push(
-                          '/invoices/${Fmt.toInt(inv['id'])}',
+                : ListView(
+                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
+                    children: [
+                      LinedReportTable(
+                        headers: const [
+                          '#',
+                          'رقم الفاتورة',
+                          'تاريخ الفاتورة',
+                          'الحالة',
+                          'اسم العميل',
+                          'اسم المندوب',
+                          'مجموع الفاتورة',
+                        ],
+                        numericCols: const {0, 6},
+                        onRowTap: (i) => context.push(
+                          '/invoices/${Fmt.toInt(invoices[i]['id'])}',
                         ),
-                        child: Row(
-                          children: [
-                            const MiniIcon(
-                              Icons.receipt_long_rounded,
-                              color: AppTheme.primarySoft,
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    Fmt.str(inv['invoice_no']).isEmpty
-                                        ? '#${Fmt.toInt(inv['id'])}'
-                                        : Fmt.str(inv['invoice_no']),
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                  Text(
-                                    Fmt.dmy(Fmt.str(inv['invoice_date'])),
-                                    style: const TextStyle(
-                                      color: AppTheme.textSoft,
-                                      fontSize: 12.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              Fmt.money(Fmt.toDouble(inv['total'])),
-                              textDirection: TextDirection.ltr,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                fontSize: 14,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Icon(
-                              Icons.chevron_left_rounded,
-                              color: AppTheme.textSoft,
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                        rows: [
+                          for (var i = 0; i < invoices.length; i++)
+                            [
+                              '${i + 1}',
+                              Fmt.str(invoices[i]['invoice_no']).isEmpty
+                                  ? '#${Fmt.toInt(invoices[i]['id'])}'
+                                  : Fmt.str(invoices[i]['invoice_no']),
+                              Fmt.dmy(Fmt.str(invoices[i]['invoice_date'])),
+                              _invoiceStatusLabel(invoices[i]),
+                              Fmt.str(invoices[i]['customer_name']).isEmpty
+                                  ? '—'
+                                  : Fmt.str(invoices[i]['customer_name']),
+                              Fmt.str(invoices[i]['sales_rep_name']).isEmpty
+                                  ? '—'
+                                  : Fmt.str(invoices[i]['sales_rep_name']),
+                              Fmt.money(Fmt.toDouble(invoices[i]['total'])),
+                            ],
+                        ],
+                      ),
+                    ],
                   ),
           ),
         ),
       ],
     );
   }
+}
+
+String _invoiceStatusLabel(Map<String, dynamic> inv) {
+  final posted = inv['is_posted'] == true ||
+      inv['is_posted'] == 1 ||
+      '${inv['is_posted']}' == '1';
+  final pay = Fmt.str(inv['payment_label']).isNotEmpty
+      ? Fmt.str(inv['payment_label'])
+      : (Fmt.str(inv['payment_type']) == 'credit' ? 'ذمة' : 'نقدي');
+  final base = posted ? 'مرحّلة' : 'غير مرحّلة';
+  return pay.isEmpty ? base : '$base · $pay';
 }

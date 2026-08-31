@@ -55,6 +55,7 @@ class OfflineController extends ChangeNotifier {
 
   Future<void> start() async {
     api.onHttpSuccess = _onHttpSuccess;
+    await store.cleanupOutbox();
     await refreshInfo();
     final results = await Connectivity().checkConnectivity();
     _applyConnectivity(results, notify: false);
@@ -72,7 +73,7 @@ class OfflineController extends ChangeNotifier {
     });
     _autoFlushTimer?.cancel();
     _autoFlushTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (info.pendingOutbox > 0 || info.ordersPending > 0) {
+      if (info.pendingOutbox > 0 || info.errorOutbox > 0) {
         unawaited(flushAndAutoPost());
       }
     });
@@ -83,7 +84,7 @@ class OfflineController extends ChangeNotifier {
     final was = serverReachable;
     if (!was) {
       _setReachable(true);
-      if (info.pendingOutbox > 0 || info.ordersPending > 0) {
+      if (info.pendingOutbox > 0 || info.errorOutbox > 0) {
         unawaited(flushAndAutoPost());
       }
     }
@@ -160,8 +161,15 @@ class OfflineController extends ChangeNotifier {
         if (ok) {
           if (!was || initial) {
             await refreshInfo();
-            await flushAndAutoPost();
-          } else if (info.pendingOutbox > 0 || info.ordersPending > 0) {
+            // عند عودة الاتصال: ترحيل المعلّق فقط — بدون تحميل كتالوج.
+            if (info.flushableOutbox > 0 ||
+                (await store.autoSendOrdersEnabled() && info.ordersPending > 0)) {
+              await flushAndAutoPost();
+            } else {
+              await store.cleanupOutbox();
+              await refreshInfo();
+            }
+          } else if (info.flushableOutbox > 0) {
             await flushAndAutoPost();
           }
           return;
@@ -175,9 +183,12 @@ class OfflineController extends ChangeNotifier {
     }
   }
 
-  /// ترحيل الطابور ثم إرسال الطلبات المحفوظة غير المرحَّلة تلقائياً.
+  /// ترحيل الطابور ثم (اختياري) إرسال الطلبات غير المرحَّلة إن فُعّل الإعداد.
   Future<int> flushAndAutoPost({bool silent = true}) async {
     await _waitNotFlushing();
+    await store.cleanupOutbox();
+    await store.requeueOutboxErrors();
+    await refreshInfo();
     var total = 0;
     for (var round = 0; round < 4; round++) {
       final n = await flushOutbox(silent: silent || round > 0);
@@ -187,6 +198,8 @@ class OfflineController extends ChangeNotifier {
       if (queued == 0 && n == 0) break;
       if (info.pendingOutbox < 1) break;
     }
+    await store.cleanupOutbox();
+    await refreshInfo();
     if (!silent) {
       statusMessage = total > 0
           ? 'تم ترحيل $total عملية.'
@@ -208,6 +221,9 @@ class OfflineController extends ChangeNotifier {
 
   Future<int> _queueUnsentOrderSends() async {
     if (!serverReachable) return 0;
+    // لا تُنشئ طابوراً وهمياً لطلبات السيرفر غير المرسلة إن لم يُفعَّل الإرسال التلقائي.
+    if (!await store.autoSendOrdersEnabled()) return 0;
+
     final pending = await store.pendingOutbox(limit: 200);
     final already = <int>{};
     for (final row in pending) {
@@ -225,6 +241,7 @@ class OfflineController extends ChangeNotifier {
     final toSend = <int>[];
     for (final o in unsent) {
       final id = (o['id'] as num?)?.toInt() ?? 0;
+      // طلبات سالبة = لم تُحفظ على السيرفر بعد — تنتظر customer_order_save أولاً.
       if (id <= 0) continue;
       if (id == skip) continue;
       if (already.contains(id)) continue;
@@ -245,6 +262,7 @@ class OfflineController extends ChangeNotifier {
     final next = await store.syncInfo();
     final changed = next.hasData != info.hasData ||
         next.pendingOutbox != info.pendingOutbox ||
+        next.errorOutbox != info.errorOutbox ||
         next.ordersPending != info.ordersPending ||
         next.syncedAt != info.syncedAt;
     info = next;
@@ -293,7 +311,7 @@ class OfflineController extends ChangeNotifier {
         statusMessage =
             '$statusMessage\nتنبيه: لم تُحمَّل أسباب عدم الطلب — أعد التحديث بعد نشر API المحدّث.';
       }
-      unawaited(flushAndAutoPost());
+      unawaited(flushOutbox(silent: true));
       return true;
     } on ApiException catch (e) {
       lastError = e.message;

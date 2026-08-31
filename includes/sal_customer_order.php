@@ -304,6 +304,66 @@ function sal_customer_order_fetch(PDO $pdo, int $id): ?array
 }
 
 /**
+ * جيران الطلب للتنقل (أول / سابق / تالٍ / آخر) ضمن نطاق المندوب والعميل.
+ *
+ * @return array{first_id:int,prev_id:int,next_id:int,last_id:int}
+ */
+function sal_customer_order_browse_neighbors(
+    PDO $pdo,
+    int $id,
+    ?int $salesRepId = null,
+    ?int $customerId = null
+): array {
+    $where = ['1=1'];
+    $params = [];
+    if ($salesRepId !== null && $salesRepId > 0) {
+        $where[] = 'sales_rep_id = ?';
+        $params[] = $salesRepId;
+    }
+    if ($customerId !== null && $customerId > 0) {
+        $where[] = 'customer_id = ?';
+        $params[] = $customerId;
+    }
+    $whereSql = implode(' AND ', $where);
+
+    $stFirst = $pdo->prepare("SELECT id FROM sal_customer_order WHERE {$whereSql} ORDER BY id ASC LIMIT 1");
+    $stFirst->execute($params);
+    $firstId = (int) ($stFirst->fetchColumn() ?: 0);
+
+    $stLast = $pdo->prepare("SELECT id FROM sal_customer_order WHERE {$whereSql} ORDER BY id DESC LIMIT 1");
+    $stLast->execute($params);
+    $lastId = (int) ($stLast->fetchColumn() ?: 0);
+
+    if ($id < 1) {
+        return [
+            'first_id' => $firstId,
+            'prev_id' => $lastId,
+            'next_id' => 0,
+            'last_id' => $lastId,
+        ];
+    }
+
+    $stPrev = $pdo->prepare(
+        "SELECT id FROM sal_customer_order WHERE id < ? AND {$whereSql} ORDER BY id DESC LIMIT 1"
+    );
+    $stPrev->execute(array_merge([$id], $params));
+    $prevId = (int) ($stPrev->fetchColumn() ?: 0);
+
+    $stNext = $pdo->prepare(
+        "SELECT id FROM sal_customer_order WHERE id > ? AND {$whereSql} ORDER BY id ASC LIMIT 1"
+    );
+    $stNext->execute(array_merge([$id], $params));
+    $nextId = (int) ($stNext->fetchColumn() ?: 0);
+
+    return [
+        'first_id' => $firstId,
+        'prev_id' => $prevId,
+        'next_id' => $nextId,
+        'last_id' => $lastId,
+    ];
+}
+
+/**
  * @return array{0:string,1:list<mixed>} SQL WHERE fragment + params (without leading AND)
  */
 function sal_customer_order_list_where(

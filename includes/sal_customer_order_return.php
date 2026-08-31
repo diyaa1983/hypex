@@ -172,22 +172,25 @@ function sal_customer_order_return_save_from_order(
     $tax = 0.0;
     $total = 0.0;
     $norm = [];
+    require_once app_path('includes/company_settings.php');
+    $companyTax = (float) (company_settings($pdo)['tax_rate_percent'] ?? 0);
+
     foreach ($srcLines as $i => $ln) {
         $qty = (float) ($ln['qty'] ?? 0);
         if ($qty <= 0) {
             continue;
         }
-        $lineTotal = (float) ($ln['line_total'] ?? $ln['line_gross'] ?? 0);
-        $taxAmt = (float) ($ln['tax_amount'] ?? 0);
-        $gross = (float) ($ln['line_gross'] ?? ($lineTotal + $taxAmt));
-        if ($lineTotal <= 0 && isset($ln['unit_price'])) {
-            $up = (float) $ln['unit_price'];
-            $disc = (float) ($ln['discount_pct'] ?? 0);
-            $lineTotal = $qty * $up * (1 - $disc / 100);
-            $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
-            $taxAmt = $lineTotal * $taxPct / 100;
-            $gross = $lineTotal + $taxAmt;
+        $up = (float) ($ln['unit_price'] ?? 0);
+        $disc = (float) ($ln['discount_pct'] ?? 0);
+        $taxPct = (float) ($ln['tax_rate_percent'] ?? 0);
+        if ($taxPct <= 0.000001) {
+            $taxPct = $companyTax;
         }
+        $lineTotal = $up > 0
+            ? $qty * $up * (1 - $disc / 100)
+            : (float) ($ln['line_total'] ?? 0);
+        $taxAmt = $lineTotal * $taxPct / 100;
+        $gross = $lineTotal + $taxAmt;
         $subtotal += $lineTotal;
         $tax += $taxAmt;
         $total += $gross;
@@ -201,11 +204,11 @@ function sal_customer_order_return_save_from_order(
             'qty' => $qty,
             'qty_extra' => (float) ($ln['qty_extra'] ?? 0),
             'qty_base' => (float) ($ln['qty_base'] ?? $qty),
-            'unit_price' => (float) ($ln['unit_price'] ?? 0),
-            'discount_pct' => (float) ($ln['discount_pct'] ?? 0),
+            'unit_price' => $up,
+            'discount_pct' => $disc,
             'discount_amount' => (float) ($ln['discount_amount'] ?? 0),
             'line_total' => $lineTotal,
-            'tax_rate_percent' => (float) ($ln['tax_rate_percent'] ?? 0),
+            'tax_rate_percent' => $taxPct,
             'tax_amount' => $taxAmt,
             'line_gross' => $gross,
             'notes' => trim((string) ($ln['notes'] ?? '')) ?: null,
