@@ -143,8 +143,7 @@ class SessionController extends ChangeNotifier {
   /// فحص الاتصال بالسيرفر.
   Future<bool> ping() async {
     try {
-      final res = await api.getJson(AppConfig.pingPath);
-      return res['ok'] == true;
+      return await api.ping();
     } catch (_) {
       return false;
     }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'core/session.dart';
 import 'core/theme.dart';
+import 'widgets/fullscreen_binder.dart';
 import 'features/auth/login_screen.dart';
 import 'features/auth/server_setup_screen.dart';
 import 'features/customers/customer_add_screen.dart';
@@ -59,9 +60,11 @@ class NammaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => Directionality(
-        textDirection: TextDirection.rtl,
-        child: child ?? const SizedBox.shrink(),
+      builder: (context, child) => FullscreenBinder(
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: child ?? const SizedBox.shrink(),
+        ),
       ),
     );
   }

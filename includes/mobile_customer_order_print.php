@@ -14,6 +14,7 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
     $date = esc(format_date_dmY((string) ($order['order_date'] ?? '')));
     $rep = esc((string) ($order['sales_rep_name'] ?? ''));
     $warehouse = esc((string) ($order['warehouse_name'] ?? ''));
+    $notes = trim((string) ($order['notes'] ?? ''));
     $subtotal = number_format((float) ($order['subtotal'] ?? 0), 2, '.', ',');
     $discount = number_format((float) ($order['discount_total'] ?? 0), 2, '.', ',');
     $tax = number_format((float) ($order['tax_total'] ?? 0), 2, '.', ',');
@@ -70,6 +71,7 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
         . '<div><strong>العميل:</strong> ' . $customer . '</div>'
         . ($rep !== '' ? '<div><strong>المندوب:</strong> ' . $rep . '</div>' : '')
         . ($warehouse !== '' ? '<div><strong>المستودع:</strong> ' . $warehouse . '</div>' : '')
+        . ($notes !== '' ? '<div><strong>ملاحظات:</strong> ' . esc($notes) . '</div>' : '')
         . '</div>'
         . '<table><thead><tr>'
         . '<th>تسلسل</th><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>إضافي</th>'

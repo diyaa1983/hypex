@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../core/session.dart';
 import '../core/theme.dart';
 import 'app_confirm_dialog.dart';
+import 'server_status_dot.dart';
 
 /// هيكل موحّد للشاشات المتفرعة مع خروج واضح وتباعد متسق.
 class MobileScaffold extends StatelessWidget {
@@ -76,6 +77,7 @@ class MobileScaffold extends StatelessWidget {
         title: title,
         actions: [
           ...actions,
+          const ServerStatusDot(),
           if (showLogout)
             TextButton.icon(
               onPressed: () => confirmLogout(context),

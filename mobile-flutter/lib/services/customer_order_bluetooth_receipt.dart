@@ -170,6 +170,8 @@ class CustomerOrderBluetoothReceipt {
               'النوع',
               Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم',
             ),
+            if (Fmt.str(order['notes']).trim().isNotEmpty)
+              kvPlain('ملاحظات', Fmt.str(order['notes']).trim()),
             pw.SizedBox(height: 5),
             pw.Table(
               border: ThermalTableStyle.border,
@@ -354,6 +356,13 @@ class CustomerOrderBluetoothReceipt {
             '   النوع: ${Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم'}',
             style: pw.TextStyle(font: bold, fontSize: 10),
           ),
+          if (Fmt.str(order['notes']).trim().isNotEmpty) ...[
+            pw.SizedBox(height: 4),
+            pw.Text(
+              'ملاحظات: ${Fmt.str(order['notes']).trim()}',
+              style: pw.TextStyle(font: reg, fontSize: 9),
+            ),
+          ],
           pw.SizedBox(height: 8),
           pw.Table(
             border: pw.TableBorder.all(color: PdfColors.blueGrey300, width: 0.4),

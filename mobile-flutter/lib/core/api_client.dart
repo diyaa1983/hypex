@@ -6,6 +6,8 @@ import 'package:dio/dio.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'config.dart';
+
 /// استثناء موحّد لأخطاء الـ API (رسالة عربية جاهزة للعرض).
 class ApiException implements Exception {
   ApiException(this.message, {this.statusCode, this.code});
@@ -30,6 +32,9 @@ class ApiClient {
   String _base = '';
   String _deviceId = '';
   String _deviceLabel = 'هاتف';
+
+  /// يُستدعى عند وصول أي رد من السيرفر (حتى لو فشل منطقياً) — يعني السيرفر حي.
+  void Function()? onHttpSuccess;
 
   static Future<ApiClient> create() async {
     final dir = await getApplicationSupportDirectory();
@@ -94,6 +99,33 @@ class ApiClient {
   String url(String path) => '$_base/$path';
 
   Future<void> clearCookies() => _cookieJar.deleteAll();
+
+  /// فحص وصول السيرفر دون اشتراط جلسة أو حقل ok في JSON.
+  Future<bool> ping({Duration timeout = const Duration(seconds: 8)}) async {
+    if (_base.isEmpty) return false;
+    try {
+      final res = await _dio
+          .get(
+            url(AppConfig.pingPath),
+            options: Options(
+              headers: {'Accept': 'application/json'},
+              sendTimeout: timeout,
+              receiveTimeout: timeout,
+              extra: const {'hypex_ping': true},
+              validateStatus: (code) => code != null && code < 600,
+            ),
+          )
+          .timeout(timeout + const Duration(seconds: 2));
+      final code = res.statusCode ?? 0;
+      if (code >= 200 && code < 500) {
+        onHttpSuccess?.call();
+        return true;
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   /// طلب GET يُرجع خريطة JSON.
   Future<Map<String, dynamic>> getJson(
@@ -229,6 +261,7 @@ class ApiClient {
   ) async {
     try {
       final res = await run();
+      onHttpSuccess?.call();
       final map = _asJsonMap(res.data, res.statusCode);
 
       final ok = map['ok'] == true;
@@ -253,6 +286,7 @@ class ApiClient {
       }
       // ردّ وصل لكن Dio اعتبره خطأ (مثلاً 500 HTML).
       if (e.response != null) {
+        onHttpSuccess?.call();
         throw _asJsonMapError(e.response!.data, e.response!.statusCode);
       }
       throw ApiException('خطأ في الاتصال: ${e.message ?? e.type.name}');

@@ -23,7 +23,11 @@ class OfflineController extends ChangeNotifier {
 
   StreamSubscription<List<ConnectivityResult>>? _sub;
   Timer? _reconnectFlushTimer;
+  Timer? _pingTimer;
+  bool _probing = false;
   bool online = true;
+  /// نتيجة فحص السيرفر (`m/ping.php`) وليس مجرد وجود شبكة.
+  bool serverReachable = false;
   bool catalogReady = false;
   bool busy = false;
   bool _flushing = false;
@@ -36,9 +40,19 @@ class OfflineController extends ChangeNotifier {
 
   bool get canWorkOffline => catalogReady;
 
-  static const reconnectFlushDelay = Duration(seconds: 8);
+  /// أخضر عندما يرد السيرفر — لا نعتمد على connectivity_plus وحده.
+  bool get serverConnected => serverReachable;
+
+  static const reconnectFlushDelay = Duration(seconds: 2);
+
+  /// يتجنّب ترحيل الطلب المفتوح إذا كان قيد التعديل (تُضبطه شاشة الطلب).
+  int? Function()? skipDirtyOrderId;
+
+  /// بعد الترحيل التلقائي — لتحديث شاشة الطلب المفتوحة.
+  void Function(List<int> ids)? onOrdersSentFromSync;
 
   Future<void> start() async {
+    api.onHttpSuccess = _onHttpSuccess;
     await refreshInfo();
     final results = await Connectivity().checkConnectivity();
     _applyConnectivity(results, notify: false);
@@ -48,27 +62,36 @@ class OfflineController extends ChangeNotifier {
       _applyConnectivity(r);
       if (!wasOnline && online) {
         _scheduleReconnectFlush();
-      } else if (!online) {
-        _cancelReconnectFlush();
       }
     });
-    if (online && info.pendingOutbox > 0) {
-      // عند فتح التطبيق وهو متصل — ترحيل فوري للعمليات المعلّقة
-      unawaited(flushOutbox(silent: true));
+    _pingTimer?.cancel();
+    _pingTimer = Timer.periodic(const Duration(seconds: 12), (_) {
+      unawaited(_recoverConnection());
+    });
+    unawaited(_recoverConnection(initial: true));
+  }
+
+  void _onHttpSuccess() {
+    final was = serverReachable;
+    if (!was) {
+      _setReachable(true);
+      if (info.pendingOutbox > 0) {
+        unawaited(flushAndAutoPost());
+      }
     }
   }
+
+  /// من أيقونة الواي فاي — إعادة فحص وترحيل المعلّق.
+  Future<void> retryConnection() => _recoverConnection(initial: true);
 
   void _scheduleReconnectFlush() {
     _reconnectFlushTimer?.cancel();
     flushScheduledAt = DateTime.now().add(reconnectFlushDelay);
-    statusMessage =
-        'عادت الشبكة — سيتم ترحيل العمليات المعلّقة خلال ثوانٍ…';
+    statusMessage = 'عادت الشبكة — جاري الاتصال بالسيرفر وترحيل البيانات…';
     notifyListeners();
     _reconnectFlushTimer = Timer(reconnectFlushDelay, () {
       flushScheduledAt = null;
-      if (online) {
-        unawaited(flushOutbox(silent: true));
-      }
+      unawaited(_recoverConnection(initial: true));
       notifyListeners();
     });
   }
@@ -81,13 +104,116 @@ class OfflineController extends ChangeNotifier {
 
   void _applyConnectivity(List<ConnectivityResult> results,
       {bool notify = true}) {
-    final next = results.isNotEmpty &&
+    // قائمة فارغة = غير معروف؛ لا نعتبرها انقطاعاً.
+    final next = results.isEmpty ||
         results.any((r) => r != ConnectivityResult.none);
     if (next == online) return;
     online = next;
-    statusMessage =
-        online ? 'متصل بالشبكة' : 'وضع Offline — يعمل من البيانات المحلية';
+    if (!online) {
+      statusMessage = 'وضع Offline — يعمل من البيانات المحلية';
+    } else {
+      statusMessage = 'متصل بالشبكة — جاري التحقق من السيرفر…';
+    }
     if (notify) notifyListeners();
+  }
+
+  void _setReachable(bool ok) {
+    if (serverReachable == ok) return;
+    serverReachable = ok;
+    if (ok) {
+      online = true;
+    }
+    statusMessage = ok
+        ? 'متصل بالسيرفر'
+        : (online
+            ? 'لا يوجد اتصال بالسيرفر'
+            : 'وضع Offline — يعمل من البيانات المحلية');
+    notifyListeners();
+  }
+
+  Future<bool> _pingServer() async {
+    if (api.base.isEmpty) return false;
+    try {
+      return await api.ping();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _recoverConnection({bool initial = false}) async {
+    if (_probing) return;
+    _probing = true;
+    try {
+      final attempts = initial ? 3 : 2;
+      for (var i = 0; i < attempts; i++) {
+        final ok = await _pingServer();
+        final was = serverReachable;
+        _setReachable(ok);
+        if (ok) {
+          if (!was || initial || info.pendingOutbox > 0) {
+            await flushAndAutoPost();
+          }
+          return;
+        }
+        if (i < attempts - 1) {
+          await Future<void>.delayed(const Duration(seconds: 2));
+        }
+      }
+    } finally {
+      _probing = false;
+    }
+  }
+
+  /// ترحيل الطابور ثم إرسال الطلبات المحفوظة غير المرحَّلة تلقائياً.
+  Future<void> flushAndAutoPost() async {
+    await _waitNotFlushing();
+    await flushOutbox(silent: true);
+    final queued = await _queueUnsentOrderSends();
+    if (queued > 0) {
+      await flushOutbox(silent: true);
+    }
+  }
+
+  Future<void> _waitNotFlushing() async {
+    for (var i = 0; i < 40; i++) {
+      if (!_flushing) return;
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+    }
+  }
+
+  Future<int> _queueUnsentOrderSends() async {
+    if (!serverReachable) return 0;
+    final pending = await store.pendingOutbox(limit: 200);
+    final already = <int>{};
+    for (final row in pending) {
+      if ((row['kind'] as String?) != 'customer_order_send') continue;
+      try {
+        final body =
+            jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+        for (final id in (body['ids'] as List? ?? const [])) {
+          already.add((id as num?)?.toInt() ?? 0);
+        }
+      } catch (_) {}
+    }
+    final skip = skipDirtyOrderId?.call() ?? 0;
+    final unsent = await store.listOrders(isSent: 0, limit: 200);
+    final toSend = <int>[];
+    for (final o in unsent) {
+      final id = (o['id'] as num?)?.toInt() ?? 0;
+      if (id <= 0) continue;
+      if (id == skip) continue;
+      if (already.contains(id)) continue;
+      toSend.add(id);
+    }
+    if (toSend.isEmpty) return 0;
+    final uuid = _uuid.v4();
+    await store.enqueueOutbox(
+      clientUuid: uuid,
+      kind: 'customer_order_send',
+      path: AppConfig.customerOrderSendPath,
+      body: {'ids': toSend, 'client_uuid': uuid},
+    );
+    return toSend.length;
   }
 
   Future<void> refreshInfo() async {
@@ -98,7 +224,7 @@ class OfflineController extends ChangeNotifier {
 
   /// زر «تحديث البيانات» — تحميل كامل الكتالوج من السيرفر.
   Future<bool> pullCatalog({void Function(String step)? onStep}) async {
-    if (!online) {
+    if (!online && !serverReachable) {
       lastError = 'لا يوجد اتصال. اتصل بالإنترنت ثم حدّث البيانات.';
       statusMessage = lastError;
       notifyListeners();
@@ -171,21 +297,17 @@ class OfflineController extends ChangeNotifier {
       method: method,
     );
     await refreshInfo();
-    if (online) {
-      // أثناء العمل أونلاين: ترحيل فوري
-      unawaited(flushOutbox(silent: true));
-    }
+    unawaited(flushOutbox(silent: true));
     return id;
   }
 
   /// ترحيل فوري عند فتح شاشة تحتاج مزامنة، إن كان الجهاز متصلاً.
   Future<int> syncIfOnline() async {
-    if (!online) return 0;
     return flushOutbox(silent: true);
   }
 
   Future<int> flushOutbox({bool silent = false}) async {
-    if (!online || _flushing) return 0;
+    if (_flushing) return 0;
     if (busy && phase == OfflinePhase.pulling) return 0;
 
     final csrf = csrfProvider == null ? '' : await csrfProvider!();
@@ -242,7 +364,7 @@ class OfflineController extends ChangeNotifier {
         } on ApiException catch (e) {
           if (e.message.contains('تعذر الاتصال') ||
               e.message.contains('الإنترنت')) {
-            online = false;
+            _setReachable(false);
             break;
           }
           final kind = (row['kind'] as String?) ?? '';
@@ -358,6 +480,7 @@ class OfflineController extends ChangeNotifier {
           .toList();
       if (ids.isNotEmpty) {
         await store.markOrderSent(ids);
+        onOrdersSentFromSync?.call(ids);
       }
       return;
     }
@@ -391,7 +514,9 @@ class OfflineController extends ChangeNotifier {
   @override
   void dispose() {
     _sub?.cancel();
+    _pingTimer?.cancel();
     _cancelReconnectFlush();
+    api.onHttpSuccess = null;
     super.dispose();
   }
 }

@@ -243,6 +243,8 @@ class _LineTableMetrics {
 
 class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   static CustomerOrderFormScreenState? active;
+  OfflineController? _offline;
+  bool _autoSendBound = false;
   bool _loading = true, _busy = false, _approved = false;
   String? _error, _orderNo, _salesRepName;
   String _paymentType = 'credit';
@@ -260,6 +262,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   bool _autoSendOrders = true;
   bool _isSent = false;
   final _orderNoCtrl = TextEditingController();
+  final _notesCtrl = TextEditingController();
   String _cleanFingerprint = '';
 
   bool get _editable => !_approved && !_isSent;
@@ -271,8 +274,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         .map((l) =>
             '${l.item.id}:${l.qty}:${l.qtyExtra}:${l.unitId}:${l.unitPrice}:${l.discountPct}:${l.taxRateId}')
         .join('|');
-    return '${_customer?.id}|$_warehouseId|$_paymentType|$lines';
+    return '${_customer?.id}|$_warehouseId|$_paymentType|${_notesCtrl.text.trim()}|$lines';
   }
+
+  int get orderId => _id;
 
   bool get isDirty => _fingerprint() != _cleanFingerprint;
 
@@ -300,9 +305,30 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_autoSendBound) return;
+    _autoSendBound = true;
+    _offline = context.read<OfflineController>();
+    _offline!.skipDirtyOrderId = () => isDirty ? _id : 0;
+    _offline!.onOrdersSentFromSync = (ids) {
+      if (!mounted) return;
+      if (_id > 0 && ids.contains(_id) && !_isSent) {
+        setState(() => _isSent = true);
+        _markClean();
+      }
+    };
+  }
+
+  @override
   void dispose() {
-    if (identical(active, this)) active = null;
+    if (identical(active, this)) {
+      active = null;
+      _offline?.skipDirtyOrderId = null;
+      _offline?.onOrdersSentFromSync = null;
+    }
     _orderNoCtrl.dispose();
+    _notesCtrl.dispose();
     super.dispose();
   }
 
@@ -512,6 +538,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _loading = false;
       });
       _orderNoCtrl.text = _orderNo ?? '';
+      _notesCtrl.text = Fmt.str(order['notes']);
       _markClean();
       if (_customer != null) {
         await _loadArSummary(_customer!.id);
@@ -638,6 +665,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'customer_id': _customer!.id,
         'warehouse_id': _warehouseId,
         'payment_type': _paymentType,
+        'notes': _notesCtrl.text.trim(),
         'lines': _lines.map((l) => l.toJson()).toList(),
       };
       final visitLine = widget.visitRouteLineId ?? 0;
@@ -706,6 +734,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             'line_count': lines.length,
             'lines': lines,
             'payment_type': _paymentType,
+            'notes': _notesCtrl.text.trim(),
           },
           clientUuid: uuid,
         );
@@ -788,6 +817,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               'status': 'draft',
               'is_sent': 0,
               'lines': _lines.map((l) => l.toJson()).toList(),
+              'notes': _notesCtrl.text.trim(),
             },
             clientUuid: uuid,
           );
@@ -836,6 +866,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'discount_total': disc,
         'tax_total': tax,
         'grand_total': gross,
+        'notes': _notesCtrl.text.trim(),
         'lines': _lines
             .map((l) => {
                   'item_name': l.item.name,
@@ -943,6 +974,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _lines.clear();
         _orderNo = '';
         _orderNoCtrl.clear();
+        _notesCtrl.clear();
       });
       _markClean();
       return;
@@ -962,6 +994,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _id = 0;
         _orderNo = '';
         _orderNoCtrl.clear();
+        _notesCtrl.clear();
         _lines.clear();
         _isSent = false;
         _approved = false;
@@ -1095,7 +1128,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         context,
         MaterialPageRoute(
             builder: (_) => ThermalPreviewScreen(
-                  title: 'معاينة طلب الشراء',
+                  title: 'عرض الطلب',
                   buildPdf: (paper) =>
                       CustomerOrderBluetoothReceipt.buildThermalPdf(data,
                           paperMm: paper),
@@ -1276,117 +1309,285 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       elevation: 2,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      child: Padding(
-        padding: const EdgeInsets.all(8),
-        child: SingleChildScrollView(
-          child: Column(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final h = constraints.maxHeight;
+          final tight = !h.isFinite || h < 520;
+          final fieldH = tight ? 32.0 : 36.0;
+          final gap = tight ? 4.0 : 6.0;
+          final pad = tight ? 6.0 : 8.0;
+          final labelSize = tight ? 11.0 : 11.5;
+          final btnH = tight ? 32.0 : 36.0;
+          final docH = tight ? 30.0 : 34.0;
+          final body = Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-            Row(
-              children: [
-                Expanded(child: _wideOrderNoSearch()),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _wideLabeledBox('التاريخ', Fmt.dmy(date)),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            _orderHeaderField(
-              label: 'اسم العميل',
-              expand: false,
-              child: _orderHeaderCustomer(),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: _orderHeaderField(
-                    label: 'نوع الدفع',
-                    expand: false,
-                    child: _paymentSeg(compact: true),
+              Row(
+                children: [
+                  Expanded(
+                    child: _wideOrderNoSearch(
+                      fieldHeight: fieldH,
+                      labelSize: labelSize,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _orderHeaderField(
-                    label: 'المستودع',
-                    expand: false,
-                    child: _orderHeaderWarehouse(),
+                  SizedBox(width: gap),
+                  Expanded(
+                    child: _wideLabeledBox(
+                      'التاريخ',
+                      Fmt.dmy(date),
+                      fieldHeight: fieldH,
+                      labelSize: labelSize,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 36,
-              child: FilledButton.icon(
-                onPressed: _busy || !_editable ? null : _addLine,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF2196F3),
-                  visualDensity: VisualDensity.compact,
-                ),
-                icon: const Icon(Icons.add_rounded, size: 16),
-                label: const Text(
-                  'إضافة مادة',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                ],
+              ),
+              SizedBox(height: gap),
+              _orderHeaderField(
+                label: 'اسم العميل',
+                expand: false,
+                fieldHeight: fieldH,
+                labelSize: labelSize,
+                child: _orderHeaderCustomer(),
+              ),
+              SizedBox(height: gap),
+              Row(
+                children: [
+                  Expanded(
+                    child: _orderHeaderField(
+                      label: 'نوع الدفع',
+                      expand: false,
+                      fieldHeight: fieldH,
+                      labelSize: labelSize,
+                      child: _paymentSeg(compact: true),
+                    ),
+                  ),
+                  SizedBox(width: gap),
+                  Expanded(
+                    child: _orderHeaderField(
+                      label: 'المستودع',
+                      expand: false,
+                      fieldHeight: fieldH,
+                      labelSize: labelSize,
+                      child: _orderHeaderWarehouse(),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: gap),
+              _wideNotesField(
+                fieldHeight: fieldH,
+                labelSize: labelSize,
+              ),
+              SizedBox(height: gap),
+              SizedBox(
+                height: btnH,
+                child: FilledButton.icon(
+                  onPressed: _busy || !_editable ? null : _addLine,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2196F3),
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                  icon: const Icon(Icons.add_rounded, size: 16),
+                  label: const Text(
+                    'إضافة مادة',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                  ),
                 ),
               ),
-            ),
-            if (_isSent || _approved) ...[
-              const SizedBox(height: 6),
-              Text(
-                _approved ? 'طلب معتمد — عرض فقط' : 'طلب مرحّل — عرض فقط',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFFB45309),
+              if (_isSent || _approved) ...[
+                SizedBox(height: gap),
+                Text(
+                  _approved ? 'طلب معتمد — عرض فقط' : 'طلب مرحّل — عرض فقط',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFFB45309),
+                  ),
                 ),
+              ],
+              SizedBox(height: gap),
+              Row(
+                children: [
+                  Expanded(
+                    child: _wideDocBtn(
+                      'طباعة',
+                      Icons.print_outlined,
+                      _busy ? null : _print,
+                      height: docH,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: _wideDocBtn(
+                      'PDF',
+                      Icons.picture_as_pdf_outlined,
+                      _busy ? null : _openPdf,
+                      height: docH,
+                    ),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Expanded(
-                  child: _wideDocBtn(
-                    'حراري',
-                    Icons.print_outlined,
-                    _busy ? null : _print,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: _wideDocBtn(
-                    'PDF',
-                    Icons.picture_as_pdf_outlined,
-                    _busy ? null : _openPdf,
-                  ),
-                ),
-              ],
+          );
+          final padded = Padding(padding: EdgeInsets.all(pad), child: body);
+          if (!h.isFinite || h <= 0) return padded;
+          return FittedBox(
+            alignment: Alignment.topCenter,
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: constraints.maxWidth,
+              child: padded,
             ),
-          ],
-          ),
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _wideOrderNoSearch() {
+  Widget _wideNotesField({
+    double fieldHeight = 32,
+    double labelSize = 11,
+  }) {
+    final text = _notesCtrl.text.trim();
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'رقم الطلب',
+        Text(
+          'ملاحظات',
           style: TextStyle(
-            fontSize: 11.5,
+            fontSize: labelSize,
             fontWeight: FontWeight.w700,
             color: AppTheme.textSoft,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         SizedBox(
-          height: 38,
+          height: fieldHeight,
+          child: Material(
+            color: Colors.white,
+            child: InkWell(
+              onTap: _busy ? null : _editNotes,
+              borderRadius: BorderRadius.circular(8),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  hintText: _editable ? 'اضغط للكتابة…' : 'لا توجد ملاحظات',
+                  hintStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  isDense: true,
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 8,
+                    end: 4,
+                    top: 4,
+                    bottom: 4,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  suffixIcon: Icon(
+                    _editable ? Icons.edit_note_rounded : Icons.notes_rounded,
+                    size: 18,
+                    color: AppTheme.textSoft,
+                  ),
+                  suffixIconConstraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                ),
+                child: Text(
+                  text.isEmpty
+                      ? (_editable ? 'اضغط للكتابة…' : 'لا توجد ملاحظات')
+                      : text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: text.isEmpty ? AppTheme.textSoft : AppTheme.textMain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _editNotes() async {
+    if (!mounted) return;
+    final canEdit = _editable && !_busy;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+          title: const Text(
+            'ملاحظات الطلب',
+            style: TextStyle(fontWeight: FontWeight.w900),
+          ),
+          content: SizedBox(
+            width: 560,
+            child: TextField(
+              controller: _notesCtrl,
+              autofocus: canEdit,
+              enabled: canEdit,
+              minLines: 5,
+              maxLines: 8,
+              keyboardType: TextInputType.multiline,
+              textInputAction: TextInputAction.newline,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                height: 1.45,
+              ),
+              decoration: InputDecoration(
+                hintText: 'اكتب الملاحظات هنا…',
+                filled: true,
+                fillColor: Colors.white,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(canEdit ? 'تم' : 'إغلاق'),
+            ),
+          ],
+        );
+      },
+    );
+    if (mounted) setState(() {});
+  }
+
+  Widget _wideOrderNoSearch({
+    double fieldHeight = 38,
+    double labelSize = 11.5,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'رقم الطلب',
+          style: TextStyle(
+            fontSize: labelSize,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSoft,
+          ),
+        ),
+        const SizedBox(height: 2),
+        SizedBox(
+          height: fieldHeight,
           child: Material(
             color: Colors.white,
             child: InkWell(
@@ -1403,13 +1604,17 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   contentPadding: const EdgeInsetsDirectional.only(
                     start: 8,
                     end: 4,
-                    top: 8,
-                    bottom: 8,
+                    top: 4,
+                    bottom: 4,
                   ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  suffixIcon: const Icon(Icons.search_rounded, size: 20),
+                  suffixIcon: const Icon(Icons.search_rounded, size: 18),
+                  suffixIconConstraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
                 ),
                 child: Text(
                   _orderNoCtrl.text.isEmpty ? 'بحث برقم الطلب' : _orderNoCtrl.text,
@@ -1432,9 +1637,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  Widget _wideDocBtn(String label, IconData icon, VoidCallback? onPressed) {
+  Widget _wideDocBtn(
+    String label,
+    IconData icon,
+    VoidCallback? onPressed, {
+    double height = 34,
+  }) {
     return SizedBox(
-      height: 34,
+      height: height,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
@@ -1460,21 +1670,27 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  Widget _wideLabeledBox(String label, String value) {
+  Widget _wideLabeledBox(
+    String label,
+    String value, {
+    double fieldHeight = 38,
+    double labelSize = 11.5,
+  }) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontSize: 11.5,
+          style: TextStyle(
+            fontSize: labelSize,
             fontWeight: FontWeight.w700,
             color: AppTheme.textSoft,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 2),
         Container(
-          height: 38,
+          height: fieldHeight,
           padding: const EdgeInsets.symmetric(horizontal: 8),
           alignment: AlignmentDirectional.centerStart,
           decoration: BoxDecoration(
@@ -2193,6 +2409,33 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     ],
                   ],
                 )),
+            const SizedBox(height: 8),
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'ملاحظات',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: _notesCtrl,
+                    enabled: _editable && !_busy,
+                    minLines: 2,
+                    maxLines: 4,
+                    decoration: const InputDecoration(
+                      hintText: 'اختياري… تظهر على الطلب بعد الترحيل',
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             if (_customer != null && !widget.embedded) ...[
               const DocumentSectionDivider('ملخص حساب العميل'),
               const Padding(
@@ -2329,6 +2572,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     required String label,
     required Widget child,
     bool expand = true,
+    double fieldHeight = 38,
+    double labelSize = 11.5,
   }) {
     final field = Column(
       mainAxisSize: MainAxisSize.min,
@@ -2338,14 +2583,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontSize: 11.5,
+          style: TextStyle(
+            fontSize: labelSize,
             fontWeight: FontWeight.w700,
             color: AppTheme.textSoft,
           ),
         ),
-        const SizedBox(height: 4),
-        SizedBox(height: 38, child: child),
+        const SizedBox(height: 2),
+        SizedBox(height: fieldHeight, child: child),
       ],
     );
     return expand ? Expanded(child: field) : field;
@@ -2440,7 +2685,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   Widget _paymentSeg({bool compact = false}) {
     return Container(
-      padding: const EdgeInsets.all(3),
+      padding: EdgeInsets.all(compact ? 2 : 3),
       decoration: BoxDecoration(
         color: const Color(0xFFF1F5F9),
         borderRadius: BorderRadius.circular(12),
@@ -2465,7 +2710,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           onTap: _editable ? () => setState(() => _paymentType = value) : null,
           borderRadius: BorderRadius.circular(9),
           child: Padding(
-            padding: EdgeInsets.symmetric(vertical: compact ? 7 : 8),
+            padding: EdgeInsets.symmetric(vertical: compact ? 3 : 8),
             child: Text(
               label,
               textAlign: TextAlign.center,
