@@ -577,8 +577,27 @@ async function rebuildDailyRoutes(conn, salesRepId, from, to) {
     const existing = existRows[0] || null;
 
     if (!custRows.length) {
-      if (existing && existing.tour_id != null) {
-        await conn.execute(`DELETE FROM sal_rep_route WHERE id = ?`, [existing.id]);
+      if (existing) {
+        let keep = false;
+        try {
+          const [vis] = await conn.execute(
+            `SELECT COUNT(*) AS c FROM sal_rep_route_line
+             WHERE route_id = ? AND visit_checkin_at IS NOT NULL`,
+            [existing.id]
+          );
+          keep = Number(vis[0]?.c || 0) > 0;
+        } catch {
+          keep = false;
+        }
+        if (keep) {
+          await conn.execute(
+            `DELETE FROM sal_rep_route_line WHERE route_id = ? AND visit_checkin_at IS NULL`,
+            [existing.id]
+          );
+        } else {
+          await conn.execute(`DELETE FROM sal_rep_route_line WHERE route_id = ?`, [existing.id]);
+          await conn.execute(`DELETE FROM sal_rep_route WHERE id = ?`, [existing.id]);
+        }
       }
       continue;
     }

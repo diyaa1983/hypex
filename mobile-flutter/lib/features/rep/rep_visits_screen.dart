@@ -206,6 +206,8 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
             query: {'mode': 'month', 'month': _monthYm},
           );
       if (!mounted) return;
+      await OfflineStore.instance.saveMonthAgenda(_monthYm, res);
+      if (!mounted) return;
       await _applyMonthPayload(res);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -396,6 +398,16 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
             query: {'date': _routeDate},
           );
       if (!mounted) return;
+      final live = (res['visits'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      await OfflineStore.instance.saveVisitsForDate(
+        Fmt.str(res['route_date']).isEmpty ? _routeDate : Fmt.str(res['route_date']),
+        live,
+        weekdayLabel: Fmt.str(res['weekday_label']),
+      );
+      if (!mounted) return;
       await _applyDayPayload(res, keepId: keepId);
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -438,15 +450,20 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     await _load();
   }
 
+  bool _inPlan(Map<String, dynamic> v) {
+    final p = v['in_plan'];
+    return p == true || p == 1 || p == '1';
+  }
+
   List<Map<String, dynamic>> get _plannedVisits {
-    final list = _visits.where((v) => v['in_plan'] == true).toList();
+    final list = _visits.where(_inPlan).toList();
     _sortOpenVisitsFirst(list);
     return list;
   }
 
   List<Map<String, dynamic>> get _extraOpenOrDone {
     final list = _visits.where((v) {
-        if (v['in_plan'] == true) return false;
+        if (_inPlan(v)) return false;
         final s = Fmt.str(v['status']);
         return s == 'checked_in' ||
             s == 'pending_manual_checkout' ||

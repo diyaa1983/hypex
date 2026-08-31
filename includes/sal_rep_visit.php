@@ -171,6 +171,81 @@ function sal_rep_visit_line_fetch(PDO $pdo, int $routeLineId): ?array
     return $row ?: null;
 }
 
+/**
+ * عملاؤ الجولة المرحّلة لهذا اليوم (ليس بقايا sal_rep_route القديمة).
+ *
+ * @return array<int,true>
+ */
+function sal_rep_tour_planned_customer_ids(PDO $pdo, int $salesRepId, string $date): array
+{
+    $ids = [];
+    if ($salesRepId < 1 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        return $ids;
+    }
+    try {
+        $wd = (int) date('w', strtotime($date));
+        $st = $pdo->prepare(
+            "SELECT DISTINCT tl.customer_id
+             FROM sal_rep_tour t
+             INNER JOIN sal_rep_tour_line tl ON tl.tour_id = t.id
+             WHERE t.sales_rep_id = ?
+               AND t.status = 'posted'
+               AND IFNULL(t.is_active, 1) = 1
+               AND t.date_from <= ?
+               AND t.date_to >= ?
+               AND tl.weekday = ?"
+        );
+        $st->execute([$salesRepId, $date, $date, $wd]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $cid = (int) ($row['customer_id'] ?? 0);
+            if ($cid > 0) {
+                $ids[$cid] = true;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('sal_rep_tour_planned_customer_ids: ' . $e->getMessage());
+    }
+    return $ids;
+}
+
+/** حذف خطوط السير اليومية التي لم تعد تستند إلى جولة مرحّلة وليس فيها دخول زيارة. */
+function sal_rep_clear_orphan_daily_routes(PDO $pdo, int $salesRepId): void
+{
+    if ($salesRepId < 1 || !sal_rep_route_ensure_schema($pdo)) {
+        return;
+    }
+    try {
+        $st = $pdo->prepare(
+            "SELECT COUNT(*) FROM sal_rep_tour
+             WHERE sales_rep_id = ? AND status = 'posted' AND IFNULL(is_active, 1) = 1"
+        );
+        $st->execute([$salesRepId]);
+        if ((int) $st->fetchColumn() > 0) {
+            return;
+        }
+        $st = $pdo->prepare(
+            'SELECT r.id
+             FROM sal_rep_route r
+             WHERE r.sales_rep_id = ?
+               AND NOT EXISTS (
+                 SELECT 1 FROM sal_rep_route_line l
+                 WHERE l.route_id = r.id AND l.visit_checkin_at IS NOT NULL
+               )'
+        );
+        $st->execute([$salesRepId]);
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+            $rid = (int) ($row['id'] ?? 0);
+            if ($rid < 1) {
+                continue;
+            }
+            $pdo->prepare('DELETE FROM sal_rep_route_line WHERE route_id = ?')->execute([$rid]);
+            $pdo->prepare('DELETE FROM sal_rep_route WHERE id = ?')->execute([$rid]);
+        }
+    } catch (Throwable $e) {
+        error_log('sal_rep_clear_orphan_daily_routes: ' . $e->getMessage());
+    }
+}
+
 /** @return list<array<string,mixed>> */
 function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = null): array
 {
@@ -197,14 +272,53 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
         }
     }
 
-    // عملاء خطة الجولة من مدير المبيعات (قبل إضافة أي زيارات اختيارية)
-    $plannedIds = [];
+    // خطة الجولة = جولة مرحّلة فقط. بقايا sal_rep_route لا تُعدّ جولة.
+    $plannedIds = sal_rep_tour_planned_customer_ids($pdo, $salesRepId, $date);
     $seen = [];
     foreach ($data['customers'] as $c) {
         $cid = (int) ($c['id'] ?? 0);
         if ($cid > 0) {
-            $plannedIds[$cid] = true;
             $seen[$cid] = true;
+        }
+    }
+    if ($plannedIds !== []) {
+        $missing = [];
+        foreach (array_keys($plannedIds) as $pid) {
+            if (!isset($seen[$pid])) {
+                $missing[] = (int) $pid;
+            }
+        }
+        if ($missing !== []) {
+            try {
+                $ph = implode(',', array_fill(0, count($missing), '?'));
+                $stMiss = $pdo->prepare(
+                    "SELECT c.id, c.code, c.name_ar AS name, c.latitude, c.longitude
+                     FROM crm_customer c
+                     WHERE c.is_active = 1 AND c.id IN ($ph)"
+                );
+                $stMiss->execute($missing);
+                foreach ($stMiss->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                    $cid = (int) ($row['id'] ?? 0);
+                    if ($cid < 1 || isset($seen[$cid])) {
+                        continue;
+                    }
+                    $lat = $row['latitude'] ?? null;
+                    $lng = $row['longitude'] ?? null;
+                    $hasGps = $lat !== null && $lat !== '' && $lng !== null && $lng !== ''
+                        && sal_invoice_gps_coords_valid((float) $lat, (float) $lng);
+                    array_unshift($data['customers'], [
+                        'id' => $cid,
+                        'code' => (string) ($row['code'] ?? ''),
+                        'name' => (string) ($row['name'] ?? ''),
+                        'sort_order' => 0,
+                        'has_gps' => $hasGps,
+                        'latitude' => $hasGps ? (float) $lat : null,
+                        'longitude' => $hasGps ? (float) $lng : null,
+                    ]);
+                    $seen[$cid] = true;
+                }
+            } catch (Throwable $e) {
+            }
         }
     }
 

@@ -339,6 +339,17 @@ class OfflineController extends ChangeNotifier {
     return flushOutbox(silent: true);
   }
 
+  bool _alreadyOnServer(String message) {
+    final m = message.toLowerCase();
+    return m.contains('مسبقا') ||
+        m.contains('مسجّل') ||
+        m.contains('مسجل') ||
+        m.contains('already') ||
+        m.contains('duplicate') ||
+        m.contains('تم الترحيل') ||
+        m.contains('تم الحفظ سابقا');
+  }
+
   Future<int> flushOutbox({bool silent = false}) async {
     if (_flushing) return 0;
     if (busy && phase == OfflinePhase.pulling) return 0;
@@ -426,6 +437,13 @@ class OfflineController extends ChangeNotifier {
             _setReachable(false);
             lastError = e.message;
             break;
+          }
+          if (_alreadyOnServer(e.message)) {
+            final kind = (row['kind'] as String?) ?? '';
+            await _afterFlushSuccess(kind: kind, body: body, res: {'ok': true});
+            await store.markOutboxDone(id);
+            okCount++;
+            continue;
           }
           final kind = (row['kind'] as String?) ?? '';
           if (kind == 'customer_delete') {

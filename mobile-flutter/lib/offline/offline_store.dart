@@ -436,7 +436,10 @@ class OfflineStore {
       await monthBatch.commit(noResult: true);
 
       final todayVisits =
-          (payload['today_visits'] as List? ?? []).whereType<Map>().toList();
+          (payload['today_visits'] as List? ?? []).whereType<Map>().where((v) {
+        final p = v['in_plan'];
+        return p == true || p == 1 || p == '1';
+      }).toList();
       if (todayVisits.isNotEmpty) {
         final today = DateTime.now();
         final todayIso =
@@ -906,6 +909,81 @@ class OfflineStore {
 
   Future<void> clearOpenVisit() async {
     await setMeta('open_visit_json', '');
+  }
+
+  Future<void> saveVisitsForDate(
+    String routeDate,
+    List<Map<String, dynamic>> visits, {
+    String weekdayLabel = '',
+  }) async {
+    final db = await _db;
+    if (visits.isEmpty) {
+      await db.delete(
+        'route_day_visits',
+        where: 'route_date = ?',
+        whereArgs: [routeDate],
+      );
+      return;
+    }
+    await db.insert(
+      'route_day_visits',
+      {
+        'route_date': routeDate,
+        'weekday_label': weekdayLabel,
+        'visits_json': jsonEncode(visits),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> saveMonthAgenda(String monthYm, Map<String, dynamic> agenda) async {
+    final db = await _db;
+    final days = (agenda['days'] as List? ?? []).whereType<Map>().toList();
+    await db.transaction((txn) async {
+      await txn.delete(
+        'route_months',
+        where: 'month_ym = ?',
+        whereArgs: [monthYm],
+      );
+      await txn.insert('route_months', {
+        'month_ym': monthYm,
+        'date_from': (agenda['date_from'] ?? '').toString(),
+        'date_to': (agenda['date_to'] ?? '').toString(),
+        'days_json': jsonEncode(days),
+      });
+      final keep = <String>{};
+      for (final d in days) {
+        final date = (d['route_date'] ?? '').toString();
+        if (date.isEmpty) continue;
+        keep.add(date);
+        final customers =
+            (d['customers'] as List? ?? d['visits'] as List? ?? []);
+        await txn.insert(
+          'route_day_visits',
+          {
+            'route_date': date,
+            'weekday_label': (d['weekday_label'] ?? '').toString(),
+            'visits_json': jsonEncode(customers),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      final stale = await txn.query(
+        'route_day_visits',
+        where: "route_date LIKE ?",
+        whereArgs: ['$monthYm-%'],
+      );
+      for (final row in stale) {
+        final date = (row['route_date'] ?? '').toString();
+        if (!keep.contains(date)) {
+          await txn.delete(
+            'route_day_visits',
+            where: 'route_date = ?',
+            whereArgs: [date],
+          );
+        }
+      }
+    });
   }
 
   Future<List<Map<String, dynamic>>> visitsForDate(String routeDate) async {

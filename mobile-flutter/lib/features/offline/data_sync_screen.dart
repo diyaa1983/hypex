@@ -36,6 +36,10 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
       if (mounted) setState(() => _step = s);
     });
     if (!mounted) return;
+    if (ok) {
+      await off.flushAndAutoPost();
+    }
+    if (!mounted) return;
     showSnack(
       context,
       ok
@@ -168,10 +172,10 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
-                    off.lastError!,
+                    'تعذر ترحيل عملية: ${off.lastError!}',
                     style: const TextStyle(color: AppTheme.danger, fontSize: 13),
                     textAlign: TextAlign.center,
-                    maxLines: 2,
+                    maxLines: 4,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),

@@ -35,6 +35,7 @@ if ($mode === 'month' || $month !== '') {
     if ($month === '' || !preg_match('/^\d{4}-\d{2}$/', $month)) {
         $month = date('Y-m');
     }
+    sal_rep_clear_orphan_daily_routes($pdo, $repId);
     $agenda = sal_rep_visit_month_agenda_for_rep($pdo, $repId, $month);
     echo json_encode(array_merge($agenda, [
         'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
@@ -49,6 +50,7 @@ if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
 }
 
 $routeDate = $date !== '' ? $date : date('Y-m-d');
+sal_rep_clear_orphan_daily_routes($pdo, $repId);
 $visits = sal_rep_visit_list_for_rep($pdo, $repId, $routeDate);
 $wd = (int) date('w', strtotime($routeDate));
 $weekdayLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];

@@ -324,6 +324,9 @@ try {
     if (($repId === null || $repId < 1) && $scopedRepId !== null && $scopedRepId > 0) {
         $repId = $scopedRepId;
     }
+    if ($repId !== null && $repId > 0) {
+        sal_rep_clear_orphan_daily_routes($pdo, (int) $repId);
+    }
 
     $cacheFrom = date('Y-m-01', strtotime('first day of last month'));
     $cacheTo = date('Y-m-d');
