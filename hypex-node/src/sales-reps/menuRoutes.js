@@ -1920,16 +1920,22 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       ${includeRep ? `<td class="si-col-rep">${esc(r.sales_rep_name || '—')}</td>` : ''}
       <td class="si-col-customer">${customerNameOnly(r)}</td>
       <td class="si-col-scope">${scopeLbl(r)}</td>
-      <td class="si-col-reason" title="${reason}">${reason}</td>
       ${orderNoCell(r)}
+      <td class="si-col-reason" title="${reason}">${reason}</td>
       <td class="si-col-location">${locationInline(r)}</td>
       ${visitTimingCells(r, durationLabel, methodLabel)}
       <td class="si-col-sales" dir="ltr">${visitMoney(r.order_total)}</td>`;
   }
 
-  function totalsRow(label, t, cols) {
-    const labelSpan = Math.max(1, cols - 4);
+  function totalsRow(label, t) {
+    // آخر 4 أعمدة ظاهرة: المدة · نوع الدخول · نوع الخروج · المبيعات
+    const dataCols = colCount - (canDeleteVisits ? 1 : 0);
+    const labelSpan = Math.max(1, dataCols - 4);
+    const selectPad = canDeleteVisits
+      ? '<td class="no-print si-col-select"></td>'
+      : '';
     return `<tr class="si-visits-totals-row">
+      ${selectPad}
       <td colspan="${labelSpan}" style="text-align:start"><strong>${esc(label)}</strong></td>
       <td class="si-col-duration"><strong>${esc(t.duration_label)}</strong></td>
       <td class="si-col-method"></td>
@@ -1963,24 +1969,25 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         seq += 1;
         rowsHtml += `<tr class="${visitRowClass(r)}">${visitSelectCell(r)}${visitDataCells(r, seq, false)}</tr>`;
       }
-      rowsHtml += totalsRow('مجموع المندوب', visitTotals(g.rows), colCount);
+      rowsHtml += totalsRow('مجموع المندوب', visitTotals(g.rows));
     }
-    rowsHtml += totalsRow('الإجمالي النهائي', grandTotals, colCount);
+    rowsHtml += totalsRow('الإجمالي النهائي', grandTotals);
   } else {
     rowsHtml = rows
       .map((r, i) => `<tr class="${visitRowClass(r)}">${visitSelectCell(r)}${visitDataCells(r, i + 1, true)}</tr>`)
       .join('');
-    rowsHtml += totalsRow('الإجمالي', grandTotals, colCount);
+    rowsHtml += totalsRow('الإجمالي', grandTotals);
   }
 
-  const visitHeaders = (groupByRep
+  // رقم الطلب قبل سبب عدم الطلب — الأعمدة الزمنية ثم المدة ثم الأنواع ثم المبيعات
+  const visitHeaders = groupByRep
     ? [
         '#',
         'التاريخ',
         'العميل',
         'النطاق',
-        'سبب عدم الطلب',
         'رقم الطلب',
+        'سبب عدم الطلب',
         'الموقع',
         'وقت الدخول',
         'وقت الخروج',
@@ -1995,8 +2002,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'المندوب',
         'العميل',
         'النطاق',
-        'سبب عدم الطلب',
         'رقم الطلب',
+        'سبب عدم الطلب',
         'الموقع',
         'وقت الدخول',
         'وقت الخروج',
@@ -2004,8 +2011,10 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'نوع الدخول',
         'نوع الخروج',
         'المبيعات',
-      ]).map((h) => esc(h));
-  if (canDeleteVisits) visitHeaders.unshift('');
+      ];
+  if (canDeleteVisits) {
+    visitHeaders.unshift({ label: '', className: 'no-print si-col-select' });
+  }
 
   const deleteToolbar = canDeleteVisits
     ? `<div class="no-print" style="display:flex;gap:.5rem;align-items:center;margin:.65rem 0 0;flex-wrap:wrap">

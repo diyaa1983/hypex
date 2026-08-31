@@ -148,7 +148,15 @@ function monthStart() {
 }
 
 function tableSurface(title, countLabel, headers, rowsHtml, tableClass = 'si-table') {
-  const th = headers.map((h) => `<th>${esc(h)}</th>`).join('');
+  const th = headers
+    .map((h) => {
+      if (h && typeof h === 'object') {
+        const cls = h.className ? ` class="${esc(String(h.className))}"` : '';
+        return `<th${cls}>${esc(h.label == null ? '' : h.label)}</th>`;
+      }
+      return `<th>${esc(h)}</th>`;
+    })
+    .join('');
   const cls = String(tableClass || 'si-table').trim() || 'si-table';
   return `
     <section class="si-surface">

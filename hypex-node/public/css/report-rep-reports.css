@@ -327,11 +327,17 @@
     margin: 6mm 5mm;
   }
 
+  .si-report-page.si-report-visits .si-col-select,
+  .si-report-page.si-report-tours .si-col-select {
+    display: none !important;
+  }
+
   .si-report-page.si-report-visits .si-table,
   .si-report-page.si-report-tours .si-table {
     min-width: 0 !important;
     width: 100% !important;
     font-size: 7.5pt !important;
+    table-layout: fixed !important;
   }
 
   .si-report-page.si-report-visits .si-table th,
@@ -351,6 +357,7 @@
   .si-report-page.si-report-visits .si-col-duration,
   .si-report-page.si-report-visits .si-col-method,
   .si-report-page.si-report-visits .si-col-checkout-method,
+  .si-report-page.si-report-visits .si-col-sales,
   .si-report-page.si-report-tours .si-col-checkin,
   .si-report-page.si-report-tours .si-col-checkout,
   .si-report-page.si-report-tours .si-col-duration,
@@ -362,5 +369,10 @@
   .si-report-page.si-report-visits .si-col-scope {
     overflow: visible !important;
     text-overflow: clip !important;
+  }
+
+  .si-report-page.si-report-visits .si-col-duration,
+  .si-report-page.si-report-visits .si-col-sales {
+    font-weight: 700;
   }
 }
