@@ -19,7 +19,11 @@ class MainActivity : FlutterActivity() {
 
   override fun onWindowFocusChanged(hasFocus: Boolean) {
     super.onWindowFocusChanged(hasFocus)
-    if (hasFocus && !isImeVisible()) hideSystemUi()
+    if (!hasFocus) return
+    // تأخير بسيط حتى لا يُغلق الكيبورد أثناء فتحه (النافذة تُعيد التركيز قبل ظهور IME).
+    window.decorView.postDelayed({
+      if (hasWindowFocus() && !isImeVisible()) hideSystemUi()
+    }, 400)
   }
 
   override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

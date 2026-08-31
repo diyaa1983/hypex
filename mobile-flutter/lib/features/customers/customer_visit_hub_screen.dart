@@ -16,6 +16,7 @@ import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
+import '../../widgets/fullscreen_binder.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 import '../../widgets/app_confirm_dialog.dart';
@@ -39,11 +40,8 @@ class CustomerVisitHubScreen extends StatefulWidget {
 
 class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     with WidgetsBindingObserver {
-  static const _wideBreak = 600.0;
-
   final _search = TextEditingController();
   final _searchFocus = FocusNode();
-  bool _searchEnabled = false;
   Timer? _debounce;
 
   bool _listLoading = true;
@@ -92,6 +90,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _searchFocus.addListener(() {
+      if (!mounted) return;
+      if (_searchFocus.hasFocus) {
+        unawaited(FullscreenBinder.allowKeyboard());
+      }
+      setState(() {});
+    });
     final off = context.read<OfflineController>();
     _restoreLocalVisit().then((_) async {
       if (off.online) {
@@ -257,7 +262,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
 
   Future<void> _loadCustomers() async {
     setState(() {
-      _listLoading = true;
+      if (_customers.isEmpty) _listLoading = true;
       _listError = null;
     });
     final offline = context.read<OfflineController>();
@@ -419,6 +424,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   void _putOpenCustomerFirst() {
+    if (_search.text.trim().isNotEmpty) return;
     final id = _openVisitCustomerId;
     if (id <= 0 || _customers.length < 2) return;
     final i = _customers.indexWhere((c) => Fmt.toInt(c['id']) == id);
@@ -461,11 +467,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
 
   Future<void> _selectCustomer(int id, {bool openNarrowDetail = false}) async {
     if (id == 0) return;
-    FocusScope.of(context).unfocus();
     _searchFocus.unfocus();
-    if (_searchEnabled) {
-      setState(() => _searchEnabled = false);
-    }
     // أعد التحقق من الخادم قبل فتح عميل آخر؛ قد تكون حالة الزيارة
     // المحلية قديمة بعد نجاح الخروج أو بعد اعتماد طلب خروج يدوي.
     if (_hasOpenVisit && id != _openVisitCustomerId) {
@@ -1247,8 +1249,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     }
   }
 
+  /// عرض منطقي للشاشة لا يتقلّص مع الكيبورد (عكس MediaQuery.size).
+  Size _displayLogicalSize(BuildContext context) {
+    final view = View.of(context);
+    return view.display.size / view.devicePixelRatio;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screen = _displayLogicalSize(context);
+    final imeOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
+    final wide = screen.shortestSide >= 550 || screen.width >= 900;
     return MobileScaffold(
       title: const Text('العملاء'),
       backgroundColor: const Color(0xFFF0F4F8),
@@ -1266,50 +1277,47 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       ],
       body: Stack(
         children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final wide = constraints.maxWidth >= _wideBreak;
-              if (wide) {
-                return Row(
-                  children: [
-                    SizedBox(
-                      width: (constraints.maxWidth * 0.38).clamp(280.0, 420.0),
-                      child: _buildLeftPanel(openNarrowOnSelect: false),
+          if (wide)
+            Row(
+              children: [
+                SizedBox(
+                  width: (screen.width * 0.34).clamp(280.0, 400.0),
+                  child: _buildLeftPanel(
+                    openNarrowOnSelect: false,
+                    imeOpen: imeOpen,
+                  ),
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: _buildRightPanel()),
+              ],
+            )
+          else if (_showNarrowDetail && _selectedId != null)
+            Column(
+              children: [
+                Material(
+                  color: Colors.white,
+                  child: ListTile(
+                    leading: IconButton(
+                      icon: const Icon(Icons.arrow_forward_rounded),
+                      onPressed: () => setState(() {
+                        _showNarrowDetail = false;
+                      }),
                     ),
-                    const VerticalDivider(width: 1),
-                    Expanded(child: _buildRightPanel()),
-                  ],
-                );
-              }
-              if (_showNarrowDetail && _selectedId != null) {
-                return Column(
-                  children: [
-                    Material(
-                      color: Colors.white,
-                      child: ListTile(
-                        leading: IconButton(
-                          icon: const Icon(Icons.arrow_forward_rounded),
-                          onPressed: () => setState(() {
-                            _showNarrowDetail = false;
-                          }),
-                        ),
-                        title: Text(
-                          Fmt.str(_customer?['name']).isEmpty
-                              ? 'تفاصيل العميل'
-                              : Fmt.str(_customer?['name']),
-                          style: const TextStyle(fontWeight: FontWeight.w800),
-                        ),
-                      ),
+                    title: Text(
+                      Fmt.str(_customer?['name']).isEmpty
+                          ? 'تفاصيل العميل'
+                          : Fmt.str(_customer?['name']),
+                      style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    const Divider(height: 1),
-                    Expanded(child: _buildRightPanel()),
-                    _buildCheckInOutCard(),
-                  ],
-                );
-              }
-              return _buildLeftPanel(openNarrowOnSelect: true);
-            },
-          ),
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(child: _buildRightPanel()),
+                if (!imeOpen) _buildCheckInOutCard(),
+              ],
+            )
+          else
+            _buildLeftPanel(openNarrowOnSelect: true, imeOpen: imeOpen),
           if (_busy)
             const Positioned(
               left: 0,
@@ -1322,7 +1330,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     );
   }
 
-  Widget _buildLeftPanel({required bool openNarrowOnSelect}) {
+  Widget _buildLeftPanel({
+    required bool openNarrowOnSelect,
+    required bool imeOpen,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1340,18 +1351,15 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
               ),
               const SizedBox(height: 10),
               TextField(
+                key: const ValueKey('customer-search'),
                 controller: _search,
                 focusNode: _searchFocus,
-                readOnly: !_searchEnabled,
                 onChanged: _onSearchChanged,
-                onTap: () {
-                  if (!_searchEnabled) {
-                    setState(() => _searchEnabled = true);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _searchFocus.requestFocus();
-                    });
-                  }
-                },
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.search,
+                autocorrect: false,
+                enableSuggestions: false,
+                scrollPadding: const EdgeInsets.only(bottom: 120),
                 decoration: InputDecoration(
                   hintText: 'بحث بالاسم أو الرمز…',
                   prefixIcon: const Icon(Icons.search_rounded),
@@ -1492,33 +1500,33 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                   ),
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: Align(
-            alignment: AlignmentDirectional.centerStart,
-            child: IconButton.filledTonal(
-              tooltip:
-                  _searchEnabled ? 'إخفاء لوحة المفاتيح' : 'فتح لوحة المفاتيح',
-              onPressed: () {
-                if (_searchEnabled) {
-                  _searchFocus.unfocus();
-                  setState(() => _searchEnabled = false);
-                } else {
-                  setState(() => _searchEnabled = true);
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) _searchFocus.requestFocus();
-                  });
-                }
-              },
-              icon: Icon(
-                _searchEnabled
-                    ? Icons.keyboard_hide_rounded
-                    : Icons.keyboard_rounded,
+        if (!imeOpen) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: IconButton.filledTonal(
+                tooltip: _searchFocus.hasFocus
+                    ? 'إخفاء لوحة المفاتيح'
+                    : 'فتح لوحة المفاتيح',
+                onPressed: () {
+                  if (_searchFocus.hasFocus) {
+                    _searchFocus.unfocus();
+                  } else {
+                    unawaited(FullscreenBinder.allowKeyboard());
+                    _searchFocus.requestFocus();
+                  }
+                },
+                icon: Icon(
+                  _searchFocus.hasFocus
+                      ? Icons.keyboard_hide_rounded
+                      : Icons.keyboard_rounded,
+                ),
               ),
             ),
           ),
-        ),
-        _buildCheckInOutCard(),
+          _buildCheckInOutCard(),
+        ],
       ],
     );
   }

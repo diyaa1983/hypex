@@ -21,6 +21,7 @@ class MobileScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.bottomNavigationBar,
     this.backgroundColor,
+    this.resizeToAvoidBottomInset = true,
   });
 
   final Widget title;
@@ -32,6 +33,7 @@ class MobileScaffold extends StatelessWidget {
   final Widget? floatingActionButton;
   final Widget? bottomNavigationBar;
   final Color? backgroundColor;
+  final bool resizeToAvoidBottomInset;
 
   static Future<void> confirmLogout(BuildContext context) async {
     final confirmed = await showAppConfirmDialog(
@@ -58,6 +60,7 @@ class MobileScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: backgroundColor ?? AppTheme.bg,
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leadingWidth: showBack ? 64 : 0,
