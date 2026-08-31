@@ -36,6 +36,16 @@
     markFormDirty();
   }
 
+  function hxPath(p) {
+    if (typeof window.__hypexUrl === 'function') return window.__hypexUrl(p);
+    var b = typeof window.__HYPEX_BASE__ === 'string' ? window.__HYPEX_BASE__ : '';
+    if (!b || b === '/') return p;
+    if (b.charAt(b.length - 1) === '/') b = b.slice(0, -1);
+    if (!p || p.charAt(0) !== '/') return p;
+    if (p === b || p.indexOf(b + '/') === 0) return p;
+    return b + p;
+  }
+
   function clearFormDirty() {
     formDirty = false;
   }
@@ -2380,7 +2390,7 @@
             var noEl = document.getElementById('co_no');
             if (noEl && data.order_no) noEl.value = data.order_no;
             updateDocNoStyle();
-            window.history.replaceState({}, '', '/sales/orders/' + data.id);
+            window.history.replaceState({}, '', hxPath('/sales/orders/' + data.id));
             var bar = document.getElementById('co-doc-bar');
             if (bar) bar.setAttribute('data-order-id', String(data.id));
             // تفعيل أزرار الطباعة/الاعتماد بعد أول حفظ
@@ -2393,7 +2403,7 @@
             var del = document.getElementById('co-delete');
             if (del && state.can_approve) del.disabled = false;
           } else {
-            window.location.href = '/sales/orders/' + data.id;
+            window.location.href = hxPath('/sales/orders/' + data.id);
           }
         } else {
           state.id = data.id;
