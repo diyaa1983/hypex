@@ -16,6 +16,7 @@ import '../../widgets/party_picker.dart';
 import '../../widgets/cheques_under_collection.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
+import 'party_statement_detail_screen.dart';
 
 class PartyStatementScreen extends StatefulWidget {
   const PartyStatementScreen({
@@ -226,6 +227,40 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       data['party_id'] = _party!.id;
     }
     return data;
+  }
+
+  Map<String, dynamic> get _pdfQuery {
+    if (_party == null) return const {};
+    return _type == 'customer'
+        ? {
+            'customer_id': _party!.id,
+            'from': _iso(_from),
+            'to': _iso(_to),
+          }
+        : {
+            'party_type': _type,
+            'party_id': _party!.id,
+            'from': _iso(_from),
+            'to': _iso(_to),
+          };
+  }
+
+  String get _pdfPath => _type == 'customer'
+      ? AppConfig.oracleCustomerStatementPdfPath
+      : AppConfig.partyStatementPdfPath;
+
+  Future<void> _openDetailed() async {
+    if (_result == null) return;
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => PartyStatementDetailScreen(
+          payload: _printPayload,
+          pdfPath: _party == null ? null : _pdfPath,
+          pdfQuery: _pdfQuery,
+          fileName: 'كشف حساب - ${_party?.name ?? ''}',
+        ),
+      ),
+    );
   }
 
   Future<void> _printBluetooth() async {
@@ -471,6 +506,12 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
                 ],
                 if (hasResult) ...[
                   const SizedBox(height: 10),
+                  FilledButton.icon(
+                    onPressed: _openDetailed,
+                    icon: const Icon(Icons.table_rows_rounded),
+                    label: const Text('عرض مفصل'),
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     children: [
                       Expanded(
@@ -640,41 +681,50 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
       fontSize: 11,
       color: Color(0xFF475569),
     );
-    return Container(
+    return Material(
       color: const Color(0xFFE2E8F0),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: const Row(
-        children: [
-          SizedBox(
-            width: 68,
-            child: Text('التاريخ', style: style, textAlign: TextAlign.center),
+      child: InkWell(
+        onTap: _openDetailed,
+        child: const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 68,
+                child:
+                    Text('التاريخ', style: style, textAlign: TextAlign.center),
+              ),
+              Expanded(child: Text('البيان', style: style)),
+              SizedBox(
+                width: 64,
+                child: Text('مدين', style: style, textAlign: TextAlign.center),
+              ),
+              SizedBox(
+                width: 64,
+                child: Text('دائن', style: style, textAlign: TextAlign.center),
+              ),
+              SizedBox(
+                width: 72,
+                child: Text('رصيد', style: style, textAlign: TextAlign.center),
+              ),
+            ],
           ),
-          Expanded(child: Text('البيان', style: style)),
-          SizedBox(
-            width: 64,
-            child: Text('مدين', style: style, textAlign: TextAlign.center),
-          ),
-          SizedBox(
-            width: 64,
-            child: Text('دائن', style: style, textAlign: TextAlign.center),
-          ),
-          SizedBox(
-            width: 72,
-            child: Text('رصيد', style: style, textAlign: TextAlign.center),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _rowTile(Map<String, dynamic> row) {
-    final desc = Fmt.str(
-      row['description'] ??
-          row['remark'] ??
-          row['doc_type'] ??
-          row['doc_no'] ??
-          row['type'],
-    );
+    final type = Fmt.str(row['doc_type'] ?? row['type']);
+    var desc = Fmt.str(row['description'] ?? row['remark']);
+    final docNo = Fmt.str(row['doc_no']);
+    if (desc.isEmpty) {
+      desc = type.isNotEmpty ? type : (docNo.isNotEmpty ? docNo : '—');
+    }
+    final line2 = [
+      if (type.isNotEmpty && type != desc) type,
+      if (docNo.isNotEmpty) docNo,
+    ].join(' · ');
     final date = Fmt.dmy(
       Fmt.str(row['trn_date'] ?? row['date'] ?? row['doc_date']),
     );
@@ -682,54 +732,71 @@ class _PartyStatementScreenState extends State<PartyStatementScreen> {
     final credit = Fmt.toDouble(row['credit']);
     final balance = Fmt.toDouble(row['balance'] ?? row['running_balance']);
     const numStyle = TextStyle(fontSize: 11, fontWeight: FontWeight.w600);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 68,
-            child: Text(
-              date.isEmpty ? '—' : date,
-              textDirection: TextDirection.ltr,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11),
+    return InkWell(
+      onTap: _openDetailed,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 68,
+              child: Text(
+                date.isEmpty ? '—' : date,
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11),
+              ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              desc.isEmpty ? '—' : desc,
-              style: const TextStyle(fontSize: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    desc,
+                    style: const TextStyle(fontSize: 12, height: 1.3),
+                  ),
+                  if (line2.isNotEmpty)
+                    Text(
+                      line2,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppTheme.textSoft,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                ],
+              ),
             ),
-          ),
-          SizedBox(
-            width: 64,
-            child: Text(
-              debit > 0 ? Fmt.money(debit) : '',
-              textDirection: TextDirection.ltr,
-              textAlign: TextAlign.center,
-              style: numStyle,
+            SizedBox(
+              width: 64,
+              child: Text(
+                debit > 0 ? Fmt.money(debit) : '',
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                style: numStyle,
+              ),
             ),
-          ),
-          SizedBox(
-            width: 64,
-            child: Text(
-              credit > 0 ? Fmt.money(credit) : '',
-              textDirection: TextDirection.ltr,
-              textAlign: TextAlign.center,
-              style: numStyle,
+            SizedBox(
+              width: 64,
+              child: Text(
+                credit > 0 ? Fmt.money(credit) : '',
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                style: numStyle,
+              ),
             ),
-          ),
-          SizedBox(
-            width: 72,
-            child: Text(
-              Fmt.money(balance),
-              textDirection: TextDirection.ltr,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            SizedBox(
+              width: 72,
+              child: Text(
+                Fmt.money(balance),
+                textDirection: TextDirection.ltr,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
