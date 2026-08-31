@@ -101,10 +101,10 @@ class NotificationBellButton extends StatelessWidget {
                                   const SizedBox(height: 8),
                               itemBuilder: (_, i) {
                                 final it = box.items[i];
-                                final approved = it.isGpsApproved;
+                                final approved = it.isApproved;
                                 final color = approved
                                     ? AppTheme.success
-                                    : (it.kind == 'gps_change_rejected'
+                                    : (it.isRejected
                                         ? AppTheme.danger
                                         : AppTheme.primary);
                                 return Material(
@@ -122,8 +122,7 @@ class NotificationBellButton extends StatelessWidget {
                                         Icon(
                                           approved
                                               ? Icons.check_circle_rounded
-                                              : (it.kind ==
-                                                      'gps_change_rejected'
+                                              : (it.isRejected
                                                   ? Icons.cancel_rounded
                                                   : Icons
                                                       .notifications_rounded),

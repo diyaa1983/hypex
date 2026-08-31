@@ -885,6 +885,7 @@ function sal_rep_visit_decide_checkout_request(
         if (function_exists('header_check_notifications_invalidate_cache')) {
             header_check_notifications_invalidate_cache();
         }
+        sal_rep_visit_notify_checkout_decision($pdo, $req, false);
         return ['ok' => true, 'message' => 'تم رفض طلب الخروج اليدوي.'];
     }
     $lineId = (int) $req['route_line_id'];
@@ -894,6 +895,7 @@ function sal_rep_visit_decide_checkout_request(
             "UPDATE sal_rep_visit_checkout_request
              SET status='rejected', decided_by=?, decided_at=?, decision_note=? WHERE id=?"
         )->execute([$deciderUserId, $now, 'لا يوجد دخول مفتوح', $requestId]);
+        sal_rep_visit_notify_checkout_decision($pdo, $req, false);
         return ['ok' => false, 'message' => 'لا يوجد دخول مفتوح مرتبط بالطلب.'];
     }
     if (empty($line['visit_checkout_at'])) {
@@ -916,7 +918,18 @@ function sal_rep_visit_decide_checkout_request(
     if (function_exists('header_check_notifications_invalidate_cache')) {
         header_check_notifications_invalidate_cache();
     }
+    sal_rep_visit_notify_checkout_decision($pdo, $req, true);
     return ['ok' => true, 'message' => 'تمت الموافقة وتسجيل الخروج اليدوي.'];
+}
+
+function sal_rep_visit_notify_checkout_decision(PDO $pdo, array $req, bool $approve): void
+{
+    try {
+        require_once app_path('includes/sys_user_inbox.php');
+        sys_user_inbox_push_checkout_decision($pdo, $req, $approve);
+    } catch (Throwable $e) {
+        error_log('checkout inbox notify: ' . $e->getMessage());
+    }
 }
 
 function sal_rep_visit_checkout_notifications_user_can_see(): bool

@@ -139,6 +139,49 @@ function sys_user_inbox_push_gps_decision(PDO $pdo, array $changeRow, bool $appr
     }
 }
 
+function sys_user_inbox_push_checkout_decision(PDO $pdo, array $reqRow, bool $approve): void
+{
+    $customerId = (int) ($reqRow['customer_id'] ?? 0);
+    $name = '';
+    $code = '';
+    if ($customerId > 0) {
+        try {
+            $st = $pdo->prepare('SELECT name_ar, code FROM crm_customer WHERE id = ? LIMIT 1');
+            $st->execute([$customerId]);
+            $c = $st->fetch(PDO::FETCH_ASSOC);
+            if (is_array($c)) {
+                $name = (string) ($c['name_ar'] ?? '');
+                $code = (string) ($c['code'] ?? '');
+            }
+        } catch (Throwable $e) {
+        }
+    }
+    $who = $name !== '' ? '«' . $name . '»' : 'العميل';
+    if ($code !== '') {
+        $who .= ' (' . $code . ')';
+    }
+    $kind = $approve ? 'visit_checkout_approved' : 'visit_checkout_rejected';
+    $title = $approve ? 'تمت الموافقة على الخروج اليدوي' : 'رُفض طلب الخروج اليدوي';
+    $body = $approve
+        ? 'تم اعتماد خروجك اليدوي من زيارة ' . $who . '.'
+        : 'تم رفض طلب الخروج اليدوي من زيارة ' . $who . '. الزيارة ما زالت مفتوحة.';
+    $payload = [
+        'customer_name' => $name,
+        'customer_code' => $code,
+    ];
+    foreach (sys_user_inbox_recipient_ids($pdo, $reqRow) as $uid) {
+        try {
+            sys_user_inbox_push($pdo, $uid, $kind, $title, $body, [
+                'ref_type' => 'sal_rep_visit_checkout_request',
+                'ref_id' => (int) ($reqRow['id'] ?? 0),
+                'customer_id' => $customerId,
+                'payload' => $payload,
+            ]);
+        } catch (Throwable $e) {
+        }
+    }
+}
+
 /** @return list<array<string,mixed>> */
 function sys_user_inbox_list(PDO $pdo, int $userId, int $limit = 50): array
 {

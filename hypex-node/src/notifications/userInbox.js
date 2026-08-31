@@ -153,6 +153,61 @@ async function pushGpsDecision(changeRow, approve) {
   }
 }
 
+async function pushCheckoutDecision(reqRow, approve) {
+  try {
+    await ensureInboxTable();
+    const customerId = Number(reqRow.customer_id || 0);
+    let name = '';
+    let code = '';
+    if (customerId > 0) {
+      const rows = await db.query(
+        'SELECT name_ar, code FROM crm_customer WHERE id = ? LIMIT 1',
+        [customerId]
+      );
+      if (rows && rows[0]) {
+        name = String(rows[0].name_ar || '');
+        code = String(rows[0].code || '');
+      }
+    }
+    let who = name ? `«${name}»` : 'العميل';
+    if (code) who += ` (${code})`;
+    const kind = approve ? 'visit_checkout_approved' : 'visit_checkout_rejected';
+    const title = approve
+      ? 'تمت الموافقة على الخروج اليدوي'
+      : 'رُفض طلب الخروج اليدوي';
+    const body = approve
+      ? `تم اعتماد خروجك اليدوي من زيارة ${who}.`
+      : `تم رفض طلب الخروج اليدوي من زيارة ${who}. الزيارة ما زالت مفتوحة.`;
+    const payload = {
+      customer_name: name,
+      customer_code: code,
+    };
+    const users = await recipientIds(reqRow);
+    if (!users.length) {
+      console.error('pushCheckoutDecision: no recipients', {
+        id: reqRow.id,
+        requested_by: reqRow.requested_by,
+        sales_rep_id: reqRow.sales_rep_id,
+      });
+      return;
+    }
+    for (const uid of users) {
+      try {
+        await push(uid, kind, title, body, {
+          ref_type: 'sal_rep_visit_checkout_request',
+          ref_id: Number(reqRow.id || 0),
+          customer_id: customerId,
+          payload,
+        });
+      } catch (e) {
+        console.error('inbox push', e.message);
+      }
+    }
+  } catch (e) {
+    console.error('pushCheckoutDecision', e.message);
+  }
+}
+
 function mapItem(row) {
   let payload = {};
   const raw = String(row.payload_json || '');
@@ -240,6 +295,7 @@ async function userIdFromDevice(deviceId) {
 module.exports = {
   ensureInboxTable,
   pushGpsDecision,
+  pushCheckoutDecision,
   listForUser,
   unreadCount,
   markAllRead,

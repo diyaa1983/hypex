@@ -39,6 +39,10 @@ class InboxItem {
   final bool clearGps;
 
   bool get isGpsApproved => kind == 'gps_change_approved';
+  bool get isCheckoutApproved => kind == 'visit_checkout_approved';
+  bool get isApproved => isGpsApproved || isCheckoutApproved;
+  bool get isRejected =>
+      kind == 'gps_change_rejected' || kind == 'visit_checkout_rejected';
 
   factory InboxItem.fromJson(Map<String, dynamic> m) {
     double? numOrNull(dynamic v) {

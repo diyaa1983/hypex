@@ -1221,6 +1221,7 @@ async function decideVisitCheckoutRequest({ id, approve, userId, note = null }) 
        SET status='rejected', decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
       [uid, now, note, reqId]
     );
+    await notifyVisitCheckoutDecision(req, false);
     return { ok: true, message: 'تم رفض طلب الخروج اليدوي.' };
   }
   const lineId = Number(req.route_line_id) || 0;
@@ -1243,6 +1244,7 @@ async function decideVisitCheckoutRequest({ id, approve, userId, note = null }) 
        SET status='rejected', decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
       [uid, now, 'لا يوجد دخول مفتوح', reqId]
     );
+    await notifyVisitCheckoutDecision(req, false);
     return { ok: false, message: 'لا يوجد دخول مفتوح مرتبط بالطلب.' };
   }
   if (!line.visit_checkout_at) {
@@ -1266,7 +1268,17 @@ async function decideVisitCheckoutRequest({ id, approve, userId, note = null }) 
      SET status='approved', decided_by=?, decided_at=?, decision_note=? WHERE id=?`,
     [uid, now, note, reqId]
   );
+  await notifyVisitCheckoutDecision(req, true);
   return { ok: true, message: 'تمت الموافقة وتسجيل الخروج اليدوي.' };
+}
+
+async function notifyVisitCheckoutDecision(req, approve) {
+  try {
+    const inbox = require('../notifications/userInbox');
+    await inbox.pushCheckoutDecision(req, !!approve);
+  } catch (e) {
+    console.error('checkout inbox notify', e.message);
+  }
 }
 
 async function listGpsChangeRequests(status = 'pending', limit = 200) {
