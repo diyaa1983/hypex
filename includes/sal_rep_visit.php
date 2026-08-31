@@ -352,7 +352,15 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
                       WHERE o.visit_route_line_id = l.id
                         AND l.visit_checkin_at IS NOT NULL
                         AND o.created_at >= l.visit_checkin_at
-                    ) AS has_order
+                    ) AS has_order,
+                    (
+                      SELECT o.id FROM sal_customer_order o
+                      WHERE o.visit_route_line_id = l.id
+                        AND l.visit_checkin_at IS NOT NULL
+                        AND o.created_at >= l.visit_checkin_at
+                      ORDER BY o.id DESC
+                      LIMIT 1
+                    ) AS order_id
              FROM sal_rep_route_line l WHERE l.route_id = ?'
         );
         $st->execute([$routeId]);
@@ -509,6 +517,7 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
             'visit_radius_m' => $radius,
             'in_plan' => !empty($plannedIds[$cid]),
             'has_order' => !empty($ln['has_order']),
+            'order_id' => (int) ($ln['order_id'] ?? 0),
             'sort_order' => (int) ($c['sort_order'] ?? 0),
             'weekday' => $wd,
             'weekday_label' => $weekdayLabel,

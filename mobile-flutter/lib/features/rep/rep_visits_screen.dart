@@ -81,6 +81,14 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     return s == 'checked_in' || s == 'pending_manual_checkout';
   }
 
+  /// طلبية مرتبطة بالزيارة الحالية (حتى بعد الإرسال).
+  bool _visitHasOrder(Map<String, dynamic>? v) {
+    if (v == null) return false;
+    final h = v['has_order'];
+    if (h == true || h == 1 || '$h' == '1') return true;
+    return Fmt.toInt(v['order_id']) != 0;
+  }
+
   bool _canCheckin(Map<String, dynamic>? v) {
     if (v == null || v['in_plan'] != true) return false;
     final s = _statusOf(v);
@@ -779,14 +787,36 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     final leave =
         await CustomerOrderFormScreenState.active?.confirmLeave() ?? true;
     if (!leave || !mounted) return;
+    final v0 = _selected;
+    if (v0 == null || _busy) return;
+    final keepCid = Fmt.toInt(v0['customer_id']);
+    // حدّث حالة الزيارة قبل فحص الطلبية (بعد إرسال الطلب قد تبقى has_order قديمة).
+    await _load(keepCustomerId: keepCid > 0 ? keepCid : null);
+    if (!mounted) return;
     final v = _selected;
-    if (v == null || _busy) return;
+    if (v == null) return;
     final name = Fmt.str(v['name']);
     List<int> noOrderReasonIds = [];
-    if (v['has_order'] != true) {
-      final picked = await _pickNoOrderReasons();
-      if (picked == null || picked.isEmpty) return;
-      noOrderReasonIds = picked;
+    if (!_visitHasOrder(v)) {
+      // Offline: تحقق من طلب محلي مرتبط بنفس سطر الزيارة.
+      final lineId = Fmt.toInt(v['route_line_id']);
+      final localOid = lineId != 0
+          ? await OfflineStore.instance.orderIdForVisitLine(
+              lineId,
+              customerId: keepCid,
+            )
+          : 0;
+      if (localOid != 0) {
+        setState(() {
+          _selected = Map<String, dynamic>.from(v)
+            ..['has_order'] = true
+            ..['order_id'] = localOid;
+        });
+      } else {
+        final picked = await _pickNoOrderReasons();
+        if (picked == null || picked.isEmpty) return;
+        noOrderReasonIds = picked;
+      }
     }
     final matchedManual =
         manual && VisitStatus.isManualMethod(v['checkin_method']);
@@ -1005,14 +1035,14 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
           Expanded(
             child: VisitWorkspacePanel(
               key: ValueKey(
-                'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
+                'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}-${Fmt.toInt(_selected!['order_id'])}',
               ),
               customerId: Fmt.toInt(_selected!['customer_id']),
               customerName: Fmt.str(_selected!['name']),
               customerCode: Fmt.str(_selected!['code']),
               visitRouteLineId: Fmt.toInt(_selected!['route_line_id']),
               visitOpen: true,
-              orderId: Fmt.toInt(_selected!['order_id']) > 0
+              orderId: Fmt.toInt(_selected!['order_id']) != 0
                   ? Fmt.toInt(_selected!['order_id'])
                   : null,
               onOrderChanged: () => _load(

@@ -194,15 +194,17 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   void _onVisitOrderSaved(int orderId) {
-    // Offline: orderId قد يكون -1 أو 0 بعد الحفظ المحلي
+    // Offline: orderId قد يكون سالباً بعد الحفظ المحلي
     if (!mounted) return;
     setState(() {
-      if (orderId > 0) _visitOrderId = orderId;
+      if (orderId != 0) _visitOrderId = orderId;
       if (_visit != null) {
-        _visit = Map<String, dynamic>.from(_visit!)..['has_order'] = true;
+        _visit = Map<String, dynamic>.from(_visit!)
+          ..['has_order'] = true
+          ..['order_id'] = orderId != 0 ? orderId : (_visit!['order_id'] ?? 0);
       }
     });
-    if (_selectedId != null && orderId > 0) {
+    if (_selectedId != null && orderId != 0) {
       _loadHistOrders(_selectedId!);
     }
   }
@@ -538,6 +540,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                 ? Fmt.str(open?['method'])
                 : Fmt.str(open?['checkin_method']))
             : (_openVisitCustomerId == id ? _openVisitCheckinMethod : '');
+        var linkedOrderId = _visitOrderId;
+        if (linkedOrderId == 0 && lineId != 0) {
+          linkedOrderId = await OfflineStore.instance.orderIdForVisitLine(
+            lineId,
+            customerId: id,
+          );
+        }
         v = {
           'route_line_id': lineId,
           'status': isOpen || _openVisitCustomerId == id
@@ -548,10 +557,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           'checkin_method': localMethod.isNotEmpty
               ? localMethod
               : _openVisitCheckinMethod,
-          'order_id': _visitOrderId,
-          'has_order': _visitOrderId > 0,
+          'order_id': linkedOrderId,
+          'has_order': linkedOrderId != 0,
           'offline': true,
         };
+        if (linkedOrderId != 0) {
+          _visitOrderId = linkedOrderId;
+        }
       }
 
       if ((!offline.online && offline.catalogReady) || id < 0) {
@@ -586,7 +598,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         if (radius > 0) _radiusM = radius;
         _detailLoading = false;
         final oid = Fmt.toInt(v?['order_id']);
-        if (oid > 0) _visitOrderId = oid;
+        if (oid != 0) _visitOrderId = oid;
         if (_visitOpenFromMap(v)) {
           _openVisitCustomerId = id;
           _openVisitCheckinAt = Fmt.str(v?['visit_checkin_at']);
@@ -1129,17 +1141,46 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     final name = Fmt.str(c['name']);
     List<int> noOrderReasonIds = [];
     String? offlineReasonNames;
-    if (_visit?['has_order'] != true && _visitOrderId < 1) {
-      final picked = await _pickNoOrderReasons();
-      if (picked == null || picked.isEmpty) return;
-      noOrderReasonIds = picked.where((id) => id > 0).toList();
-      // أسباب محلية سالبة: نحفظ أسماءها كنص سبب للترحيل
-      final names = _noOrderReasons
-          .where((r) => picked.contains(Fmt.toInt(r['id'])))
-          .map((r) => Fmt.str(r['name_ar']))
-          .where((s) => s.isNotEmpty)
-          .join('، ');
-      if (names.isNotEmpty) offlineReasonNames = names;
+
+    // حدّث بيانات الزيارة قبل فحص الطلبية.
+    await _selectCustomer(id);
+    if (!mounted) return;
+
+    final hasOrder = () {
+      final h = _visit?['has_order'];
+      if (h == true || h == 1 || '$h' == '1') return true;
+      if (_visitOrderId != 0) return true;
+      return Fmt.toInt(_visit?['order_id']) != 0;
+    }();
+
+    if (!hasOrder) {
+      final lineId = Fmt.toInt(_visit?['route_line_id']);
+      final localOid = lineId != 0
+          ? await OfflineStore.instance.orderIdForVisitLine(
+              lineId,
+              customerId: id,
+            )
+          : 0;
+      if (localOid != 0) {
+        setState(() {
+          _visitOrderId = localOid;
+          if (_visit != null) {
+            _visit = Map<String, dynamic>.from(_visit!)
+              ..['has_order'] = true
+              ..['order_id'] = localOid;
+          }
+        });
+      } else {
+        final picked = await _pickNoOrderReasons();
+        if (picked == null || picked.isEmpty) return;
+        noOrderReasonIds = picked.where((rid) => rid > 0).toList();
+        final names = _noOrderReasons
+            .where((r) => picked.contains(Fmt.toInt(r['id'])))
+            .map((r) => Fmt.str(r['name_ar']))
+            .where((s) => s.isNotEmpty)
+            .join('، ');
+        if (names.isNotEmpty) offlineReasonNames = names;
+      }
     }
     final matchedManual = manual && _openVisitWasManual;
     final ok = await _confirm(
@@ -1334,7 +1375,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                     customerCode: ccode,
                     visitRouteLineId: lineId,
                     visitOpen: true,
-                    orderId: _visitOrderId > 0 ? _visitOrderId : null,
+                    orderId: _visitOrderId != 0 ? _visitOrderId : null,
                     onOrderChanged: () async {
                       await _refreshOpenVisit();
                       if (_selectedId != null) {
@@ -1900,7 +1941,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                           customer: _customer!,
                           visitOpen: _selectedIsOpen,
                           visitRouteLineId: Fmt.toInt(_visit?['route_line_id']),
-                          orderId: _visitOrderId > 0 ? _visitOrderId : null,
+                          orderId: _visitOrderId != 0 ? _visitOrderId : null,
                           onSaved: _onVisitOrderSaved,
                           onDeleted: _onVisitOrderDeleted,
                         ),

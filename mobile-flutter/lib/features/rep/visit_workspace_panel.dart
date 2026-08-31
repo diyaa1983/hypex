@@ -82,7 +82,8 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
   @override
   void didUpdateWidget(covariant VisitWorkspacePanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.customerId != widget.customerId) {
+    if (oldWidget.customerId != widget.customerId ||
+        oldWidget.visitRouteLineId != widget.visitRouteLineId) {
       _orderId = widget.orderId;
       _loadCustomer();
       _loadOrders();
@@ -399,7 +400,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     }
     return CustomerOrderFormScreen(
       key: ValueKey(
-        'po-${widget.customerId}-${widget.visitRouteLineId}',
+        'po-${widget.customerId}-${widget.visitRouteLineId}-${_orderId ?? 0}',
       ),
       embedded: true,
       hideCustomerPicker: true,
@@ -407,7 +408,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
       initialCustomerName: widget.customerName,
       initialCustomerCode: widget.customerCode,
       visitRouteLineId: widget.visitRouteLineId,
-      orderId: (_orderId ?? 0) > 0 ? _orderId : null,
+      orderId: (_orderId ?? 0) != 0 ? _orderId : null,
       onSaved: (id) {
         setState(() => _orderId = id);
         widget.onOrderChanged?.call();

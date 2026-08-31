@@ -1283,6 +1283,25 @@ class OfflineStore {
     return null;
   }
 
+  Future<int> orderIdForVisitLine(int routeLineId, {int? customerId}) async {
+    if (routeLineId == 0) return 0;
+    final rows = await listOrders(
+      customerId: customerId != null && customerId != 0 ? customerId : null,
+      limit: 100,
+    );
+    for (final o in rows) {
+      final vid = (o['visit_route_line_id'] as num?)?.toInt() ??
+          int.tryParse('${o['visit_route_line_id'] ?? ''}') ??
+          0;
+      if (vid == routeLineId) {
+        return (o['id'] as num?)?.toInt() ??
+            int.tryParse('${o['id'] ?? ''}') ??
+            0;
+      }
+    }
+    return 0;
+  }
+
   Future<Map<String, dynamic>?> getOrderById(int id) async {
     if (id == 0) return null;
     final db = await _db;
