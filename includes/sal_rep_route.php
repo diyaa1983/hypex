@@ -304,13 +304,19 @@ function sal_rep_route_customers_for_date(PDO $pdo, int $salesRepId, ?string $ro
     }
 
     $customers = [];
+    $seenCust = [];
     foreach ($route['lines'] as $ln) {
+        $cid = (int) ($ln['customer_id'] ?? 0);
+        if ($cid < 1 || isset($seenCust[$cid])) {
+            continue;
+        }
+        $seenCust[$cid] = true;
         $lat = $ln['latitude'] ?? null;
         $lng = $ln['longitude'] ?? null;
         $hasGps = $lat !== null && $lat !== '' && $lng !== null && $lng !== ''
             && sal_invoice_gps_coords_valid((float) $lat, (float) $lng);
         $customers[] = [
-            'id' => (int) ($ln['customer_id'] ?? 0),
+            'id' => $cid,
             'code' => (string) ($ln['customer_code'] ?? ''),
             'name' => (string) ($ln['customer_name'] ?? ''),
             'sort_order' => (int) ($ln['sort_order'] ?? 0),

@@ -31,6 +31,7 @@ function sal_rep_visit_ensure_schema(PDO $pdo): bool
         sql_migration_run_file($pdo, 'database/migrations/270_sal_rep_visit_checkin.sql');
         sql_migration_run_file($pdo, 'database/migrations/275_sal_rep_visit_in_plan.sql');
         sql_migration_run_file($pdo, 'database/migrations/276_rep_visit_no_order_reasons.sql');
+        sql_migration_run_file($pdo, 'database/migrations/277_sal_rep_route_line_multi_visit.sql');
         try {
             $pdo->query('SELECT checkin_lat FROM sal_rep_route_line LIMIT 1');
             $pdo->query('SELECT in_plan FROM sal_rep_route_line LIMIT 1');
@@ -43,9 +44,26 @@ function sal_rep_visit_ensure_schema(PDO $pdo): bool
         }
     }
     if ($ok) {
+        sal_rep_visit_ensure_multi_visit_index($pdo);
         sal_rep_visit_ensure_mobile_screen($pdo);
     }
     return $ok;
+}
+
+/** إلغاء القيد الفريد (عميل واحد لكل خط سير) للسماح بعدة دخولات */
+function sal_rep_visit_ensure_multi_visit_index(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+    try {
+        require_once app_path('includes/sql_migration.php');
+        sql_migration_run_file($pdo, 'database/migrations/277_sal_rep_route_line_multi_visit.sql');
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_ensure_multi_visit_index: ' . $e->getMessage());
+    }
 }
 
 /** تسجيل شاشة الموبايل ومنحها لمجموعة هاتف حتى تظهر في الرئيسية. */
@@ -130,6 +148,46 @@ function sal_rep_visit_ensure_route_line(PDO $pdo, int $salesRepId, int $custome
     if (!sal_rep_route_customer_is_assigned($pdo, $salesRepId, $customerId, $today)) {
         sal_rep_route_add_customer_today($pdo, $salesRepId, $customerId, $userId);
     }
+
+    // 1) زيارة مفتوحة (دخول بدون خروج)
+    $st = $pdo->prepare(
+        'SELECT l.id, l.route_id
+         FROM sal_rep_route_line l
+         INNER JOIN sal_rep_route r ON r.id = l.route_id
+         WHERE r.sales_rep_id = ? AND r.route_date = ? AND r.is_active = 1 AND l.customer_id = ?
+           AND l.visit_checkin_at IS NOT NULL AND l.visit_checkout_at IS NULL
+         ORDER BY l.id DESC LIMIT 1'
+    );
+    $st->execute([$salesRepId, $today, $customerId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        return [
+            'ok' => true,
+            'route_line_id' => (int) $row['id'],
+            'route_id' => (int) $row['route_id'],
+        ];
+    }
+
+    // 2) بند جاهز بدون دخول (من الجولة)
+    $st = $pdo->prepare(
+        'SELECT l.id, l.route_id
+         FROM sal_rep_route_line l
+         INNER JOIN sal_rep_route r ON r.id = l.route_id
+         WHERE r.sales_rep_id = ? AND r.route_date = ? AND r.is_active = 1 AND l.customer_id = ?
+           AND l.visit_checkin_at IS NULL
+         ORDER BY l.id DESC LIMIT 1'
+    );
+    $st->execute([$salesRepId, $today, $customerId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if ($row) {
+        return [
+            'ok' => true,
+            'route_line_id' => (int) $row['id'],
+            'route_id' => (int) $row['route_id'],
+        ];
+    }
+
+    // 3) آخر بند (مكتمل) — يُستخدم كأساس لإنشاء دخول جديد عند الحاجة
     $st = $pdo->prepare(
         'SELECT l.id, l.route_id
          FROM sal_rep_route_line l
@@ -147,6 +205,37 @@ function sal_rep_visit_ensure_route_line(PDO $pdo, int $salesRepId, int $custome
         'route_line_id' => (int) $row['id'],
         'route_id' => (int) $row['route_id'],
     ];
+}
+
+/**
+ * إنشاء بند خط سير جديد لنفس العميل (دخول إضافي بعد زيارة مكتملة).
+ *
+ * @return array{ok:bool,message?:string,route_line_id?:int}
+ */
+function sal_rep_visit_new_line_for_customer(PDO $pdo, array $completedLine): array
+{
+    $routeId = (int) ($completedLine['route_id'] ?? 0);
+    $customerId = (int) ($completedLine['customer_id'] ?? 0);
+    if ($routeId < 1 || $customerId < 1) {
+        return ['ok' => false, 'message' => 'بيانات البند غير صالحة.'];
+    }
+    $inPlan = (int) ($completedLine['in_plan'] ?? 1) ? 1 : 0;
+    $mx = $pdo->prepare('SELECT COALESCE(MAX(sort_order), 0) FROM sal_rep_route_line WHERE route_id = ?');
+    $mx->execute([$routeId]);
+    $sort = (int) $mx->fetchColumn() + 1;
+    try {
+        $pdo->prepare(
+            'INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order, in_plan) VALUES (?,?,?,?)'
+        )->execute([$routeId, $customerId, $sort, $inPlan]);
+        $newId = (int) $pdo->lastInsertId();
+        if ($newId < 1) {
+            return ['ok' => false, 'message' => 'تعذّر إنشاء بند زيارة جديد.'];
+        }
+        return ['ok' => true, 'route_line_id' => $newId];
+    } catch (Throwable $e) {
+        error_log('sal_rep_visit_new_line_for_customer: ' . $e->getMessage());
+        return ['ok' => false, 'message' => 'تعذّر إنشاء بند زيارة جديد. قد تحتاج تحديث قاعدة البيانات.'];
+    }
 }
 
 /** @return array<string,mixed>|null */
@@ -268,7 +357,24 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
         );
         $st->execute([$routeId]);
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ln) {
-            $byCust[(int) $ln['customer_id']] = $ln;
+            $cid = (int) ($ln['customer_id'] ?? 0);
+            if ($cid < 1) {
+                continue;
+            }
+            if (!isset($byCust[$cid])) {
+                $byCust[$cid] = $ln;
+                continue;
+            }
+            $cur = $byCust[$cid];
+            $curOpen = !empty($cur['visit_checkin_at']) && empty($cur['visit_checkout_at']);
+            $newOpen = !empty($ln['visit_checkin_at']) && empty($ln['visit_checkout_at']);
+            if ($newOpen && !$curOpen) {
+                $byCust[$cid] = $ln;
+            } elseif ($curOpen && !$newOpen) {
+                continue;
+            } elseif ((int) ($ln['route_line_id'] ?? 0) > (int) ($cur['route_line_id'] ?? 0)) {
+                $byCust[$cid] = $ln;
+            }
         }
     }
 
@@ -797,6 +903,19 @@ function sal_rep_visit_checkin(
     if (!empty($line['visit_checkin_at']) && empty($line['visit_checkout_at'])
         && substr((string) ($line['route_date'] ?? ''), 0, 10) === $today) {
         return ['ok' => false, 'message' => 'يوجد دخول مفتوح لهذا العميل. أكمل الخروج أولاً.'];
+    }
+
+    // زيارة مكتملة سابقاً → بند جديد كي تبقى كل الدخولات في التقرير
+    if (!empty($line['visit_checkin_at']) && !empty($line['visit_checkout_at'])) {
+        $created = sal_rep_visit_new_line_for_customer($pdo, $line);
+        if (!$created['ok']) {
+            return ['ok' => false, 'message' => (string) ($created['message'] ?? 'تعذّر فتح زيارة جديدة.')];
+        }
+        $lineId = (int) $created['route_line_id'];
+        $line = sal_rep_visit_line_fetch($pdo, $lineId);
+        if (!$line) {
+            return ['ok' => false, 'message' => 'تعذّر فتح بند الزيارة الجديد.'];
+        }
     }
 
     // لا يُسمح بالدخول لعميل آخر قبل الخروج من الزيارة المفتوحة اليوم.

@@ -146,6 +146,19 @@ async function ensureVisitColumns() {
       }
     }
   }
+  // عدة زيارات لنفس العميل في نفس اليوم
+  try {
+    await db.query(`ALTER TABLE sal_rep_route_line DROP INDEX uq_sal_rep_route_line`);
+  } catch {
+    /* already dropped */
+  }
+  try {
+    await db.query(
+      `ALTER TABLE sal_rep_route_line ADD KEY idx_sal_rep_route_line_route_cust (route_id, customer_id)`
+    );
+  } catch {
+    /* exists */
+  }
 }
 
 async function ensureTourSchema() {
@@ -613,7 +626,11 @@ async function rebuildDailyRoutes(conn, salesRepId, from, to) {
       } catch {
         await conn.execute(`UPDATE sal_rep_route SET is_active=1 WHERE id=?`, [routeId]);
       }
-      await conn.execute(`DELETE FROM sal_rep_route_line WHERE route_id = ?`, [routeId]);
+      // لا تُحذف الزيارات المسجّلة — فقط البنود الفارغة ثم تُكمَّل الجولة
+      await conn.execute(
+        `DELETE FROM sal_rep_route_line WHERE route_id = ? AND visit_checkin_at IS NULL`,
+        [routeId]
+      );
     } else {
       try {
         const [ins] = await conn.execute(
@@ -631,12 +648,45 @@ async function rebuildDailyRoutes(conn, salesRepId, from, to) {
       }
     }
 
-    let sort = 0;
+    const [haveRows] = await conn.execute(
+      `SELECT customer_id FROM sal_rep_route_line WHERE route_id = ?`,
+      [routeId]
+    );
+    const haveCust = new Set((haveRows || []).map((r) => Number(r.customer_id || 0)).filter((id) => id > 0));
+    let sort = haveCust.size;
     for (const c of custRows) {
+      const cid = Number(c.customer_id);
+      if (cid < 1) continue;
+      if (haveCust.has(cid)) {
+        try {
+          await conn.execute(
+            `UPDATE sal_rep_route_line SET in_plan=1 WHERE route_id=? AND customer_id=?`,
+            [routeId, cid]
+          );
+        } catch {
+          /* */
+        }
+        continue;
+      }
       await conn.execute(
         `INSERT INTO sal_rep_route_line (route_id, customer_id, sort_order, in_plan) VALUES (?,?,?,1)`,
-        [routeId, Number(c.customer_id), sort++]
+        [routeId, cid, sort++]
       );
+      haveCust.add(cid);
+    }
+    // عملاء لديهم زيارات لكنهم خارج الجولة الحالية
+    try {
+      const planIds = custRows.map((c) => Number(c.customer_id)).filter((id) => id > 0);
+      if (planIds.length) {
+        const ph = planIds.map(() => '?').join(',');
+        await conn.execute(
+          `UPDATE sal_rep_route_line SET in_plan=0
+           WHERE route_id=? AND customer_id NOT IN (${ph}) AND visit_checkin_at IS NOT NULL`,
+          [routeId, ...planIds]
+        );
+      }
+    } catch {
+      /* */
     }
   }
 }

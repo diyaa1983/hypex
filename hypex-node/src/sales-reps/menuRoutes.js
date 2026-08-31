@@ -1447,8 +1447,9 @@ function visitTotals(rows) {
   }
   const h = Math.floor(mins / 60);
   const m = mins % 60;
+  const hasClosed = rows.some((r) => r.visit_checkin_at && r.visit_checkout_at);
   return {
-    duration_label: mins > 0 ? `${h}:${String(m).padStart(2, '0')}` : '—',
+    duration_label: hasClosed ? `${h}:${String(m).padStart(2, '0')}` : '—',
     sales_total: sales,
   };
 }
