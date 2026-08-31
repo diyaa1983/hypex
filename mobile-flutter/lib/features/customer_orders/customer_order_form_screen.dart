@@ -12,6 +12,7 @@ import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../services/customer_order_bluetooth_receipt.dart';
+import '../../services/document_print_helper.dart';
 import '../../services/location_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/item_picker.dart';
@@ -132,6 +133,120 @@ class _OrderLine {
   }
 }
 
+class _LineTableMetrics {
+  const _LineTableMetrics({
+    required this.barcode,
+    required this.item,
+    required this.unit,
+    required this.qty,
+    required this.extra,
+    required this.price,
+    required this.priceInc,
+    required this.tax,
+    required this.disc,
+    required this.total,
+    required this.del,
+    required this.font,
+    required this.heading,
+    required this.colSpacing,
+    required this.hMargin,
+    required this.compactTax,
+  });
+
+  final double barcode;
+  final double item;
+  final double unit;
+  final double qty;
+  final double extra;
+  final double price;
+  final double priceInc;
+  final double tax;
+  final double disc;
+  final double total;
+  final double del;
+  final double font;
+  final double heading;
+  final double colSpacing;
+  final double hMargin;
+  final bool compactTax;
+
+  double get minWidth =>
+      barcode +
+      item +
+      unit +
+      qty +
+      extra +
+      price +
+      priceInc +
+      tax +
+      disc +
+      total +
+      del +
+      hMargin * 2 +
+      colSpacing * 10;
+
+  factory _LineTableMetrics.fit(double avail, {required bool compact}) {
+    const weights = [
+      1.15,
+      1.70,
+      1.05,
+      0.70,
+      0.70,
+      0.92,
+      0.92,
+      0.78,
+      0.68,
+      0.88,
+      0.40,
+    ];
+    final sum = weights.fold<double>(0, (s, w) => s + w);
+    final tight = avail < 780;
+    final spacing = tight ? 3.0 : (avail < 1000 ? 5.0 : 10.0);
+    final margin = tight ? 3.0 : 6.0;
+    final inner = (avail - margin * 2 - spacing * 10).clamp(360.0, 4000.0);
+    final w = weights.map((x) => inner * x / sum).toList();
+    return _LineTableMetrics(
+      barcode: w[0],
+      item: w[1],
+      unit: w[2],
+      qty: w[3],
+      extra: w[4],
+      price: w[5],
+      priceInc: w[6],
+      tax: w[7],
+      disc: w[8],
+      total: w[9],
+      del: w[10],
+      font: avail < 700 ? 10.5 : (avail < 900 ? 11.5 : 13),
+      heading: avail < 700 ? 10 : (avail < 900 ? 11 : 13),
+      colSpacing: spacing,
+      hMargin: margin,
+      compactTax: avail < 980,
+    );
+  }
+
+  factory _LineTableMetrics.scroll({required bool compact}) {
+    return _LineTableMetrics(
+      barcode: 96,
+      item: 130,
+      unit: 92,
+      qty: 58,
+      extra: 58,
+      price: 86,
+      priceInc: 86,
+      tax: compact ? 110 : 150,
+      disc: 56,
+      total: 74,
+      del: 32,
+      font: compact ? 13 : 14,
+      heading: 13,
+      colSpacing: compact ? 8 : 10,
+      hMargin: compact ? 6 : 8,
+      compactTax: compact,
+    );
+  }
+}
+
 class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   bool _loading = true, _busy = false, _approved = false;
   String? _error, _orderNo, _salesRepName;
@@ -149,6 +264,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String? _arError;
   bool _autoSendOrders = true;
   bool _isSent = false;
+  final _orderNoCtrl = TextEditingController();
 
   bool get _editable => !_approved;
 
@@ -157,6 +273,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     super.initState();
     _id = widget.orderId ?? 0;
     _load();
+  }
+
+  @override
+  void dispose() {
+    _orderNoCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -364,6 +486,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           ..addAll(loaded);
         _loading = false;
       });
+      _orderNoCtrl.text = _orderNo ?? '';
       if (_customer != null) {
         await _loadArSummary(_customer!.id);
       }
@@ -565,6 +688,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             _id = localId;
             _orderNo = orderNo;
           });
+          _orderNoCtrl.text = orderNo;
           showSnack(
             context,
             _autoSendOrders
@@ -589,6 +713,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             _orderNo = Fmt.str(result['order_no']) == ''
                 ? _orderNo
                 : Fmt.str(result['order_no']);
+            _orderNoCtrl.text = _orderNo ?? '';
             _isSent = sent;
             if (result.containsKey('auto_send') ||
                 result.containsKey('auto_send_orders')) {
@@ -643,6 +768,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               _id = localId;
               _orderNo = orderNo;
             });
+            _orderNoCtrl.text = orderNo;
             showSnack(
               context,
               'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
@@ -796,6 +922,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       setState(() {
         _id = 0;
         _orderNo = '';
+        _orderNoCtrl.clear();
         _lines.clear();
       });
     } on ApiException catch (e) {
@@ -914,9 +1041,13 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     if (mounted) context.push('/customer-orders/$_id');
   }
 
+  Future<int> _ensureSavedId() async {
+    if (_id != 0) return _id;
+    return _save();
+  }
+
   Future<void> _print() async {
-    if (_id == 0 && await _save() == 0) return;
-    if (!mounted) return;
+    if (await _ensureSavedId() == 0 || !mounted) return;
     final data = _printData();
     await Navigator.push(
         context,
@@ -936,6 +1067,157 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 )));
   }
 
+  Future<void> _openPdf() async {
+    final id = await _ensureSavedId();
+    if (id == 0 || !mounted) return;
+    await DocumentPrintHelper.openPdfFromApi(
+      context,
+      apiPath: AppConfig.customerOrderPdfPath,
+      query: {'id': id},
+      title: 'طلب شراء',
+      fileName: 'طلب شراء - ${_orderNo ?? id}',
+    );
+  }
+
+  Future<void> _sharePdf() async {
+    final id = await _ensureSavedId();
+    if (id == 0 || !mounted) return;
+    await DocumentPrintHelper.sharePdfFromApi(
+      context,
+      apiPath: AppConfig.customerOrderPdfPath,
+      query: {'id': id},
+      fileName: 'طلب شراء - ${_orderNo ?? id}',
+    );
+  }
+
+  Future<void> _searchOrderByNo() async {
+    final q = _orderNoCtrl.text.trim();
+    if (q.isEmpty) {
+      showSnack(context, 'أدخل رقم الطلب للبحث.', error: true);
+      return;
+    }
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final api = context.read<ApiClient>();
+      final offline = context.read<OfflineController>();
+      final scopedCustomer =
+          widget.hideCustomerPicker ? _customer?.id : null;
+      List<Map<String, dynamic>> orders = [];
+      if (!offline.online && offline.catalogReady) {
+        orders = await OfflineStore.instance.listOrders(
+          customerId: scopedCustomer,
+          q: q,
+          limit: 30,
+        );
+      } else {
+        try {
+          final query = <String, dynamic>{'q': q, 'page': 1};
+          if (scopedCustomer != null && scopedCustomer > 0) {
+            query['customer_id'] = scopedCustomer;
+          }
+          final data = await api.getJson(
+            AppConfig.customerOrderListPath,
+            query: query,
+          );
+          orders = (data['orders'] as List? ?? [])
+              .whereType<Map>()
+              .map((e) => e.cast<String, dynamic>())
+              .toList();
+        } on ApiException {
+          if (!offline.catalogReady) rethrow;
+          orders = await OfflineStore.instance.listOrders(
+            customerId: scopedCustomer,
+            q: q,
+            limit: 30,
+          );
+        }
+      }
+      if (!mounted) return;
+      final needle = q.toLowerCase();
+      final exact = orders
+          .where((o) => Fmt.str(o['order_no']).toLowerCase() == needle)
+          .toList();
+      final starts = orders
+          .where((o) => Fmt.str(o['order_no']).toLowerCase().startsWith(needle))
+          .toList();
+      Map<String, dynamic>? picked;
+      if (exact.length == 1) {
+        picked = exact.first;
+      } else if (starts.length == 1) {
+        picked = starts.first;
+      } else if (orders.length == 1) {
+        picked = orders.first;
+      } else if (orders.isEmpty) {
+        showSnack(context, 'لا يوجد طلب بهذا الرقم.', error: true);
+        return;
+      } else {
+        picked = await showDialog<Map<String, dynamic>>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('اختر الطلب'),
+            content: SizedBox(
+              width: 420,
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  for (final o in (exact.isNotEmpty ? exact : starts.isNotEmpty ? starts : orders))
+                    ListTile(
+                      title: Text(
+                        Fmt.str(o['order_no']).isEmpty
+                            ? '#${Fmt.toInt(o['id'])}'
+                            : Fmt.str(o['order_no']),
+                        textDirection: TextDirection.ltr,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                      subtitle: Text(
+                        '${Fmt.dmy(Fmt.str(o['order_date']))} · ${Fmt.money(Fmt.toDouble(o['total']))}',
+                      ),
+                      onTap: () => Navigator.pop(ctx, o),
+                    ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء'),
+              ),
+            ],
+          ),
+        );
+      }
+      if (picked == null || !mounted) return;
+      final foundId = Fmt.toInt(picked['id']);
+      if (foundId == 0) {
+        showSnack(context, 'تعذر فتح الطلب.', error: true);
+        return;
+      }
+      if (foundId == _id) {
+        showSnack(context, 'الطلب مفتوح حالياً.');
+        return;
+      }
+      if (_lines.isNotEmpty) {
+        final ok = await showAppConfirmDialog(
+          context,
+          title: 'فتح طلب آخر',
+          message: 'سيتم استبدال البيانات الحالية بالطلب المحدد. المتابعة؟',
+          confirmLabel: 'فتح',
+        );
+        if (ok != true || !mounted) return;
+      }
+      setState(() => _id = foundId);
+      await _load();
+      if (mounted) widget.onSaved?.call(foundId);
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } catch (e) {
+      if (mounted) showSnack(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   bool _useWideOrderLayout(BuildContext context) {
     final s = MediaQuery.sizeOf(context);
     return s.shortestSide >= 550 || s.width >= 900;
@@ -945,7 +1227,6 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       _lines.fold<double>(0, (s, l) => s + l.lineGross);
 
   Widget _wideHeaderCard() {
-    final no = (_orderNo == null || _orderNo!.isEmpty) ? '—' : _orderNo!;
     final date = _orderDate.isEmpty ? Fmt.todayIso() : _orderDate;
     return Card(
       elevation: 2,
@@ -958,9 +1239,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           children: [
             Row(
               children: [
-                Expanded(
-                  child: _wideLabeledBox('رقم الطلب', no),
-                ),
+                Expanded(child: _wideOrderNoSearch()),
                 const SizedBox(width: 6),
                 Expanded(
                   child: _wideLabeledBox('التاريخ', Fmt.dmy(date)),
@@ -1004,6 +1283,108 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   'إضافة مادة',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
                 ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Expanded(
+                  child: _wideDocBtn(
+                    'حراري',
+                    Icons.print_outlined,
+                    _busy ? null : _print,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _wideDocBtn(
+                    'PDF',
+                    Icons.picture_as_pdf_outlined,
+                    _busy ? null : _openPdf,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: _wideDocBtn(
+                    'مشاركة',
+                    Icons.share_outlined,
+                    _busy ? null : _sharePdf,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _wideOrderNoSearch() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'رقم الطلب',
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSoft,
+          ),
+        ),
+        const SizedBox(height: 4),
+        SizedBox(
+          height: 38,
+          child: TextField(
+            controller: _orderNoCtrl,
+            enabled: !_busy,
+            textDirection: TextDirection.ltr,
+            textInputAction: TextInputAction.search,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            onSubmitted: (_) => _searchOrderByNo(),
+            decoration: InputDecoration(
+              hintText: 'بحث برقم الطلب',
+              hintStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+              isDense: true,
+              contentPadding: const EdgeInsetsDirectional.only(
+                start: 8,
+                end: 4,
+                top: 8,
+                bottom: 8,
+              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              suffixIcon: IconButton(
+                tooltip: 'بحث',
+                visualDensity: VisualDensity.compact,
+                onPressed: _busy ? null : _searchOrderByNo,
+                icon: const Icon(Icons.search_rounded, size: 20),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _wideDocBtn(String label, IconData icon, VoidCallback? onPressed) {
+    return SizedBox(
+      height: 34,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          visualDensity: VisualDensity.compact,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 14),
+            const SizedBox(width: 3),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -1151,6 +1532,10 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   Widget _buildWideOrderBody() {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final sideW = screenW < 1100
+        ? (screenW * 0.28).clamp(236.0, 286.0)
+        : 340.0;
     return ColoredBox(
       color: const Color(0xFFF5F5F5),
       child: Column(
@@ -1161,7 +1546,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(width: 340, child: _wideHeaderCard()),
+                  SizedBox(width: sideW, child: _wideHeaderCard()),
                   const SizedBox(width: 8),
                   Expanded(
                     child: DecoratedBox(
@@ -1170,17 +1555,23 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: AppTheme.border),
                       ),
-                      child: _lines.isEmpty
-                          ? const Center(
-                              child: Text(
-                                'لا توجد مواد. اضغط «إضافة مادة».',
-                                style: TextStyle(
-                                  color: AppTheme.textSoft,
-                                  fontWeight: FontWeight.w700,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: _lines.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'لا توجد مواد. اضغط «إضافة مادة».',
+                                  style: TextStyle(
+                                    color: AppTheme.textSoft,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                 ),
+                              )
+                            : _buildLinesTableScroll(
+                                compact: true,
+                                fitToWidth: true,
                               ),
-                            )
-                          : _buildLinesTableScroll(compact: true),
+                      ),
                     ),
                   ),
                 ],
@@ -1194,62 +1585,96 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  Widget _buildLinesTableScroll({required bool compact}) {
-    return child: SingleChildScrollView(
-  scrollDirection: Axis.horizontal,
-  child: DefaultTextStyle.merge(
-    style: const TextStyle(
-      fontSize: 14,
+  Widget _buildLinesTableScroll({
+    required bool compact,
+    bool fitToWidth = false,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final avail = constraints.maxWidth;
+        final metrics = fitToWidth && avail.isFinite && avail > 80
+            ? _LineTableMetrics.fit(avail, compact: compact)
+            : _LineTableMetrics.scroll(compact: compact);
+        final table = _buildLinesDataTable(metrics, compact: compact);
+        if (fitToWidth && avail.isFinite && avail > 80) {
+          return SingleChildScrollView(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: AlignmentDirectional.topStart,
+              child: SizedBox(width: avail, child: table),
+            ),
+          );
+        }
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: metrics.minWidth),
+            child: table,
+          ),
+        );
+      },
+    );
+  }
+
+  InputDecoration _lineFieldDecoration(_LineTableMetrics m) {
+    return InputDecoration(
+      isDense: true,
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: m.compactTax ? 2 : 4,
+        vertical: 2,
+      ),
+      border: const OutlineInputBorder(),
+    );
+  }
+
+  Widget _buildLinesDataTable(_LineTableMetrics m, {required bool compact}) {
+    final cellStyle = TextStyle(
+      fontSize: m.font,
       height: 1.15,
       fontWeight: FontWeight.w700,
-    ),
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 1120),
+      color: const Color(0xFF0F172A),
+    );
+    return DefaultTextStyle.merge(
+      style: cellStyle,
       child: DataTable(
-        headingRowHeight: compact ? 34 : 42,
-        dataRowMinHeight: compact ? 40 : 50,
-        dataRowMaxHeight: compact ? 44 : 54,
-        columnSpacing: 10,
-        horizontalMargin: 8,
-        headingTextStyle: const TextStyle(
-          fontSize: 13,
+        headingRowHeight: compact ? 32 : 42,
+        dataRowMinHeight: compact ? 36 : 50,
+        dataRowMaxHeight: compact ? 40 : 54,
+        columnSpacing: m.colSpacing,
+        horizontalMargin: m.hMargin,
+        headingTextStyle: TextStyle(
+          fontSize: m.heading,
           fontWeight: FontWeight.w900,
-          color: Color(0xFF475569),
+          color: const Color(0xFF475569),
         ),
-        dataTextStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w700,
-          color: Color(0xFF0F172A),
-        ),
-        columns: const [
-          DataColumn(label: Text('الباركود')),
-          DataColumn(label: Text('المادة')),
-          DataColumn(label: Text('الوحدة')),
-          DataColumn(label: Text('الكمية')),
-          DataColumn(label: Text('إضافية')),
-          DataColumn(label: Text('السعر غ ش')),
-          DataColumn(label: Text('السعر ش')),
-          DataColumn(label: Text('الضريبة')),
-          DataColumn(label: Text('خصم %')),
-          DataColumn(label: Text('المجموع')),
-          DataColumn(label: Text('')),
+        dataTextStyle: cellStyle,
+        columns: [
+          DataColumn(label: _tableHead('الباركود', m.barcode, m.heading)),
+          DataColumn(label: _tableHead('المادة', m.item, m.heading)),
+          DataColumn(label: _tableHead('الوحدة', m.unit, m.heading)),
+          DataColumn(label: _tableHead('الكمية', m.qty, m.heading)),
+          DataColumn(label: _tableHead('إضافية', m.extra, m.heading)),
+          DataColumn(label: _tableHead('السعر غ ش', m.price, m.heading)),
+          DataColumn(label: _tableHead('السعر ش', m.priceInc, m.heading)),
+          DataColumn(label: _tableHead('الضريبة', m.tax, m.heading)),
+          DataColumn(label: _tableHead('خصم %', m.disc, m.heading)),
+          DataColumn(label: _tableHead('المجموع', m.total, m.heading)),
+          DataColumn(label: SizedBox(width: m.del)),
         ],
         rows: [
           for (var i = 0; i < _lines.length; i++)
             DataRow(cells: [
               DataCell(
                 SizedBox(
-                  width: 96,
+                  width: m.barcode,
                   child: Text(
-                    _lines[i].barcode.isEmpty
-                        ? '—'
-                        : _lines[i].barcode,
+                    _lines[i].barcode.isEmpty ? '—' : _lines[i].barcode,
                     maxLines: 1,
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
-                      fontSize: 13,
+                    style: TextStyle(
+                      fontSize: m.font,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1257,45 +1682,34 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               DataCell(
                 SizedBox(
-                  width: 130,
+                  width: m.item,
                   child: Text(
                     _lines[i].item.name,
                     maxLines: 1,
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 14,
+                      fontSize: m.font,
                     ),
                   ),
                 ),
               ),
               DataCell(
                 SizedBox(
-                  width: 92,
+                  width: m.unit,
                   child: DropdownButtonFormField<int>(
                     key: ValueKey(
                         'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
                     isExpanded: true,
                     isDense: true,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF0F172A),
-                    ),
+                    style: cellStyle,
                     initialValue: _lines[i].unitId == 0
                         ? (_lines[i].item.units.isEmpty
                             ? null
                             : _lines[i].item.units.first.unitId)
                         : _lines[i].unitId,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: _lineFieldDecoration(m),
                     items: [
                       for (final u in _lines[i].item.units)
                         DropdownMenuItem(
@@ -1304,8 +1718,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                             u.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style:
-                                const TextStyle(fontSize: 13),
+                            style: TextStyle(fontSize: m.font),
                           ),
                         ),
                       if (_lines[i].item.units.isEmpty &&
@@ -1316,8 +1729,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                             _lines[i].unitName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style:
-                                const TextStyle(fontSize: 13),
+                            style: TextStyle(fontSize: m.font),
                           ),
                         ),
                     ],
@@ -1331,8 +1743,7 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                 .cast<ItemUnitOpt?>()
                                 .followedBy([null]).first;
                             setState(() {
-                              _lines[i].applyUnit(u,
-                                  unitIdOverride: v);
+                              _lines[i].applyUnit(u, unitIdOverride: v);
                             });
                           },
                   ),
@@ -1340,102 +1751,58 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               DataCell(
                 SizedBox(
-                  width: 58,
+                  width: m.qty,
                   child: TextFormField(
-                    key:
-                        ValueKey('qty-${_lines[i].item.id}-$i'),
+                    key: ValueKey('qty-${_lines[i].item.id}-$i'),
                     initialValue: '${_lines[i].qty}',
                     enabled: _editable,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: cellStyle,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly
-                    ],
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: _lineFieldDecoration(m),
                     onChanged: (v) => setState(() {
-                      _lines[i].qty = int.tryParse(v)
-                              ?.clamp(1, 999999999) ??
-                          1;
+                      _lines[i].qty =
+                          int.tryParse(v)?.clamp(1, 999999999) ?? 1;
                     }),
                   ),
                 ),
               ),
               DataCell(
                 SizedBox(
-                  width: 58,
+                  width: m.extra,
                   child: TextFormField(
-                    key: ValueKey(
-                        'extra-${_lines[i].item.id}-$i'),
+                    key: ValueKey('extra-${_lines[i].item.id}-$i'),
                     initialValue: '${_lines[i].qtyExtra}',
                     enabled: _editable,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: cellStyle,
                     keyboardType: TextInputType.number,
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly
-                    ],
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: _lineFieldDecoration(m),
                     onChanged: (v) => setState(() {
-                      _lines[i].qtyExtra = int.tryParse(v)
-                              ?.clamp(0, 999999999) ??
-                          0;
+                      _lines[i].qtyExtra =
+                          int.tryParse(v)?.clamp(0, 999999999) ?? 0;
                     }),
                   ),
                 ),
               ),
               DataCell(
                 SizedBox(
-                  width: 86,
+                  width: m.price,
                   child: TextFormField(
                     key: ValueKey(
                         'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                    initialValue:
-                        Fmt.trimNum(_lines[i].unitPrice),
+                    initialValue: Fmt.trimNum(_lines[i].unitPrice),
                     enabled: _editable,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                    ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(
+                    style: cellStyle.copyWith(fontWeight: FontWeight.w800),
+                    keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: _lineFieldDecoration(m),
                     onChanged: (v) => setState(() {
-                      final p = double.tryParse(
-                            v.replaceAll(',', ''),
-                          ) ??
-                          0;
+                      final p = double.tryParse(v.replaceAll(',', '')) ?? 0;
                       _lines[i].unitPrice = p;
                       if (_lines[i].unitFactor > 0) {
-                        _lines[i].basePrice =
-                            p / _lines[i].unitFactor;
+                        _lines[i].basePrice = p / _lines[i].unitFactor;
                       }
                     }),
                   ),
@@ -1443,46 +1810,43 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               DataCell(
                 SizedBox(
-                  width: 86,
+                  width: m.priceInc,
                   child: Text(
                     Fmt.money(_lines[i].unitPriceInclusive),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 13,
+                    style: TextStyle(
+                      fontSize: m.font,
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFF0F766E),
+                      color: const Color(0xFF0F766E),
                     ),
                   ),
                 ),
               ),
               DataCell(
                 SizedBox(
-                  width: 150,
+                  width: m.tax,
                   child: DropdownButtonFormField<int>(
                     key: ValueKey(
                         'tax-${_lines[i].item.id}-$i-${_lines[i].taxRateId}'),
                     initialValue: _lines[i].taxRateId,
                     isExpanded: true,
                     isDense: true,
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 3,
-                      ),
-                      border: OutlineInputBorder(),
-                    ),
+                    decoration: _lineFieldDecoration(m),
                     items: [
                       for (final tax in _taxRates)
                         DropdownMenuItem(
                           value: tax.id,
                           child: Text(
-                            '${tax.name} (${Fmt.trimNum(tax.rate)}%)',
+                            m.compactTax
+                                ? '${Fmt.trimNum(tax.rate)}%'
+                                : '${tax.name} (${Fmt.trimNum(tax.rate)}%)',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12.5,
+                            style: TextStyle(
+                              fontSize: m.font,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1491,14 +1855,12 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     onChanged: !_editable
                         ? null
                         : (id) {
-                            final matches = _taxRates
-                                .where((t) => t.id == id);
+                            final matches =
+                                _taxRates.where((t) => t.id == id);
                             if (matches.isEmpty) return;
                             setState(() {
-                              _lines[i].taxRateId =
-                                  matches.first.id;
-                              _lines[i].taxRatePercent =
-                                  matches.first.rate;
+                              _lines[i].taxRateId = matches.first.id;
+                              _lines[i].taxRatePercent = matches.first.rate;
                             });
                           },
                   ),
@@ -1506,31 +1868,18 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               DataCell(
                 SizedBox(
-                  width: 56,
+                  width: m.disc,
                   child: TextFormField(
-                    key: ValueKey(
-                        'disc-${_lines[i].item.id}-$i'),
+                    key: ValueKey('disc-${_lines[i].item.id}-$i'),
                     initialValue: _lines[i].discountPct <= 0
                         ? ''
                         : Fmt.trimNum(_lines[i].discountPct),
                     enabled: _editable,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                    ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(
+                    style: cellStyle,
+                    keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 4,
-                        vertical: 2,
-                      ),
-                      border: OutlineInputBorder(),
-                      hintText: '0',
-                    ),
+                    decoration: _lineFieldDecoration(m).copyWith(hintText: '0'),
                     onChanged: (v) => setState(() {
                       _lines[i].discountPct = (double.tryParse(
                                 v.replaceAll(',', ''),
@@ -1543,46 +1892,63 @@ class _CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               DataCell(
                 SizedBox(
-                  width: 74,
+                  width: m.total,
                   child: Text(
                     Fmt.money(_lines[i].lineGross),
                     maxLines: 1,
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      fontSize: 13,
+                      fontSize: m.font,
                     ),
                   ),
                 ),
               ),
               DataCell(
-                _editable
-                    ? IconButton(
-                        visualDensity: VisualDensity.compact,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
-                        ),
-                        onPressed: () =>
-                            setState(() => _lines.removeAt(i)),
-                        icon: const Icon(
-                          Icons.delete_outline_rounded,
-                          size: 18,
-                          color: Color(0xFFB91C1C),
-                        ),
-                      )
-                    : const SizedBox.shrink(),
+                SizedBox(
+                  width: m.del,
+                  child: _editable
+                      ? IconButton(
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: BoxConstraints(
+                            minWidth: m.del,
+                            minHeight: 28,
+                          ),
+                          onPressed: () => setState(() => _lines.removeAt(i)),
+                          icon: Icon(
+                            Icons.delete_outline_rounded,
+                            size: m.font + 4,
+                            color: const Color(0xFFB91C1C),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ),
             ]),
         ],
       ),
-    ),
-  ),
-),
+    );
   }
+
+  Widget _tableHead(String label, double width, double font) {
+    return SizedBox(
+      width: width,
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          fontSize: font,
+          fontWeight: FontWeight.w900,
+          color: const Color(0xFF475569),
+        ),
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
