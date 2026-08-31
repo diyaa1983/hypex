@@ -11,11 +11,6 @@ async function safeQuery(sql, params = []) {
   }
 }
 
-const repNamesSub = `(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.name_ar SEPARATOR '، ')
-                FROM crm_customer_sales_rep csr2
-                INNER JOIN crm_sales_rep r2 ON r2.id = csr2.sales_rep_id
-                WHERE csr2.customer_id = c.id)`;
-
 function customerListWhere({
   q = '',
   activeOnly = true,
@@ -52,23 +47,32 @@ function customerListWhere({
     where.push(`(
       c.name_ar LIKE ? OR c.code LIKE ? OR IFNULL(c.phone,'') LIKE ?
       OR IFNULL(c.email,'') LIKE ? OR IFNULL(c.tax_number,'') LIKE ?
-      OR IFNULL(rg.name_ar,'') LIKE ? OR IFNULL(r.name_ar,'') LIKE ?
-      OR IFNULL(${repNamesSub},'') LIKE ?
+      OR IFNULL(rg.name_ar,'') LIKE ? OR IFNULL(COALESCE(repn.names, r.name_ar),'') LIKE ?
     )`);
-    params.push(like, like, like, like, like, like, like, like);
+    params.push(like, like, like, like, like, like, like);
   }
   return { where, params };
 }
 
-const CUSTOMER_LIST_FROM = `FROM crm_customer c
+const CUSTOMER_LIST_FROM_CORE = `FROM crm_customer c
      LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
      LEFT JOIN crm_region rg ON rg.id = c.region_id
      LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id`;
 
+const CUSTOMER_LIST_FROM = `${CUSTOMER_LIST_FROM_CORE}
+     LEFT JOIN (
+       SELECT csr.customer_id,
+              GROUP_CONCAT(r2.name_ar ORDER BY csr.sort_order, r2.name_ar SEPARATOR '، ') AS names
+       FROM crm_customer_sales_rep csr
+       INNER JOIN crm_sales_rep r2 ON r2.id = csr.sales_rep_id
+       GROUP BY csr.customer_id
+     ) repn ON repn.customer_id = c.id`;
+
 async function countCustomers(opts = {}) {
   const { where, params } = customerListWhere(opts);
+  const from = String(opts.q || '') ? CUSTOMER_LIST_FROM : CUSTOMER_LIST_FROM_CORE;
   const rows = await safeQuery(
-    `SELECT COUNT(*) AS c ${CUSTOMER_LIST_FROM}
+    `SELECT COUNT(*) AS c ${from}
      WHERE ${where.join(' AND ')}`,
     params
   );
@@ -96,7 +100,7 @@ async function listCustomers({
             c.oracle_key, c.oracle_pending, c.payment_period, c.region_id,
             rg.name_ar AS region_name,
             ra.name_ar AS region_address_name,
-            COALESCE(${repNamesSub}, r.name_ar) AS sales_rep_name
+            COALESCE(repn.names, r.name_ar) AS sales_rep_name
      ${CUSTOMER_LIST_FROM}
      WHERE ${where.join(' AND ')}
      ORDER BY c.id DESC

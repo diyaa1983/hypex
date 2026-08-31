@@ -15,7 +15,7 @@ let cache = {
   at: 0,
 };
 
-const CACHE_MS = 15_000;
+const CACHE_MS = 60_000;
 
 function clampDp(n, fallback = 3) {
   const fb = Number.isFinite(Number(fallback)) ? Math.floor(Number(fallback)) : 3;

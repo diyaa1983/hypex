@@ -3,6 +3,7 @@ RewriteEngine On
 
 # PHP legacy entry / modules (embed + any remaining PHP screens)
 RewriteRule ^node-front\.php$ - [L]
+RewriteRule ^node-static\.php$ - [L]
 RewriteRule ^(index|login|logout|forgot_password|reset_password|activate_license|manifest|favicon)\.php$ - [L]
 RewriteRule ^sw\.js$ - [L]
 # APIs القديمة بصيغة api/*.php فقط — مسارات Node مثل /api/customers تُمرَّر لـ node-front
@@ -12,8 +13,19 @@ RewriteRule ^(modules|templates|lang|data|cron|database|config|includes|tools|de
 RewriteRule ^hypex-node(/|$) - [F]
 RewriteRule ^node_modules(/|$) - [F]
 
-# باقي المسارات (الواجهة + /api لـ Node + /assets + /uploads) → Node
+# CSS/JS من القرص مباشرة — بدون PHP+curl إلى Node (أسرع على ويندوز)
+RewriteRule ^assets/(css|js)/(.+)$ node-static.php?p=$1/$2 [QSA,L]
+
+# صور/ملفات مرفوعة موجودة على القرص
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^uploads/ - [L]
+
+# باقي المسارات (الواجهة + /api لـ Node) → Node
 RewriteRule ^(.*)$ node-front.php [QSA,L]
+</IfModule>
+
+<IfModule mod_deflate.c>
+AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
 </IfModule>
 
 <IfModule mod_expires.c>

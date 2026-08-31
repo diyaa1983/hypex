@@ -20,7 +20,7 @@ let cache = { ...DEFAULT };
 let lastLoad = 0;
 let loadPromise = null;
 
-const CACHE_MS = 5_000;
+const CACHE_MS = 60_000;
 
 function logoUrlFromPath(lp) {
   const raw = String(lp || '')
