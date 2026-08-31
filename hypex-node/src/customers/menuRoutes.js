@@ -185,6 +185,8 @@ function customerListQueryString(src = {}) {
   if (regionId > 0) p.set('region_id', String(regionId));
   if (String(src.all || '') === '1') p.set('all', '1');
   if (String(src.oracle_pending || '') === '1') p.set('oracle_pending', '1');
+  const customerId = Number(src.customer_id || 0) || 0;
+  if (customerId > 0) p.set('customer_id', String(customerId));
   return p.toString();
 }
 
@@ -194,7 +196,8 @@ function rememberCustomerListFilter(req) {
     Object.prototype.hasOwnProperty.call(req.query, 'q') ||
     Object.prototype.hasOwnProperty.call(req.query, 'region_id') ||
     Object.prototype.hasOwnProperty.call(req.query, 'all') ||
-    Object.prototype.hasOwnProperty.call(req.query, 'oracle_pending');
+    Object.prototype.hasOwnProperty.call(req.query, 'oracle_pending') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'customer_id');
   if (hasFilter) {
     req.session.customerListQs = customerListQueryString(req.query);
   }
@@ -237,9 +240,10 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
   const showAll = String(req.query.all || '') === '1';
   const oraclePending = String(req.query.oracle_pending || '') === '1';
   const regionId = Number(req.query.region_id || 0) || 0;
+  const customerId = Number(req.query.customer_id || 0) || 0;
   const regions = await q.regionOptions();
   const filter = {
-    q: qv,
+    q: '',
     activeOnly: !showAll,
     regionId,
     oraclePendingOnly: oraclePending,
@@ -256,20 +260,36 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     )
     .join('');
 
+  const selected = customerId > 0 ? rows.find((r) => Number(r.id) === customerId) : null;
+  const selectedLabel = selected
+    ? [String(selected.code || '').trim(), String(selected.name_ar || '').trim()].filter(Boolean).join(' — ')
+    : qv;
+  const hasPicked = !!selected;
+
   rememberCustomerListFilter(req);
 
   const filtersHtml = `
-    <div class="si-rail">
-      <form id="cust-list-filter" class="si-search" method="get" action="/customers/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1">
-        <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث بالرمز / الاسم / الهاتف…" autocomplete="off" style="flex:1;min-width:10rem">
-        <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:9rem">
-          <option value="0">كل المناطق</option>
-          ${regionOpts}
-        </select>
-        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+    <div class="si-rail" style="overflow:visible;border-radius:18px;align-items:flex-end">
+      <form id="cust-list-filter" method="get" action="/customers/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.55rem .65rem;align-items:flex-end;flex:1">
+        <label class="si-list-f" style="display:flex;flex-direction:column;gap:.18rem;flex:1 1 16rem;min-width:14rem;position:relative;z-index:5">
+          <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">العميل</span>
+          <div class="si-cust-wrap" style="position:relative;width:100%">
+            <input type="hidden" name="customer_id" id="cust-list-id" value="${hasPicked ? customerId : ''}">
+            <input class="si-field" type="search" name="q" id="cust-list-q" value="${ui.esc(selectedLabel)}" placeholder="ابحث بالرمز أو الاسم أو الهاتف…" autocomplete="off" style="width:100%;min-width:12rem;min-height:2.1rem">
+            <div class="si-suggest" id="cust-list-suggest" hidden></div>
+          </div>
+        </label>
+        <label class="si-list-f" style="display:flex;flex-direction:column;gap:.18rem;min-width:9rem">
+          <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">المنطقة</span>
+          <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:9rem">
+            <option value="0">كل المناطق</option>
+            ${regionOpts}
+          </select>
+        </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem">
           <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفين
         </label>
-        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem">
           <input type="checkbox" name="oracle_pending" value="1" ${oraclePending ? 'checked' : ''}> بانتظار ربط Oracle
         </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
@@ -294,7 +314,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           const searchBits = [r.code, r.name_ar, r.phone, r.region_name, r.sales_rep_name, pay]
             .map((v) => String(v || ''))
             .join(' ');
-          return `<tr data-search="${ui.esc(searchBits)}">
+          return `<tr data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
       <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
       <td>${ui.esc(r.name_ar || '')}${pay ? `<div class="muted" style="font-size:.72rem">${ui.esc(pay)}</div>` : ''}</td>
       <td class="si-num" dir="ltr">${dash(r.phone)}</td>
@@ -313,7 +333,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     subtitle: 'دليل العملاء — إضافة وتعديل على Node',
     headers: ['الرمز', 'الاسم', 'الهاتف', 'المنطقة', 'المندوب', 'الحالة', ''],
     rowsHtml,
-    count: total > rows.length ? `${rows.length} من ${total}` : total,
+    count: hasPicked ? `1 من ${total}` : total > rows.length ? `${rows.length} من ${total}` : total,
     phpRoute: 'customers',
     filtersHtml,
     tableClass: 'si-table si-table--lined',
@@ -321,16 +341,37 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
       (function () {
         var form = document.getElementById('cust-list-filter');
         if (!form) return;
-        var qInput = form.querySelector('input[name="q"]');
+        var qInput = document.getElementById('cust-list-q');
+        var idInput = document.getElementById('cust-list-id');
+        var box = document.getElementById('cust-list-suggest');
         var table = document.querySelector('.si-table--lined');
         var rows = table ? [].slice.call(table.querySelectorAll('tbody tr')) : [];
         var countEl = document.querySelector('.si-surface-head .si-count');
         var baseCount = ${Number(total) || 0};
 
+        function esc(s) {
+          return String(s || '').replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+          });
+        }
+        function pickedId() {
+          return Number(idInput && idInput.value ? idInput.value : 0) || 0;
+        }
+        function rowLabel(tr) {
+          var code = (tr.getAttribute('data-code') || '').trim();
+          var name = (tr.getAttribute('data-name') || '').trim();
+          if (code && name) return code + ' — ' + name;
+          return name || code;
+        }
         function listUrl() {
           var u = new URL('/customers/list', location.origin);
-          var q = (qInput && qInput.value ? qInput.value : '').trim();
-          if (q) u.searchParams.set('q', q);
+          var picked = pickedId();
+          if (picked > 0) {
+            u.searchParams.set('customer_id', String(picked));
+          } else {
+            var q = (qInput && qInput.value ? qInput.value : '').trim();
+            if (q) u.searchParams.set('q', q);
+          }
           var region = form.querySelector('[name="region_id"]');
           if (region && region.value && region.value !== '0') u.searchParams.set('region_id', region.value);
           var all = form.querySelector('[name="all"]');
@@ -339,36 +380,99 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           if (ora && ora.checked) u.searchParams.set('oracle_pending', '1');
           return u.pathname + u.search;
         }
-
         function persist() {
           var href = listUrl();
           try { sessionStorage.setItem('hypex_customers_list', href); } catch (e) {}
           if (history.replaceState) history.replaceState(null, '', href);
         }
-
-        function applyQ() {
+        function hideSuggest() {
+          if (box) { box.hidden = true; box.innerHTML = ''; }
+        }
+        function applyFilter() {
+          var picked = pickedId();
           var needle = (qInput && qInput.value ? qInput.value : '').trim().toLowerCase();
           var n = 0;
           rows.forEach(function (tr) {
             if (tr.querySelector('td.empty')) return;
-            var hay = (tr.getAttribute('data-search') || '').toLowerCase();
-            var ok = !needle || hay.indexOf(needle) !== -1;
+            var ok;
+            if (picked > 0) {
+              ok = Number(tr.getAttribute('data-id')) === picked;
+            } else {
+              var hay = (tr.getAttribute('data-search') || '').toLowerCase();
+              ok = !needle || hay.indexOf(needle) !== -1;
+            }
             tr.hidden = !ok;
             if (ok) n++;
           });
           if (countEl) {
-            countEl.textContent = needle ? (n + ' من ' + baseCount + ' صف') : (baseCount + ' صف');
+            countEl.textContent = (picked > 0 || needle) ? (n + ' من ' + baseCount + ' صف') : (baseCount + ' صف');
           }
           persist();
         }
-
-        if (qInput) {
-          qInput.addEventListener('input', applyQ);
-          if (qInput.value) applyQ();
+        function showSuggest() {
+          if (!box || !qInput) return;
+          if (pickedId() > 0) { hideSuggest(); return; }
+          var needle = (qInput.value || '').trim().toLowerCase();
+          if (!needle) { hideSuggest(); return; }
+          var html = '';
+          var n = 0;
+          rows.forEach(function (tr) {
+            if (tr.querySelector('td.empty')) return;
+            var hay = (tr.getAttribute('data-search') || '').toLowerCase();
+            if (hay.indexOf(needle) === -1) return;
+            n++;
+            if (n > 40) return;
+            html += '<button type="button" data-id="' + esc(tr.getAttribute('data-id') || '') + '">' +
+              esc(rowLabel(tr)) + '</button>';
+          });
+          if (!html) { hideSuggest(); return; }
+          box.innerHTML = html;
+          box.hidden = false;
         }
+        function pickRow(id) {
+          var tr = rows.filter(function (r) {
+            return Number(r.getAttribute('data-id')) === Number(id);
+          })[0];
+          if (!tr || !idInput || !qInput) return;
+          idInput.value = String(id);
+          qInput.value = rowLabel(tr);
+          hideSuggest();
+          applyFilter();
+        }
+        if (qInput) {
+          qInput.addEventListener('input', function () {
+            if (idInput) idInput.value = '';
+            applyFilter();
+            showSuggest();
+          });
+          qInput.addEventListener('focus', function () {
+            if (pickedId() > 0) qInput.select();
+            else showSuggest();
+          });
+          qInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') hideSuggest();
+          });
+        }
+        if (box) {
+          box.addEventListener('mousedown', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('button[data-id]') : null;
+            if (!btn) return;
+            e.preventDefault();
+            pickRow(btn.getAttribute('data-id'));
+          });
+        }
+        document.addEventListener('click', function (e) {
+          if (!box || box.hidden) return;
+          if (form.contains(e.target)) return;
+          hideSuggest();
+        });
+        form.addEventListener('submit', function () {
+          if (pickedId() > 0 && qInput) qInput.removeAttribute('name');
+        });
         form.querySelectorAll('select, input[type="checkbox"]').forEach(function (el) {
           el.addEventListener('change', function () { form.requestSubmit(); });
         });
+        if ((qInput && qInput.value) || pickedId() > 0) applyFilter();
         persist();
       })();
     </script>`,
