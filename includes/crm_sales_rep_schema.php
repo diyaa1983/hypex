@@ -276,6 +276,11 @@ function crm_customer_save_sales_reps(PDO $pdo, int $customerId, array $repIds):
         $primary = $resolved[0] ?? null;
         $pdo->prepare('UPDATE crm_customer SET sales_rep_id = ? WHERE id = ?')->execute([$primary, $customerId]);
     }
+    try {
+        $pdo->prepare('UPDATE crm_customer SET updated_at = NOW() WHERE id = ?')->execute([$customerId]);
+    } catch (Throwable $e) {
+        /* عمود updated_at اختياري */
+    }
 }
 
 /**

@@ -34,9 +34,6 @@ try {
 
     $uid = (int) (current_user()['id'] ?? 0);
     $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
-    if (user_is_system_admin()) {
-        $scopedRepId = null;
-    }
 
     // —— عملاء (كامل أو تزايدي منذ آخر تحديث) ——
     $sinceRaw = trim((string) ($_GET['since'] ?? ''));
@@ -144,6 +141,30 @@ try {
         } catch (Throwable $e) {
             $customersRemoved = [];
         }
+    }
+
+    $customerIds = [];
+    try {
+        $idSql = 'SELECT c.id FROM crm_customer c WHERE c.is_active = 1';
+        $idParams = [];
+        if ($scopedRepId !== null) {
+            [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+            $idSql .= ' AND ' . $linkSql;
+            $idParams = $linkParams;
+        }
+        $stIds = $pdo->prepare($idSql);
+        $stIds->execute($idParams);
+        foreach ($stIds->fetchAll(PDO::FETCH_ASSOC) ?: [] as $ir) {
+            $cid = (int) ($ir['id'] ?? 0);
+            if ($cid > 0) {
+                $customerIds[] = $cid;
+            }
+        }
+    } catch (Throwable $e) {
+        $customerIds = array_values(array_filter(array_map(
+            static fn(array $c): int => (int) ($c['id'] ?? 0),
+            $customers
+        )));
     }
 
     // —— مستودعات ——
@@ -584,6 +605,8 @@ try {
         ],
         'customers_delta' => $customersDelta,
         'customers_removed' => $customersRemoved,
+        'customers_scope_complete' => true,
+        'customer_ids' => $customerIds,
         'customers' => $customers,
         'warehouses' => $warehouses,
         'tax_rates' => $taxRatesOut,

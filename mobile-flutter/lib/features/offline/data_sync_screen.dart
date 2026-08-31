@@ -45,18 +45,6 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
     );
   }
 
-  Future<void> _flush() async {
-    final off = context.read<OfflineController>();
-    final n = await off.flushAndAutoPost(silent: false);
-    if (!mounted) return;
-    showSnack(
-      context,
-      off.statusMessage ??
-          (n > 0 ? 'تم ترحيل $n عملية.' : 'لا توجد عمليات معلّقة.'),
-      error: off.lastError != null && n == 0 && off.info.pendingOutbox > 0,
-    );
-  }
-
   String _fmtAt(String? iso) {
     if (iso == null || iso.isEmpty) return 'لم يتم التحديث بعد';
     try {
@@ -201,19 +189,18 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: off.busy || info.pendingOutbox < 1 ? null : _flush,
-                icon: const Icon(Icons.cloud_upload_rounded),
-                label: Text(
-                  info.pendingOutbox > 0
-                      ? 'ترحيل المعلّق الآن (${info.pendingOutbox})'
-                      : 'لا توجد عمليات معلّقة',
+              if (info.pendingOutbox > 0 || info.ordersPending > 0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'عمليات بانتظار الإرسال تُرحَّل تلقائياً عند عودة الاتصال.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      fontSize: tablet ? 12 : 13,
+                    ),
+                  ),
                 ),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: Size(double.infinity, tablet ? 46 : 44),
-                ),
-              ),
             ],
           ),
         ),
@@ -257,7 +244,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
           highlight: false,
         ),
       (
-        k: 'بانتظار الترحيل',
+        k: 'تُرحَّل تلقائياً',
         v: '${info.pendingOutbox}',
         highlight: info.pendingOutbox > 0,
       ),
@@ -292,10 +279,10 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
             SizedBox(height: compact ? 6 : 8),
             Text(
               compact
-                  ? 'حدّث وأنت متصل، ثم اعمل بدون إنترنت. عند عودة الشبكة تُرحَّل العمليات تلقائياً.'
-                  : '1) اضغط «تحديث البيانات» وأنت متصل: يُحمَّل العملاء منذ آخر تحديث، وجولات المندوب، وكشوف حساب العملاء، مع المواد والطلبات.\n'
-                      '2) بدون إنترنت يمكنك إضافة وتعديل وحذف العملاء، وحفظ الطلبات، وتسجيل دخول/خروج الزيارة.\n'
-                      '3) عند عودة الاتصال تُرحَّل العمليات تلقائياً، وكذلك عند فتح شاشات العملاء والجولات وكشف الحساب.',
+                  ? 'حدّث وأنت متصل لجلب عملاء المندوب والجولات. عند عودة الشبكة تُرحَّل العمليات تلقائياً.'
+                  : '1) اضغط «تحديث البيانات» وأنت متصل: تُحمَّل عملاء المندوب فقط، والجولات، والمواد والطلبات.\n'
+                      '2) بدون إنترنت يمكنك العمل من البيانات المحلية.\n'
+                      '3) عند عودة الاتصال تُرحَّل العمليات تلقائياً ويُحدَّث الربط والجولات بدون زر ترحيل يدوي.',
               style: TextStyle(
                 color: Colors.black.withValues(alpha: 0.7),
                 height: 1.4,

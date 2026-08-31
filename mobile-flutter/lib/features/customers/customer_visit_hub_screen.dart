@@ -268,18 +268,20 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       _listError = null;
     });
     try {
-      if (offline.catalogReady) {
-        final local = await _customersFromLocal(q);
-        if (!mounted) return;
-        setState(() {
-          _customers = local;
-          _listLoading = false;
-          _putOpenCustomerFirst();
-        });
-        // القائمة المحلية كافية للبحث؛ الشبكة فقط إن لم تكن هناك بيانات بعد.
-        if (q.isNotEmpty || local.isNotEmpty) return;
-      }
       if (!offline.online) {
+        if (offline.catalogReady) {
+          final local = await _customersFromLocal(q);
+          if (!mounted) return;
+          setState(() {
+            _customers = local;
+            _listLoading = false;
+            _listError = local.isEmpty
+                ? 'لا توجد بيانات محلية. حدّث البيانات وأنت متصل.'
+                : null;
+            _putOpenCustomerFirst();
+          });
+          return;
+        }
         if (!mounted) return;
         setState(() {
           _listLoading = false;
@@ -298,6 +300,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           .map((e) => e.cast<String, dynamic>())
           .toList();
       if (!mounted) return;
+      if (q.isEmpty) {
+        unawaited(OfflineStore.instance.replaceCustomersFromLive(list));
+      }
       setState(() {
         _customers = list;
         _listLoading = false;

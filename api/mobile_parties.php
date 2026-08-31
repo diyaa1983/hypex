@@ -27,10 +27,6 @@ $q = trim((string) ($_GET['q'] ?? ''));
 try {
     $pdo = db();
     $scopedRepId = $type === 'customer' ? crm_mobile_scoped_sales_rep_id($pdo) : null;
-    // مدير النظام يرى كل العملاء
-    if ($type === 'customer' && user_is_system_admin()) {
-        $scopedRepId = null;
-    }
     $params = [];
 
     if ($type === 'customer') {

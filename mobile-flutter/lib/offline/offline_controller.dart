@@ -83,7 +83,7 @@ class OfflineController extends ChangeNotifier {
     final was = serverReachable;
     if (!was) {
       _setReachable(true);
-      if (info.pendingOutbox > 0) {
+      if (info.pendingOutbox > 0 || info.ordersPending > 0) {
         unawaited(flushAndAutoPost());
       }
     }
@@ -253,7 +253,10 @@ class OfflineController extends ChangeNotifier {
   }
 
   /// زر «تحديث البيانات» — تحميل كامل الكتالوج من السيرفر.
-  Future<bool> pullCatalog({void Function(String step)? onStep}) async {
+  Future<bool> pullCatalog({
+    void Function(String step)? onStep,
+    bool forceFull = true,
+  }) async {
     if (!online && !serverReachable) {
       lastError = 'لا يوجد اتصال. اتصل بالإنترنت ثم حدّث البيانات.';
       statusMessage = lastError;
@@ -268,7 +271,7 @@ class OfflineController extends ChangeNotifier {
     onStep?.call(statusMessage!);
     notifyListeners();
     try {
-      final since = (info.syncedAt ?? '').trim();
+      final since = forceFull ? '' : (info.syncedAt ?? '').trim();
       final res = await api.getJson(
         AppConfig.syncPullPath,
         query: since.isEmpty ? const {} : {'since': since},

@@ -298,6 +298,25 @@ class OfflineStore {
         await custBatch.commit(noResult: true);
       }
 
+      final scopeComplete = payload['customers_scope_complete'] == true;
+      final scopeIds = (payload['customer_ids'] as List? ?? [])
+          .map((e) => (e as num?)?.toInt() ?? 0)
+          .where((e) => e > 0)
+          .toSet();
+      if (scopeComplete) {
+        final locals = await txn.query(
+          'customers',
+          columns: ['id'],
+          where: 'id > 0',
+        );
+        for (final row in locals) {
+          final id = (row['id'] as num?)?.toInt() ?? 0;
+          if (id > 0 && !scopeIds.contains(id)) {
+            await txn.delete('customers', where: 'id = ?', whereArgs: [id]);
+          }
+        }
+      }
+
       await txn.delete('warehouses');
       await txn.delete('tax_rates');
       await txn.delete('items');
@@ -567,6 +586,40 @@ class OfflineStore {
       'client_uuid': clientUuid ?? o['client_uuid']?.toString(),
       'payload_json': jsonEncode(o),
     };
+  }
+
+  /// استبدال عملاء السيرفر في الكاش بقائمة المندوب الحالية (بدون مسح العملاء المحليين السالبين).
+  Future<void> replaceCustomersFromLive(List<Map<String, dynamic>> rows) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      final localCustomers = await txn.query('customers', where: 'id < 0');
+      await txn.delete('customers', where: 'id > 0');
+      final batch = txn.batch();
+      for (final r in rows) {
+        final id = (r['id'] as num?)?.toInt() ?? 0;
+        if (id < 1) continue;
+        batch.insert(
+          'customers',
+          {
+            'id': id,
+            'name': (r['name'] ?? r['name_ar'] ?? '').toString(),
+            'code': (r['code'] ?? '').toString(),
+            'phone': (r['phone'] ?? '').toString(),
+            'address': (r['address'] ?? r['address_ar'] ?? '').toString(),
+            'latitude': r['latitude'],
+            'longitude': r['longitude'],
+            'payment_period': (r['payment_period'] as num?)?.toInt() ?? 0,
+            'use_wholesale_price':
+                (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+      for (final r in localCustomers) {
+        batch.insert('customers', r, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    });
   }
 
   Future<Map<String, dynamic>?> getCustomerById(int id) async {

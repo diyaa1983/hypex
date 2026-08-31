@@ -325,6 +325,11 @@ async function saveCustomerReps(customerId, repIds) {
   } catch {
     /* table optional */
   }
+  try {
+    await safeQuery(`UPDATE crm_customer SET updated_at = NOW() WHERE id = ?`, [customerId]);
+  } catch {
+    /* عمود updated_at اختياري */
+  }
 }
 
 async function getRegion(id) {
