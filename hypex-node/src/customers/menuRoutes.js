@@ -120,6 +120,8 @@ function listPage(res, user, opts) {
     extraActions = [],
     phpRoute,
     filtersHtml = '',
+    tableClass = 'si-table',
+    extraHtml = '',
   } = opts;
   const actions = [...extraActions, { label: 'لوحة العملاء', href: HUB }];
   
@@ -128,7 +130,8 @@ function listPage(res, user, opts) {
     <div class="si-stage">
       ${ui.hero({ mark, kicker: KICKER, title, subtitle, actions })}
       ${filtersHtml || (searchPath ? ui.railSearch(searchPath, qVal) : '')}
-      ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml)}
+      ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml, tableClass)}
+      ${extraHtml}
     </div>`;
   res.send(ui.salesPage({ user, title, bodyHtml: body }));
 }
@@ -174,6 +177,60 @@ function plainDash(v) {
   return s === '' ? '' : s;
 }
 
+function customerListQueryString(src = {}) {
+  const p = new URLSearchParams();
+  const qv = String(src.q || '').trim();
+  if (qv) p.set('q', qv);
+  const regionId = Number(src.region_id || 0) || 0;
+  if (regionId > 0) p.set('region_id', String(regionId));
+  if (String(src.all || '') === '1') p.set('all', '1');
+  if (String(src.oracle_pending || '') === '1') p.set('oracle_pending', '1');
+  return p.toString();
+}
+
+function rememberCustomerListFilter(req) {
+  if (!req.session) return;
+  const hasFilter =
+    Object.prototype.hasOwnProperty.call(req.query, 'q') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'region_id') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'all') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'oracle_pending');
+  if (hasFilter) {
+    req.session.customerListQs = customerListQueryString(req.query);
+  }
+}
+
+function customerListBackHref(req) {
+  const qs = req.session && req.session.customerListQs ? String(req.session.customerListQs) : '';
+  return '/customers/list' + (qs ? '?' + qs : '');
+}
+
+function safeCustomerListReturn(req, msg) {
+  const raw = String((req.body && req.body.return_to) || '').trim();
+  let qs = '';
+  if (
+    raw.startsWith('/customers/list') &&
+    !raw.includes('://') &&
+    !raw.includes('\\') &&
+    raw.indexOf('//') === -1
+  ) {
+    const qIndex = raw.indexOf('?');
+    const pathOnly = qIndex === -1 ? raw : raw.slice(0, qIndex);
+    if (pathOnly === '/customers/list') {
+      qs = qIndex === -1 ? '' : raw.slice(qIndex + 1);
+    }
+  }
+  if (!qs && req.session && req.session.customerListQs) {
+    qs = String(req.session.customerListQs);
+  }
+  const p = new URLSearchParams(qs);
+  p.delete('msg');
+  p.delete('err');
+  if (msg) p.set('msg', msg);
+  const s = p.toString();
+  return '/customers/list' + (s ? '?' + s : '');
+}
+
 /* ── Customers list ── */
 router.get('/customers/list', guard('customers'), async (req, res) => {
   const qv = String(req.query.q || '');
@@ -199,9 +256,11 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     )
     .join('');
 
+  rememberCustomerListFilter(req);
+
   const filtersHtml = `
     <div class="si-rail">
-      <form class="si-search" method="get" action="/customers/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1">
+      <form id="cust-list-filter" class="si-search" method="get" action="/customers/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1">
         <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث بالرمز / الاسم / الهاتف…" autocomplete="off" style="flex:1;min-width:10rem">
         <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:9rem">
           <option value="0">كل المناطق</option>
@@ -232,14 +291,17 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
             credit: 'ذمم',
           };
           const pay = payLabels[String(r.payment_period || '')] || '';
-          return `<tr>
+          const searchBits = [r.code, r.name_ar, r.phone, r.region_name, r.sales_rep_name, pay]
+            .map((v) => String(v || ''))
+            .join(' ');
+          return `<tr data-search="${ui.esc(searchBits)}">
       <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
       <td>${ui.esc(r.name_ar || '')}${pay ? `<div class="muted" style="font-size:.72rem">${ui.esc(pay)}</div>` : ''}</td>
       <td class="si-num" dir="ltr">${dash(r.phone)}</td>
       <td>${dash(r.region_name)}</td>
       <td>${dash(r.sales_rep_name)}</td>
       <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', Number(r.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
-      <td><a class="si-btn" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">${pending ? 'ربط Oracle' : 'تعديل'}</a></td>
+      <td><a class="si-btn js-keep-cust-list" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">${pending ? 'ربط Oracle' : 'تعديل'}</a></td>
     </tr>`;
         }
       )
@@ -254,6 +316,62 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     count: total > rows.length ? `${rows.length} من ${total}` : total,
     phpRoute: 'customers',
     filtersHtml,
+    tableClass: 'si-table si-table--lined',
+    extraHtml: `<script>
+      (function () {
+        var form = document.getElementById('cust-list-filter');
+        if (!form) return;
+        var qInput = form.querySelector('input[name="q"]');
+        var table = document.querySelector('.si-table--lined');
+        var rows = table ? [].slice.call(table.querySelectorAll('tbody tr')) : [];
+        var countEl = document.querySelector('.si-surface-head .si-count');
+        var baseCount = ${Number(total) || 0};
+
+        function listUrl() {
+          var u = new URL('/customers/list', location.origin);
+          var q = (qInput && qInput.value ? qInput.value : '').trim();
+          if (q) u.searchParams.set('q', q);
+          var region = form.querySelector('[name="region_id"]');
+          if (region && region.value && region.value !== '0') u.searchParams.set('region_id', region.value);
+          var all = form.querySelector('[name="all"]');
+          if (all && all.checked) u.searchParams.set('all', '1');
+          var ora = form.querySelector('[name="oracle_pending"]');
+          if (ora && ora.checked) u.searchParams.set('oracle_pending', '1');
+          return u.pathname + u.search;
+        }
+
+        function persist() {
+          var href = listUrl();
+          try { sessionStorage.setItem('hypex_customers_list', href); } catch (e) {}
+          if (history.replaceState) history.replaceState(null, '', href);
+        }
+
+        function applyQ() {
+          var needle = (qInput && qInput.value ? qInput.value : '').trim().toLowerCase();
+          var n = 0;
+          rows.forEach(function (tr) {
+            if (tr.querySelector('td.empty')) return;
+            var hay = (tr.getAttribute('data-search') || '').toLowerCase();
+            var ok = !needle || hay.indexOf(needle) !== -1;
+            tr.hidden = !ok;
+            if (ok) n++;
+          });
+          if (countEl) {
+            countEl.textContent = needle ? (n + ' من ' + baseCount + ' صف') : (baseCount + ' صف');
+          }
+          persist();
+        }
+
+        if (qInput) {
+          qInput.addEventListener('input', applyQ);
+          if (qInput.value) applyQ();
+        }
+        form.querySelectorAll('select, input[type="checkbox"]').forEach(function (el) {
+          el.addEventListener('change', function () { form.requestSubmit(); });
+        });
+        persist();
+      })();
+    </script>`,
     extraActions: [
       {
         label: '＋ عميل جديد',
@@ -994,6 +1112,7 @@ async function customerForm(req, res, id) {
   if (id && !row) return res.status(404).send('غير موجود');
   const isNew = !row;
   const err = String(req.query.err || '');
+  const listBack = customerListBackHref(req);
   let regions = await q.regionOptions();
   const reps = await q.salesRepOptions();
   const regionId = Number(row?.region_id || 0);
@@ -1116,7 +1235,7 @@ async function customerForm(req, res, id) {
             ? 'عميل مربوط بـ Oracle — الاسم مقفل · ' + esc(row.code || '')
             : esc(row.code || '') + ' — اختر المنطقة ثم العنوان ثم المندوب',
         actions: [
-          { label: 'القائمة', href: '/customers/list' },
+          { label: 'القائمة', href: listBack },
           { label: 'تعريف المناطق', href: '/customers/regions' },
         ],
       })}
@@ -1130,6 +1249,7 @@ async function customerForm(req, res, id) {
           أدخل رقم عميل Oracle (112…) للربط — سيُستبدل الرمز والاسم من Oracle.
         </p>
         <form method="post" action="/customers/${id}/link-oracle" class="si-meta" style="align-items:end;flex-wrap:wrap">
+          <input type="hidden" name="return_to" class="js-return-to" value="${esc(listBack)}">
           <label>رقم Oracle
             <input class="si-field si-field--mono" name="oracle_key" required dir="ltr" placeholder="11200001" autocomplete="off">
           </label>
@@ -1145,6 +1265,7 @@ async function customerForm(req, res, id) {
         </div>
         <form method="post" action="${isNew ? '/customers/new' : '/customers/' + id}" class="si-meta cf-form">
           <input type="hidden" name="id" value="${row ? row.id : 0}">
+          <input type="hidden" name="return_to" class="js-return-to" value="${esc(listBack)}">
           <div class="cf-body">
 
             <div class="cf-sec">
@@ -1290,13 +1411,23 @@ async function customerForm(req, res, id) {
 
             <div class="cf-foot">
               <button class="si-btn si-btn--primary" type="submit">حفظ العميل</button>
-              <a class="si-btn" href="/customers/list">إلغاء</a>
+              <a class="si-btn js-cust-list-back" href="${esc(listBack)}">إلغاء</a>
               <p class="cf-hint-line">التسلسل: العميل → المنطقة → العنوان → المندوب ثم الحفظ.</p>
             </div>
           </div>
         </form>
       </section>
     </div>
+    <script>
+      (function () {
+        var back = '';
+        try { back = sessionStorage.getItem('hypex_customers_list') || ''; } catch (e) {}
+        if (!back || back.indexOf('/customers/list') !== 0) return;
+        document.querySelectorAll('input.js-return-to').forEach(function (inp) { inp.value = back; });
+        document.querySelectorAll('a.js-cust-list-back').forEach(function (a) { a.href = back; });
+        document.querySelectorAll('a[href="/customers/list"]').forEach(function (a) { a.href = back; });
+      })();
+    </script>
     <script>
       (function () {
         var reg = document.getElementById('cust-region');
@@ -1479,7 +1610,7 @@ router.post('/customers/new', async (req, res) => {
   body.sales_rep_id = repId > 0 ? repId : null;
   const result = await masters.saveCustomer(body);
   if (!result.ok) return res.redirect('/customers/new?err=' + encodeURIComponent(result.error));
-  res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
+  res.redirect(safeCustomerListReturn(req, result.message || 'تم الحفظ'));
 });
 router.get('/api/customers/region-addresses', async (req, res) => {
   if (!can(req.session.user, 'customers') && !can(req.session.user, 'customer_regions')) {
@@ -1504,7 +1635,7 @@ router.post('/customers/:id', async (req, res, next) => {
   body.sales_rep_id = repId > 0 ? repId : null;
   const result = await masters.saveCustomer(body);
   if (!result.ok) return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.error));
-  res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
+  res.redirect(safeCustomerListReturn(req, result.message || 'تم الحفظ'));
 });
 
 router.post('/customers/:id/link-oracle', async (req, res, next) => {
@@ -1518,7 +1649,7 @@ router.post('/customers/:id/link-oracle', async (req, res, next) => {
   if (!result.ok) {
     return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.message || 'تعذر الربط'));
   }
-  res.redirect('/customers/list?msg=' + encodeURIComponent(result.message || 'تم ربط العميل بـ Oracle'));
+  res.redirect(safeCustomerListReturn(req, result.message || 'تم ربط العميل بـ Oracle'));
 });
 
 module.exports = router;

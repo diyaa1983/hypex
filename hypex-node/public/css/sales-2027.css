@@ -621,6 +621,32 @@ body.si-2027 .si-main::before {
   padding: 2.5rem 1rem !important;
 }
 
+.si-table--lined {
+  border-collapse: collapse;
+  border: 1px solid #b7c4d6;
+}
+.si-table--lined thead th {
+  border: 1px solid #9eb0c8;
+  background: #e4edf8;
+  color: #1e3a5f;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 0.8rem;
+}
+.si-table--lined tbody td {
+  border: 1px solid #c9d6e6;
+  background: #fff;
+}
+.si-table--lined tbody tr:nth-child(even) td {
+  background: #f3f7fb;
+}
+.si-table--lined tbody tr:hover td {
+  background: #e7f1fc;
+}
+.si-table--lined tbody tr[hidden] {
+  display: none;
+}
+
 .si-num {
   font-family: var(--si-mono);
   font-weight: 600;

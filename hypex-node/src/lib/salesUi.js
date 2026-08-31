@@ -147,8 +147,9 @@ function monthStart() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
-function tableSurface(title, countLabel, headers, rowsHtml) {
+function tableSurface(title, countLabel, headers, rowsHtml, tableClass = 'si-table') {
   const th = headers.map((h) => `<th>${esc(h)}</th>`).join('');
+  const cls = String(tableClass || 'si-table').trim() || 'si-table';
   return `
     <section class="si-surface">
       <div class="si-surface-head">
@@ -156,7 +157,7 @@ function tableSurface(title, countLabel, headers, rowsHtml) {
         <span class="si-count">${esc(countLabel)}</span>
       </div>
       <div class="si-table-wrap">
-        <table class="si-table">
+        <table class="${esc(cls)}">
           <thead><tr>${th}</tr></thead>
           <tbody>${rowsHtml}</tbody>
         </table>
