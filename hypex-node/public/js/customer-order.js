@@ -2434,7 +2434,7 @@
           showActionError(data);
           return;
         }
-        if (okRedirect) window.location.href = okRedirect;
+        if (okRedirect) window.location.href = hxPath(okRedirect);
         else window.location.reload();
       })
       .catch(function () {
@@ -3406,6 +3406,7 @@
 
   function leaveTo(href) {
     if (!href) return;
+    href = hxPath(href);
     if (window.ScreenExitGuard && typeof window.ScreenExitGuard.confirmLeave === 'function') {
       window.ScreenExitGuard.confirmLeave(function () {
         if (window.ScreenExitGuard.navigateExit) window.ScreenExitGuard.navigateExit(href);
@@ -3538,7 +3539,7 @@
       prevId: state.prev_id,
       nextId: state.next_id,
       lastId: state.last_id,
-      openPath: '/sales/orders',
+      openPath: hxPath('/sales/orders'),
       findApi: '/api/sales/customer-orders/by-no',
       currentNo: state.order_no || '',
       currentId: state.id || 0,

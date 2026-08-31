@@ -149,7 +149,7 @@ function assetVersion(relFromPublic) {
   ];
   for (const file of candidates) {
     try {
-      return String(Math.floor(fs.statSync(file).mtimeMs));
+      return String(Math.floor(fs.statSync(file).mtimeMs)) + '-p';
     } catch {
       /* try next */
     }

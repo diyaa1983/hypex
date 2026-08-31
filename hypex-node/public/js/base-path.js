@@ -50,8 +50,40 @@
         },
       });
     }
+    if (typeof loc.assign === 'function') {
+      var origAssign = loc.assign.bind(loc);
+      loc.assign = function (v) {
+        return origAssign(fix(String(v)));
+      };
+    }
+    if (typeof loc.replace === 'function') {
+      var origReplace = loc.replace.bind(loc);
+      loc.replace = function (v) {
+        return origReplace(fix(String(v)));
+      };
+    }
   } catch (e) {
-    /* ignore — rewriteJs covers most scripts */
+    /* ignore — rewriteJs / hxPath cover most scripts */
+  }
+
+  try {
+    var hist = window.history;
+    if (hist && typeof hist.pushState === 'function') {
+      var origPush = hist.pushState.bind(hist);
+      hist.pushState = function (state, title, url) {
+        if (typeof url === 'string') url = fix(url);
+        return origPush(state, title, url);
+      };
+    }
+    if (hist && typeof hist.replaceState === 'function') {
+      var origRep = hist.replaceState.bind(hist);
+      hist.replaceState = function (state, title, url) {
+        if (typeof url === 'string') url = fix(url);
+        return origRep(state, title, url);
+      };
+    }
+  } catch (e2) {
+    /* ignore */
   }
 
   window.__hypexUrl = fix;

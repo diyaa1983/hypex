@@ -68,7 +68,8 @@
         return;
       }
 
-      var base = openPath.replace(/\/?$/, '/');
+      var hx = typeof window.__hypexUrl === 'function' ? window.__hypexUrl : function (p) { return p; };
+      var base = String(hx(openPath) || openPath).replace(/\/?$/, '/');
       window.location.href = base + id;
     }
 

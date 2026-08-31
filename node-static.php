@@ -46,7 +46,32 @@ if ($mime === '') {
 }
 
 $mtime = (int) filemtime($file);
-$etag = '"' . dechex($mtime) . '-' . dechex(filesize($file)) . '"';
+$body = file_get_contents($file);
+if ($body === false) {
+    http_response_code(500);
+    exit;
+}
+
+// نفس rewriteJs في Node: مسارات الجذر داخل JS تحت /hypex
+if ($ext === 'js') {
+    $base = '/hypex';
+    $rewritten = preg_replace_callback(
+        '/([\'"`])(\/(?!\/)(?:api|assets|static|sales|purchases|customers|sales-reps|suppliers|accounting|inventory|hr|system|mobile|main|hub|menu|app|embed|login|logout|health|n)(?:\/[^\'"`]*)?)\1/',
+        static function (array $m) use ($base): string {
+            $path = $m[2];
+            if ($path === $base || str_starts_with($path, $base . '/')) {
+                return $m[0];
+            }
+            return $m[1] . $base . $path . $m[1];
+        },
+        $body
+    );
+    if (is_string($rewritten)) {
+        $body = $rewritten;
+    }
+}
+
+$etag = '"hx1-' . dechex($mtime) . '-' . dechex(strlen($body)) . '"';
 header('Content-Type: ' . $mime);
 header('Cache-Control: public, max-age=31536000, immutable');
 header('Last-Modified: ' . gmdate('D, d M Y H:i:s', $mtime) . ' GMT');
@@ -56,5 +81,5 @@ if ($inm === $etag) {
     http_response_code(304);
     exit;
 }
-header('Content-Length: ' . (string) filesize($file));
-readfile($file);
+header('Content-Length: ' . (string) strlen($body));
+echo $body;
