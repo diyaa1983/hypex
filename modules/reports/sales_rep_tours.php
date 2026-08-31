@@ -222,12 +222,13 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                 <th>وقت الدخول</th>
                 <th>وقت الخروج</th>
                 <th>مجموع الساعات</th>
-                <th>نوع الدخول/الخروج</th>
+                <th>نوع الدخول</th>
+                <th>نوع الخروج</th>
             </tr>
             </thead>
             <tbody>
             <?php if ($rows === []): ?>
-                <tr><td colspan="11" class="muted">لا جولات في الفترة المحددة.</td></tr>
+                <tr><td colspan="12" class="muted">لا جولات في الفترة المحددة.</td></tr>
             <?php else: ?>
                 <?php foreach ($rows as $i => $r): ?>
                     <?php $r = _tour_timing_row($r); ?>
@@ -248,7 +249,8 @@ $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . 
                         <td class="col-checkin" dir="ltr"><?= sal_rep_visit_timing_checkin_cell($r) ?></td>
                         <td class="col-checkout" dir="ltr"><?= sal_rep_visit_timing_checkout_cell($r) ?></td>
                         <td class="col-duration"><?= sal_rep_visit_timing_duration_cell($r) ?></td>
-                        <td class="col-method"><?= sal_rep_visit_timing_method_cell($r) ?></td>
+                        <td class="col-method"><?= sal_rep_visit_checkin_method_only_label($r) ?></td>
+                        <td class="col-checkout-method"><?= sal_rep_visit_checkout_method_only_label($r) ?></td>
                     </tr>
                 <?php endforeach; ?>
             <?php endif; ?>

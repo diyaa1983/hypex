@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import 'app.dart';
 import 'core/api_client.dart';
+import 'core/inbox_controller.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
 import 'offline/offline_controller.dart';
@@ -46,6 +47,8 @@ Future<void> main() async {
   };
   await session.boot();
   await offline.start();
+  final inbox = InboxController(api, session);
+  inbox.start();
 
   runApp(
     MultiProvider(
@@ -53,6 +56,7 @@ Future<void> main() async {
         Provider<ApiClient>.value(value: api),
         ChangeNotifierProvider<SessionController>.value(value: session),
         ChangeNotifierProvider<OfflineController>.value(value: offline),
+        ChangeNotifierProvider<InboxController>.value(value: inbox),
       ],
       child: const NammaApp(),
     ),

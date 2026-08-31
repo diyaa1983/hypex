@@ -57,7 +57,7 @@ foreach ($rows as $r) {
     }
 }
 $groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
-$colCount = $groupByRep ? 11 : 12;
+$colCount = $groupByRep ? 12 : 13;
 $grandTotals = sal_rep_visit_report_totals($rows);
 $livePoll = $from <= date('Y-m-d') && $to >= date('Y-m-d');
 
@@ -83,12 +83,13 @@ function sal_rep_visit_report_money(float $n): string
 
 function sal_rep_visit_report_totals_row_html(string $label, array $totals, int $colCount): string
 {
-    $labelSpan = max(1, $colCount - 3);
+    $labelSpan = max(1, $colCount - 4);
 
     return '<tr class="report-visits-totals-row">'
         . '<td colspan="' . $labelSpan . '" style="text-align:start"><strong>' . esc($label) . '</strong></td>'
         . '<td class="col-duration"><strong>' . esc((string) ($totals['duration_label'] ?? '—')) . '</strong></td>'
         . '<td class="col-method"></td>'
+        . '<td class="col-checkout-method"></td>'
         . '<td class="col-sales" dir="ltr"><strong>' . esc(sal_rep_visit_report_money((float) ($totals['sales_total'] ?? 0))) . '</strong></td>'
         . '</tr>';
 }
@@ -114,6 +115,7 @@ function sal_rep_visit_report_data_row_html(array $r, int $seq, bool $includeRep
     $html .= '<td class="col-checkout" dir="ltr">' . sal_rep_visit_timing_checkout_cell($r) . '</td>';
     $html .= '<td class="col-duration">' . sal_rep_visit_timing_duration_cell($r) . '</td>';
     $html .= '<td class="col-method">' . sal_rep_visit_checkin_method_only_label($r) . '</td>';
+    $html .= '<td class="col-checkout-method">' . sal_rep_visit_checkout_method_only_label($r) . '</td>';
     $html .= '<td class="col-sales" dir="ltr">' . esc($sales) . '</td>';
     $html .= '</tr>';
 
@@ -160,6 +162,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
 .report-sales-page.report-visits-page .col-checkout,
 .report-sales-page.report-visits-page .col-duration,
 .report-sales-page.report-visits-page .col-method,
+.report-sales-page.report-visits-page .col-checkout-method,
 .report-sales-page.report-visits-page .col-sales,
 .report-sales-page.report-visits-page .col-scope {
   max-width: none !important;
@@ -209,7 +212,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
 <div class="card report-sales-page report-visits-page">
     <header class="report-sales-header no-print">
         <h2>تقرير زيارات العملاء</h2>
-        <p class="muted">تسجيلات دخول/خروج المندوب — وقت الدخول · وقت الخروج · المدة · نوع الدخول · المبيعات</p>
+        <p class="muted">تسجيلات دخول/خروج المندوب — وقت الدخول · وقت الخروج · المدة · نوع الدخول · نوع الخروج · المبيعات</p>
         <p class="muted report-visits-count" id="hx-visits-live-count">
             <strong>عدد الزيارات:</strong> <?= count($rows) ?>
         </p>
@@ -310,6 +313,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                 <th>وقت الخروج</th>
                 <th>مجموع الساعات</th>
                 <th>نوع الدخول</th>
+                <th>نوع الخروج</th>
                 <th>المبيعات</th>
             </tr>
             </thead>
@@ -373,15 +377,16 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             html += '<td class="col-checkout" dir="ltr">' + esc(r.checkout_time || '—') + '</td>';
             html += '<td class="col-duration">' + esc(r.duration_label || '—') + '</td>';
             html += '<td class="col-method">' + esc(r.checkin_method_label || '—') + '</td>';
+            html += '<td class="col-checkout-method">' + esc(r.checkout_method_label || '—') + '</td>';
             html += '<td class="col-sales" dir="ltr">' + money(r.order_total) + '</td>';
             html += '</tr>';
             return html;
           }
           function totalsRow(label, t, cols) {
-            var labelSpan = Math.max(1, cols - 3);
+            var labelSpan = Math.max(1, cols - 4);
             return '<tr class="report-visits-totals-row"><td colspan="' + labelSpan + '" style="text-align:start"><strong>'
               + esc(label) + '</strong></td><td class="col-duration"><strong>' + esc(t.duration_label || '—')
-              + '</strong></td><td class="col-method"></td><td class="col-sales" dir="ltr"><strong>' + money(t.sales_total) + '</strong></td></tr>';
+              + '</strong></td><td class="col-method"></td><td class="col-checkout-method"></td><td class="col-sales" dir="ltr"><strong>' + money(t.sales_total) + '</strong></td></tr>';
           }
           function poll() {
             fetch(apiUrl + '?' + q.toString(), { credentials: 'same-origin' })
@@ -399,7 +404,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                   if (id > 0) repIds[id] = true;
                 });
                 var groupByRep = !q.get('sales_rep_id') && Object.keys(repIds).length > 1;
-                var colCount = groupByRep ? 11 : 12;
+                var colCount = groupByRep ? 12 : 13;
                 var html = '';
                 if (!rows.length) {
                   html = '<tr><td colspan="' + colCount + '" class="muted">لا تسجيلات زيارة في الفترة المحددة.</td></tr>';

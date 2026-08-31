@@ -169,18 +169,52 @@ class SessionController extends ChangeNotifier {
         ...device,
       },
     );
-    _apply(res);
-    if (wasAuth && !authenticated) {
+    final stillAuth = res['authenticated'] == true;
+    if (wasAuth && !stillAuth) {
       final reason = res['session_end_reason'] as String?;
-      if (reason == 'device_in_use' || reason == 'device_id_required') {
+      if (reason == 'device_in_use' ||
+          reason == 'device_id_required' ||
+          reason == 'admin_killed') {
+        _apply(res);
         lastError = (res['message'] as String?) ??
             'تم إنهاء الجلسة — الحساب مستخدم على جهاز آخر.';
         await _clearLocalSession(stopServices: true);
+        return;
       }
+      if (await _silentRelogin()) return;
+      return;
     }
+    _apply(res);
     LocationPresenceService.setCsrf(csrf);
     if (authenticated) {
       await _syncGpsTracking();
+    }
+  }
+
+  /// استعادة الجلسة من بيانات الدخول المحفوظة دون إخراج المستخدم من الشاشة.
+  Future<bool> _silentRelogin() async {
+    final saved = await savedCredentials();
+    final u = saved.u;
+    final p = saved.p;
+    if (u == null || p == null || u.isEmpty || p.isEmpty) return false;
+    try {
+      final device = await _deviceFields();
+      api.setDevice(device['device_id']!, label: device['device_label']!);
+      final res = await api.postForm(
+        AppConfig.sessionPath,
+        fields: {
+          'action': 'login',
+          'username': u,
+          'password': p,
+          ...device,
+        },
+      );
+      if (res['authenticated'] != true) return false;
+      _apply(res);
+      LocationPresenceService.setCsrf(csrf);
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -328,14 +362,16 @@ class SessionController extends ChangeNotifier {
       if (forceOn) {
         await LocationTrackingService.setEnabledFlag(true);
       }
-      final err = await LocationTrackingService.start();
-      if (err == null) {
-        await LocationPresenceService.start(
-          api: api,
-          csrf: csrf,
-          intervalSec: gpsConfig.intervalSec,
-        );
+      if (!await LocationTrackingService.isRunning) {
+        final err = await LocationTrackingService.start();
+        if (err != null) return;
       }
+      await LocationPresenceService.resumeIfNeeded(
+        api: api,
+        csrf: csrf,
+        authenticated: true,
+        intervalSec: gpsConfig.intervalSec,
+      );
       return;
     }
 

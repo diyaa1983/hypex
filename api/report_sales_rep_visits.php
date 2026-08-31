@@ -59,6 +59,7 @@ foreach ($rows as $r) {
             ($r['visit_checkout_at'] ?? '') !== '' ? (string) $r['visit_checkout_at'] : null
         )),
         'checkin_method_label' => sal_rep_visit_checkin_method_only_label($r),
+        'checkout_method_label' => sal_rep_visit_checkout_method_only_label($r),
         'order_total' => (float) ($r['order_total'] ?? 0),
         'order_count' => (int) ($r['order_count'] ?? 0),
         'status_label' => (string) ($r['status_label'] ?? ''),

@@ -256,6 +256,12 @@ function crm_customer_gps_change_decide(
     }
 
     crm_customer_gps_change_invalidate_header();
+    try {
+        require_once app_path('includes/sys_user_inbox.php');
+        sys_user_inbox_push_gps_decision($pdo, $row, $approve);
+    } catch (Throwable $e) {
+        error_log('gps inbox notify: ' . $e->getMessage());
+    }
 
     return [
         'ok' => true,

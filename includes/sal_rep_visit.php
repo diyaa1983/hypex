@@ -1358,6 +1358,16 @@ function sal_rep_visit_checkin_method_only_label(array $r): string
     return $cm;
 }
 
+function sal_rep_visit_checkout_method_only_label(array $r): string
+{
+    $cm = trim((string) ($r['checkout_method_label'] ?? ''));
+    if ($cm === '' || $cm === '—') {
+        return '—';
+    }
+
+    return $cm;
+}
+
 /** @return int دقائق الزيارة أو 0 */
 function sal_rep_visit_duration_minutes(?string $checkinAt, ?string $checkoutAt): int
 {

@@ -20,4 +20,11 @@ class VisitStatus {
     if (day == null || day != referenceDate) return 'idle';
     return 'checked_out';
   }
+
+  /// دخول/خروج يدوي — يقبل MANUAL أو النص العربي.
+  static bool isManualMethod(dynamic raw) {
+    final s = (raw ?? '').toString().trim().toUpperCase();
+    if (s.isEmpty) return false;
+    return s == 'MANUAL' || s.contains('يدوي');
+  }
 }

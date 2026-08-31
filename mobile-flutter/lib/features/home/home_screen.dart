@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
 import '../../core/config.dart';
+import '../../core/inbox_controller.dart';
 import '../../core/session.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
@@ -310,6 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
         (res['logo_url'] ?? '').toString(),
         serverBase: api.base,
       );
+      try {
+        await context.read<InboxController>().applyFromMap(res);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _company = (res['company_name'] ?? '').toString();
@@ -667,7 +671,12 @@ class _TileButton extends StatelessWidget {
                     height: compact ? 58 : 68,
                     width: compact ? 58 : 68,
                     child: art != null
-                        ? Image.asset(art, fit: BoxFit.contain)
+                        ? Image.asset(
+                            art,
+                            fit: BoxFit.contain,
+                            filterQuality: FilterQuality.low,
+                            cacheWidth: compact ? 128 : 160,
+                          )
                         : ShaderMask(
                             shaderCallback: (rect) => LinearGradient(
                               begin: Alignment.topCenter,

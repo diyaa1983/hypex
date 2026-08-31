@@ -159,17 +159,13 @@ class LocationTrackingService {
       defaultMinDistance;
 
   static Future<void> setInterval(int seconds) async {
+    final current = await intervalSec;
+    if (current == seconds) return;
     await FlutterForegroundTask.saveData(
       key: TrackKeys.intervalSec,
       value: seconds,
     );
-    if (await isRunning) {
-      await FlutterForegroundTask.updateService(
-        foregroundTaskOptions: ForegroundTaskOptions(
-          eventAction: ForegroundTaskEventAction.repeat(seconds * 1000),
-        ),
-      );
-    }
+    // لا تُحدَّث الخدمة وهي تعمل إلا عند تغيّر الفاصل — updateService يعيد تشغيل النشاط على بعض الأجهزة.
   }
 
   static Future<void> applyServerConfig({
@@ -272,16 +268,18 @@ class LocationTrackingService {
     }
     await FlutterForegroundTask.saveData(key: TrackKeys.enabled, value: true);
 
-    final result = await (await isRunning
-        ? FlutterForegroundTask.restartService()
-        : FlutterForegroundTask.startService(
-            serviceId: serviceId,
-            serviceTypes: const [ForegroundServiceTypes.location],
-            notificationTitle: 'تتبّع الموقع نشِط',
-            notificationText: 'يتم إرسال موقعك كل ${_humanInterval(seconds)}.',
-            notificationInitialRoute: '/home',
-            callback: startLocationTrackingTask,
-          ));
+    if (await isRunning) {
+      return null;
+    }
+
+    final result = await FlutterForegroundTask.startService(
+      serviceId: serviceId,
+      serviceTypes: const [ForegroundServiceTypes.location],
+      notificationTitle: 'تتبّع الموقع نشِط',
+      notificationText: 'يتم إرسال موقعك كل ${_humanInterval(seconds)}.',
+      notificationInitialRoute: '/home',
+      callback: startLocationTrackingTask,
+    );
 
     if (result is ServiceRequestFailure) {
       await FlutterForegroundTask.saveData(

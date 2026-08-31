@@ -150,8 +150,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Future<void> _startCheckout() async {
     if (_selected == null || _busy) return;
     if (!_canCheckout(_selected)) return;
-    final checkin = Fmt.str(_selected!['checkin_method']).toUpperCase();
-    if (checkin == 'MANUAL') {
+    if (VisitStatus.isManualMethod(_selected!['checkin_method'])) {
       await _checkout(manual: true);
       return;
     }
@@ -772,18 +771,22 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
       if (picked == null || picked.isEmpty) return;
       noOrderReasonIds = picked;
     }
+    final matchedManual =
+        manual && VisitStatus.isManualMethod(v['checkin_method']);
     final ok = await _confirm(
       'تأكيد تسجيل الخروج',
-      manual
-          ? 'تأكيد الخروج اليدوي من عند «$name»؟'
-          : 'تأكيد الخروج بـ GPS من عند «$name»؟',
+      matchedManual
+          ? 'تأكيد تسجيل الخروج من عند «$name»؟'
+          : (manual
+              ? 'تأكيد الخروج اليدوي من عند «$name»؟'
+              : 'تأكيد الخروج بـ GPS من عند «$name»؟'),
     );
     if (!ok || !mounted) return;
     final api = context.read<ApiClient>();
     final csrf = context.read<SessionController>().csrf;
     final offline = context.read<OfflineController>();
     String? reason;
-    if (manual) {
+    if (manual && !matchedManual) {
       reason = await showManualCheckoutReasonDialog(context);
       if (reason == null) return;
     }
@@ -1931,7 +1934,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                             });
                           },
                   ),
-                  if (Fmt.str(v['checkin_method']).toUpperCase() != 'MANUAL')
+                  if (!VisitStatus.isManualMethod(v['checkin_method']))
                     _BigActionButton(
                       label: 'خروج GPS',
                       hint: 'من موقع العميل',
@@ -1941,7 +1944,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
                     ),
                   _BigActionButton(
                     label: 'خروج يدوي',
-                    hint: Fmt.str(v['checkin_method']).toUpperCase() == 'MANUAL'
+                    hint: VisitStatus.isManualMethod(v['checkin_method'])
                         ? 'نفس طريقة الدخول اليدوي'
                         : 'يحتاج موافقة إذا كان الدخول GPS',
                     icon: Icons.output_rounded,

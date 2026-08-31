@@ -635,6 +635,24 @@ class OfflineStore {
     );
   }
 
+  Future<void> patchCustomerGps(
+    int id, {
+    double? latitude,
+    double? longitude,
+  }) async {
+    if (id == 0) return;
+    final db = await _db;
+    await db.update(
+      'customers',
+      {
+        'latitude': latitude,
+        'longitude': longitude,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<void> deleteLocalCustomer(int id) async {
     if (id == 0) return;
     final db = await _db;

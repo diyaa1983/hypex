@@ -34,7 +34,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _sessionTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+    _sessionTimer = Timer.periodic(const Duration(seconds: 90), (_) {
       _verifySession();
     });
   }
@@ -60,7 +60,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       await session.refreshMe();
       if (!mounted) return;
       final offline = context.read<OfflineController>();
-      if (offline.online) {
+      if (offline.online &&
+          (offline.info.pendingOutbox > 0 || offline.info.ordersPending > 0)) {
         await offline.flushAndAutoPost();
       }
     } catch (_) {}
@@ -68,7 +69,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final s = context.watch<SessionController>();
+    final canInvoice = context.select<SessionController, bool>(
+      (s) => s.can('m_sales_invoice_list'),
+    );
+    final canReceipt = context.select<SessionController, bool>(
+      (s) => s.can('m_receipt_list'),
+    );
     final tabs = <_Tab>[
       const _Tab(
         'الرئيسية',
@@ -76,14 +82,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         Icons.grid_view_rounded,
         HomeScreen(),
       ),
-      if (s.can('m_sales_invoice_list'))
+      if (canInvoice)
         const _Tab(
           'الفواتير',
           Icons.receipt_long_outlined,
           Icons.receipt_long_rounded,
           InvoiceListScreen(embedded: true),
         ),
-      if (s.can('m_receipt_list'))
+      if (canReceipt)
         const _Tab(
           'السندات',
           Icons.account_balance_wallet_outlined,

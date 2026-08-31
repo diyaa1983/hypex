@@ -158,8 +158,10 @@ class OfflineController extends ChangeNotifier {
         final was = serverReachable;
         _setReachable(ok);
         if (ok) {
-          await refreshInfo();
-          if (!was || initial || info.pendingOutbox > 0 || info.ordersPending > 0) {
+          if (!was || initial) {
+            await refreshInfo();
+            await flushAndAutoPost();
+          } else if (info.pendingOutbox > 0 || info.ordersPending > 0) {
             await flushAndAutoPost();
           }
           return;
@@ -240,9 +242,14 @@ class OfflineController extends ChangeNotifier {
   }
 
   Future<void> refreshInfo() async {
-    info = await store.syncInfo();
+    final next = await store.syncInfo();
+    final changed = next.hasData != info.hasData ||
+        next.pendingOutbox != info.pendingOutbox ||
+        next.ordersPending != info.ordersPending ||
+        next.syncedAt != info.syncedAt;
+    info = next;
     catalogReady = info.hasData;
-    notifyListeners();
+    if (changed) notifyListeners();
   }
 
   /// زر «تحديث البيانات» — تحميل كامل الكتالوج من السيرفر.

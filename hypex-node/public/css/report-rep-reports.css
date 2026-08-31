@@ -200,10 +200,12 @@
 .si-report-page.si-report-visits .si-col-checkout,
 .si-report-page.si-report-visits .si-col-duration,
 .si-report-page.si-report-visits .si-col-method,
+.si-report-page.si-report-visits .si-col-checkout-method,
 .si-report-page.si-report-tours .si-col-checkin,
 .si-report-page.si-report-tours .si-col-checkout,
 .si-report-page.si-report-tours .si-col-duration,
-.si-report-page.si-report-tours .si-col-method {
+.si-report-page.si-report-tours .si-col-method,
+.si-report-page.si-report-tours .si-col-checkout-method {
   max-width: none !important;
   overflow: visible !important;
   text-overflow: clip !important;
@@ -286,10 +288,12 @@
   .si-report-page.si-report-visits .si-col-checkout,
   .si-report-page.si-report-visits .si-col-duration,
   .si-report-page.si-report-visits .si-col-method,
+  .si-report-page.si-report-visits .si-col-checkout-method,
   .si-report-page.si-report-tours .si-col-checkin,
   .si-report-page.si-report-tours .si-col-checkout,
   .si-report-page.si-report-tours .si-col-duration,
   .si-report-page.si-report-tours .si-col-method,
+  .si-report-page.si-report-tours .si-col-checkout-method,
   .si-report-page.si-report-visits .si-col-timing,
   .si-report-page.si-report-tours .si-col-timing,
   .si-report-page.si-report-visits .si-col-status,

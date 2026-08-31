@@ -71,6 +71,7 @@ class LocationPresenceService {
       _timer = null;
       return;
     }
+    if (_timer != null) return;
     _armTimer();
     await pingNow();
   }

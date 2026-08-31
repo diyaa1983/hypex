@@ -261,34 +261,42 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   }
 
   Future<void> _loadCustomers() async {
-    setState(() {
-      if (_customers.isEmpty) _listLoading = true;
-      _listError = null;
-    });
     final offline = context.read<OfflineController>();
     final q = _search.text.trim();
+    setState(() {
+      if (_customers.isEmpty && !offline.catalogReady) _listLoading = true;
+      _listError = null;
+    });
     try {
-      List<Map<String, dynamic>> list;
-      if (!offline.online && offline.catalogReady) {
-        list = await _customersFromLocal(q);
-      } else {
-        try {
-          final res = await context.read<ApiClient>().getJson(
-            AppConfig.partiesPath,
-            query: {'type': 'customer', 'q': q},
-          );
-          list = (res['parties'] as List? ?? [])
-              .whereType<Map>()
-              .map((e) => e.cast<String, dynamic>())
-              .toList();
-        } on ApiException catch (e) {
-          if (offline.catalogReady && _isNetworkFail(e)) {
-            list = await _customersFromLocal(q);
-          } else {
-            rethrow;
-          }
-        }
+      if (offline.catalogReady) {
+        final local = await _customersFromLocal(q);
+        if (!mounted) return;
+        setState(() {
+          _customers = local;
+          _listLoading = false;
+          _putOpenCustomerFirst();
+        });
+        // القائمة المحلية كافية للبحث؛ الشبكة فقط إن لم تكن هناك بيانات بعد.
+        if (q.isNotEmpty || local.isNotEmpty) return;
       }
+      if (!offline.online) {
+        if (!mounted) return;
+        setState(() {
+          _listLoading = false;
+          if (_customers.isEmpty) {
+            _listError = 'لا توجد بيانات محلية. حدّث البيانات وأنت متصل.';
+          }
+        });
+        return;
+      }
+      final res = await context.read<ApiClient>().getJson(
+        AppConfig.partiesPath,
+        query: {'type': 'customer', 'q': q},
+      );
+      final list = (res['parties'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
       if (!mounted) return;
       setState(() {
         _customers = list;
@@ -418,9 +426,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       _selectedId == _openVisitCustomerId;
 
   bool get _openVisitWasManual {
-    final m = Fmt.str(_visit?['checkin_method']);
-    final raw = m.isNotEmpty ? m : _openVisitCheckinMethod;
-    return raw.toUpperCase() == 'MANUAL';
+    return VisitStatus.isManualMethod(_visit?['checkin_method']) ||
+        VisitStatus.isManualMethod(_openVisitCheckinMethod);
   }
 
   void _putOpenCustomerFirst() {
@@ -520,6 +527,11 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         final cin = isOpen
             ? Fmt.str(open['visit_checkin_at'])
             : (_visitCheckinAtByCustomer[id] ?? '');
+        final localMethod = isOpen
+            ? (Fmt.str(open?['method']).isNotEmpty
+                ? Fmt.str(open?['method'])
+                : Fmt.str(open?['checkin_method']))
+            : (_openVisitCustomerId == id ? _openVisitCheckinMethod : '');
         v = {
           'route_line_id': lineId,
           'status': isOpen || _openVisitCustomerId == id
@@ -527,6 +539,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
               : (_visitStatusByCustomer[id] ?? 'idle'),
           'visit_checkin_at': cin,
           'visit_checkout_at': _visitCheckoutAtByCustomer[id] ?? '',
+          'checkin_method': localMethod.isNotEmpty
+              ? localMethod
+              : _openVisitCheckinMethod,
           'order_id': _visitOrderId,
           'has_order': _visitOrderId > 0,
           'offline': true,
@@ -1009,7 +1024,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           );
           _putOpenCustomerFirst();
         });
-        await OfflineStore.instance.clearOpenVisit();
+        await _persistOpenVisit(
+          customerId: id,
+          checkinAt: _openVisitCheckinAt,
+          routeLineId: Fmt.toInt(visit?['route_line_id']),
+          method: _openVisitCheckinMethod.isNotEmpty
+              ? _openVisitCheckinMethod
+              : (manual ? 'MANUAL' : 'GPS'),
+        );
         await _refreshOpenVisit();
         await _selectCustomer(id);
       } on ApiException catch (e) {
@@ -1113,15 +1135,19 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           .join('، ');
       if (names.isNotEmpty) offlineReasonNames = names;
     }
+    final matchedManual = manual && _openVisitWasManual;
     final ok = await _confirm(
       'تأكيد تسجيل الخروج',
-      manual
-          ? 'تأكيد الخروج اليدوي من عند «$name»؟'
-          : 'تأكيد الخروج بـ GPS من عند «$name»؟',
+      matchedManual
+          ? 'تأكيد تسجيل الخروج من عند «$name»؟'
+          : (manual
+              ? 'تأكيد الخروج اليدوي من عند «$name»؟'
+              : 'تأكيد الخروج بـ GPS من عند «$name»؟'),
     );
     if (!ok || !mounted) return;
     String? reason;
-    if (manual) {
+    // سبب الخروج اليدوي مطلوب فقط إذا كان الدخول GPS ثم الخروج يدوي.
+    if (manual && !_openVisitWasManual) {
       reason = await showManualCheckoutReasonDialog(context);
       if (reason == null) return;
     }

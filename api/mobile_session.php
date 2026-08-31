@@ -37,6 +37,15 @@ function mobile_session_payload(array $extra = []): array
         $base['permissions'] = load_user_mobile_permissions($uid);
         $base['gps_tracking'] = mobile_gps_settings_for_app();
         $base['rows_per_page'] = company_rows_per_page();
+        try {
+            require_once app_path('includes/sys_user_inbox.php');
+            $inbox = sys_user_inbox_api_payload(db(), $uid);
+            $base['inbox_unread'] = $inbox['unread_count'];
+            $base['inbox_items'] = $inbox['items'];
+        } catch (Throwable $e) {
+            $base['inbox_unread'] = 0;
+            $base['inbox_items'] = [];
+        }
     } else {
         $base['user'] = null;
         $base['is_system_admin'] = false;

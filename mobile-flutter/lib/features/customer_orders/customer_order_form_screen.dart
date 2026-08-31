@@ -890,14 +890,44 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     return v == true || v == 1 || '$v' == '1';
   }
 
-  bool get _canPost => _autoSendOrders && !_isSent && !_approved;
+  bool get _isSaved => _id != 0;
+
+  /// الترحيل يعمل فقط بعد حفظ الطلب وبدون تعديلات معلّقة.
+  bool get _canPost => _isSaved && !isDirty && !_isSent && !_approved;
+
+  bool get _canStartNew => _isSaved && !_busy;
+
+  Future<void> _startNewOrder() async {
+    if (!_canStartNew) return;
+    if (isDirty) {
+      final ok = await confirmLeave();
+      if (!ok || !mounted) return;
+    }
+    setState(() {
+      _id = 0;
+      _orderNo = null;
+      _orderDate = Fmt.todayIso();
+      _orderNoCtrl.clear();
+      _notesCtrl.clear();
+      _lines.clear();
+      _isSent = false;
+      _approved = false;
+      _visitRouteLineId = widget.visitRouteLineId ?? 0;
+      _error = null;
+    });
+    _markClean();
+    if (mounted) {
+      showSnack(context, 'طلب جديد — أضف المواد ثم احفظ.');
+    }
+  }
 
   Future<void> _post() async {
-    if (!_canPost || _busy) return;
-    if (_id == 0) {
-      final saved = await _save();
-      if (saved == 0 || !mounted) return;
+    if (_busy) return;
+    if (!_isSaved || isDirty) {
+      showSnack(context, 'احفظ الطلب أولاً ثم اضغط ترحيل.', error: true);
+      return;
     }
+    if (!_canPost) return;
     if (_isSent) return;
     setState(() => _busy = true);
     final offline = context.read<OfflineController>();
@@ -1081,16 +1111,20 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             filled: true,
             onPressed: _busy || !_editable ? null : _save,
           ),
-          if (_canPost) ...[
-            const SizedBox(width: 8),
-            _actionBtn(
-              label: 'ترحيل',
-              icon: Icons.send_rounded,
-              filled: true,
-              color: AppTheme.teal,
-              onPressed: _busy ? null : _post,
-            ),
-          ],
+          const SizedBox(width: 8),
+          _actionBtn(
+            label: 'ترحيل',
+            icon: Icons.send_rounded,
+            filled: true,
+            color: AppTheme.teal,
+            onPressed: _busy || !_canPost ? null : _post,
+          ),
+          const SizedBox(width: 8),
+          _actionBtn(
+            label: 'طلب جديد',
+            icon: Icons.note_add_outlined,
+            onPressed: _canStartNew ? _startNewOrder : null,
+          ),
           const SizedBox(width: 8),
           _actionBtn(
             label: 'طباعة',
@@ -1876,6 +1910,22 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
                 child: const Text(
                   'ترحيل',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SizedBox(
+              height: 38,
+              child: FilledButton(
+                onPressed: _canStartNew ? _startNewOrder : null,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                ),
+                child: const Text(
+                  'طلب جديد',
                   style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
                 ),
               ),

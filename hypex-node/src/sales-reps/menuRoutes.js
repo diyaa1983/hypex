@@ -1414,10 +1414,12 @@ function visitTimingCells(r, durationFn, methodLblFn) {
   const cout = fmtTimeOnly(r.visit_checkout_at) || '—';
   const dur = durationFn(r.visit_checkin_at, r.visit_checkout_at);
   const checkinMethod = methodLblFn(r.checkin_method);
+  const checkoutMethod = methodLblFn(r.checkout_method);
   return `<td class="si-col-checkin" dir="ltr">${cin}</td>
       <td class="si-col-checkout" dir="ltr">${cout}</td>
       <td class="si-col-duration">${dur}</td>
-      <td class="si-col-method">${checkinMethod}</td>`;
+      <td class="si-col-method">${checkinMethod}</td>
+      <td class="si-col-checkout-method">${checkoutMethod}</td>`;
 }
 
 function customerNameOnly(r) {
@@ -1681,7 +1683,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
       ${visitTimingCells(r, durationLabel, methodLabel)}
     </tr>`
       )
-      .join('') || ui.emptyRow(11, 'لا جولات في الفترة المحددة');
+      .join('') || ui.emptyRow(12, 'لا جولات في الفترة المحددة');
 
   const body = `
     <div class="si-stage si-report-page si-report-tours" data-hx-print-landscape="1">
@@ -1745,7 +1747,8 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
           'وقت الدخول',
           'وقت الخروج',
           'مجموع الساعات',
-          'نوع الدخول/الخروج',
+          'نوع الدخول',
+          'نوع الخروج',
         ],
         rowsHtml
       )}
@@ -1883,7 +1886,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
   const canDeleteVisits = can(req.session.user, 'action_delete_sales_rep_visit');
-  const baseColCount = groupByRep ? 11 : 12;
+  const baseColCount = groupByRep ? 12 : 13;
   const colCount = baseColCount + (canDeleteVisits ? 1 : 0);
   const grandTotals = visitTotals(rows);
 
@@ -1915,11 +1918,12 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   }
 
   function totalsRow(label, t, cols) {
-    const labelSpan = Math.max(1, cols - 3);
+    const labelSpan = Math.max(1, cols - 4);
     return `<tr class="si-visits-totals-row">
       <td colspan="${labelSpan}" style="text-align:start"><strong>${esc(label)}</strong></td>
       <td class="si-col-duration"><strong>${esc(t.duration_label)}</strong></td>
       <td class="si-col-method"></td>
+      <td class="si-col-checkout-method"></td>
       <td class="si-col-sales" dir="ltr"><strong>${visitMoney(t.sales_total)}</strong></td>
     </tr>`;
   }
@@ -1971,6 +1975,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'وقت الخروج',
         'مجموع الساعات',
         'نوع الدخول',
+        'نوع الخروج',
         'المبيعات',
       ]
     : [
@@ -1985,6 +1990,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'وقت الخروج',
         'مجموع الساعات',
         'نوع الدخول',
+        'نوع الخروج',
         'المبيعات',
       ]).map((h) => esc(h));
   if (canDeleteVisits) visitHeaders.unshift('');

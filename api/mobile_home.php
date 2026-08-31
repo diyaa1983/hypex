@@ -39,6 +39,15 @@ try {
     }, mobile_home_launcher_tiles());
 
     $brand = document_header_brand_api($pdo);
+    $inboxUnread = 0;
+    $inboxItems = [];
+    try {
+        require_once app_path('includes/sys_user_inbox.php');
+        $inbox = sys_user_inbox_api_payload($pdo, $uid);
+        $inboxUnread = $inbox['unread_count'];
+        $inboxItems = $inbox['items'];
+    } catch (Throwable $e) {
+    }
 
     echo json_encode([
         'ok' => true,
@@ -50,6 +59,8 @@ try {
         ],
         'permissions' => load_user_mobile_permissions($uid),
         'tiles' => $tiles,
+        'inbox_unread' => $inboxUnread,
+        'inbox_items' => $inboxItems,
     ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 } catch (Throwable $e) {
     error_log('mobile_home: ' . $e->getMessage());

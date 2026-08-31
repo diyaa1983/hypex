@@ -1335,6 +1335,12 @@ async function decideGpsChangeRequest({ id, approve, userId, note = null }) {
       [approve ? 'approved' : 'rejected', uid, noteVal, reqId]
     );
     await conn.commit();
+    try {
+      const inbox = require('../notifications/userInbox');
+      await inbox.pushGpsDecision(req, !!approve);
+    } catch (e) {
+      console.error('gps inbox notify', e.message);
+    }
     return {
       ok: true,
       message: approve ? 'تم اعتماد موقع العميل.' : 'تم رفض تعديل الموقع.',
