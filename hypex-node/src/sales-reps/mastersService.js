@@ -1129,6 +1129,18 @@ async function reportVisits({
                   AND o.created_at >= l.visit_checkin_at
               ) AS order_count,
               (
+                SELECT GROUP_CONCAT(o.order_no ORDER BY o.id SEPARATOR '، ')
+                FROM sal_customer_order o
+                WHERE o.visit_route_line_id = l.id
+                  AND o.created_at >= l.visit_checkin_at
+              ) AS order_numbers,
+              (
+                SELECT MIN(o.id)
+                FROM sal_customer_order o
+                WHERE o.visit_route_line_id = l.id
+                  AND o.created_at >= l.visit_checkin_at
+              ) AS first_order_id,
+              (
                 SELECT COALESCE(SUM(o.total), 0)
                 FROM sal_customer_order o
                 WHERE o.visit_route_line_id = l.id

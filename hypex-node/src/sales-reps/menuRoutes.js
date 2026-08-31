@@ -8,8 +8,7 @@ const q = require('./domainQueries');
 const masters = require('./mastersService');
 const ui = require('../lib/salesUi');
 const { salesRepsCatalog } = require('./catalog');
-const { esc } = require('../lib/html');
-const { todayIso } = require('../lib/html');
+const { esc, todayIso, parseDateToIso } = require('../lib/html');
 const { renderStandalonePrintPage } = require('../lib/printBrand');
 
 const router = express.Router();
@@ -1778,8 +1777,8 @@ router.get('/sales-reps/reports/visits/data', async (req, res) => {
   }
   await masters.ensureTourSchema();
   const today = todayIso();
-  const from = String(req.query.from || '').slice(0, 10) || today;
-  const to = String(req.query.to || '').slice(0, 10) || today;
+  const from = parseDateToIso(req.query.from || '', today);
+  const to = parseDateToIso(req.query.to || '', today);
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
   const customerId = Number(req.query.customer_id || 0) || 0;
   const method = String(req.query.method || '').toUpperCase();
@@ -1812,8 +1811,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   await masters.ensureTourSchema();
   const today = todayIso();
-  const from = String(req.query.from || '').slice(0, 10) || today;
-  const to = String(req.query.to || '').slice(0, 10) || today;
+  const from = parseDateToIso(req.query.from || '', today);
+  const to = parseDateToIso(req.query.to || '', today);
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
   const customerId = Number(req.query.customer_id || 0) || 0;
   const method = String(req.query.method || '').toUpperCase();
@@ -1886,7 +1885,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
   const canDeleteVisits = can(req.session.user, 'action_delete_sales_rep_visit');
-  const baseColCount = groupByRep ? 12 : 13;
+  const baseColCount = groupByRep ? 13 : 14;
   const colCount = baseColCount + (canDeleteVisits ? 1 : 0);
   const grandTotals = visitTotals(rows);
 
@@ -1904,6 +1903,16 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     return `<td class="no-print si-col-select"><input type="checkbox" class="hx-visit-pick" value="${lineId}"${disabled}></td>`;
   }
 
+  function orderNoCell(r) {
+    const nos = String(r.order_numbers || '').trim();
+    if (!nos) return '<td class="si-col-order">—</td>';
+    const oid = Number(r.first_order_id || 0);
+    if (oid > 0) {
+      return `<td class="si-col-order" dir="ltr"><a class="si-link" href="/sales/orders/${oid}">${esc(nos)}</a></td>`;
+    }
+    return `<td class="si-col-order" dir="ltr">${esc(nos)}</td>`;
+  }
+
   function visitDataCells(r, seq, includeRep) {
     const reason = esc(r.no_order_reasons || '—');
     return `<td class="si-num" dir="ltr">${seq}</td>
@@ -1912,6 +1921,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       <td class="si-col-customer">${customerNameOnly(r)}</td>
       <td class="si-col-scope">${scopeLbl(r)}</td>
       <td class="si-col-reason" title="${reason}">${reason}</td>
+      ${orderNoCell(r)}
       <td class="si-col-location">${locationInline(r)}</td>
       ${visitTimingCells(r, durationLabel, methodLabel)}
       <td class="si-col-sales" dir="ltr">${visitMoney(r.order_total)}</td>`;
@@ -1970,6 +1980,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'العميل',
         'النطاق',
         'سبب عدم الطلب',
+        'رقم الطلب',
         'الموقع',
         'وقت الدخول',
         'وقت الخروج',
@@ -1985,6 +1996,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'العميل',
         'النطاق',
         'سبب عدم الطلب',
+        'رقم الطلب',
         'الموقع',
         'وقت الدخول',
         'وقت الخروج',
@@ -2074,8 +2086,18 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         <script>
         (function(){
           var days = ['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-          function weekday(iso){
-            if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(iso||'')) return '';
+          function toIso(v){
+            v = String(v||'').trim();
+            if (/^\\d{4}-\\d{2}-\\d{2}$/.test(v)) return v;
+            var m = v.match(/^(\\d{1,2})[\\/.\\-](\\d{1,2})[\\/.\\-](\\d{4})$/);
+            if (!m) return '';
+            var d = Number(m[1]), mo = Number(m[2]), y = Number(m[3]);
+            if (d < 1 || d > 31 || mo < 1 || mo > 12) return '';
+            return y + '-' + String(mo).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+          }
+          function weekday(v){
+            var iso = toIso(v);
+            if (!iso) return '';
             var d = new Date(iso + 'T12:00:00');
             return Number.isNaN(d.getTime()) ? '' : (days[d.getDay()]||'');
           }
