@@ -8,6 +8,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../core/config.dart';
+import 'local_alert_service.dart';
 import 'location_service.dart';
 
 /// مفاتيح التخزين المشتركة بين الواجهة و isolate الخدمة.
@@ -27,6 +28,7 @@ class TrackKeys {
   static const lastStatus = 'trk_last_status';
   static const deviceId = 'trk_device_id';
   static const deviceLabel = 'trk_device_label';
+  static const inboxWatermark = 'trk_inbox_watermark';
 }
 
 /// حالة مختصرة تُعرض في شاشة الإعدادات.
@@ -366,10 +368,12 @@ class _TrackingTaskHandler extends TaskHandler {
   String _csrf = '';
   bool _authenticated = false;
   bool _busy = false;
+  bool _inboxBusy = false;
   int _sent = 0;
   double? _lastLat;
   double? _lastLng;
   int _lastSentMs = 0;
+  int _lastInboxPollMs = 0;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
@@ -395,13 +399,16 @@ class _TrackingTaskHandler extends TaskHandler {
     );
     _dio!.interceptors.add(_MemoryCookieInterceptor());
 
+    await LocalAlertService.init();
     await _login();
     await _tick(force: true);
+    await _pollInbox();
   }
 
   @override
   void onRepeatEvent(DateTime timestamp) {
     _tick();
+    _pollInbox();
   }
 
   @override
@@ -417,6 +424,78 @@ class _TrackingTaskHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     _dio?.close(force: true);
+  }
+
+  Future<void> _pollInbox() async {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (_inboxBusy || now - _lastInboxPollMs < 20000) return;
+    _inboxBusy = true;
+    _lastInboxPollMs = now;
+    try {
+      if (!_authenticated && !await _login()) return;
+      final deviceId =
+          await FlutterForegroundTask.getData<String>(key: TrackKeys.deviceId) ??
+              '';
+      var map = <String, dynamic>{};
+      try {
+        final res = await _dio!.get(
+          '$_base/${AppConfig.inboxPath}',
+          queryParameters: {'device_id': deviceId},
+        );
+        map = _asMap(res.data);
+      } catch (_) {}
+      if (map['ok'] != true) {
+        try {
+          final res = await _dio!.get(
+            '$_base/${AppConfig.inboxNodePath}',
+            queryParameters: {'device_id': deviceId},
+            options: Options(headers: {'X-Device-Id': deviceId}),
+          );
+          map = _asMap(res.data);
+        } catch (_) {}
+      }
+      if (map['ok'] != true) return;
+      final raw = map['items'] ?? map['inbox_items'];
+      final list = (raw as List? ?? []).whereType<Map>().toList();
+      var maxId = 0;
+      final unreadNew = <Map>[];
+      for (final row in list) {
+        final id = int.tryParse('${row['id'] ?? 0}') ?? 0;
+        if (id > maxId) maxId = id;
+        final read = row['is_read'] == true || row['is_read'] == 1;
+        if (!read && id > 0) unreadNew.add(row);
+      }
+      final watermark =
+          await FlutterForegroundTask.getData<int>(key: TrackKeys.inboxWatermark) ??
+              0;
+      if (watermark < 1) {
+        if (maxId > 0) {
+          await FlutterForegroundTask.saveData(
+            key: TrackKeys.inboxWatermark,
+            value: maxId,
+          );
+        }
+        return;
+      }
+      var raised = watermark;
+      for (final row in unreadNew) {
+        final id = int.tryParse('${row['id'] ?? 0}') ?? 0;
+        if (id <= watermark) continue;
+        if (id > raised) raised = id;
+        final title = (row['title'] ?? 'إشعار جديد').toString();
+        final body = (row['body'] ?? '').toString();
+        await LocalAlertService.showInbox(id: id, title: title, body: body);
+      }
+      if (raised > watermark) {
+        await FlutterForegroundTask.saveData(
+          key: TrackKeys.inboxWatermark,
+          value: raised,
+        );
+      }
+    } catch (_) {
+    } finally {
+      _inboxBusy = false;
+    }
   }
 
   Future<bool> _login() async {

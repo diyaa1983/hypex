@@ -11,6 +11,7 @@ import 'core/theme.dart';
 import 'offline/offline_controller.dart';
 import 'services/location_presence_service.dart';
 import 'services/location_tracking_service.dart';
+import 'services/local_alert_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +29,7 @@ Future<void> main() async {
   LocationTrackingService.init(
     intervalSec: await LocationTrackingService.intervalSec,
   );
+  await LocalAlertService.init();
 
   final api = await ApiClient.create();
   final session = SessionController(api);

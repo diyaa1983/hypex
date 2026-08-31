@@ -1,12 +1,15 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
+import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
 import '../core/api_client.dart';
 import '../core/config.dart';
 import '../core/format.dart';
 import '../core/session.dart';
 import '../offline/offline_store.dart';
+import '../services/local_alert_service.dart';
+import '../services/location_tracking_service.dart';
 
 class InboxItem {
   InboxItem({
@@ -72,6 +75,12 @@ class InboxController extends ChangeNotifier with WidgetsBindingObserver {
   bool _started = false;
   List<InboxItem> items = const [];
   int unreadCount = 0;
+  AppLifecycleState _life = AppLifecycleState.resumed;
+
+  bool get _inBackground =>
+      _life == AppLifecycleState.paused ||
+      _life == AppLifecycleState.hidden ||
+      _life == AppLifecycleState.inactive;
 
   void start() {
     if (_started) return;
@@ -91,6 +100,7 @@ class InboxController extends ChangeNotifier with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _life = state;
     if (state == AppLifecycleState.resumed && session.authenticated) {
       unawaited(refresh());
     }
@@ -129,6 +139,7 @@ class InboxController extends ChangeNotifier with WidgetsBindingObserver {
     items = list;
     unreadCount = unread;
     await _applyApprovedGps(list);
+    await _maybeAlert(list);
     if (changed) notifyListeners();
   }
 
@@ -149,6 +160,42 @@ class InboxController extends ChangeNotifier with WidgetsBindingObserver {
       if (res != null) await applyFromMap(res);
     } finally {
       _polling = false;
+    }
+  }
+
+  Future<void> _maybeAlert(List<InboxItem> list) async {
+    var watermark = await FlutterForegroundTask.getData<int>(
+          key: TrackKeys.inboxWatermark,
+        ) ??
+        0;
+    var maxId = watermark;
+    for (final it in list) {
+      if (it.id > maxId) maxId = it.id;
+    }
+    if (watermark < 1) {
+      if (maxId > 0) {
+        await FlutterForegroundTask.saveData(
+          key: TrackKeys.inboxWatermark,
+          value: maxId,
+        );
+      }
+      return;
+    }
+    if (_inBackground) {
+      for (final it in list) {
+        if (it.isRead || it.id <= watermark) continue;
+        await LocalAlertService.showInbox(
+          id: it.id,
+          title: it.title,
+          body: it.body,
+        );
+      }
+    }
+    if (maxId > watermark) {
+      await FlutterForegroundTask.saveData(
+        key: TrackKeys.inboxWatermark,
+        value: maxId,
+      );
     }
   }
 
