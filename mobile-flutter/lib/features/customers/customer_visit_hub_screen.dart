@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/payment_period.dart';
 import '../../core/session.dart';
 import '../../core/visit_status.dart';
 import '../../core/theme.dart';
@@ -242,6 +243,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
             'address': e['address'],
             'latitude': e['latitude'],
             'longitude': e['longitude'],
+            'payment_period': e['payment_period'],
+            'payment_period_label':
+                PaymentPeriod.labelOf(e['payment_period']),
           },
         )
         .toList();
@@ -260,6 +264,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       'latitude': e['latitude'],
       'longitude': e['longitude'],
       'payment_period': e['payment_period'],
+      'payment_period_label': PaymentPeriod.labelOf(e['payment_period']),
     };
   }
 
@@ -2150,6 +2155,7 @@ class _InfoTabState extends State<_InfoTab> {
   bool _hadSavedGps = false;
   bool _saving = false;
   bool _locating = false;
+  String _paymentPeriod = '';
 
   @override
   void initState() {
@@ -2164,6 +2170,7 @@ class _InfoTabState extends State<_InfoTab> {
     _origLat = _lat;
     _origLng = _lng;
     _hadSavedGps = _lat != null && _lng != null;
+    _paymentPeriod = PaymentPeriod.codeOf(c['payment_period']);
   }
 
   @override
@@ -2264,6 +2271,7 @@ class _InfoTabState extends State<_InfoTab> {
         'tax_number': _tax.text.trim(),
         'email': _email.text.trim(),
         'address_ar': _address.text.trim(),
+        'payment_period': _paymentPeriod,
       };
       if (_lat != null && _lng != null) {
         fields['latitude'] = _lat;
@@ -2283,7 +2291,7 @@ class _InfoTabState extends State<_InfoTab> {
           address: _address.text.trim(),
           latitude: _lat,
           longitude: _lng,
-          paymentPeriod: Fmt.toInt(widget.customer['payment_period']),
+          paymentPeriod: _paymentPeriod,
         );
         await offline.enqueue(
           kind: 'customer_update',
@@ -2504,11 +2512,31 @@ class _InfoTabState extends State<_InfoTab> {
                     ? 'بانتظار ربط Oracle'
                     : Fmt.str(c['code']),
               ),
-              if (Fmt.str(c['payment_period_label']).isNotEmpty)
-                _readonlyRow('فترة السداد', Fmt.str(c['payment_period_label'])),
               if (Fmt.str(c['region_name']).isNotEmpty)
                 _readonlyRow('المنطقة', Fmt.str(c['region_name'])),
               const Divider(height: 22),
+              Text(
+                'فترة السداد *',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+              const SizedBox(height: 4),
+              ...PaymentPeriod.options.entries.map(
+                (e) => RadioListTile<String>(
+                  value: e.key,
+                  groupValue: _paymentPeriod.isEmpty ? null : _paymentPeriod,
+                  onChanged: _saving || _locating
+                      ? null
+                      : (v) {
+                          if (v != null) setState(() => _paymentPeriod = v);
+                        },
+                  title: Text(e.value),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+              ),
+              const SizedBox(height: 8),
               TextField(
                 controller: _phone,
                 keyboardType: TextInputType.phone,

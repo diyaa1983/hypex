@@ -336,7 +336,8 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
             .join(' ');
           return `<tr data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
       <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
-      <td>${ui.esc(r.name_ar || '')}${pay ? `<div class="muted" style="font-size:.72rem">${ui.esc(pay)}</div>` : ''}</td>
+      <td>${ui.esc(r.name_ar || '')}</td>
+      <td>${pay ? ui.esc(pay) : '—'}</td>
       <td class="si-num" dir="ltr">${dash(r.phone)}</td>
       <td>${dash(r.region_name)}</td>
       <td>${dash(r.sales_rep_name)}</td>
@@ -345,13 +346,13 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     </tr>`;
         }
       )
-      .join('') || ui.emptyRow(7);
+      .join('') || ui.emptyRow(8);
 
   listPage(res, req.session.user, {
     title: 'العملاء',
     mark: 'Cl',
     subtitle: 'دليل العملاء — إضافة وتعديل على Node',
-    headers: ['الرمز', 'الاسم', 'الهاتف', 'المنطقة', 'المندوب', 'الحالة', ''],
+    headers: ['الرمز', 'الاسم', 'فترة السداد', 'الهاتف', 'المنطقة', 'المندوب', 'الحالة', ''],
     rowsHtml,
     count: hasPicked ? `1 من ${total}` : total > rows.length ? `${rows.length} من ${total}` : total,
     phpRoute: 'customers',
@@ -1416,6 +1417,14 @@ async function customerForm(req, res, id) {
                 </label>
                 <label>الرقم الضريبي
                   <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr" autocomplete="off">
+                </label>
+                <label>فترة السداد
+                  <select class="si-field" name="payment_period">
+                    <option value="">— غير محدد —</option>
+                    <option value="cash_with_vehicle" ${String(row?.payment_period || '') === 'cash_with_vehicle' ? 'selected' : ''}>كاش مع السيارة</option>
+                    <option value="cash_with_rep" ${String(row?.payment_period || '') === 'cash_with_rep' ? 'selected' : ''}>نقدي مع المندوب</option>
+                    <option value="credit" ${String(row?.payment_period || '') === 'credit' ? 'selected' : ''}>ذمم</option>
+                  </select>
                 </label>
               </div>
             </div>

@@ -51,8 +51,18 @@ try {
     } catch (Throwable $e) {
     }
 
+    $hasPayPeriod = false;
+    try {
+        $pdo->query('SELECT payment_period FROM crm_customer LIMIT 1');
+        $hasPayPeriod = true;
+    } catch (Throwable $e) {
+    }
+
     $sql = 'SELECT c.id, c.code, c.name_ar, c.phone, c.tax_number, c.email, c.address_ar,
                    c.latitude, c.longitude';
+    if ($hasPayPeriod) {
+        $sql .= ', c.payment_period';
+    }
     if ($hasRegion) {
         $sql .= ', c.region_id, COALESCE(rg.name_ar,\'\') AS region_name';
     }
@@ -103,6 +113,7 @@ try {
 
     $lat = $row['latitude'] !== null ? (float) $row['latitude'] : null;
     $lng = $row['longitude'] !== null ? (float) $row['longitude'] : null;
+    $payPeriod = $hasPayPeriod ? trim((string) ($row['payment_period'] ?? '')) : '';
 
     echo json_encode([
         'ok' => true,
@@ -114,6 +125,8 @@ try {
             'tax_number' => (string) ($row['tax_number'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
             'address' => (string) ($row['address_ar'] ?? ''),
+            'payment_period' => $payPeriod,
+            'payment_period_label' => crm_customer_payment_period_label($payPeriod !== '' ? $payPeriod : null),
             'region_id' => $hasRegion ? (int) ($row['region_id'] ?? 0) : 0,
             'region_name' => $hasRegion ? (string) ($row['region_name'] ?? '') : '',
             'region_address_id' => $hasRegionAddr ? (int) ($row['region_address_id'] ?? 0) : 0,

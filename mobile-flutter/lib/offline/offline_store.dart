@@ -272,7 +272,7 @@ class OfflineStore {
             'address': (r['address'] ?? '').toString(),
             'latitude': r['latitude'],
             'longitude': r['longitude'],
-            'payment_period': (r['payment_period'] as num?)?.toInt() ?? 0,
+            'payment_period': (r['payment_period'] ?? '').toString(),
             'use_wholesale_price':
                 (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
           };
@@ -624,7 +624,7 @@ class OfflineStore {
             'address': (r['address'] ?? r['address_ar'] ?? '').toString(),
             'latitude': r['latitude'],
             'longitude': r['longitude'],
-            'payment_period': (r['payment_period'] as num?)?.toInt() ?? 0,
+            'payment_period': (r['payment_period'] ?? '').toString(),
             'use_wholesale_price':
                 (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
           },
@@ -684,7 +684,7 @@ class OfflineStore {
     String address = '',
     double? latitude,
     double? longitude,
-    int paymentPeriod = 0,
+    String paymentPeriod = '',
   }) async {
     final db = await _db;
     await db.insert(

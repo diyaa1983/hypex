@@ -1098,6 +1098,20 @@ function crm_mobile_customer_update_for_user(
         }
     }
 
+    if (array_key_exists('payment_period', $fields)) {
+        crm_customer_ensure_oracle_pending_columns($pdo);
+        $payPeriod = crm_customer_payment_period_valid(
+            is_string($fields['payment_period']) || is_numeric($fields['payment_period'])
+                ? (string) $fields['payment_period']
+                : null
+        );
+        if ($payPeriod === null && trim((string) ($fields['payment_period'] ?? '')) !== '') {
+            return ['ok' => false, 'message' => 'فترة السداد غير صالحة.'];
+        }
+        $sets[] = 'payment_period = ?';
+        $params[] = $payPeriod;
+    }
+
     $gpsProvided = array_key_exists('latitude', $fields)
         || array_key_exists('longitude', $fields)
         || !empty($fields['clear_gps']);

@@ -122,6 +122,12 @@ function parseCustomerGps(payload) {
   };
 }
 
+function parsePaymentPeriod(payload) {
+  const v = String(payload.payment_period || '').trim();
+  if (['cash_with_vehicle', 'cash_with_rep', 'credit'].includes(v)) return v;
+  return null;
+}
+
 async function saveCustomer(payload) {
   await ensureCustomerWholesalePriceColumn();
   const id = Number(payload.id || 0);
@@ -133,6 +139,7 @@ async function saveCustomer(payload) {
   const tax = nullIfEmpty(payload.tax_number);
   const addr = nullIfEmpty(payload.address_ar);
   const useWholesale = parseUseWholesalePrice(payload);
+  const paymentPeriod = parsePaymentPeriod(payload);
   const regionId = Number(payload.region_id || 0) || null;
   const regionAddressId = Number(payload.region_address_id || 0) || null;
   const gps = parseCustomerGps(payload);
@@ -160,7 +167,7 @@ async function saveCustomer(payload) {
     try {
       await safeQuery(
         `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-         use_wholesale_price=?,
+         use_wholesale_price=?, payment_period=?,
          region_id=?, region_address_id=?, sales_rep_id=?,
          latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?`,
         [
@@ -170,6 +177,7 @@ async function saveCustomer(payload) {
           tax,
           addr,
           useWholesale,
+          paymentPeriod,
           regionId,
           regionAddressId,
           repIds[0] || null,
@@ -185,7 +193,8 @@ async function saveCustomer(payload) {
         await safeQuery(
           `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
            use_wholesale_price=?,
-           region_id=?, region_address_id=?, sales_rep_id=? WHERE id=?`,
+           region_id=?, region_address_id=?, sales_rep_id=?,
+           latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?`,
           [
             finalName,
             phone,
@@ -196,25 +205,49 @@ async function saveCustomer(payload) {
             regionId,
             regionAddressId,
             repIds[0] || null,
+            gps.latitude,
+            gps.longitude,
+            gps.gps_accuracy,
+            gpsAt,
             id,
           ]
         );
-      } catch {
+      } catch (e2) {
         try {
           await safeQuery(
             `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-             use_wholesale_price=?, sales_rep_id=? WHERE id=?`,
-            [finalName, phone, email, tax, addr, useWholesale, repIds[0] || null, id]
+             use_wholesale_price=?,
+             region_id=?, region_address_id=?, sales_rep_id=? WHERE id=?`,
+            [
+              finalName,
+              phone,
+              email,
+              tax,
+              addr,
+              useWholesale,
+              regionId,
+              regionAddressId,
+              repIds[0] || null,
+              id,
+            ]
           );
         } catch {
-          await safeQuery(
-            `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?, sales_rep_id=? WHERE id=?`,
-            [finalName, phone, email, tax, addr, repIds[0] || null, id]
-          );
+          try {
+            await safeQuery(
+              `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+               use_wholesale_price=?, sales_rep_id=? WHERE id=?`,
+              [finalName, phone, email, tax, addr, useWholesale, repIds[0] || null, id]
+            );
+          } catch {
+            await safeQuery(
+              `UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?, sales_rep_id=? WHERE id=?`,
+              [finalName, phone, email, tax, addr, repIds[0] || null, id]
+            );
+          }
         }
-      }
-      if (!String(e1.message || '').includes('Unknown column')) {
-        console.error('saveCustomer gps/region', e1.message);
+        if (!String(e1.message || '').includes('Unknown column')) {
+          console.error('saveCustomer gps/region', e1.message);
+        }
       }
     }
     await saveCustomerReps(id, repIds);
@@ -231,10 +264,10 @@ async function saveCustomer(payload) {
   try {
     const [result] = await db.getPool().execute(
       `INSERT INTO crm_customer
-       (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price,
+       (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, payment_period,
         region_id, region_address_id,
         latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)`,
       [
         code,
         name,
@@ -243,6 +276,7 @@ async function saveCustomer(payload) {
         tax,
         addr,
         useWholesale,
+        paymentPeriod,
         regionId,
         regionAddressId,
         gps.latitude,

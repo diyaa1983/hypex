@@ -97,7 +97,7 @@ try {
             'address' => (string) ($r['address_ar'] ?? ''),
             'latitude' => isset($r['latitude']) && $r['latitude'] !== null ? (float) $r['latitude'] : null,
             'longitude' => isset($r['longitude']) && $r['longitude'] !== null ? (float) $r['longitude'] : null,
-            'payment_period' => (int) ($r['payment_period'] ?? 0),
+            'payment_period' => trim((string) ($r['payment_period'] ?? '')),
             'use_wholesale_price' => 0,
         ];
     }

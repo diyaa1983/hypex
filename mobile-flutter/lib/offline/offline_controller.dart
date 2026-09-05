@@ -534,7 +534,8 @@ class OfflineController extends ChangeNotifier {
               (existing?['latitude'] as num?)?.toDouble(),
           longitude: (body['longitude'] as num?)?.toDouble() ??
               (existing?['longitude'] as num?)?.toDouble(),
-          paymentPeriod: (existing?['payment_period'] as num?)?.toInt() ?? 0,
+          paymentPeriod: (body['payment_period'] ?? existing?['payment_period'] ?? '')
+              .toString(),
         );
       }
       return;
@@ -608,7 +609,7 @@ class OfflineController extends ChangeNotifier {
       address: (snap['address'] ?? '').toString(),
       latitude: (snap['latitude'] as num?)?.toDouble(),
       longitude: (snap['longitude'] as num?)?.toDouble(),
-      paymentPeriod: (snap['payment_period'] as num?)?.toInt() ?? 0,
+      paymentPeriod: (snap['payment_period'] ?? '').toString(),
     );
   }
 

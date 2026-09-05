@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/payment_period.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
@@ -480,9 +481,14 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
                                 ),
                                 InfoRow(
                                   'فترة السداد',
-                                  Fmt.toInt(_customer?['payment_period']) > 0
-                                      ? '${Fmt.toInt(_customer?['payment_period'])} يوم'
-                                      : '',
+                                  () {
+                                    final label =
+                                        Fmt.str(_customer?['payment_period_label']);
+                                    if (label.isNotEmpty) return label;
+                                    return PaymentPeriod.displayOf(
+                                      _customer?['payment_period'],
+                                    );
+                                  }(),
                                 ),
                                 InfoRow(
                                   'الموقع',
