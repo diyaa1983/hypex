@@ -309,6 +309,13 @@ body.co-ora-body .main.si-main {
   border-radius: 0 !important;
 }
 
+/* اسم المادة: أصغر وغامق */
+.co-ora-skin .si-lines .si-item-name-cell input.js-item-name,
+.co-ora-skin .si-lines input.js-item-name {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+
 .co-ora-skin .si-lines select {
   padding-inline-end: 2px !important;
 }
