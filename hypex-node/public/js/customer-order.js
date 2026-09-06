@@ -1518,10 +1518,18 @@
         focusElement(rowEls[i + 1], true);
         return;
       }
-      if (!lineHasItem(curLn)) {
+        if (!lineHasItem(curLn)) {
         focusLineField(idx, '.js-item-sku', true);
         hxAlert('اختر المادة أولاً قبل الانتقال لسطر جديد.', {
           title: 'تنبيه',
+          kind: 'warning',
+        });
+        return;
+      }
+      if (!lineHasQty(curLn)) {
+        focusLineField(idx, '.js-qty', true);
+        hxAlert('أدخل الكمية قبل الانتقال لسطر جديد.', {
+          title: 'الكمية مطلوبة',
           kind: 'warning',
         });
         return;
@@ -1544,6 +1552,9 @@
 
   function goNextField(fromEl) {
     if (locked || !fromEl) return;
+    if (fromEl.classList && fromEl.classList.contains('js-qty')) {
+      if (!enforceQtyBeforeLeave(fromEl)) return;
+    }
     var itemSug =
       fromEl.closest && fromEl.closest('tr[data-idx]')
         ? openSuggestForRow(fromEl.closest('tr[data-idx]'))
@@ -1591,6 +1602,9 @@
 
   function goPrevField(fromEl) {
     if (locked || !fromEl) return;
+    if (fromEl.classList && fromEl.classList.contains('js-qty')) {
+      if (!enforceQtyBeforeLeave(fromEl)) return;
+    }
     var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
     if (tr && tbody && tbody.contains(tr)) {
       var rowEls = lineNavEls(tr);
@@ -1617,6 +1631,9 @@
 
   function goVerticalField(fromEl, dir) {
     if (locked || !fromEl || !tbody) return;
+    if (fromEl.classList && fromEl.classList.contains('js-qty')) {
+      if (!enforceQtyBeforeLeave(fromEl)) return;
+    }
     var tr = fromEl.closest ? fromEl.closest('tr[data-idx]') : null;
     if (!tr || !tbody.contains(tr)) return;
     var idx = Number(tr.getAttribute('data-idx'));
@@ -1627,6 +1644,15 @@
         // سطر جديد فقط بعد اختيار مادة السطر الحالي
         if (!lineHasItem(state.lines[idx])) {
           setMsg('اختر المادة أولاً قبل إضافة سطر جديد.', 'error');
+          return;
+        }
+        if (!lineHasQty(state.lines[idx])) {
+          setMsg('أدخل الكمية أولاً قبل إضافة سطر جديد.', 'error');
+          focusLineField(idx, '.js-qty', true);
+          hxAlert('أدخل الكمية قبل إضافة سطر جديد.', {
+            title: 'الكمية مطلوبة',
+            kind: 'warning',
+          });
           return;
         }
         if (!addEmptyLine()) return;
@@ -1751,6 +1777,11 @@
           });
         }
       });
+      if (cls === 'js-qty' && !locked) {
+        el.addEventListener('blur', function () {
+          enforceQtyBeforeLeave(el);
+        });
+      }
     });
     bindUnitOnly(tr);
     var skuInput = tr.querySelector('.js-item-sku');
@@ -1977,6 +2008,79 @@
     return !!(ln && Number(ln.item_id) > 0);
   }
 
+  function lineQtyValue(lnOrEl) {
+    if (!lnOrEl) return 0;
+    if (lnOrEl.tagName) {
+      var n = Number(lnOrEl.value);
+      return Number.isFinite(n) ? n : 0;
+    }
+    var q = Number(lnOrEl.qty);
+    return Number.isFinite(q) ? q : 0;
+  }
+
+  function lineHasQty(ln) {
+    return lineQtyValue(ln) > 0;
+  }
+
+  var qtyLeaveGuard = false;
+
+  /** منع مغادرة حقل الكمية قبل إدخال كمية > 0 (عند وجود مادة) */
+  function enforceQtyBeforeLeave(qtyEl, opts) {
+    opts = opts || {};
+    if (locked || !qtyEl || qtyLeaveGuard) return true;
+    if (!qtyEl.classList || !qtyEl.classList.contains('js-qty')) return true;
+    var tr = qtyEl.closest ? qtyEl.closest('tr[data-idx]') : null;
+    if (!tr) return true;
+    var idx = Number(tr.getAttribute('data-idx'));
+    try {
+      readLineFromRow(tr);
+    } catch (e) {
+      /* ignore */
+    }
+    var ln = state.lines[idx];
+    if (!lineHasItem(ln)) return true;
+    if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0) return true;
+
+    var msg = 'أدخل الكمية للبند قبل مغادرة الحقل.';
+    setMsg(msg, 'error');
+    qtyLeaveGuard = true;
+    window.setTimeout(function () {
+      try {
+        qtyEl.focus();
+        if (typeof qtyEl.select === 'function') qtyEl.select();
+      } catch (e2) {
+        /* ignore */
+      }
+      if (!opts.silentAlert) {
+        hxAlert(msg, { title: 'الكمية مطلوبة', kind: 'warning' }).then(function () {
+          qtyLeaveGuard = false;
+          try {
+            qtyEl.focus();
+            if (typeof qtyEl.select === 'function') qtyEl.select();
+          } catch (e3) {
+            /* ignore */
+          }
+        });
+      } else {
+        qtyLeaveGuard = false;
+      }
+    }, 0);
+    return false;
+  }
+
+  function findFirstLineMissingQty() {
+    try {
+      syncLinesFromDom();
+    } catch (e) {
+      /* ignore */
+    }
+    var lines = state.lines || [];
+    for (var i = 0; i < lines.length; i++) {
+      if (lineHasItem(lines[i]) && !lineHasQty(lines[i])) return i;
+    }
+    return -1;
+  }
+
   /** سماح سطر جديد فقط بعد اختيار مادة في كل الأسطر الحالية (خصوصاً السطر الأول) */
   function canAddNewLine(opts) {
     opts = opts || {};
@@ -1991,6 +2095,17 @@
         if (!opts.silent) {
           focusLineField(i, '.js-item-sku', true);
           setMsg('اختر المادة في السطر الحالي قبل إضافة سطر جديد.', 'error');
+        }
+        return false;
+      }
+      if (!lineHasQty(lines[i])) {
+        if (!opts.silent) {
+          focusLineField(i, '.js-qty', true);
+          setMsg('أدخل الكمية في السطر الحالي قبل إضافة سطر جديد.', 'error');
+          hxAlert('أدخل الكمية قبل إضافة سطر جديد.', {
+            title: 'الكمية مطلوبة',
+            kind: 'warning',
+          });
         }
         return false;
       }
@@ -2227,6 +2342,13 @@
           goNextField(t);
           return;
         }
+        if (e.key === 'Tab') {
+          if (t.classList && t.classList.contains('js-qty') && !enforceQtyBeforeLeave(t, { silentAlert: false })) {
+            e.preventDefault();
+            e.stopPropagation();
+            return;
+          }
+        }
         if (e.key === 'ArrowDown' && !e.altKey && !e.ctrlKey) {
           if (openSug && moveSuggestActive(openSug, 1)) {
             e.preventDefault();
@@ -2353,7 +2475,21 @@
       hxAlert('أضف بنداً واحداً على الأقل.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
+    var missingQtyIdx = findFirstLineMissingQty();
+    if (missingQtyIdx >= 0) {
+      hxAlert('أدخل الكمية لكل بند قبل الحفظ.', { title: 'الكمية مطلوبة', kind: 'warning' });
+      focusLineField(missingQtyIdx, '.js-qty', true);
+      return Promise.resolve(null);
+    }
     for (var pi = 0; pi < payload.lines.length; pi++) {
+      if (!(Number(payload.lines[pi].qty) > 0)) {
+        hxAlert('أدخل الكمية للبند رقم ' + (pi + 1) + ' قبل الحفظ.', {
+          title: 'الكمية مطلوبة',
+          kind: 'warning',
+        });
+        focusLineField(pi, '.js-qty', true);
+        return Promise.resolve(null);
+      }
       if (!(Number(payload.lines[pi].unit_price) > 0)) {
         hxAlert('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', {
           title: 'تنبيه',

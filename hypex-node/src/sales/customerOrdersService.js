@@ -326,7 +326,9 @@ async function saveOrder(payload, userId) {
   const normalized = [];
   for (const ln of offered.lines) {
     if (!ln || !Number(ln.item_id)) continue;
-    if (Number(ln.qty) < 1) continue;
+    if (!(Number(ln.qty) > 0)) {
+      return { ok: false, error: 'أدخل الكمية لكل بند قبل الحفظ.' };
+    }
     const priced = await itemPricing.resolveDocLinePricing(ln, { useWholesale });
     if (!(priced.unit_price > 0)) {
       return {

@@ -434,12 +434,9 @@ body.co-ora-body .main.si-main {
   background: transparent !important;
 }
 
-/* خط البنود غامق — بدون مربعات — محاذاة يمين داخل الخلية كاملة */
+/* خط البنود غامق — بدون مربعات داخل الحقول — محاذاة يمين */
 .co-ora-skin .si-lines input,
-.co-ora-skin .si-lines select,
-.co-ora-skin .si-lines .si-num-out,
-.co-ora-skin .si-lines td.si-num-out,
-.co-ora-skin .si-lines td.si-row-num {
+.co-ora-skin .si-lines select {
   font-size: 12px !important;
   font-weight: 700 !important;
   font-family: Arial, Helvetica, sans-serif !important;
@@ -457,6 +454,47 @@ body.co-ora-body .main.si-main {
   outline: none !important;
   -webkit-appearance: none;
   appearance: none;
+}
+
+/* خلايا المبالغ / الترقيم — مسطّرة مثل باقي الجدول */
+body.co-ora-body .co-ora-skin .si-lines td.si-num-out,
+body.co-ora-body .co-ora-skin .si-lines td.si-row-num,
+body.co-ora-body .co-ora-skin .si-lines td.js-sub,
+body.co-ora-body .co-ora-skin .si-lines td.js-gross,
+.co-ora-skin .si-lines td.si-num-out,
+.co-ora-skin .si-lines td.si-row-num {
+  display: table-cell !important;
+  border: 1px solid #000 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  color: #000 !important;
+  text-align: right !important;
+  min-height: 22px !important;
+  height: 22px !important;
+  padding: 1px 4px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  width: auto !important;
+  overflow: visible !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines td.si-row-num,
+.co-ora-skin .si-lines td.si-row-num {
+  text-align: center !important;
+}
+
+/* كل خلايا البنود مسطّرة بوضوح */
+body.co-ora-body .co-ora-skin .si-lines,
+body.co-ora-body .co-ora-skin table.si-lines {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines th,
+body.co-ora-body .co-ora-skin .si-lines td {
+  border: 1px solid #000 !important;
 }
 
 /* الحقول تملأ الخلية حتى يظهر المحاذاة لليمين */
