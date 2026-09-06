@@ -290,11 +290,11 @@
       '<select id="hx-lk-cat" class="hx-lk__input hx-lk__cat" hidden title="فئة Oracle">' +
       '<option value="">— كل الفئات —</option>' +
       '</select>' +
-      '<input type="search" id="hx-lk-q" class="hx-lk__input" placeholder="ابحث…" autocomplete="off">' +
+      '<input type="search" id="hx-lk-q" class="hx-lk__input" placeholder="…ابحث" autocomplete="off">' +
       '</div>' +
       '<div class="hx-lk__list" id="hx-lk-list"></div>' +
       '<footer class="hx-lk__foot">' +
-      '<span dir="ltr">F2 سطر · F3 مواد · F4 حذف بند · F7 أطراف · F10 حفظ · Esc</span>' +
+      '<span>Esc · حفظ F10 · أطراف F7 · حذف بند F4 · مواد F3 · سطر F2</span>' +
       '<a class="hx-lk__link" id="hx-lk-open-full" href="#">فتح القائمة الكاملة</a>' +
       '</footer></div>';
     document.body.appendChild(modal);
