@@ -477,6 +477,7 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
         'total' => $orderTotal,
         'lines' => $mappedLines,
         'extra_columns' => $headerExtras,
+        'notes' => trim((string) ($order['notes'] ?? '')),
         'daily_columns' => array_keys($cols),
         'master_columns' => array_keys($hdrCols),
     ];
@@ -534,6 +535,18 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $sharedHeader['SALES_MAN'] = $smNo;
     $sharedHeader['SMAN'] = $smNo;
     $sharedHeader['MAN_NUM'] = $smNo;
+
+    $orderNote = trim((string) ($order['notes'] ?? ''));
+    if ($orderNote !== '') {
+        if (function_exists('mb_substr')) {
+            $orderNote = mb_substr($orderNote, 0, 200, 'UTF-8');
+        } else {
+            $orderNote = substr($orderNote, 0, 200);
+        }
+        $sharedHeader['NOTE'] = $orderNote;
+        $sharedHeader['NOTE1'] = $orderNote;
+        $sharedHeader['NOTE_1'] = $orderNote;
+    }
 
     $rowValues = static function (array $line) use ($sharedHeader, $headerExtras): array {
         $base = $sharedHeader;
@@ -989,6 +1002,39 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
         $extras[$rateCol] = 1;
     }
 
+    // ملاحظات الطلب → ملاحظة ١ في فاتورة Oracle (NOTE1 / NOTE / …)
+    $note = trim((string) ($order['notes'] ?? ''));
+    if ($note !== '') {
+        // حدّ عملي لحقول الملاحظة في Forms
+        if (function_exists('mb_substr')) {
+            $note = mb_substr($note, 0, 200, 'UTF-8');
+        } else {
+            $note = substr($note, 0, 200);
+        }
+        $extras['NOTE'] = $note;
+        $noteCol = oracle_order_pick_col($cols, [
+            'NOTE1',
+            'NOTE_1',
+            'NOTE01',
+            'NOTE',
+            'NOTES',
+            'NNOTE',
+            'V_NOTE',
+            'REMARK1',
+            'REMARK_1',
+            'REMARK',
+            'REMARKS',
+            'COMM',
+            'COMM1',
+            'COMMENT1',
+            'MEMO',
+            'MEMO1',
+        ]);
+        if ($noteCol) {
+            $extras[$noteCol] = $note;
+        }
+    }
+
     return $extras;
 }
 
@@ -1161,7 +1207,24 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
         'VDATE' => ['VDATE', 'V_DATE', 'FDATE', 'INV_DATE', 'BILL_DATE', 'TRN_DATE'],
         'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'MAN_NUM', 'EMP_NO', 'SELLER', 'SALEMAN'],
         'ORDER_NO' => oracle_order_order_no_column_candidates(),
-        'NOTE' => ['NOTE', 'NOTES', 'REMARK', 'REMARKS', 'COMM', 'V_NOTE', 'NOTE1', 'NOTE_1'],
+        'NOTE' => [
+            'NOTE',
+            'NOTES',
+            'NOTE1',
+            'NOTE_1',
+            'NOTE01',
+            'NNOTE',
+            'V_NOTE',
+            'REMARK',
+            'REMARKS',
+            'REMARK1',
+            'REMARK_1',
+            'COMM',
+            'COMM1',
+            'COMMENT1',
+            'MEMO',
+            'MEMO1',
+        ],
         'FLAG' => ['FLAG', 'FLAGE', 'V_FLAG'],
         'PRINT_FLAGE' => ['PRINT_FLAGE', 'PRINT_FLAG'],
     ];
