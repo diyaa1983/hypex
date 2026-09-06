@@ -1005,13 +1005,7 @@ function oracle_order_sanitize_numeric_binds(array $use, array $colTypes): array
         }
         $s = trim((string) $val);
         if ($s !== '' && is_numeric($s)) {
-            $use[$col] = str_contains($s, '.') ? (float) $s : (int) $s + 0;
-            // احتفظ بالشكل العشري إن وُجد
-            if (str_contains($s, '.') || stripos($s, 'e') !== false) {
-                $use[$col] = (float) $s;
-            } else {
-                $use[$col] = (int) $s;
-            }
+            $use[$col] = str_contains($s, '.') || stripos($s, 'e') !== false ? (float) $s : (0 + $s);
             continue;
         }
         // مثل رقم الطلبية 2026-28 أو نص ملاحظة على عمود رقمي
