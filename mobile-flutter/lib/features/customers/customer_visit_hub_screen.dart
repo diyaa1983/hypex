@@ -105,8 +105,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         await off.syncIfOnline();
       }
       if (!mounted) return;
-      _loadCustomers();
-      _refreshOpenVisit();
+    _loadCustomers();
+    _refreshOpenVisit();
     });
     final bootId = widget.initialCustomerId ?? 0;
     if (bootId > 0) {
@@ -300,13 +300,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         return;
       }
       final res = await context.read<ApiClient>().getJson(
-        AppConfig.partiesPath,
+            AppConfig.partiesPath,
         query: {'type': 'customer', 'q': q},
-      );
+          );
       final list = (res['parties'] as List? ?? [])
-          .whereType<Map>()
-          .map((e) => e.cast<String, dynamic>())
-          .toList();
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
       if (!mounted) return;
       if (q.isEmpty) {
         unawaited(OfflineStore.instance.replaceCustomersFromLive(list));
@@ -321,7 +321,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       if (offline.catalogReady) {
         try {
           final list = await _customersFromLocal(q);
-          if (!mounted) return;
+      if (!mounted) return;
           setState(() {
             _customers = list;
             _listLoading = false;
@@ -340,7 +340,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       if (offline.catalogReady) {
         try {
           final list = await _customersFromLocal(q);
-          if (!mounted) return;
+      if (!mounted) return;
           setState(() {
             _customers = list;
             _listLoading = false;
@@ -362,9 +362,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     if (!offline.online) return;
     try {
       final res = await context.read<ApiClient>().getJson(
-        AppConfig.repVisitListPath,
-        query: {'date': Fmt.todayIso()},
-      );
+            AppConfig.repVisitListPath,
+            query: {'date': Fmt.todayIso()},
+          );
       if (!mounted) return;
       final visits = (res['visits'] as List? ?? [])
           .whereType<Map>()
@@ -574,8 +574,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       if ((!offline.online && offline.catalogReady) || id < 0) {
         await applyLocal();
       } else {
-        try {
-          final res = await context.read<ApiClient>().getJson(
+    try {
+      final res = await context.read<ApiClient>().getJson(
             AppConfig.customerViewPath,
             query: {'id': id},
           );
@@ -654,14 +654,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     }
     try {
       final res = await context.read<ApiClient>().getJson(
-        AppConfig.customerOrderListPath,
-        query: {
-          'customer_id': customerId,
+            AppConfig.customerOrderListPath,
+            query: {
+              'customer_id': customerId,
           'from': _isoDate(_histOrdersFrom),
           'to': _isoDate(_histOrdersTo),
-          'page': 1,
-        },
-      );
+              'page': 1,
+            },
+          );
       if (!mounted) return;
       setState(() {
         _histOrders = (res['orders'] as List? ?? [])
@@ -782,26 +782,26 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              _radiusM > 0
-                  ? 'اختر طريقة تسجيل الدخول إلى العميل.\nنصف القطر المسموح: $_radiusM م'
-                  : 'اختر طريقة تسجيل الدخول إلى العميل.',
-            ),
+          _radiusM > 0
+              ? 'اختر طريقة تسجيل الدخول إلى العميل.\nنصف القطر المسموح: $_radiusM م'
+              : 'اختر طريقة تسجيل الدخول إلى العميل.',
+        ),
             const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => Navigator.pop(ctx, 'MANUAL'),
-                    icon: const Icon(Icons.edit_location_alt_rounded),
-                    label: const Text('يدوي'),
-                  ),
+            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+            icon: const Icon(Icons.edit_location_alt_rounded),
+            label: const Text('يدوي'),
+          ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => Navigator.pop(ctx, 'GPS'),
-                    icon: const Icon(Icons.my_location_rounded),
-                    label: const Text('GPS'),
+            onPressed: () => Navigator.pop(ctx, 'GPS'),
+            icon: const Icon(Icons.my_location_rounded),
+            label: const Text('GPS'),
                   ),
                 ),
               ],
@@ -880,25 +880,25 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       }
 
       try {
-        final preview = await api.postJson(
-          AppConfig.visitGpsPreviewPath,
-          body: {'customer_id': id, ...gps},
-          csrf: csrf,
-        );
-        if (!mounted) return;
-        final within = preview['within_geofence'] == true;
-        final action = await showDialog<_GpsPreviewAction>(
-          context: context,
-          builder: (ctx) => _GpsPreviewDialog(
-            preview: preview,
-            within: within,
-          ),
-        );
-        if (action == null || !mounted) return;
-        if (action == _GpsPreviewAction.checkinGps) {
-          await _checkin(manual: false, gpsOverride: gps);
-        } else if (action == _GpsPreviewAction.checkinManual) {
-          await _checkin(manual: true, gpsOverride: gps);
+      final preview = await api.postJson(
+        AppConfig.visitGpsPreviewPath,
+        body: {'customer_id': id, ...gps},
+        csrf: csrf,
+      );
+      if (!mounted) return;
+      final within = preview['within_geofence'] == true;
+      final action = await showDialog<_GpsPreviewAction>(
+        context: context,
+        builder: (ctx) => _GpsPreviewDialog(
+          preview: preview,
+          within: within,
+        ),
+      );
+      if (action == null || !mounted) return;
+      if (action == _GpsPreviewAction.checkinGps) {
+        await _checkin(manual: false, gpsOverride: gps);
+      } else if (action == _GpsPreviewAction.checkinManual) {
+        await _checkin(manual: true, gpsOverride: gps);
         }
       } on ApiException catch (e) {
         if (offline.catalogReady && _isNetworkFail(e)) {
@@ -1013,24 +1013,24 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       }
 
       try {
-        final res = await api.postJson(
-          AppConfig.repVisitCheckinPath,
-          body: {
-            'customer_id': id,
-            'method': manual ? 'MANUAL' : 'GPS',
-            ...gps,
-          },
-          csrf: csrf,
-        );
-        if (!mounted) return;
-        final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
-        showSnack(
-          context,
-          Fmt.str(res['message']).isEmpty
-              ? 'تم تسجيل الدخول.'
-              : Fmt.str(res['message']),
-        );
-        setState(() {
+      final res = await api.postJson(
+        AppConfig.repVisitCheckinPath,
+        body: {
+          'customer_id': id,
+          'method': manual ? 'MANUAL' : 'GPS',
+          ...gps,
+        },
+        csrf: csrf,
+      );
+      if (!mounted) return;
+      final visit = (res['visit'] as Map?)?.cast<String, dynamic>();
+      showSnack(
+        context,
+        Fmt.str(res['message']).isEmpty
+            ? 'تم تسجيل الدخول.'
+            : Fmt.str(res['message']),
+      );
+      setState(() {
           _visit = {
             ...?visit,
             'checkin_method':
@@ -1038,10 +1038,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                     ? (manual ? 'MANUAL' : 'GPS')
                     : Fmt.str(visit?['checkin_method']),
           };
-          _openVisitCustomerId = id;
-          _openVisitCheckinAt = Fmt.str(
-            visit?['visit_checkin_at'] ?? DateTime.now().toIso8601String(),
-          );
+        _openVisitCustomerId = id;
+        _openVisitCheckinAt = Fmt.str(
+          visit?['visit_checkin_at'] ?? DateTime.now().toIso8601String(),
+        );
           _openVisitCheckinMethod = Fmt.str(
             (_visit ?? const {})['checkin_method'],
           );
@@ -1055,8 +1055,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
               ? _openVisitCheckinMethod
               : (manual ? 'MANUAL' : 'GPS'),
         );
-        await _refreshOpenVisit();
-        await _selectCustomer(id);
+      await _refreshOpenVisit();
+      await _selectCustomer(id);
       } on ApiException catch (e) {
         if (offline.catalogReady && _isNetworkFail(e)) {
           await _applyLocalCheckin(id: id, manual: manual, gps: gps);
@@ -1094,7 +1094,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     }
     final selected = <int>{};
     return showDialog<List<int>>(
-      context: context,
+        context: context,
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setLocal) => AlertDialog(
@@ -1120,14 +1120,14 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                   );
                 }).toList(),
               ),
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('إلغاء'),
-            ),
-            FilledButton(
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('إلغاء'),
+              ),
+              FilledButton(
               onPressed: selected.isEmpty
                   ? null
                   : () => Navigator.pop(ctx, selected.toList()),
@@ -1225,15 +1225,15 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       if (!mounted) return;
 
       final body = <String, dynamic>{
-        'customer_id': id,
-        'method': manual ? 'MANUAL' : 'GPS',
+          'customer_id': id,
+          'method': manual ? 'MANUAL' : 'GPS',
         'no_order_reason_ids': noOrderReasonIds,
-        if (reason != null && reason.isNotEmpty) 'reason': reason,
+          if (reason != null && reason.isNotEmpty) 'reason': reason,
         if ((reason == null || reason.isEmpty) &&
             offlineReasonNames != null &&
             offlineReasonNames.isNotEmpty)
           'reason': offlineReasonNames,
-        ...gps,
+          ...gps,
       };
 
       Future<void> applyLocalCheckout() async {
@@ -1273,29 +1273,29 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         final res = await api.postJson(
           AppConfig.repVisitCheckoutPath,
           body: body,
-          csrf: csrf,
-        );
-        if (!mounted) return;
-        final msg = Fmt.str(res['message']);
-        final needsApproval = res['requires_approval'] == true;
-        showSnack(
-          context,
-          msg.isEmpty
-              ? (needsApproval
-                  ? 'بانتظار موافقة المدير'
-                  : 'تم تسجيل الخروج وإغلاق الزيارة')
-              : msg,
-        );
-        if (!needsApproval) {
-          setState(() {
-            _openVisitCustomerId = 0;
-            _openVisitCheckinAt = '';
+        csrf: csrf,
+      );
+      if (!mounted) return;
+      final msg = Fmt.str(res['message']);
+      final needsApproval = res['requires_approval'] == true;
+      showSnack(
+        context,
+        msg.isEmpty
+            ? (needsApproval
+                ? 'بانتظار موافقة المدير'
+                : 'تم تسجيل الخروج وإغلاق الزيارة')
+            : msg,
+      );
+      if (!needsApproval) {
+        setState(() {
+          _openVisitCustomerId = 0;
+          _openVisitCheckinAt = '';
             _visitOrderId = 0;
-          });
+        });
           await OfflineStore.instance.clearOpenVisit();
-        }
-        await _refreshOpenVisit();
-        await _selectCustomer(id);
+      }
+      await _refreshOpenVisit();
+      await _selectCustomer(id);
       } on ApiException catch (e) {
         if (offline.catalogReady && _isNetworkFail(e)) {
           await applyLocalCheckout();
@@ -1422,40 +1422,40 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         children: [
           if (wide)
             Row(
-              children: [
-                SizedBox(
+                  children: [
+                    SizedBox(
                   width: (screen.width * 0.34).clamp(280.0, 400.0),
                   child: _buildLeftPanel(
                     openNarrowOnSelect: false,
                     imeOpen: imeOpen,
                   ),
-                ),
-                const VerticalDivider(width: 1),
-                Expanded(child: _buildRightPanel()),
-              ],
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: _buildRightPanel()),
+                  ],
             )
           else if (_showNarrowDetail && _selectedId != null)
             Column(
-              children: [
-                Material(
-                  color: Colors.white,
-                  child: ListTile(
-                    leading: IconButton(
-                      icon: const Icon(Icons.arrow_forward_rounded),
-                      onPressed: () => setState(() {
-                        _showNarrowDetail = false;
-                      }),
+                  children: [
+                    Material(
+                      color: Colors.white,
+                      child: ListTile(
+                        leading: IconButton(
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          onPressed: () => setState(() {
+                            _showNarrowDetail = false;
+                          }),
+                        ),
+                        title: Text(
+                          Fmt.str(_customer?['name']).isEmpty
+                              ? 'تفاصيل العميل'
+                              : Fmt.str(_customer?['name']),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
                     ),
-                    title: Text(
-                      Fmt.str(_customer?['name']).isEmpty
-                          ? 'تفاصيل العميل'
-                          : Fmt.str(_customer?['name']),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-                const Divider(height: 1),
-                Expanded(child: _buildRightPanel()),
+                    const Divider(height: 1),
+                    Expanded(child: _buildRightPanel()),
                 if (!imeOpen) _buildCheckInOutCard(),
               ],
             )
@@ -1591,7 +1591,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                         final isCheckedOut = visitStatus == 'checked_out';
                         final accent = _visitAccent(id);
                         final rowBg = selected
-                            ? AppTheme.primary.withValues(alpha: 0.10)
+                              ? AppTheme.primary.withValues(alpha: 0.10)
                             : (_visitRowColor(id) ?? Colors.white);
                         return RepaintBoundary(
                           child: Material(
@@ -1673,9 +1673,9 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                                     ),
                                 ],
                               ),
+                              ),
                             ),
                           ),
-                        ),
                         );
                       },
                     ),
@@ -1703,11 +1703,11 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                   _searchFocus.hasFocus
                       ? Icons.keyboard_hide_rounded
                       : Icons.keyboard_rounded,
-                ),
-              ),
-            ),
+                    ),
+                  ),
           ),
-          _buildCheckInOutCard(),
+        ),
+        _buildCheckInOutCard(),
         ],
       ],
     );
@@ -1877,15 +1877,15 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => Navigator.pop(ctx, 'MANUAL'),
-                    child: const Text('يدوي'),
-                  ),
+            onPressed: () => Navigator.pop(ctx, 'MANUAL'),
+            child: const Text('يدوي'),
+          ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.pop(ctx, 'GPS'),
-                    child: const Text('GPS'),
+            onPressed: () => Navigator.pop(ctx, 'GPS'),
+            child: const Text('GPS'),
                   ),
                 ),
               ],
@@ -2710,11 +2710,11 @@ class _PurchaseOrderTab extends StatelessWidget {
     final canOrder = visitOpen && (visitRouteLineId != 0);
     if (!canOrder) {
       return const Center(
-        child: Padding(
+      child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
             'سجّل الدخول عند العميل أولاً لإنشاء طلب شراء.',
-            textAlign: TextAlign.center,
+              textAlign: TextAlign.center,
             style: TextStyle(
               color: AppTheme.textSoft,
               fontWeight: FontWeight.w700,
@@ -2823,7 +2823,7 @@ class _OrdersTab extends StatelessWidget {
                   )
                 : ListView(
                     padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
-                    children: [
+                          children: [
                       LinedReportTable(
                         headers: const [
                           '#',
@@ -2919,7 +2919,7 @@ class _InvoicesTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: [
+          children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
           child: Row(
@@ -2940,10 +2940,10 @@ class _InvoicesTab extends StatelessWidget {
                   label: Text(
                       'إلى: ${Fmt.dmy('${to.year.toString().padLeft(4, '0')}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}')}'),
                 ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
+      ),
         Expanded(
           child: AsyncView(
             loading: loading,

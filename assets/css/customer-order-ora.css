@@ -287,26 +287,50 @@ body.co-ora-body .main.si-main {
   display: flex !important;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 14px;
+  gap: 6px 12px;
   padding: 6px 8px !important;
   background: transparent !important;
   border: none !important;
 }
 
-.co-ora-skin .si-f {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
+/* اسم الحقل بجانب الحقل تماماً */
+.co-ora-skin .si-f,
+.co-ora-skin .si-meta--invoice > .si-f,
+.co-ora-skin .si-meta--order > .si-f {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 2px !important;
   margin: 0 !important;
+  grid-template-rows: none !important;
+  grid-template-columns: none !important;
 }
 
-.co-ora-skin .si-f-head {
+.co-ora-skin .si-f-head,
+.co-ora-skin .si-meta--invoice .si-f-head,
+.co-ora-skin .si-meta--order .si-f-head {
   font-size: 11px !important;
   font-weight: 700 !important;
   color: #222 !important;
-  white-space: nowrap;
-  min-width: 56px;
+  white-space: nowrap !important;
+  min-width: 0 !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 0 0 2px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  line-height: 1.2 !important;
+  min-height: 0 !important;
+}
+
+.co-ora-skin .si-f > .si-field,
+.co-ora-skin .si-f > .hx-lov-wrap,
+.co-ora-skin .si-f > .date-dmy-field,
+.co-ora-skin .si-f > .si-cust-wrap {
+  flex: 0 1 auto !important;
+  margin: 0 !important;
 }
 
 .co-ora-skin .si-field,
@@ -410,7 +434,7 @@ body.co-ora-body .main.si-main {
   background: transparent !important;
 }
 
-/* خط البنود غامق — بدون مربعات داخل الخلايا — يمين */
+/* خط البنود غامق — بدون مربعات — محاذاة يمين داخل الخلية كاملة */
 .co-ora-skin .si-lines input,
 .co-ora-skin .si-lines select,
 .co-ora-skin .si-lines .si-num-out,
@@ -435,13 +459,87 @@ body.co-ora-body .main.si-main {
   appearance: none;
 }
 
+/* الحقول تملأ الخلية حتى يظهر المحاذاة لليمين */
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-item-sku,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-item-code,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-item-name,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-qty,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-qty-extra,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-price,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-disc,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co select.js-unit,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co select.js-tax,
+body.co-ora-body .co-ora-skin .si-lines input,
+body.co-ora-body .co-ora-skin .si-lines select {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  text-align: right !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-item-sku,
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-item-code,
+body.co-ora-body .co-ora-skin .si-lines input[dir='ltr'] {
+  direction: ltr !important;
+  text-align: right !important;
+  unicode-bidi: isolate !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines.si-lines--co input.js-item-name,
+body.co-ora-body .co-ora-skin .si-lines input.js-item-name {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines .si-item-sku-wrap,
+body.co-ora-body .co-ora-skin .si-lines .hx-lov-wrap {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines .si-item-sku-wrap input.js-item-sku,
+body.co-ora-body .co-ora-skin .si-lines .hx-lov-wrap > input,
+body.co-ora-body .co-ora-skin .si-lines .hx-lov-wrap > select {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  text-align: right !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines td.si-num-out,
+body.co-ora-body .co-ora-skin .si-lines .si-num-out {
+  text-align: right !important;
+}
+
+body.co-ora-body .co-ora-skin .si-lines td.si-row-num {
+  text-align: center !important;
+}
+
+/* التاريخ في وسط الحقل */
+body.co-ora-body .co-ora-skin #co_date,
+body.co-ora-body .co-ora-skin .si-f--date .si-field,
+body.co-ora-body .co-ora-skin .si-f--date input,
+body.co-ora-body .co-ora-skin .si-f--date .js-date-dmy,
+body.co-ora-body .co-ora-skin .date-dmy-field .js-date-dmy,
+body.co-ora-body .co-ora-skin .date-dmy-field .si-field {
+  text-align: center !important;
+  direction: ltr !important;
+}
+
+body.co-ora-body .co-ora-skin .si-f--date .date-dmy-field {
+  width: 100% !important;
+}
+
 .co-ora-skin .si-lines input[dir='ltr'],
 .co-ora-skin .si-lines .js-item-sku,
 .co-ora-skin .si-lines .js-item-code,
 .co-ora-skin .si-lines input[type='number'] {
   text-align: right !important;
   direction: ltr !important;
-  unicode-bidi: plaintext;
+  unicode-bidi: isolate;
 }
 
 .co-ora-skin .si-lines .si-item-name-cell input.js-item-name,
@@ -460,9 +558,7 @@ body.co-ora-body .main.si-main {
 .co-ora-skin .si-f--date input[type='date'],
 .co-ora-skin .si-f--date input.js-date-dmy,
 .co-ora-skin .si-meta input[type='date'],
-.co-ora-skin .si-meta .js-date-dmy,
-.co-ora-skin .si-f--date .date-dmy-field .js-date-dmy,
-.co-ora-skin .date-dmy-field .js-date-dmy {
+.co-ora-skin .si-meta .js-date-dmy {
   text-align: center !important;
   direction: ltr !important;
 }

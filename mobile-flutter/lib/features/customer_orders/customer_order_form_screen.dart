@@ -678,11 +678,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       if (session.gpsConfig.repVisitGeofence) {
         final offline = context.read<OfflineController>();
         if (offline.online) {
-          final gps = await LocationService.requirePosition();
-          body['latitude'] = gps.latitude;
-          body['longitude'] = gps.longitude;
-          body['gps_accuracy'] = gps.accuracy;
-          body['gps_source'] = 'mobile';
+        final gps = await LocationService.requirePosition();
+        body['latitude'] = gps.latitude;
+        body['longitude'] = gps.longitude;
+        body['gps_accuracy'] = gps.accuracy;
+        body['gps_source'] = 'mobile';
         } else {
           final g = await LocationService.tryGetPosition();
           if (g != null) {
@@ -756,19 +756,19 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         return localId;
       }
       try {
-        final result = await context.read<ApiClient>().postJson(
-              AppConfig.customerOrderSavePath,
-              csrf: session.csrf,
-              body: body,
-            );
-        final id = Fmt.toInt(result['order_id'] ?? result['id']);
+      final result = await context.read<ApiClient>().postJson(
+        AppConfig.customerOrderSavePath,
+        csrf: session.csrf,
+        body: body,
+      );
+      final id = Fmt.toInt(result['order_id'] ?? result['id']);
         final sent = _flagOn(result['is_sent']);
-        if (mounted) {
-          setState(() {
-            _id = id == 0 ? _id : id;
-            _orderNo = Fmt.str(result['order_no']) == ''
-                ? _orderNo
-                : Fmt.str(result['order_no']);
+      if (mounted) {
+        setState(() {
+          _id = id == 0 ? _id : id;
+          _orderNo = Fmt.str(result['order_no']) == ''
+              ? _orderNo
+              : Fmt.str(result['order_no']);
             _orderNoCtrl.text = _orderNo ?? '';
             _isSent = sent;
             _markClean();
@@ -779,15 +779,15 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 defaultOn: true,
               );
             }
-          });
-          showSnack(
-              context,
-              Fmt.str(result['message']).isEmpty
-                  ? 'تم حفظ الطلب.'
-                  : Fmt.str(result['message']));
+        });
+        showSnack(
+            context,
+            Fmt.str(result['message']).isEmpty
+                ? 'تم حفظ الطلب.'
+                : Fmt.str(result['message']));
           widget.onSaved?.call(_id);
-        }
-        return _id;
+      }
+      return _id;
       } on ApiException catch (e) {
         if (offline.catalogReady &&
             (e.message.contains('تعذر الاتصال') ||
@@ -1272,11 +1272,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             title: const Text('اختر الطلب'),
             content: SizedBox(
               width: 420,
-              child: ListView(
+            child: ListView(
                 shrinkWrap: true,
-                children: [
+              children: [
                   for (final o in (exact.isNotEmpty ? exact : starts.isNotEmpty ? starts : orders))
-                    ListTile(
+                      ListTile(
                       title: Text(
                         Fmt.str(o['order_no']).isEmpty
                             ? '#${Fmt.toInt(o['id'])}'
@@ -1358,11 +1358,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           final docH = tight ? 30.0 : 34.0;
           final body = Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
               Row(
                 children: [
-                  Expanded(
+                        Expanded(
                     child: _wideOrderNoSearch(
                       fieldHeight: fieldH,
                       labelSize: labelSize,
@@ -1389,7 +1389,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               SizedBox(height: gap),
               Row(
-                children: [
+                            children: [
                   Expanded(
                     child: _orderHeaderField(
                       label: 'نوع الدفع',
@@ -1438,7 +1438,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 Text(
                   _approved ? 'طلب معتمد — عرض فقط' : 'طلب مرحّل — عرض فقط',
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                                  style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                     color: Color(0xFFB45309),
@@ -1493,7 +1493,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+                                Text(
           'ملاحظات',
           style: TextStyle(
             fontSize: labelSize,
@@ -1579,7 +1579,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               maxLines: 8,
               keyboardType: TextInputType.multiline,
               textInputAction: TextInputAction.newline,
-              style: const TextStyle(
+                                  style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 height: 1.45,
@@ -1661,8 +1661,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   overflow: TextOverflow.ellipsis,
                   textDirection: TextDirection.ltr,
                   style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
                     color: _orderNoCtrl.text.isEmpty
                         ? AppTheme.textSoft
                         : AppTheme.textMain,
@@ -1670,9 +1670,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
               ),
             ),
-          ),
-        ),
-      ],
+                                  ),
+                                ),
+                            ],
     );
   }
 
@@ -1757,7 +1757,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Row(
         children: [
-          Expanded(
+                        Expanded(
             child: InkWell(
               onTap: () => _showArDetails(focusCheques: false),
               child: _sumCell(
@@ -2138,56 +2138,56 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               DataCell(
                 SizedBox(
                   width: m.unit,
-                  child: DropdownButtonFormField<int>(
+                          child: DropdownButtonFormField<int>(
                     key: ValueKey(
                         'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
                     isExpanded: true,
                     isDense: true,
                     style: cellStyle,
-                    initialValue: _lines[i].unitId == 0
-                        ? (_lines[i].item.units.isEmpty
-                            ? null
-                            : _lines[i].item.units.first.unitId)
-                        : _lines[i].unitId,
+                            initialValue: _lines[i].unitId == 0
+                                ? (_lines[i].item.units.isEmpty
+                                    ? null
+                                    : _lines[i].item.units.first.unitId)
+                                : _lines[i].unitId,
                     decoration: _lineFieldDecoration(m),
-                    items: [
-                      for (final u in _lines[i].item.units)
-                        DropdownMenuItem(
-                          value: u.unitId,
+                            items: [
+                              for (final u in _lines[i].item.units)
+                                DropdownMenuItem(
+                                  value: u.unitId,
                           child: Text(
                             u.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: m.font),
                           ),
-                        ),
-                      if (_lines[i].item.units.isEmpty &&
-                          _lines[i].unitName.isNotEmpty)
-                        DropdownMenuItem(
-                          value: _lines[i].unitId,
+                                ),
+                              if (_lines[i].item.units.isEmpty &&
+                                  _lines[i].unitName.isNotEmpty)
+                                DropdownMenuItem(
+                                  value: _lines[i].unitId,
                           child: Text(
                             _lines[i].unitName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(fontSize: m.font),
                           ),
-                        ),
-                    ],
-                    onChanged: !_editable
-                        ? null
-                        : (v) {
-                            final u = _lines[i]
-                                .item
-                                .units
-                                .where((x) => x.unitId == v)
-                                .cast<ItemUnitOpt?>()
-                                .followedBy([null]).first;
-                            setState(() {
+                                ),
+                            ],
+                            onChanged: !_editable
+                                ? null
+                                : (v) {
+                                    final u = _lines[i]
+                                        .item
+                                        .units
+                                        .where((x) => x.unitId == v)
+                                        .cast<ItemUnitOpt?>()
+                                        .followedBy([null]).first;
+                                    setState(() {
                               _lines[i].applyUnit(u, unitIdOverride: v);
-                            });
-                          },
-                  ),
-                ),
+                                    });
+                                  },
+                          ),
+                        ),
               ),
               DataCell(
                 _numPadField(
@@ -2230,25 +2230,25 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               DataCell(
                 SizedBox(
                   width: m.price,
-                  child: TextFormField(
+                          child: TextFormField(
                     key: ValueKey(
                         'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
                     initialValue: Fmt.trimNum(_lines[i].unitPrice),
-                    enabled: _editable,
+                              enabled: _editable,
                     style: cellStyle.copyWith(fontWeight: FontWeight.w800),
                     keyboardType: const TextInputType.numberWithOptions(
                       decimal: true,
                     ),
                     decoration: _lineFieldDecoration(m),
-                    onChanged: (v) => setState(() {
+                              onChanged: (v) => setState(() {
                       final p = double.tryParse(v.replaceAll(',', '')) ?? 0;
                       _lines[i].unitPrice = p;
                       if (_lines[i].unitFactor > 0) {
                         _lines[i].basePrice = p / _lines[i].unitFactor;
                       }
-                    }),
-                  ),
-                ),
+                                  }),
+                          ),
+                        ),
               ),
               DataCell(
                 SizedBox(
@@ -2295,7 +2295,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                         ),
                     ],
                     onChanged: !_editable
-                        ? null
+                          ? null
                         : (id) {
                             final matches =
                                 _taxRates.where((t) => t.id == id);
@@ -2462,8 +2462,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                         child: _orderHeaderCustomer(),
                       ),
                     ],
-                  ],
-                )),
+              ],
+            )),
             const SizedBox(height: 8),
             AppCard(
               child: Column(
