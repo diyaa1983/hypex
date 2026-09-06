@@ -62,43 +62,6 @@ body.co-ora-body .main.si-main {
   flex: 1 1 auto;
   min-width: 0;
   justify-content: flex-start;
-  gap: 6px !important;
-}
-
-.co-ora-skin .co-ora-docno-inline {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  direction: ltr;
-}
-
-.co-ora-skin .co-ora-docno-inline .si-docno-btn {
-  min-width: 18px !important;
-  height: 18px !important;
-  padding: 0 3px !important;
-  font-size: 10px !important;
-  line-height: 1 !important;
-  border: 1px solid #9a9a9a !important;
-  border-radius: 0 !important;
-  background: linear-gradient(180deg, #fff 0%, #efefef 100%) !important;
-}
-
-.co-ora-skin .co-ora-docno-inline .si-docno-input {
-  width: 7.5rem !important;
-  min-width: 5rem !important;
-  height: 18px !important;
-  min-height: 18px !important;
-  padding: 0 4px !important;
-  font-size: 11px !important;
-  border: 1px solid #9a9a9a !important;
-  border-radius: 0 !important;
-}
-
-.co-ora-skin .co-ora-docno-inline .si-pill {
-  margin-inline-start: 4px;
-  font-size: 10px !important;
-  padding: 1px 5px !important;
-  border-radius: 0 !important;
 }
 
 .co-ora-skin .si-tb {

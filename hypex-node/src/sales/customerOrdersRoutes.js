@@ -116,9 +116,6 @@ function toolbarCaps(user, order) {
 function toolbarHtml(caps, order) {
   const id = order && order.id ? Number(order.id) : 0;
   const locked = !!(order && order.is_approved);
-  const badge = locked
-    ? '<span class="si-pill si-pill--lock">معتمد</span>'
-    : '<span class="si-pill si-pill--wait">مسودة</span>';
   const b = (idAttr, label, cls, disabled, extra = '', key = '', keyDesc = '') => {
     const keyHtml = key
       ? `<span class="si-tb-keywrap" title="${esc(keyDesc || key)}"><kbd class="si-tb-key">${esc(key)}</kbd>${
@@ -133,20 +130,6 @@ function toolbarHtml(caps, order) {
   return `
     <div class="si-cmd si-doc-toolbar" id="co-doc-bar" role="toolbar" aria-label="إجراءات طلب الشراء"
          data-order-id="${id}" data-approved="${locked ? '1' : '0'}">
-      <div class="si-tb-group si-tb-group--status">
-        <span class="si-msg" id="co-msg"></span>
-        <span class="co-ora-docno-inline" title="رقم الطلب">
-          <button type="button" class="si-btn si-docno-btn" id="co_first" title="أول طلب">«</button>
-          <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
-          <input class="si-field si-field--mono si-docno-input ${
-            locked ? 'is-approved' : order && (order.order_no || order.id) ? 'is-saved' : ''
-          }" id="co_no" type="text" value="${esc((order && order.order_no) || '')}" readonly placeholder="" dir="ltr"
-                 title="↑/← سابق · ↓/→ تالٍ · Home أول · End آخر · اكتب الرقم ثم Enter للبحث">
-          <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
-          <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="co_last" title="آخر طلب">»</button>
-          ${badge}
-        </span>
-      </div>
       <div class="si-tb-group si-tb-group--core">
         ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10', 'حفظ')}
         ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد الطلب"', '', 'اعتماد')}
@@ -185,6 +168,9 @@ function toolbarHtml(caps, order) {
           !caps.canDelete,
           ' data-hx-delete="1" title="حذف الطلب"'
         )}
+      </div>
+      <div class="si-tb-group si-tb-group--status">
+        <span class="si-msg" id="co-msg"></span>
       </div>
     </div>`;
 }
@@ -381,9 +367,40 @@ async function renderForm(req, res, orderId) {
       )
       .join('');
 
+  const badge = locked
+    ? '<span class="si-pill si-pill--lock">معتمد — قراءة فقط</span>'
+    : '<span class="si-pill si-pill--wait">مسودة</span>';
+
   const bodyHtml = `
     <div class="si-stage si-stage--toolbar-first co-ora-skin" id="co-ora-root">
       ${toolbarHtml(caps, initial)}
+      <div class="si-doc-top-row">
+        <div class="si-doc-screen-head">
+          <h1 class="si-doc-screen-title" id="co-screen-title">طلب شراء عميل</h1>
+          <label class="si-f si-f--docno si-f--docno-top">
+            <span class="si-f-head">رقم الطلب</span>
+            <div class="si-docno-row" dir="ltr">
+              <button type="button" class="si-btn si-docno-btn" id="co_first" title="أول طلب">«</button>
+              <button type="button" class="si-btn si-docno-btn" id="co_prev" title="السابق — ↑ / ←">‹</button>
+              <input class="si-field si-field--mono si-docno-input ${
+                locked ? 'is-approved' : initial.order_no || initial.id ? 'is-saved' : ''
+              }" id="co_no" type="text" value="${esc(initial.order_no)}" readonly placeholder="" dir="ltr"
+                     title="↑/← سابق · ↓/→ تالٍ · Home أول · End آخر · اكتب الرقم ثم Enter للبحث">
+              <button type="button" class="si-btn si-docno-btn" id="co_next" title="التالي — ↓ / →">›</button>
+              <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="co_last" title="آخر طلب">»</button>
+            </div>
+          </label>
+          <div class="si-doc-screen-badge">${badge}</div>
+        </div>
+        <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
+          <span class="si-count si-count--keys">
+            <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+            <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+            <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+            <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
+          </span>
+        </div>
+      </div>
 
       <div class="oracle-rec-canvas co-ora-canvas">
       <section class="si-surface oracle-rec-block">
