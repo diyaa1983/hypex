@@ -372,7 +372,7 @@ async function renderForm(req, res, orderId) {
     : '<span class="si-pill si-pill--wait">مسودة</span>';
 
   const bodyHtml = `
-    <div class="si-stage si-stage--toolbar-first co-ora-skin" id="co-ora-root">
+    <div class="si-stage si-stage--toolbar-first">
       ${toolbarHtml(caps, initial)}
       <div class="si-doc-top-row">
         <div class="si-doc-screen-head">
@@ -402,12 +402,11 @@ async function renderForm(req, res, orderId) {
         </div>
       </div>
 
-      <div class="oracle-rec-canvas co-ora-canvas">
-      <section class="si-surface oracle-rec-block">
-        <div class="si-surface-head oracle-rec-block-caption">
+      <section class="si-surface">
+        <div class="si-surface-head">
           <h2>بيانات المستند</h2>
         </div>
-        <div class="si-meta si-meta--invoice si-meta--order oracle-rec-fields">
+        <div class="si-meta si-meta--invoice si-meta--order">
           <label class="si-f si-f--date">
             <span class="si-f-head">التاريخ</span>
             <input class="si-field si-field--mono" id="co_date" type="date" value="${esc(initial.order_date)}" ${locked ? 'readonly' : ''} data-nav="1">
@@ -446,12 +445,12 @@ async function renderForm(req, res, orderId) {
         </div>
       </section>
 
-      <section class="si-surface oracle-rec-block">
-        <div class="si-surface-head oracle-rec-block-caption">
+      <section class="si-surface">
+        <div class="si-surface-head">
           <h2>بنود الطلب</h2>
         </div>
-        <div class="si-lines-wrap oracle-rec-grid-wrap">
-          <table class="si-lines si-lines--co oracle-rec-grid" id="co-lines">
+        <div class="si-lines-wrap">
+          <table class="si-lines si-lines--co" id="co-lines">
             ${linesColgroup()}
             <thead>
               <tr>
@@ -473,7 +472,7 @@ async function renderForm(req, res, orderId) {
             <tbody id="co-lines-body"></tbody>
           </table>
         </div>
-        <div class="si-doc-foot oracle-rec-fields oracle-rec-fields-second">
+        <div class="si-doc-foot">
           <div class="si-totals">
             <label>خصم مستوى الطلب
               <input class="si-field" id="co_discount" type="text" value="${esc(initial.invoice_discount)}"
@@ -489,10 +488,10 @@ async function renderForm(req, res, orderId) {
         </div>
       </section>
 
-      <section class="si-surface oracle-rec-block co-ora-ar-panel" id="co-ora-ar-panel" ${
+      <section class="si-surface co-ora-ar-panel" id="co-ora-ar-panel" ${
         initial.customer_id ? '' : 'hidden'
       }>
-        <div class="si-surface-head oracle-rec-block-caption">
+        <div class="si-surface-head">
           <h2>رصيد العميل والشيكات</h2>
           <span class="si-count" id="co-ora-ar-name">—</span>
         </div>
@@ -543,7 +542,6 @@ async function renderForm(req, res, orderId) {
           </p>
         </div>
       </section>
-      </div><!-- /.co-ora-canvas -->
 
       ${
         caps.canPostOracle
@@ -589,14 +587,9 @@ async function renderForm(req, res, orderId) {
       user,
       title: isNew ? 'طلب شراء عميل' : `طلب شراء عميل ${initial.order_no || ''}`.trim(),
       bodyHtml,
-      bodyClass: 'si-2027 co-ora-body',
+      bodyClass: 'si-2027',
       mainClass: 'main si-main',
-      /* للرجوع: احذف customer-order-ora.css واسترجع customerOrdersRoutes.js.bak */
-      css: [
-        '/assets/css/sales-2027.css',
-        '/assets/css/customer-order-doc.css',
-        '/assets/css/customer-order-ora.css',
-      ],
+      css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-doc.css'],
       js: ['/assets/js/doc-nav.js', '/assets/js/hx-offers-client.js', '/assets/js/customer-order.js'],
     })
   );

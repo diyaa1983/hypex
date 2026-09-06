@@ -14,6 +14,7 @@ require_once app_path('includes/oracle_sync_service.php');
 require_once app_path('includes/crm_region.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 crm_customer_ensure_gps_columns($pdo);
+crm_customer_ensure_oracle_pending_columns($pdo);
 try {
     $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
 } catch (Throwable $e) {
@@ -80,6 +81,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $addr = trim((string) ($_POST['address_ar'] ?? ''));
             $gps = crm_customer_gps_parse_input($_POST);
             $useWholesale = !empty($_POST['use_wholesale_price']) ? 1 : 0;
+            $paymentPeriod = crm_customer_payment_period_valid(
+                trim((string) ($_POST['payment_period'] ?? ''))
+            );
+            if (trim((string) ($_POST['payment_period'] ?? '')) !== '' && $paymentPeriod === null) {
+                throw new RuntimeException('فترة السداد غير صالحة.');
+            }
             $repIdsRaw = $_POST['sales_rep_ids'] ?? [];
             if (!is_array($repIdsRaw)) {
                 $repIdsRaw = [];
@@ -132,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 try {
                     $st = $pdo->prepare(
                         'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-                            use_wholesale_price=?,
+                            use_wholesale_price=?, payment_period=?,
                             region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
                     );
                     $st->execute([
@@ -142,6 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $tax !== '' ? $tax : null,
                         $addr !== '' ? $addr : null,
                         $useWholesale,
+                        $paymentPeriod,
                         $regionIdDb,
                         $regionAddressIdDb,
                         $gps['latitude'],
@@ -151,24 +159,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $id,
                     ]);
                 } catch (Throwable $eCol) {
-                    $st = $pdo->prepare(
-                        'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
-                            region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
-                    );
-                    $st->execute([
-                        $name,
-                        $phone !== '' ? $phone : null,
-                        $email !== '' ? $email : null,
-                        $tax !== '' ? $tax : null,
-                        $addr !== '' ? $addr : null,
-                        $regionIdDb,
-                        $regionAddressIdDb,
-                        $gps['latitude'],
-                        $gps['longitude'],
-                        $gps['gps_accuracy'],
-                        $gps['clear'] ? null : date('Y-m-d H:i:s'),
-                        $id,
-                    ]);
+                    try {
+                        $st = $pdo->prepare(
+                            'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+                                use_wholesale_price=?,
+                                region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
+                        );
+                        $st->execute([
+                            $name,
+                            $phone !== '' ? $phone : null,
+                            $email !== '' ? $email : null,
+                            $tax !== '' ? $tax : null,
+                            $addr !== '' ? $addr : null,
+                            $useWholesale,
+                            $regionIdDb,
+                            $regionAddressIdDb,
+                            $gps['latitude'],
+                            $gps['longitude'],
+                            $gps['gps_accuracy'],
+                            $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                            $id,
+                        ]);
+                    } catch (Throwable $eCol2) {
+                        $st = $pdo->prepare(
+                            'UPDATE crm_customer SET name_ar=?, phone=?, email=?, tax_number=?, address_ar=?,
+                                region_id=?, region_address_id=?, latitude=?, longitude=?, gps_accuracy=?, gps_at=? WHERE id=?'
+                        );
+                        $st->execute([
+                            $name,
+                            $phone !== '' ? $phone : null,
+                            $email !== '' ? $email : null,
+                            $tax !== '' ? $tax : null,
+                            $addr !== '' ? $addr : null,
+                            $regionIdDb,
+                            $regionAddressIdDb,
+                            $gps['latitude'],
+                            $gps['longitude'],
+                            $gps['gps_accuracy'],
+                            $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                            $id,
+                        ]);
+                    }
                 }
                 crm_customer_save_sales_reps($pdo, $id, $repIdsRaw);
                 flash_set(
@@ -181,8 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $code = crm_customer_generate_code($pdo);
                 try {
                     $st = $pdo->prepare(
-                        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, payment_period, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
                     );
                     $st->execute([
                         $code,
@@ -192,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $tax !== '' ? $tax : null,
                         $addr !== '' ? $addr : null,
                         $useWholesale,
+                        $paymentPeriod,
                         $regionIdDb,
                         $regionAddressIdDb,
                         $gps['latitude'],
@@ -201,25 +233,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         null,
                     ]);
                 } catch (Throwable $eCol) {
-                    $st = $pdo->prepare(
-                        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
-                    );
-                    $st->execute([
-                        $code,
-                        $name,
-                        $phone !== '' ? $phone : null,
-                        $email !== '' ? $email : null,
-                        $tax !== '' ? $tax : null,
-                        $addr !== '' ? $addr : null,
-                        $regionIdDb,
-                        $regionAddressIdDb,
-                        $gps['latitude'],
-                        $gps['longitude'],
-                        $gps['gps_accuracy'],
-                        $gps['clear'] ? null : date('Y-m-d H:i:s'),
-                        null,
-                    ]);
+                    try {
+                        $st = $pdo->prepare(
+                            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                        );
+                        $st->execute([
+                            $code,
+                            $name,
+                            $phone !== '' ? $phone : null,
+                            $email !== '' ? $email : null,
+                            $tax !== '' ? $tax : null,
+                            $addr !== '' ? $addr : null,
+                            $useWholesale,
+                            $regionIdDb,
+                            $regionAddressIdDb,
+                            $gps['latitude'],
+                            $gps['longitude'],
+                            $gps['gps_accuracy'],
+                            $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                            null,
+                        ]);
+                    } catch (Throwable $eCol2) {
+                        $st = $pdo->prepare(
+                            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                        );
+                        $st->execute([
+                            $code,
+                            $name,
+                            $phone !== '' ? $phone : null,
+                            $email !== '' ? $email : null,
+                            $tax !== '' ? $tax : null,
+                            $addr !== '' ? $addr : null,
+                            $regionIdDb,
+                            $regionAddressIdDb,
+                            $gps['latitude'],
+                            $gps['longitude'],
+                            $gps['gps_accuracy'],
+                            $gps['clear'] ? null : date('Y-m-d H:i:s'),
+                            null,
+                        ]);
+                    }
                 }
                 $newId = (int) $pdo->lastInsertId();
                 crm_customer_save_sales_reps($pdo, $newId, $repIdsRaw);
@@ -269,6 +324,7 @@ if ($action === 'add' || $action === 'edit') {
         'email' => '',
         'tax_number' => '',
         'address_ar' => '',
+        'payment_period' => '',
         'latitude' => null,
         'longitude' => null,
         'gps_accuracy' => null,
@@ -358,6 +414,16 @@ if ($action === 'add' || $action === 'edit') {
                 <label class="field">
                     <span class="field-label">الرقم الضريبي</span>
                     <input class="input" name="tax_number" value="<?= esc((string) ($row['tax_number'] ?? '')) ?>">
+                </label>
+                <label class="field">
+                    <span class="field-label">فترة السداد</span>
+                    <?php $curPay = trim((string) ($row['payment_period'] ?? '')); ?>
+                    <select class="input" name="payment_period">
+                        <option value="">— غير محدد —</option>
+                        <option value="cash_with_vehicle"<?= $curPay === 'cash_with_vehicle' ? ' selected' : '' ?>>كاش مع السيارة</option>
+                        <option value="cash_with_rep"<?= $curPay === 'cash_with_rep' ? ' selected' : '' ?>>نقدي مع المندوب</option>
+                        <option value="credit"<?= $curPay === 'credit' ? ' selected' : '' ?>>ذمم</option>
+                    </select>
                 </label>
                 <label class="field">
                     <span class="field-label">المنطقة</span>
@@ -621,7 +687,7 @@ $repNamesSub = '(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.nam
                 WHERE csr2.customer_id = c.id)';
 
 $sql = "SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active, c.created_at,
-               c.latitude, c.longitude, c.oracle_key, c.region_id,
+               c.latitude, c.longitude, c.oracle_key, c.region_id, c.payment_period,
                rg.name_ar AS region_name,
                ra.name_ar AS region_address_name,
                COALESCE({$repNamesSub}, r.name_ar) AS sales_rep_name
@@ -835,6 +901,7 @@ $repsUrl = app_url('index.php?r=sales_reps');
                             <th class="col-id">ID</th>
                             <th>Code</th>
                             <th class="col-name">Name</th>
+                            <th>فترة السداد</th>
                             <th>Region</th>
                             <th>Address</th>
                             <th>Phone</th>
@@ -847,7 +914,7 @@ $repsUrl = app_url('index.php?r=sales_reps');
                         <tbody>
                         <?php if (!$rows): ?>
                             <tr class="rg-ssms-empty-row">
-                                <td colspan="11">
+                                <td colspan="12">
                                     <?= $search !== '' ? 'No rows matching filter.' : 'No rows — (0 row(s) returned)' ?>
                                 </td>
                             </tr>
@@ -866,6 +933,11 @@ $repsUrl = app_url('index.php?r=sales_reps');
                             $on = (int) $c['is_active'];
                             $regionLabel = trim((string) ($c['region_name'] ?? ''));
                             $addrLabel = trim((string) ($c['region_address_name'] ?? ''));
+                            $payLabel = crm_customer_payment_period_label(
+                                trim((string) ($c['payment_period'] ?? '')) !== ''
+                                    ? (string) $c['payment_period']
+                                    : null
+                            );
                             ?>
                             <tr class="<?= $on ? '' : 'is-off' ?>">
                                 <td class="col-sel"><?= $rowNum ?></td>
@@ -874,6 +946,7 @@ $repsUrl = app_url('index.php?r=sales_reps');
                                     <a href="<?= esc(app_url('index.php?r=customers&action=edit&id=' . $custId)) ?>"><?= esc((string) $c['code']) ?></a>
                                 </td>
                                 <td class="col-name"><?= esc((string) $c['name_ar']) ?></td>
+                                <td><?= esc($payLabel !== '' ? $payLabel : '—') ?></td>
                                 <td><?= esc($regionLabel !== '' ? $regionLabel : '—') ?></td>
                                 <td><?= esc($addrLabel !== '' ? $addrLabel : '—') ?></td>
                                 <td dir="ltr"><?= esc((string) ($c['phone'] ?? '') !== '' ? (string) $c['phone'] : '—') ?></td>

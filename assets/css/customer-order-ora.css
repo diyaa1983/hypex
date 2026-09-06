@@ -1,0 +1,727 @@
+/**
+ * طلب شراء عميل (Node UI) — طراز Oracle Forms مثل acc-DKzaman
+ * يُحمَّل فوق sales-2027.css
+ * للرجوع: احذف هذا الملف من css[] في customerOrdersRoutes.js
+ * واسترجع customerOrdersRoutes.js.bak
+ */
+
+body.co-ora-body .si-main,
+body.co-ora-body .main.si-main {
+  background: #d4d0c8 !important;
+  font-family: Arial, Tahoma, sans-serif;
+}
+
+.co-ora-skin {
+  font-family: Arial, Tahoma, sans-serif;
+  font-size: 12px;
+  color: #111;
+}
+
+/* شريط الأدوات */
+.co-ora-skin .si-cmd.si-doc-toolbar {
+  direction: ltr;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: flex-start;
+  gap: 0;
+  padding: 3px 4px;
+  margin: 0 0 8px;
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%) !important;
+  border: 1px solid #9e9e9e !important;
+  border-radius: 2px !important;
+  box-shadow: inset 0 1px 0 #fff, 0 1px 3px rgba(0, 0, 0, 0.12) !important;
+  min-height: 36px;
+}
+
+.co-ora-skin .si-tb-group {
+  direction: rtl;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 2px 4px;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.co-ora-skin .si-tb {
+  color: #1a1a1a !important;
+  border: 1px solid #7a7a7a !important;
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%) !important;
+  padding: 4px 12px !important;
+  border-radius: 2px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  min-height: 26px;
+  box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(0, 0, 0, 0.06) !important;
+}
+
+.co-ora-skin .si-tb:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #f0f0f0 45%, #e0e0e0 100%) !important;
+  border-color: #5a5a5a !important;
+}
+
+.co-ora-skin .si-tb--save,
+.co-ora-skin .si-tb--post {
+  background: linear-gradient(180deg, #f0fff4 0%, #b8e6c4 45%, #8fd4a0 100%) !important;
+  border-color: #2d8a4e !important;
+  color: #145a32 !important;
+}
+
+.co-ora-skin .si-tb--danger {
+  background: linear-gradient(180deg, #fff0f0 0%, #f5c4c4 45%, #e8a8a8 100%) !important;
+  border-color: #b04040 !important;
+  color: #7f1d1d !important;
+}
+
+.co-ora-skin .si-tb-lbl {
+  font-size: 12px !important;
+}
+
+.co-ora-skin .si-tb-keywrap,
+.co-ora-skin .si-tb-keydesc {
+  font-size: 10px;
+}
+
+/* عنوان الشاشة + رقم الطلب */
+.co-ora-skin .si-doc-top-row {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%);
+  border: 1px solid #888;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+}
+
+.co-ora-skin .si-doc-screen-title {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #1a4480 !important;
+  margin: 0 !important;
+}
+
+.co-ora-skin .si-docno-row {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+  background: #fff;
+}
+
+.co-ora-skin .si-docno-btn {
+  border-radius: 0 !important;
+  background: #c0c0c0 !important;
+  border: none !important;
+  color: #000 !important;
+  min-height: 22px !important;
+  padding: 2px 8px !important;
+}
+
+.co-ora-skin .si-docno-input {
+  border: none !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  box-shadow: none !important;
+}
+
+.co-ora-skin .si-keys-bar {
+  background: transparent !important;
+  border: none !important;
+}
+
+.co-ora-skin .si-field-key,
+.co-ora-skin kbd.si-field-key {
+  background: #ececec !important;
+  border: 1px solid #808080 !important;
+  border-radius: 2px !important;
+  font-size: 10px !important;
+}
+
+/* كانفس السند */
+.co-ora-skin .co-ora-canvas {
+  background: #ece9e4;
+  border: 2px solid #808080;
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #666, 2px 2px 6px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+}
+
+.co-ora-skin .si-surface.oracle-rec-block {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%) !important;
+  border: 1px solid #888 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  margin-bottom: 6px !important;
+  overflow: hidden;
+}
+
+.co-ora-skin .si-surface-head.oracle-rec-block-caption,
+.co-ora-skin .oracle-rec-block-caption {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  padding: 3px 8px !important;
+  margin: 0 !important;
+}
+
+.co-ora-skin .oracle-rec-block-caption h2,
+.co-ora-skin .si-surface-head.oracle-rec-block-caption h2 {
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  letter-spacing: 0.3px;
+}
+
+.co-ora-skin .oracle-rec-block-caption .si-count {
+  color: #e8f0ff !important;
+  font-size: 11px;
+}
+
+.co-ora-skin .si-meta.oracle-rec-fields {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 6px 8px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+.co-ora-skin .si-f {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+}
+
+.co-ora-skin .si-f-head {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #222 !important;
+  white-space: nowrap;
+  min-width: 56px;
+}
+
+.co-ora-skin .si-field,
+.co-ora-skin select.si-field,
+.co-ora-skin textarea#co_notes {
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+  font-family: Arial, sans-serif !important;
+  border: 1px solid #808080 !important;
+  border-top-color: #404040 !important;
+  border-left-color: #404040 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+.co-ora-skin .si-field:focus,
+.co-ora-skin select.si-field:focus,
+.co-ora-skin textarea#co_notes:focus {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+  background: #ffffcc !important;
+  box-shadow: none !important;
+}
+
+.co-ora-skin .si-field[readonly],
+.co-ora-skin .si-field:disabled {
+  background: #ececec !important;
+}
+
+.co-ora-skin textarea#co_notes {
+  height: auto !important;
+  min-height: 3.2rem !important;
+  width: 100%;
+}
+
+.co-ora-skin .si-f--cust {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+.co-ora-skin .si-cust-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* الجدول */
+.co-ora-skin .oracle-rec-grid-wrap,
+.co-ora-skin .si-lines-wrap {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  margin: 0 6px 6px !important;
+  overflow: auto;
+}
+
+.co-ora-skin .si-lines thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
+  color: #000 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #808080 !important;
+  padding: 4px 6px !important;
+  text-align: center;
+}
+
+.co-ora-skin .si-lines tbody td {
+  border: 1px solid #c0c0c0 !important;
+  background: #fff;
+  padding: 0 !important;
+  vertical-align: middle;
+}
+
+.co-ora-skin .si-lines tbody tr:nth-child(even) td {
+  background: #f8f8f8 !important;
+}
+
+.co-ora-skin .si-lines tbody tr:hover td {
+  background: #ffffcc !important;
+}
+
+.co-ora-skin .si-lines .si-field {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  height: 24px !important;
+  min-height: 24px !important;
+}
+
+/* تذييل المجاميع */
+.co-ora-skin .si-doc-foot.oracle-rec-fields-second {
+  display: grid !important;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 0.75rem;
+  padding: 6px 8px !important;
+  border-top: 1px solid #bbb;
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+
+@media (max-width: 900px) {
+  .co-ora-skin .si-doc-foot.oracle-rec-fields-second {
+    grid-template-columns: 1fr;
+  }
+}
+
+.co-ora-skin .si-totals {
+  background: #fff;
+  border: 1px solid #808080;
+  border-radius: 0;
+  padding: 6px 8px;
+}
+
+.co-ora-skin .si-tot-row {
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dashed #bbb;
+}
+
+.co-ora-skin .si-tot-grand {
+  font-weight: 800;
+  border-bottom: none;
+  border-top: 1px solid #808080;
+  margin-top: 4px;
+  padding-top: 6px;
+}
+
+.co-ora-skin .si-pill {
+  border-radius: 2px !important;
+  font-size: 11px !important;
+}
+
+.co-ora-skin .co-ora-ar-status,
+.co-ora-skin .co-ora-ar-summary {
+  padding: 6px 8px;
+}
+
+.co-ora-skin .co-ora-ar-kpi {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+}
+
+/* ─── القوائم: طلبات / اعتماد / معتمدة ─── */
+body.co-ora-body .si-stage.co-ora-skin {
+  padding: 8px;
+}
+
+.co-ora-skin .si-hero {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%) !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+  padding: 8px 10px !important;
+  margin-bottom: 8px !important;
+}
+
+.co-ora-skin .si-hero-mark {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  border-radius: 0 !important;
+  border: 1px solid #1a3366 !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+}
+
+.co-ora-skin .si-hero h1,
+.co-ora-skin .si-hero-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #1a4480 !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+}
+
+.co-ora-skin .si-hero .muted,
+.co-ora-skin .si-hero-sub {
+  font-size: 11px !important;
+  color: #444 !important;
+}
+
+.co-ora-skin .si-btn,
+.co-ora-skin a.si-btn,
+.co-ora-skin button.si-btn {
+  color: #1a1a1a !important;
+  border: 1px solid #7a7a7a !important;
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%) !important;
+  border-radius: 2px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  min-height: 26px !important;
+  padding: 3px 10px !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+  text-decoration: none !important;
+}
+
+.co-ora-skin .si-btn:hover,
+.co-ora-skin a.si-btn:hover {
+  background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%) !important;
+  border-color: #5a5a5a !important;
+}
+
+.co-ora-skin .si-btn--primary,
+.co-ora-skin a.si-btn--primary {
+  background: linear-gradient(180deg, #f0fff4 0%, #b8e6c4 45%, #8fd4a0 100%) !important;
+  border-color: #2d8a4e !important;
+  color: #145a32 !important;
+}
+
+.co-ora-skin .si-btn--ghost {
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 100%) !important;
+}
+
+.co-ora-skin .si-rail,
+.co-ora-skin .si-search-rail,
+.co-ora-skin form.si-rail-search {
+  background: linear-gradient(180deg, #f0f0f0 0%, #dcdcdc 100%) !important;
+  border: 1px solid #888 !important;
+  border-radius: 0 !important;
+  padding: 6px 8px !important;
+  margin-bottom: 8px !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+}
+
+.co-ora-skin .si-rail .si-search input[type="search"],
+.co-ora-skin .si-rail input[type="search"] {
+  height: 22px !important;
+  min-height: 22px !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
+  background: #fff !important;
+}
+
+.co-ora-skin .si-table-wrap {
+  border: none !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+.co-ora-skin .si-hero-mark,
+.co-ora-skin .si-mark,
+.co-ora-skin .si-brand-mark {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  border-radius: 0 !important;
+  color: #fff !important;
+  border: 1px solid #1a3366 !important;
+}
+
+.co-ora-skin .si-surface,
+.co-ora-skin .si-table-wrap,
+.co-ora-skin .si-table-card {
+  background: #ece9e4 !important;
+  border: 2px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 1px 1px 0 #fff, 2px 2px 4px rgba(0, 0, 0, 0.12) !important;
+  overflow: hidden;
+}
+
+.co-ora-skin .si-surface-head,
+.co-ora-skin .si-table-head {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  padding: 4px 8px !important;
+  border-radius: 0 !important;
+}
+
+.co-ora-skin .si-surface-head h2,
+.co-ora-skin .si-table-head h2,
+.co-ora-skin .si-surface-head .si-count {
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+}
+
+.co-ora-skin table.si-table,
+.co-ora-skin .si-table,
+.co-ora-skin .si-surface table {
+  border-collapse: collapse !important;
+  width: 100%;
+  font-size: 12px !important;
+  background: #fff;
+}
+
+.co-ora-skin table.si-table thead th,
+.co-ora-skin .si-table thead th,
+.co-ora-skin .si-surface table thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
+  color: #000 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #808080 !important;
+  padding: 4px 6px !important;
+  text-align: center;
+}
+
+.co-ora-skin table.si-table tbody td,
+.co-ora-skin .si-table tbody td,
+.co-ora-skin .si-surface table tbody td {
+  border: 1px solid #c0c0c0 !important;
+  padding: 4px 6px !important;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.co-ora-skin table.si-table tbody tr:nth-child(even) td,
+.co-ora-skin .si-surface table tbody tr:nth-child(even) td {
+  background: #f8f8f8 !important;
+}
+
+.co-ora-skin table.si-table tbody tr:hover td,
+.co-ora-skin .si-surface table tbody tr:hover td {
+  background: #ffffcc !important;
+}
+
+.co-ora-skin .si-pill--ok {
+  background: #c8e6c9 !important;
+  color: #1b5e20 !important;
+  border: 1px solid #2d8a4e !important;
+}
+
+.co-ora-skin .si-pill--wait {
+  background: #fff3cd !important;
+  color: #7a5b00 !important;
+  border: 1px solid #c9a227 !important;
+}
+
+.co-ora-skin .si-pill--lock {
+  background: #e0e0e0 !important;
+  color: #333 !important;
+  border: 1px solid #808080 !important;
+}
+
+/* اقتراح العميل */
+.co-ora-skin .si-suggest {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2) !important;
+  background: #fff !important;
+}
+
+.co-ora-skin .si-suggest button,
+.co-ora-skin .si-suggest .si-suggest-item {
+  border-radius: 0 !important;
+  font-size: 12px !important;
+}
+
+.co-ora-skin .si-suggest button:hover,
+.co-ora-skin .si-suggest .si-suggest-item:hover {
+  background: #ffffcc !important;
+}
+
+/* ─── نافذة ترحيل Oracle / التشغيلات ─── */
+.co-ora-body .co-batch-modal,
+body.co-ora-body #co-batch-modal {
+  background: rgba(80, 80, 80, 0.55) !important;
+}
+
+.co-ora-body .co-batch-panel {
+  background: #d4d0c8 !important;
+  border: 2px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #666,
+    4px 4px 16px rgba(0, 0, 0, 0.35) !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+  font-size: 12px !important;
+  max-width: min(960px, 96vw);
+}
+
+.co-ora-body .co-batch-head {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  padding: 6px 10px !important;
+  border-radius: 0 !important;
+}
+
+.co-ora-body .co-batch-head h3,
+.co-ora-body #co-batch-title {
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  margin: 0 !important;
+}
+
+.co-ora-body .co-batch-head .muted,
+.co-ora-body #co-batch-sub {
+  color: #dce8ff !important;
+  font-size: 11px !important;
+}
+
+.co-ora-body .co-batch-body-wrap {
+  background: #ece9e4 !important;
+  padding: 6px !important;
+  border: none !important;
+}
+
+.co-ora-body .co-batch-table {
+  border-collapse: collapse !important;
+  width: 100%;
+  background: #fff;
+  font-size: 12px !important;
+}
+
+.co-ora-body .co-batch-table thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
+  color: #000 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #808080 !important;
+  padding: 4px 6px !important;
+  text-align: center;
+}
+
+.co-ora-body .co-batch-table tbody td {
+  border: 1px solid #c0c0c0 !important;
+  padding: 2px 4px !important;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.co-ora-body .co-batch-table tbody tr:nth-child(even) td {
+  background: #f8f8f8 !important;
+}
+
+.co-ora-body .co-batch-table input,
+.co-ora-body .co-batch-table select,
+.co-ora-body .co-batch-qty-input,
+.co-ora-body .co-batch-bonus-input,
+.co-ora-body .co-batch-take-input,
+.co-ora-body .co-batch-select {
+  height: 22px !important;
+  min-height: 22px !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  padding: 1px 4px !important;
+  background: #fff !important;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+.co-ora-body .co-batch-table input:focus,
+.co-ora-body .co-batch-table select:focus {
+  background: #ffffcc !important;
+  outline: 1px dotted #000;
+}
+
+.co-ora-body .co-batch-row--invalid td {
+  background: #ffe8e8 !important;
+}
+
+.co-ora-body .co-batch-take--bad {
+  background: #ffcccc !important;
+  border-color: #b04040 !important;
+}
+
+.co-ora-body .co-batch-warn {
+  background: #fff3cd !important;
+  border: 1px solid #c9a227 !important;
+  border-radius: 0 !important;
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+  color: #5c4500 !important;
+}
+
+.co-ora-body .co-batch-foot {
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%) !important;
+  border-top: 1px solid #888 !important;
+  padding: 6px 8px !important;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.co-ora-body .co-batch-status {
+  flex: 1;
+  font-size: 11px;
+  color: #333;
+}
+
+.co-ora-body .co-batch-foot .si-btn,
+.co-ora-body #co-batch-cancel,
+.co-ora-body #co-batch-confirm {
+  color: #1a1a1a !important;
+  border: 1px solid #7a7a7a !important;
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%) !important;
+  border-radius: 2px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  min-height: 26px !important;
+  padding: 4px 12px !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+}
+
+.co-ora-body #co-batch-confirm,
+.co-ora-body .co-batch-foot .si-tb--post {
+  background: linear-gradient(180deg, #f0fff4 0%, #b8e6c4 45%, #8fd4a0 100%) !important;
+  border-color: #2d8a4e !important;
+  color: #145a32 !important;
+}
+
+/* رسائل الشريط */
+.co-ora-skin .si-msg {
+  font-size: 11px !important;
+  color: #222 !important;
+}
+
+.co-ora-skin .si-msg.is-ok,
+.co-ora-skin .si-msg.ok {
+  color: #145a32 !important;
+}
+
+.co-ora-skin .si-msg.is-error,
+.co-ora-skin .si-msg.err {
+  color: #7f1d1d !important;
+}

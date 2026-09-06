@@ -1,380 +1,196 @@
 ﻿/**
- * طلب شراء عميل — طراز Oracle Forms (مثل acc-DKzaman)
- * للرجوع: انسخ customer-order-doc.css.bak فوق هذا الملف
- * واسترجع modules/sales/customer_order_entry.php.bak
+ * طلب شراء عميل — شكل سند (شريط أوامر + بيانات السند + جدول + إضافة سطر + شريط مجاميع)
+ * Scoped تحت .co-doc
  */
 
-.co-doc.dashboard-ora.sales-ora12-screen.co-doc--dkzaman {
-  --co-blue: #1a4480;
-  --co-blue-deep: #12305c;
-  --co-blue-soft: #e8eef8;
-  --co-ok: #145a32;
+.co-doc.dashboard-ora.sales-ora12-screen {
+  --co-blue: #1a5f9e;
+  --co-blue-deep: #0f3f6a;
+  --co-blue-soft: #e8f1f8;
+  --co-ok: #1b7d3a;
   --co-ok-bg: #e8f5e9;
-  --co-danger: #7f1d1d;
+  --co-danger: #c62828;
   --co-danger-bg: #fdecea;
-  --co-border: #808080;
-  --co-muted: #444;
-  background: #d4d0c8;
-  font-family: Arial, Tahoma, sans-serif;
-  font-size: 12px;
+  --co-border: #c5d0db;
+  --co-muted: #5a6a7a;
+  background: #e9eef3;
 }
 
-.co-doc--dkzaman .dashboard-ora-workspace {
-  padding: 0.35rem 0.45rem 0.75rem;
-}
-
-/* شريط الأدوات — مثل DKzaman */
-.co-doc--dkzaman .co-ora-toolbar.toolbar {
-  direction: ltr;
-  display: flex;
-  flex-wrap: nowrap;
-  align-items: flex-start;
-  gap: 0;
-  padding: 3px 4px;
-  margin: 0 0 8px;
-  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%);
-  border: 1px solid #9e9e9e;
-  border-radius: 2px;
-  box-shadow: inset 0 1px 0 #fff, 0 1px 3px rgba(0, 0, 0, 0.12);
-  min-height: 36px;
-}
-
-.co-doc--dkzaman .co-ora-toolbar .toolbar-actions {
-  direction: rtl;
-  flex: 1;
+/* شريط الأوامر */
+.co-doc .co-doc-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
-  padding: 2px 4px 2px 0;
-  min-width: 0;
+  gap: 0.35rem;
+  padding: 0.45rem 0.55rem;
+  margin: 0 0 0.65rem;
+  background: linear-gradient(180deg, #f7f9fb 0%, #e9eef3 100%);
+  border: 1px solid var(--co-border);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 #fff inset;
 }
 
-.co-doc--dkzaman .co-ora-toolbar .btn-toolbar {
-  color: #1a1a1a;
-  border: 1px solid #7a7a7a;
-  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%);
-  padding: 4px 12px;
-  border-radius: 2px;
-  font-size: 12px;
-  font-family: Arial, sans-serif;
-  font-weight: 600;
-  line-height: 1.3;
+.co-doc .co-tb-btn {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
+  gap: 0.1rem;
+  min-width: 3.5rem;
+  padding: 0.35rem 0.55rem 0.3rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1e293b;
   text-decoration: none !important;
+  background: linear-gradient(180deg, #ffffff 0%, #eef2f6 100%);
+  border: 1px solid #b8c4d0;
+  border-radius: 6px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 1px 2px rgba(15, 23, 42, 0.06);
   cursor: pointer;
-  box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(0, 0, 0, 0.06);
-  white-space: nowrap;
-  min-height: 26px;
+  line-height: 1.15;
 }
 
-.co-doc--dkzaman .co-ora-toolbar .btn-toolbar:hover:not(:disabled) {
-  background: linear-gradient(180deg, #fff 0%, #f0f0f0 45%, #e0e0e0 100%);
-  border-color: #5a5a5a;
-  color: #000;
+.co-doc .co-tb-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #e2eaf2 100%);
+  border-color: #8eabc4;
+  color: #0f172a;
 }
 
-.co-doc--dkzaman .co-ora-toolbar .btn-toolbar:disabled {
-  opacity: 0.45;
+.co-doc .co-tb-btn:disabled {
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-.co-doc--dkzaman .co-ora-toolbar a.btn-toolbar-exit {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin: 2px 6px 2px 2px;
-  background: linear-gradient(180deg, #fff5f5 0%, #f0d0d0 45%, #e0b0b0 100%);
-  border-color: #a04040;
-  color: #7f1d1d;
+.co-doc .co-tb-ico {
+  font-size: 1.05rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--co-ok);
 }
 
-.co-doc--dkzaman .co-ora-toolbar .btn-toolbar-save {
-  background: linear-gradient(180deg, #f0fff4 0%, #b8e6c4 45%, #8fd4a0 100%);
-  border-color: #2d8a4e;
-  color: #145a32;
+.co-doc .co-tb-btn--ok .co-tb-ico {
+  color: var(--co-ok);
 }
 
-.co-doc--dkzaman .co-ora-toolbar .btn-danger-tool {
-  background: linear-gradient(180deg, #fff0f0 0%, #f5c4c4 45%, #e8a8a8 100%);
-  border-color: #b04040;
-  color: #7f1d1d;
+.co-doc .co-tb-btn--ok {
+  border-color: #9ccc9c;
+  background: linear-gradient(180deg, #f4fff6 0%, #e2f3e6 100%);
 }
 
-.co-doc--dkzaman .co-toolbar-sep {
-  width: 1px;
-  align-self: stretch;
-  min-height: 22px;
-  background: #9a9a9a;
-  margin: 0 4px;
-  box-shadow: 1px 0 0 #fff;
+.co-doc .co-tb-btn--danger {
+  border-color: #e0a8a8;
+  background: linear-gradient(180deg, #fff7f7 0%, #fdeaea 100%);
 }
 
-/* إطار السند */
-.co-doc--dkzaman form.oracle-rec-screen.form-card {
-  background: #d4d0c8;
-  border: 2px solid #808080;
-  border-radius: 0;
-  padding: 0;
-  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #666, 2px 2px 6px rgba(0, 0, 0, 0.2);
-  margin: 0;
+.co-doc .co-tb-btn--danger .co-tb-ico {
+  color: var(--co-danger);
 }
 
-.co-doc--dkzaman .oracle-rec-canvas {
-  background: #ece9e4;
-  border-top: 1px solid #fff;
-  padding: 6px;
+.co-doc .co-tb-btn--exit {
+  margin-inline-start: auto;
+  border-color: #e0a8a8;
+  background: linear-gradient(180deg, #fff7f7 0%, #fce8e8 100%);
+  color: var(--co-danger);
 }
 
-.co-doc--dkzaman .oracle-rec-block {
-  background: linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%);
-  border: 1px solid #888;
-  border-top-color: #fff;
-  margin-bottom: 6px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+.co-doc .co-tb-btn--exit .co-tb-ico {
+  color: var(--co-danger);
 }
 
-.co-doc--dkzaman .oracle-rec-block-caption {
-  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 3px 8px;
-  border-bottom: 1px solid #1a3366;
-  letter-spacing: 0.3px;
-}
-
-.co-doc--dkzaman .oracle-rec-fields {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
-  padding: 6px 8px;
-  border-bottom: 1px solid #bbb;
-}
-
-.co-doc--dkzaman .oracle-rec-fields-second {
-  border-bottom: none;
-  background: rgba(255, 255, 255, 0.35);
-  display: grid !important;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 0.75rem;
-  align-items: start;
-}
-
-@media (max-width: 900px) {
-  .co-doc--dkzaman .oracle-rec-fields-second {
-    grid-template-columns: 1fr;
-  }
-}
-
-.co-doc--dkzaman .oracle-rec-field {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-
-.co-doc--dkzaman .oracle-rec-field-wide {
-  flex: 1 1 240px;
-  min-width: 200px;
-  max-width: 480px;
-}
-
-.co-doc--dkzaman .oracle-rec-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #222;
-  white-space: nowrap;
-  margin: 0;
-  min-width: 72px;
-}
-
-.co-doc--dkzaman .oracle-rec-input,
-.co-doc--dkzaman select.oracle-rec-input,
-.co-doc--dkzaman textarea.oracle-rec-input,
-.co-doc--dkzaman .oracle-rec-input.input {
-  height: 22px;
-  min-height: 22px !important;
-  padding: 2px 6px !important;
-  font-size: 12px !important;
-  font-family: Arial, sans-serif;
-  border: 1px solid #808080 !important;
-  border-top-color: #404040 !important;
-  border-left-color: #404040 !important;
-  border-right-color: #c0c0c0 !important;
-  border-bottom-color: #c0c0c0 !important;
-  background: #fff !important;
-  border-radius: 0 !important;
-  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.08) !important;
-  color: #000;
-}
-
-.co-doc--dkzaman textarea.oracle-rec-textarea {
-  height: auto !important;
-  min-height: 3.2rem !important;
-  width: 100%;
-}
-
-.co-doc--dkzaman .oracle-rec-input:focus,
-.co-doc--dkzaman select.oracle-rec-input:focus {
-  outline: 1px dotted #000;
-  outline-offset: -2px;
-  background: #ffffcc !important;
-  box-shadow: none !important;
-}
-
-.co-doc--dkzaman .oracle-rec-input[readonly],
-.co-doc--dkzaman .oracle-rec-input:disabled {
-  background: #ececec !important;
-}
-
-.co-doc--dkzaman .oracle-doc-nav {
-  display: inline-flex;
-  align-items: stretch;
-  border: 1px solid #808080;
+/* لوحة بيانات السند */
+.co-doc .dashboard-ora-panel {
+  border: 1px solid var(--co-border);
+  border-radius: 4px;
   background: #fff;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  margin-bottom: 0.65rem;
   overflow: hidden;
 }
 
-.co-doc--dkzaman .oracle-doc-nav .btn-nav,
-.co-doc--dkzaman .oracle-doc-nav .sales-inv-no-arrow {
-  padding: 2px 8px;
-  font-size: 12px;
-  background: #c0c0c0 !important;
-  color: #000 !important;
-  border: none;
-  text-decoration: none !important;
-  display: inline-flex;
-  align-items: center;
-}
-
-.co-doc--dkzaman .oracle-doc-nav input {
-  width: 110px;
-  height: 22px;
-  border: none !important;
-  border-left: 1px solid #808080 !important;
-  border-right: 1px solid #808080 !important;
-  border-radius: 0 !important;
-  text-align: center;
-  box-shadow: none !important;
-}
-
-.co-doc--dkzaman .co-ora-customer {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 6px;
-  flex: 1;
-  min-width: 0;
-  margin: 0 !important;
-}
-
-.co-doc--dkzaman .co-ora-customer > label,
-.co-doc--dkzaman .co-ora-customer .field-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: #222;
-  white-space: nowrap;
+.co-doc .dashboard-ora-panel__title {
   margin: 0;
-  min-width: 48px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #2a78bf 0%, var(--co-blue) 55%, var(--co-blue-deep) 100%);
+  border-bottom: 1px solid var(--co-blue-deep);
 }
 
-.co-doc--dkzaman .co-ora-customer .sales-inv-cust-open,
-.co-doc--dkzaman .co-ora-customer button {
-  flex: 1;
-  min-height: 22px !important;
-  height: 22px;
-  border-radius: 0 !important;
-  border: 1px solid #808080 !important;
+.co-doc .dashboard-ora-panel__body {
+  padding: 0.75rem 0.85rem;
+  background: #fafbfc;
+}
+
+.co-doc .dashboard-ora-panel__body--flush {
+  padding: 0.55rem 0.55rem 0.65rem;
+}
+
+.co-doc .sales-inv-meta-row {
+  gap: 0.55rem 0.85rem;
+}
+
+.co-doc .sales-inv-meta-item label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.co-doc .sales-inv-meta-customer {
+  flex: 1 1 16rem;
+  min-width: 14rem;
+}
+
+.co-doc .input,
+.co-doc select.input,
+.co-doc textarea.input {
   background: #fff !important;
-  font-size: 12px !important;
-  padding: 0 6px !important;
+  border: 1px solid #b8c5d3 !important;
+  border-radius: 4px !important;
+  min-height: 2rem;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
-.co-doc--dkzaman .oracle-rec-grid-wrap,
-.co-doc--dkzaman #sales-inv-table-wrap {
-  border: 1px solid #808080 !important;
-  border-radius: 0 !important;
+.co-doc .input:focus,
+.co-doc select.input:focus,
+.co-doc textarea.input:focus {
+  border-color: #3b82c4 !important;
+  box-shadow: 0 0 0 2px rgba(26, 95, 158, 0.18) !important;
+  outline: none !important;
+}
+
+.co-doc .sales-inv-no-input {
+  font-weight: 800 !important;
+  text-align: center;
+}
+
+/* الجدول */
+.co-doc .sales-inv-table-wrap,
+.co-doc #sales-inv-table-wrap {
+  border: 1px solid var(--co-border) !important;
+  border-radius: 3px !important;
   background: #fff;
   max-height: min(48vh, 520px);
   overflow: auto;
-  margin: 0 6px 4px;
 }
 
-.co-doc--dkzaman .sales-inv-table.oracle-rec-grid thead th,
-.co-doc--dkzaman .oracle-rec-grid thead th {
-  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
-  color: #000 !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  padding: 4px 6px !important;
-  border: 1px solid #808080 !important;
-  text-align: center;
+.co-doc .sales-inv-table thead th {
+  background: #eef3f8 !important;
+  color: #1e3a5f !important;
+  font-weight: 800 !important;
+  font-size: 0.72rem !important;
+  border-bottom: 1px solid var(--co-border) !important;
+  white-space: nowrap;
 }
 
-.co-doc--dkzaman .sales-inv-table tbody td {
-  border: 1px solid #c0c0c0 !important;
-  background: #fff;
-  padding: 0 !important;
+.co-doc .sales-inv-table tbody td {
+  border-color: #edf1f5 !important;
   vertical-align: middle;
 }
 
-.co-doc--dkzaman .sales-inv-table tbody tr:nth-child(even) td {
-  background: #f8f8f8 !important;
-}
-
-.co-doc--dkzaman .sales-inv-table tbody tr:hover td {
-  background: #ffffcc !important;
-}
-
-.co-doc--dkzaman .co-doc-addline {
-  padding: 4px 8px 6px;
-}
-
-.co-doc--dkzaman .co-add-line-btn {
-  min-height: 26px;
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: Arial, sans-serif;
-  color: #1a1a1a;
-  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%);
-  border: 1px solid #7a7a7a;
-  border-radius: 2px;
-  cursor: pointer;
-  box-shadow: inset 0 1px 0 #fff;
-}
-
-.co-doc--dkzaman .co-add-line-btn:hover {
-  background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%);
-}
-
-.co-doc--dkzaman .co-doc-totals {
-  background: #fff;
-  border: 1px solid #808080;
-  border-radius: 0;
-  padding: 4px 8px;
-}
-
-.co-doc--dkzaman .co-doc-sumbar,
-.co-doc--dkzaman .oracle-rec-status {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 18px;
-  align-items: center;
-  padding: 4px 8px;
-  margin: 0 6px 6px;
-  background: linear-gradient(180deg, #f4f4f4 0%, #dcdcdc 100%);
-  border: 1px solid #888;
-  font-size: 11px;
-}
-
-.co-doc--dkzaman .dashboard-ora-screen-title {
-  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%);
-  border-bottom: 1px solid #1a3366;
+.co-doc .sales-inv-table tbody tr:hover td {
+  background: #f5f9fc !important;
 }
 
 /* زر إضافة سطر */
@@ -1220,4 +1036,3 @@
 .si-stage.si-stage--toolbar-first #inv_no.is-saved {
   color: #047857 !important;
 }
-

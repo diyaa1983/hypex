@@ -104,27 +104,18 @@ function listPage(res, user, opts) {
     qVal,
     extraActions = [],
     phpRoute,
-    oraSkin = false,
   } = opts;
   const actions = [
     ...extraActions,
     { label: 'لوحة المبيعات', href: '/sales' },
   ];
   const body = `
-    <div class="si-stage${oraSkin ? ' co-ora-skin' : ''}">
+    <div class="si-stage">
       ${ui.hero({ mark, title, subtitle, actions })}
       ${searchPath ? ui.railSearch(searchPath, qVal) : ''}
       ${ui.tableSurface(tableTitle || title, `${count} صف`, headers, rowsHtml)}
     </div>`;
-  res.send(
-    ui.salesPage({
-      user,
-      title,
-      bodyHtml: body,
-      bodyClass: oraSkin ? 'si-2027 co-ora-body' : 'si-2027',
-      css: oraSkin ? ['/assets/css/customer-order-ora.css'] : [],
-    })
-  );
+  res.send(ui.salesPage({ user, title, bodyHtml: body }));
 }
 
 function reportPage(res, user, opts) {
@@ -294,7 +285,6 @@ router.get('/sales/orders', async (req, res) => {
     qVal: qv,
     phpRoute: 'sales_customer_order_entry',
     extraActions: [{ label: '＋ طلب جديد', href: '/sales/orders/new', primary: true }],
-    oraSkin: true,
   });
 });
 
@@ -324,7 +314,6 @@ router.get('/sales/orders/approve', guard('sales_customer_orders_approve'), asyn
     rowsHtml,
     count: all.length,
     phpRoute: 'sales_customer_orders_approve',
-    oraSkin: true,
   });
 });
 
@@ -351,7 +340,6 @@ router.get('/sales/orders/approved', guard('sales_customer_orders_approved'), as
     rowsHtml,
     count: rows.length,
     phpRoute: 'sales_customer_orders_approved',
-    oraSkin: true,
   });
 });
 

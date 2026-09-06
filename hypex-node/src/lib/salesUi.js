@@ -33,13 +33,13 @@ function stripNodeMarketing(text) {
   return s;
 }
 
-function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', printTitle = '' }) {
+function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', printTitle = '', bodyClass = 'si-2027' }) {
   const printJs = js.includes('/assets/js/sales-print.js') ? js : [...js, '/assets/js/sales-print.js'];
   return renderApp({
     user,
     title,
     bodyHtml,
-    bodyClass: 'si-2027',
+    bodyClass,
     mainClass: 'main si-main',
     css: [...SALES_CSS, ...css],
     js: printJs,
