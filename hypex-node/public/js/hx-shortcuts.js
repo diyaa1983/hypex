@@ -529,13 +529,21 @@
               applyItem(row);
             });
           } else {
+            var pCode = String(row.code != null ? row.code : '').trim();
+            var pName = String(row.name_ar != null ? row.name_ar : '').trim();
+            var pPhone = String(row.phone != null ? row.phone : '').trim();
+            btn.className = 'hx-lk__row hx-lk__row--party';
             btn.innerHTML =
-              '<strong>' +
-              esc(row.name_ar || '') +
-              '</strong><span dir="ltr">' +
-              esc(row.code || '') +
-              (row.phone ? ' · ' + esc(row.phone) : '') +
-              '</span>';
+              '<span class="hx-lk__code" dir="ltr">' +
+              esc(pCode || '—') +
+              '</span>' +
+              '<strong class="hx-lk__nm">' +
+              esc(pName || '—') +
+              '</strong>' +
+              (pPhone
+                ? '<span class="hx-lk__phone" dir="ltr">' + esc(pPhone) + '</span>'
+                : '');
+            btn.title = [pCode, pName, pPhone].filter(Boolean).join(' · ');
             btn.addEventListener('click', function () {
               applyParty(row);
             });
@@ -885,4 +893,72 @@
     close: closeModal,
     focusLineQty: focusLineQty,
   };
+
+  function lovBtnSvg() {
+    return (
+      '<svg class="hx-lov-btn__ico" viewBox="0 0 16 16" width="13" height="13" aria-hidden="true" focusable="false">' +
+      '<path fill="currentColor" d="M1.5 2.5h9v1.4h-9V2.5zm0 4.3h9v1.4h-9V6.8zm0 4.3h6.5v1.4H1.5v-1.4z"/>' +
+      '<path fill="currentColor" d="M11.2 10.2l2.2 2.2 2.2-2.2.85.85L13.4 14.1 10.35 11.05l.85-.85z"/>' +
+      '</svg>'
+    );
+  }
+
+  function ensureLovWrap(input) {
+    if (!input || !input.parentNode) return null;
+    var parent = input.parentNode;
+    if (parent.classList && parent.classList.contains('hx-lov-wrap')) return parent;
+    if (parent.querySelector && parent.querySelector(':scope > .hx-lov-btn')) return parent;
+    var wrap = document.createElement('div');
+    wrap.className = 'hx-lov-wrap';
+    parent.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    return wrap;
+  }
+
+  function attachLovButton(input, kind, title) {
+    if (!input || input.getAttribute('data-hx-lov') === '1') return;
+    if (input.readOnly || input.disabled) return;
+    input.setAttribute('data-hx-lov', '1');
+    var host = ensureLovWrap(input);
+    if (!host) return;
+    if (host.querySelector('.hx-lov-btn')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'hx-lov-btn';
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    btn.tabIndex = -1;
+    btn.innerHTML = lovBtnSvg();
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        input.focus();
+      } catch (err) {
+        /* ignore */
+      }
+      if (kind === 'items') openItems();
+      else openPartyList();
+    });
+    host.appendChild(btn);
+  }
+
+  function installLovButtons() {
+    var partyInputs = document.querySelectorAll(
+      '#co_customer, #inv_customer, #ret_customer, #dl_customer, #df_party, [data-hx-customer-input], [data-hx-party-input]'
+    );
+    partyInputs.forEach(function (el) {
+      var isSup = el.id === 'df_party' || (el.matches && el.matches('[data-hx-party-input]'));
+      attachLovButton(el, isSup ? 'suppliers' : 'customers', isSup ? 'قائمة الموردين (F7)' : 'قائمة العملاء (F7)');
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', installLovButtons);
+  } else {
+    installLovButtons();
+  }
+  // بنود تُضاف ديناميكياً
+  document.addEventListener('hx:lines-rendered', installLovButtons);
+  setTimeout(installLovButtons, 400);
 })();
