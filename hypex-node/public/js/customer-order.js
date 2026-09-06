@@ -1019,6 +1019,11 @@
         focusLineField(focusOpts.idx, focusOpts.cls || '.js-item-sku', !!focusOpts.select);
       }, 0);
     }
+    try {
+      document.dispatchEvent(new CustomEvent('hx:lines-rendered', { bubbles: true }));
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function focusLineField(idx, selector, doSelect) {

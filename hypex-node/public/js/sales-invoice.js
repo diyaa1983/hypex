@@ -801,6 +801,11 @@
       bindRow(tr);
     });
     recomputeFooter();
+    try {
+      document.dispatchEvent(new CustomEvent('hx:lines-rendered', { bubbles: true }));
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function escAttr(s) {

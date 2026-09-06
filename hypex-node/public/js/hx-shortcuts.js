@@ -892,6 +892,8 @@
     items: openItems,
     close: closeModal,
     focusLineQty: focusLineQty,
+    lovIconHtml: lovBtnSvg,
+    refreshLovButtons: installLovButtons,
   };
 
   function lovBtnSvg() {
@@ -903,28 +905,80 @@
     );
   }
 
-  function ensureLovWrap(input) {
-    if (!input || !input.parentNode) return null;
-    var parent = input.parentNode;
+  function ensureLovWrap(el) {
+    if (!el || !el.parentNode) return null;
+    var parent = el.parentNode;
     if (parent.classList && parent.classList.contains('hx-lov-wrap')) return parent;
+    if (parent.classList && parent.classList.contains('si-item-sku-wrap')) return parent;
     if (parent.querySelector && parent.querySelector(':scope > .hx-lov-btn')) return parent;
     var wrap = document.createElement('div');
     wrap.className = 'hx-lov-wrap';
-    parent.insertBefore(wrap, input);
-    wrap.appendChild(input);
+    parent.insertBefore(wrap, el);
+    wrap.appendChild(el);
     return wrap;
   }
 
-  function attachLovButton(input, kind, title) {
-    if (!input || input.getAttribute('data-hx-lov') === '1') return;
-    if (input.readOnly || input.disabled) return;
-    input.setAttribute('data-hx-lov', '1');
-    var host = ensureLovWrap(input);
+  function openNativeSelect(sel) {
+    if (!sel || sel.disabled) return;
+    try {
+      sel.focus();
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      if (typeof sel.showPicker === 'function') {
+        sel.showPicker();
+        return;
+      }
+    } catch (e2) {
+      /* fallback below */
+    }
+    var prevSize = sel.getAttribute('size');
+    var prevH = sel.style.height;
+    var n = sel.options ? sel.options.length : 0;
+    sel.size = Math.min(Math.max(n, 2), 10);
+    sel.style.height = 'auto';
+    sel.style.position = 'relative';
+    sel.style.zIndex = '40';
+    var done = function () {
+      if (prevSize == null) sel.removeAttribute('size');
+      else sel.setAttribute('size', prevSize);
+      sel.size = prevSize ? Number(prevSize) : 1;
+      sel.style.height = prevH || '';
+      sel.style.position = '';
+      sel.style.zIndex = '';
+      sel.removeEventListener('blur', done);
+      sel.removeEventListener('change', done);
+    };
+    sel.addEventListener('change', done);
+    sel.addEventListener('blur', done);
+  }
+
+  function attachLovButton(el, kind, title) {
+    if (!el || el.getAttribute('data-hx-lov') === '1') return;
+    if (el.readOnly || el.disabled) return;
+    el.setAttribute('data-hx-lov', '1');
+
+    // رقم المادة: زر موجود مسبقاً — نوحّد الأيقونة فقط
+    if (kind === 'items') {
+      var existing =
+        (el.parentNode && el.parentNode.querySelector && el.parentNode.querySelector('.js-item-pick, .si-item-pick')) ||
+        null;
+      if (existing) {
+        existing.classList.add('hx-lov-btn', 'si-item-pick');
+        existing.innerHTML = lovBtnSvg();
+        existing.title = title;
+        existing.setAttribute('aria-label', title);
+        return;
+      }
+    }
+
+    var host = ensureLovWrap(el);
     if (!host) return;
     if (host.querySelector('.hx-lov-btn')) return;
     var btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'hx-lov-btn';
+    btn.className = 'hx-lov-btn' + (kind === 'items' ? ' si-item-pick js-item-pick' : '');
     btn.title = title;
     btn.setAttribute('aria-label', title);
     btn.tabIndex = -1;
@@ -933,11 +987,12 @@
       e.preventDefault();
       e.stopPropagation();
       try {
-        input.focus();
+        el.focus();
       } catch (err) {
         /* ignore */
       }
       if (kind === 'items') openItems();
+      else if (kind === 'select') openNativeSelect(el);
       else openPartyList();
     });
     host.appendChild(btn);
@@ -951,6 +1006,37 @@
       var isSup = el.id === 'df_party' || (el.matches && el.matches('[data-hx-party-input]'));
       attachLovButton(el, isSup ? 'suppliers' : 'customers', isSup ? 'قائمة الموردين (F7)' : 'قائمة العملاء (F7)');
     });
+
+    var headerSelects = document.querySelectorAll(
+      '#co_pay, #co_rep, #co_wh, #inv_pay, #inv_rep, #inv_wh, #ret_pay, #ret_rep, #ret_wh, #dl_pay, #dl_rep, #dl_wh'
+    );
+    headerSelects.forEach(function (el) {
+      var titles = {
+        co_pay: 'النوع (ذمم / نقدي)',
+        inv_pay: 'النوع (ذمم / نقدي)',
+        ret_pay: 'النوع (ذمم / نقدي)',
+        dl_pay: 'النوع (ذمم / نقدي)',
+        co_rep: 'المندوب',
+        inv_rep: 'المندوب',
+        ret_rep: 'المندوب',
+        dl_rep: 'المندوب',
+        co_wh: 'المستودع',
+        inv_wh: 'المستودع',
+        ret_wh: 'المستودع',
+        dl_wh: 'المستودع',
+      };
+      attachLovButton(el, 'select', titles[el.id] || 'اختيار');
+    });
+
+    document.querySelectorAll('select.js-unit').forEach(function (el) {
+      attachLovButton(el, 'select', 'الوحدة');
+    });
+    document.querySelectorAll('select.js-tax').forEach(function (el) {
+      attachLovButton(el, 'select', 'الضريبة');
+    });
+    document.querySelectorAll('input.js-item-sku').forEach(function (el) {
+      attachLovButton(el, 'items', 'قائمة المواد (F3)');
+    });
   }
 
   if (document.readyState === 'loading') {
@@ -958,7 +1044,7 @@
   } else {
     installLovButtons();
   }
-  // بنود تُضاف ديناميكياً
   document.addEventListener('hx:lines-rendered', installLovButtons);
   setTimeout(installLovButtons, 400);
+  setTimeout(installLovButtons, 1200);
 })();

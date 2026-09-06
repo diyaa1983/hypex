@@ -36,6 +36,16 @@
     markFormDirty();
   }
 
+  function hxPath(p) {
+    if (typeof window.__hypexUrl === 'function') return window.__hypexUrl(p);
+    var b = typeof window.__HYPEX_BASE__ === 'string' ? window.__HYPEX_BASE__ : '';
+    if (!b || b === '/') return p;
+    if (b.charAt(b.length - 1) === '/') b = b.slice(0, -1);
+    if (!p || p.charAt(0) !== '/') return p;
+    if (p === b || p.indexOf(b + '/') === 0) return p;
+    return b + p;
+  }
+
   function clearFormDirty() {
     formDirty = false;
   }
@@ -1008,6 +1018,11 @@
       window.setTimeout(function () {
         focusLineField(focusOpts.idx, focusOpts.cls || '.js-item-sku', !!focusOpts.select);
       }, 0);
+    }
+    try {
+      document.dispatchEvent(new CustomEvent('hx:lines-rendered', { bubbles: true }));
+    } catch (e) {
+      /* ignore */
     }
   }
 
@@ -2380,7 +2395,7 @@
             var noEl = document.getElementById('co_no');
             if (noEl && data.order_no) noEl.value = data.order_no;
             updateDocNoStyle();
-            window.history.replaceState({}, '', '/sales/orders/' + data.id);
+            window.history.replaceState({}, '', hxPath('/sales/orders/' + data.id));
             var bar = document.getElementById('co-doc-bar');
             if (bar) bar.setAttribute('data-order-id', String(data.id));
             // تفعيل أزرار الطباعة/الاعتماد بعد أول حفظ
@@ -2393,7 +2408,7 @@
             var del = document.getElementById('co-delete');
             if (del && state.can_approve) del.disabled = false;
           } else {
-            window.location.href = '/sales/orders/' + data.id;
+            window.location.href = hxPath('/sales/orders/' + data.id);
           }
         } else {
           state.id = data.id;
@@ -2424,7 +2439,7 @@
           showActionError(data);
           return;
         }
-        if (okRedirect) window.location.href = okRedirect;
+        if (okRedirect) window.location.href = hxPath(okRedirect);
         else window.location.reload();
       })
       .catch(function () {
@@ -3396,6 +3411,7 @@
 
   function leaveTo(href) {
     if (!href) return;
+    href = hxPath(href);
     if (window.ScreenExitGuard && typeof window.ScreenExitGuard.confirmLeave === 'function') {
       window.ScreenExitGuard.confirmLeave(function () {
         if (window.ScreenExitGuard.navigateExit) window.ScreenExitGuard.navigateExit(href);
@@ -3528,7 +3544,7 @@
       prevId: state.prev_id,
       nextId: state.next_id,
       lastId: state.last_id,
-      openPath: '/sales/orders',
+      openPath: hxPath('/sales/orders'),
       findApi: '/api/sales/customer-orders/by-no',
       currentNo: state.order_no || '',
       currentId: state.id || 0,

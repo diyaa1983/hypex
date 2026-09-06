@@ -255,13 +255,23 @@
 }
 
 .hx-lov-wrap > .si-field,
-.hx-lov-wrap > input {
+.hx-lov-wrap > input,
+.hx-lov-wrap > select {
   flex: 1 1 auto;
   min-width: 0;
   width: auto !important;
 }
 
-.hx-lov-btn {
+td .hx-lov-wrap,
+.si-unit-cell .hx-lov-wrap,
+.si-item-sku-cell .hx-lov-wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.hx-lov-btn,
+.si-item-pick.hx-lov-btn,
+button.si-item-pick {
   flex: 0 0 1.55rem;
   width: 1.55rem;
   min-width: 1.55rem;
@@ -277,14 +287,19 @@
   color: #0f3a7a;
   cursor: pointer;
   box-sizing: border-box;
+  font-size: 0;
+  line-height: 0;
 }
 
-.hx-lov-btn:hover {
+.hx-lov-btn:hover,
+.si-item-pick.hx-lov-btn:hover,
+button.si-item-pick:hover {
   background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
   color: #1e4d8c;
 }
 
-.hx-lov-btn:active {
+.hx-lov-btn:active,
+button.si-item-pick:active {
   border-color: #404040 #808080 #808080 #404040;
   background: #c8c4bc;
 }
@@ -295,15 +310,36 @@
 }
 
 body.co-ora-body .hx-lov-btn,
-.co-ora-skin .hx-lov-btn {
+.co-ora-skin .hx-lov-btn,
+body.co-ora-body .si-item-pick,
+.co-ora-skin .si-item-pick {
   height: auto;
   align-self: stretch;
 }
 
 body.co-ora-body .hx-lov-wrap > .si-field,
-.co-ora-skin .hx-lov-wrap > .si-field {
-  border-top-left-radius: 0 !important;
-  border-bottom-left-radius: 0 !important;
+.co-ora-skin .hx-lov-wrap > .si-field,
+body.co-ora-body .hx-lov-wrap > select,
+.co-ora-skin .hx-lov-wrap > select,
+body.co-ora-body .si-item-sku-wrap input.js-item-sku,
+.co-ora-skin .si-item-sku-wrap input.js-item-sku {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+}
+
+body.co-ora-body .si-item-sku-wrap,
+.co-ora-skin .si-item-sku-wrap {
+  display: inline-flex;
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+}
+
+/* خلايا البنود: الوحدة / الضريبة / رقم المادة */
+.si-lines td .hx-lov-wrap select.js-unit,
+.si-lines td .hx-lov-wrap select.js-tax {
+  min-width: 0;
+  max-width: 100%;
 }
 
 .hx-lk__empty {
