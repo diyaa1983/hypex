@@ -536,16 +536,19 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     $sharedHeader['SMAN'] = $smNo;
     $sharedHeader['MAN_NUM'] = $smNo;
 
-    $orderNote = trim((string) ($order['notes'] ?? ''));
+    $orderNote = oracle_order_normalize_note_text($order['notes'] ?? '');
     if ($orderNote !== '') {
-        if (function_exists('mb_substr')) {
-            $orderNote = mb_substr($orderNote, 0, 200, 'UTF-8');
-        } else {
-            $orderNote = substr($orderNote, 0, 200);
-        }
+        // منطقي + كل مرادفات ملاحظة 1 (MASTER_D.NOTE1 / DAILY.NOTE …)
         $sharedHeader['NOTE'] = $orderNote;
-        $sharedHeader['NOTE1'] = $orderNote;
-        $sharedHeader['NOTE_1'] = $orderNote;
+        foreach (oracle_order_note_column_candidates() as $noteColName) {
+            $sharedHeader[$noteColName] = $orderNote;
+        }
+        foreach (array_merge(
+            oracle_order_resolve_note_columns($hdrCols),
+            oracle_order_resolve_note_columns($cols)
+        ) as $noteColName) {
+            $sharedHeader[$noteColName] = $orderNote;
+        }
     }
 
     $rowValues = static function (array $line) use ($sharedHeader, $headerExtras): array {
@@ -591,6 +594,19 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
             oracle_order_seed_header($hdrSample, array_merge($sharedHeader, $hdrExtras), $hdrCols),
             $hdrSample
         );
+        // ضمان ظهور الملاحظة في «ملاحظة 1» على رأس الفاتورة (MASTER_D.NOTE1)
+        if ($orderNote !== '') {
+            oracle_order_update_header_notes(
+                $conn,
+                $hdrFrom,
+                $hdrCols,
+                $stype,
+                $vNum,
+                $vyear,
+                $compNum,
+                $orderNote
+            );
+        }
         foreach ($mappedLines as $line) {
             oracle_order_insert_row(
                 $conn,
@@ -830,6 +846,170 @@ function oracle_order_pick_col(array $cols, array $names): ?string
 }
 
 /**
+ * أعمدة مرشّحة لحقل «ملاحظة 1» في INV00024 (MASTER_D).
+ * يمكن تثبيتها في config/oracle.local.php → sales_invoice.note_columns
+ *
+ * @param array<string,bool> $cols
+ * @return list<string>
+ */
+function oracle_order_note_column_candidates(array $cols = []): array
+{
+    $cfg = is_array(oracle_config()['sales_invoice'] ?? null) ? oracle_config()['sales_invoice'] : [];
+    $fromCfg = $cfg['note_columns'] ?? $cfg['note1_columns'] ?? null;
+    $list = [];
+    if (is_string($fromCfg) && trim($fromCfg) !== '') {
+        $list = [strtoupper(trim($fromCfg))];
+    } elseif (is_array($fromCfg)) {
+        foreach ($fromCfg as $c) {
+            $u = strtoupper(trim((string) $c));
+            if ($u !== '') {
+                $list[] = $u;
+            }
+        }
+    }
+
+    $preferred = [
+        'NOTE1',
+        'NOTE_1',
+        'NOTE01',
+        'NOTEA',
+        'NOTE_A',
+        'NOTES1',
+        'NNOTE',
+        'V_NOTE',
+        'NOTE',
+        'NOTES',
+        'REMARK1',
+        'REMARK_1',
+        'REMARKA',
+        'REMARK',
+        'REMARKS',
+        'COMM1',
+        'COMMENT1',
+        'COMM',
+        'MEMO1',
+        'MEMO',
+        'DESCR1',
+        'DESC1',
+        'DESCR',
+        'TXT1',
+        'TEXT1',
+    ];
+    foreach ($preferred as $p) {
+        $list[] = $p;
+    }
+
+    // اكتشاف تلقائي من أعمدة الجدول (ملاحظة 1 وليس 2)
+    if ($cols !== []) {
+        foreach (array_keys($cols) as $c) {
+            $u = strtoupper((string) $c);
+            if ($u === '') {
+                continue;
+            }
+            if (preg_match('/2$|_2$|NOTEB|NOTE_B|NOTES2|REMARK2|MEMO2|DESCR2/', $u)) {
+                continue;
+            }
+            if (preg_match('/NOTE|REMARK|COMM|MEMO|DESCR|DESC_?TXT|TXT|TEXT/', $u)) {
+                $list[] = $u;
+            }
+        }
+    }
+
+    $out = [];
+    $seen = [];
+    foreach ($list as $c) {
+        if (isset($seen[$c])) {
+            continue;
+        }
+        $seen[$c] = true;
+        $out[] = $c;
+    }
+
+    return $out;
+}
+
+/**
+ * @param array<string,bool> $cols
+ * @return list<string> أسماء أعمدة موجودة فعلياً لـ ملاحظة 1
+ */
+function oracle_order_resolve_note_columns(array $cols): array
+{
+    $found = [];
+    foreach (oracle_order_note_column_candidates($cols) as $c) {
+        if (isset($cols[$c])) {
+            $found[] = $c;
+        }
+    }
+
+    return $found;
+}
+
+function oracle_order_normalize_note_text(mixed $raw): string
+{
+    $note = trim((string) $raw);
+    if ($note === '') {
+        return '';
+    }
+    if (function_exists('mb_substr')) {
+        return mb_substr($note, 0, 200, 'UTF-8');
+    }
+
+    return substr($note, 0, 200);
+}
+
+/**
+ * تحديث ملاحظة 1 على رأس الفاتورة بعد الإدراج.
+ *
+ * @param array<string,bool> $hdrCols
+ */
+function oracle_order_update_header_notes(
+    array $conn,
+    string $hdrFrom,
+    array $hdrCols,
+    int $stype,
+    int $vNum,
+    int $vyear,
+    int $compNum,
+    string $note
+): void {
+    $note = oracle_order_normalize_note_text($note);
+    if ($note === '') {
+        return;
+    }
+    $cols = oracle_order_resolve_note_columns($hdrCols);
+    if ($cols === []) {
+        return;
+    }
+    $sets = [];
+    $binds = [
+        'stype' => $stype,
+        'vnum' => $vNum,
+        'vyear' => $vyear,
+        'comp' => $compNum,
+    ];
+    foreach ($cols as $i => $col) {
+        $ph = 'n' . $i;
+        $sets[] = $col . ' = :' . $ph;
+        $binds[$ph] = $note;
+    }
+    $where = 'TYPE = :stype AND V_NUM = :vnum AND VYEAR = :vyear';
+    if (isset($hdrCols['COMP_NUM'])) {
+        $where .= ' AND COMP_NUM = :comp';
+    } else {
+        unset($binds['comp']);
+    }
+    try {
+        oracle_execute(
+            $conn,
+            'UPDATE ' . $hdrFrom . ' SET ' . implode(', ', $sets) . ' WHERE ' . $where,
+            $binds
+        );
+    } catch (Throwable $e) {
+        // الإدراج الأساسي يبقى؛ التحديث الاحتياطي لا يوقف الترحيل
+    }
+}
+
+/**
  * أعمدة مرشّحة لحقل «رقم الطلبية» في INV00024 (MASTER_D / DAILY).
  * يمكن تثبيتها في config/oracle.local.php → sales_invoice.order_no_columns
  *
@@ -1002,35 +1182,11 @@ function oracle_order_extras(array $cols, array $salesman, array $order): array
         $extras[$rateCol] = 1;
     }
 
-    // ملاحظات الطلب → ملاحظة ١ في فاتورة Oracle (NOTE1 / NOTE / …)
-    $note = trim((string) ($order['notes'] ?? ''));
+    // ملاحظات الطلب → ملاحظة ١ في فاتورة Oracle (MASTER_D.NOTE1 / DAILY.NOTE)
+    $note = oracle_order_normalize_note_text($order['notes'] ?? '');
     if ($note !== '') {
-        // حدّ عملي لحقول الملاحظة في Forms
-        if (function_exists('mb_substr')) {
-            $note = mb_substr($note, 0, 200, 'UTF-8');
-        } else {
-            $note = substr($note, 0, 200);
-        }
         $extras['NOTE'] = $note;
-        $noteCol = oracle_order_pick_col($cols, [
-            'NOTE1',
-            'NOTE_1',
-            'NOTE01',
-            'NOTE',
-            'NOTES',
-            'NNOTE',
-            'V_NOTE',
-            'REMARK1',
-            'REMARK_1',
-            'REMARK',
-            'REMARKS',
-            'COMM',
-            'COMM1',
-            'COMMENT1',
-            'MEMO',
-            'MEMO1',
-        ]);
-        if ($noteCol) {
+        foreach (oracle_order_resolve_note_columns($cols) as $noteCol) {
             $extras[$noteCol] = $note;
         }
     }
@@ -1172,7 +1328,30 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
         'REFNO' => true,
         'V_REF' => true,
         'REF1' => true,
+        // ملاحظات — لا تُنسخ من فاتورة سابقة (ملاحظة 2 أيضاً)
+        'NOTE2' => true,
+        'NOTE_2' => true,
+        'NOTES2' => true,
+        'NOTEB' => true,
+        'NOTE_B' => true,
     ];
+    foreach (oracle_order_note_column_candidates($cols) as $noteCol) {
+        $skipCopy[$noteCol] = true;
+    }
+    // مفاتيح منطقية تُمرَّر لـ apply_aliases حتى لو لم تكن عموداً حقيقياً في الجدول
+    $logicalKeep = [
+        'NOTE' => true,
+        'NOTES' => true,
+        'ORDER_NO' => true,
+        'SALESMAN' => true,
+    ];
+    foreach (oracle_order_note_column_candidates() as $noteCol) {
+        $logicalKeep[$noteCol] = true;
+    }
+    foreach (oracle_order_order_no_column_candidates() as $ordCol) {
+        $logicalKeep[$ordCol] = true;
+    }
+
     $out = [];
     foreach ($sample as $k => $v) {
         $k = strtoupper((string) $k);
@@ -1186,7 +1365,7 @@ function oracle_order_seed_header(array $sample, array $ours, array $cols): arra
     }
     foreach ($ours as $k => $v) {
         $k = strtoupper((string) $k);
-        if (isset($cols[$k])) {
+        if (isset($cols[$k]) || isset($logicalKeep[$k])) {
             $out[$k] = $v;
         }
     }
@@ -1207,24 +1386,8 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
         'VDATE' => ['VDATE', 'V_DATE', 'FDATE', 'INV_DATE', 'BILL_DATE', 'TRN_DATE'],
         'SALESMAN' => ['SALESMAN', 'SALES_MAN', 'SMAN', 'MAN_NUM', 'EMP_NO', 'SELLER', 'SALEMAN'],
         'ORDER_NO' => oracle_order_order_no_column_candidates(),
-        'NOTE' => [
-            'NOTE',
-            'NOTES',
-            'NOTE1',
-            'NOTE_1',
-            'NOTE01',
-            'NNOTE',
-            'V_NOTE',
-            'REMARK',
-            'REMARKS',
-            'REMARK1',
-            'REMARK_1',
-            'COMM',
-            'COMM1',
-            'COMMENT1',
-            'MEMO',
-            'MEMO1',
-        ],
+        // ملاحظة 1 فقط (لا NOTE2) — MASTER_D.NOTE1 / DAILY.NOTE
+        'NOTE' => oracle_order_note_column_candidates($cols),
         'FLAG' => ['FLAG', 'FLAGE', 'V_FLAG'],
         'PRINT_FLAGE' => ['PRINT_FLAGE', 'PRINT_FLAG'],
     ];
@@ -1245,8 +1408,8 @@ function oracle_order_apply_aliases(array $cols, array $vals): array
             if (!isset($cols[$n])) {
                 continue;
             }
-            // رقم الطلبية: اكتب دائماً على كل الأعمدة الموجودة في الجدول
-            if ($src === 'ORDER_NO' || !isset($vals[$n]) || $vals[$n] === null || $vals[$n] === '') {
+            // رقم الطلبية / الملاحظة: اكتب دائماً على كل الأعمدة الموجودة
+            if ($src === 'ORDER_NO' || $src === 'NOTE' || !isset($vals[$n]) || $vals[$n] === null || $vals[$n] === '') {
                 $vals[$n] = $val;
             }
         }

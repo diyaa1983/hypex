@@ -94,6 +94,8 @@ return [
         'default_store' => 4,
         // عمود «رقم الطلبية» في INV00024 — إن عرفت الاسم ثبّته هنا (مثال: DOC_NO)
         // 'order_no_columns' => ['DOC_NO'],
+        // عمود «ملاحظة 1» في INV00024 (MASTER_D عادةً NOTE1 — DAILY عادةً NOTE)
+        // 'note_columns' => ['NOTE1'],
         // عمود «خاضع لضريبة المبيعات» في INV00024 (عدّل إن اختلف عندكم)
         'tax_subject' => [
             'columns' => ['STAX', 'TAX_FLAG', 'ST_FLAG', 'CUS_TAX', 'TAXABLE'],
