@@ -62,6 +62,43 @@ body.co-ora-body .main.si-main {
   flex: 1 1 auto;
   min-width: 0;
   justify-content: flex-start;
+  gap: 6px !important;
+}
+
+.co-ora-skin .co-ora-docno-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  direction: ltr;
+}
+
+.co-ora-skin .co-ora-docno-inline .si-docno-btn {
+  min-width: 18px !important;
+  height: 18px !important;
+  padding: 0 3px !important;
+  font-size: 10px !important;
+  line-height: 1 !important;
+  border: 1px solid #9a9a9a !important;
+  border-radius: 0 !important;
+  background: linear-gradient(180deg, #fff 0%, #efefef 100%) !important;
+}
+
+.co-ora-skin .co-ora-docno-inline .si-docno-input {
+  width: 7.5rem !important;
+  min-width: 5rem !important;
+  height: 18px !important;
+  min-height: 18px !important;
+  padding: 0 4px !important;
+  font-size: 11px !important;
+  border: 1px solid #9a9a9a !important;
+  border-radius: 0 !important;
+}
+
+.co-ora-skin .co-ora-docno-inline .si-pill {
+  margin-inline-start: 4px;
+  font-size: 10px !important;
+  padding: 1px 5px !important;
+  border-radius: 0 !important;
 }
 
 .co-ora-skin .si-tb {
@@ -355,14 +392,22 @@ body.co-ora-body .main.si-main {
   min-width: 0;
 }
 
-/* الجدول */
+/* الجدول — مسطّر بالكامل + خط غامق */
 .co-ora-skin .oracle-rec-grid-wrap,
 .co-ora-skin .si-lines-wrap {
-  border: 1px solid #808080 !important;
+  border: 1px solid #000 !important;
   border-radius: 0 !important;
   background: #fff !important;
   margin: 0 6px 6px !important;
   overflow: auto;
+}
+
+.co-ora-skin .si-lines,
+.co-ora-skin table.si-lines {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  width: 100%;
+  border: 1px solid #000 !important;
 }
 
 .co-ora-skin .si-lines thead th {
@@ -370,20 +415,23 @@ body.co-ora-body .main.si-main {
   color: #000 !important;
   font-size: 11px !important;
   font-weight: 700 !important;
-  border: 1px solid #808080 !important;
+  border: 1px solid #000 !important;
   padding: 4px 6px !important;
   text-align: center;
 }
 
-.co-ora-skin .si-lines tbody td {
-  border: 1px solid #c0c0c0 !important;
+.co-ora-skin .si-lines tbody td,
+.co-ora-skin .si-lines tfoot td {
+  border: 1px solid #000 !important;
   background: #fff;
   padding: 0 !important;
   vertical-align: middle;
+  color: #000 !important;
+  font-weight: 700 !important;
 }
 
 .co-ora-skin .si-lines tbody tr:nth-child(even) td {
-  background: #f8f8f8 !important;
+  background: #f4f4f4 !important;
 }
 
 .co-ora-skin .si-lines tbody tr:hover td {
@@ -399,16 +447,17 @@ body.co-ora-body .main.si-main {
   background: transparent !important;
 }
 
-/* خط البنود = نفس حجم خط اسم العميل — بدون مربعات داخل الخلايا */
+/* خط البنود غامق — بدون مربعات داخل الخلايا */
 .co-ora-skin .si-lines input,
 .co-ora-skin .si-lines select,
 .co-ora-skin .si-lines .si-num-out,
 .co-ora-skin .si-lines td.si-num-out,
 .co-ora-skin .si-lines td.si-row-num {
   font-size: 12px !important;
-  font-weight: 400 !important;
+  font-weight: 700 !important;
   font-family: Arial, Helvetica, sans-serif !important;
   line-height: 1.25 !important;
+  color: #000 !important;
   min-height: 22px !important;
   height: 22px !important;
   padding: 1px 4px !important;
