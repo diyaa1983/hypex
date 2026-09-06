@@ -582,11 +582,20 @@
       .replace(/"/g, '&quot;');
   }
 
-  function fillNamedPair(nameId, idId, row) {
+  function partyFieldLabel(row, withCode) {
+    var name = String(row.name_ar || row.name || '').trim();
+    var code = String(row.code || '').trim();
+    if (withCode) {
+      return code ? code + (name ? ' — ' + name : '') : name;
+    }
+    return name || code;
+  }
+
+  function fillNamedPair(nameId, idId, row, withCode) {
     var nameEl = document.getElementById(nameId);
     var idEl = document.getElementById(idId);
     if (!nameEl || nameEl.readOnly || nameEl.disabled) return false;
-    nameEl.value = (row.code || '') + ' — ' + (row.name_ar || '');
+    nameEl.value = partyFieldLabel(row, !!withCode);
     if (idEl) idEl.value = row.id;
     try {
       nameEl.dispatchEvent(new Event('change', { bubbles: true }));
@@ -599,8 +608,9 @@
 
   function applyParty(c) {
     var filled = false;
-    if (mode === 'suppliers' || document.getElementById('df_party')) {
-      filled = fillNamedPair('df_party', 'df_party_id', c);
+    var isSupplier = mode === 'suppliers' || !!document.getElementById('df_party');
+    if (isSupplier) {
+      filled = fillNamedPair('df_party', 'df_party_id', c, true);
     }
     if (!filled) {
       var pairs = [
@@ -610,7 +620,7 @@
         ['co_customer', 'co_customer_id'],
       ];
       for (var i = 0; i < pairs.length; i++) {
-        if (fillNamedPair(pairs[i][0], pairs[i][1], c)) {
+        if (fillNamedPair(pairs[i][0], pairs[i][1], c, false)) {
           filled = true;
           break;
         }
@@ -619,7 +629,7 @@
     if (!filled) {
       var generic = document.querySelector('[data-hx-customer-input], [data-hx-party-input]');
       if (generic) {
-        generic.value = (c.code || '') + ' — ' + (c.name_ar || '');
+        generic.value = partyFieldLabel(c, isSupplier);
         var hid = document.querySelector('[data-hx-customer-id], [data-hx-party-id]');
         if (hid) hid.value = c.id;
         filled = true;
@@ -633,9 +643,9 @@
     document.dispatchEvent(ev);
     closeModal();
     if (filled || ev.defaultPrevented) {
-      toast('تم الاختيار: ' + (c.name_ar || c.code || ''));
+      toast('تم الاختيار: ' + partyFieldLabel(c, false));
     } else {
-      toast((c.code || '') + ' — ' + (c.name_ar || ''));
+      toast(partyFieldLabel(c, isSupplier));
     }
   }
 

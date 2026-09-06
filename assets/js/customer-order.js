@@ -334,7 +334,7 @@
   function onCustomerSelected(c) {
     if (!c || !c.id) return;
     if (custId) custId.value = c.id;
-    if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    if (custInput) custInput.value = String(c.name_ar || c.name || '').trim() || String(c.code || '');
     setCustomerPriceMode(c);
     if (custBox) custBox.hidden = true;
     loadCustomerAr(c.id, { scroll: true });
@@ -3513,7 +3513,34 @@
             { title: 'حذف الطلب', okLabel: 'حذف نهائياً', danger: true }
           ).then(function (ok) {
             if (!ok) return;
-            postAction('/api/sales/customer-orders/' + state.id + '/delete', '/sales/orders');
+            setMsg('جاري الحذف…');
+            setBusy(true);
+            fetch('/api/sales/customer-orders/' + state.id + '/delete', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: '{}',
+            })
+              .then(function (r) {
+                return r.json();
+              })
+              .then(function (res) {
+                setBusy(false);
+                if (!res || !res.ok) {
+                  showActionError(res || {});
+                  return;
+                }
+                formDirty = false;
+                var goId = Number(res.redirect_id || res.next_id || res.prev_id || 0);
+                if (goId > 0) {
+                  window.location.href = hxPath('/sales/orders/' + goId);
+                } else {
+                  window.location.href = hxPath('/sales/orders/new');
+                }
+              })
+              .catch(function () {
+                setBusy(false);
+                setMsg('تعذر الاتصال بالخادم', 'error');
+              });
           });
         })
         .catch(function () {

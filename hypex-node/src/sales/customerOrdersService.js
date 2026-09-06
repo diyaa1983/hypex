@@ -764,14 +764,31 @@ async function deleteOrder(id) {
         return { ok: false, error: 'لا يمكن حذف طلب معتمد. فك الاعتماد أولاً.' };
       }
     }
+
+    // الجيران قبل الحذف — للانتقال للطلب التالي دون الخروج من الشاشة
+    const [[nextRow]] = await conn.query(
+      `SELECT id FROM sal_customer_order WHERE id > ? ORDER BY id ASC LIMIT 1`,
+      [orderId]
+    );
+    const [[prevRow]] = await conn.query(
+      `SELECT id FROM sal_customer_order WHERE id < ? ORDER BY id DESC LIMIT 1`,
+      [orderId]
+    );
+    const nextId = Number(nextRow?.id || 0);
+    const prevId = Number(prevRow?.id || 0);
+
     await conn.execute(`DELETE FROM sal_customer_order_line WHERE order_id = ?`, [orderId]);
     await conn.execute(`DELETE FROM sal_customer_order WHERE id = ?`, [orderId]);
     const visitReset = visitLineId > 0 ? await afterOrderDeletedVisitCleanup(conn, visitLineId) : false;
     await conn.commit();
+    const redirectId = nextId > 0 ? nextId : prevId > 0 ? prevId : 0;
     return {
       ok: true,
       visit_reset: visitReset,
       visit_route_line_id: visitLineId > 0 ? visitLineId : null,
+      next_id: nextId,
+      prev_id: prevId,
+      redirect_id: redirectId,
       message: visitReset ? 'تم حذف الطلب وإلغاء تسجيل الزيارة.' : 'تم حذف الطلب.',
     };
   } catch (e) {

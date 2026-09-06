@@ -899,7 +899,7 @@ function oracle_order_note_column_candidates(array $cols = []): array
         $list[] = $p;
     }
 
-    // اكتشاف تلقائي من أعمدة الجدول (ملاحظة 1 وليس 2)
+    // اكتشاف تلقائي من أعمدة الجدول (ملاحظة 1 وليس 2) — أسماء واضحة فقط
     if ($cols !== []) {
         foreach (array_keys($cols) as $c) {
             $u = strtoupper((string) $c);
@@ -909,7 +909,11 @@ function oracle_order_note_column_candidates(array $cols = []): array
             if (preg_match('/2$|_2$|NOTEB|NOTE_B|NOTES2|REMARK2|MEMO2|DESCR2/', $u)) {
                 continue;
             }
-            if (preg_match('/NOTE|REMARK|COMM|MEMO|DESCR|DESC_?TXT|TXT|TEXT/', $u)) {
+            // تجنّب أعمدة رقمية شائعة تطابق خطأً (مثل …_NUM / COMM_AMT)
+            if (preg_match('/(_NUM|_NO|_ID|_FLAG|_AMT|_QTY|_CNT|_RATE)$/', $u)) {
+                continue;
+            }
+            if (preg_match('/^(NOTE|NOTES|NOTEA|NNOTE|V_NOTE|REMARK|REMARKS|REMARKA|MEMO|COMMENT|COMM|DESCR|DESC|TXT|TEXT)(_?[01A])?$/', $u)) {
                 $list[] = $u;
             }
         }
@@ -955,6 +959,66 @@ function oracle_order_normalize_note_text(mixed $raw): string
     }
 
     return substr($note, 0, 200);
+}
+
+function oracle_order_type_is_number(string $dt): bool
+{
+    $dt = strtoupper(trim($dt));
+    if ($dt === '') {
+        return false;
+    }
+
+    return str_contains($dt, 'NUMBER')
+        || str_contains($dt, 'FLOAT')
+        || str_contains($dt, 'BINARY_DOUBLE')
+        || str_contains($dt, 'BINARY_FLOAT')
+        || str_contains($dt, 'DECIMAL')
+        || str_contains($dt, 'NUMERIC')
+        || $dt === 'INTEGER'
+        || $dt === 'INT';
+}
+
+/**
+ * احذف/حوّل القيم غير الرقمية قبل الإدراج في أعمدة NUMBER لتفادي ORA-01722.
+ *
+ * @param array<string,mixed> $use
+ * @param array<string,string> $colTypes
+ * @return array<string,mixed>
+ */
+function oracle_order_sanitize_numeric_binds(array $use, array $colTypes): array
+{
+    foreach ($use as $col => $val) {
+        $dt = $colTypes[$col] ?? '';
+        if (!oracle_order_type_is_number($dt)) {
+            continue;
+        }
+        if ($val === null || $val === '') {
+            unset($use[$col]);
+            continue;
+        }
+        if (is_int($val) || is_float($val)) {
+            continue;
+        }
+        if (is_bool($val)) {
+            $use[$col] = $val ? 1 : 0;
+            continue;
+        }
+        $s = trim((string) $val);
+        if ($s !== '' && is_numeric($s)) {
+            $use[$col] = str_contains($s, '.') ? (float) $s : (int) $s + 0;
+            // احتفظ بالشكل العشري إن وُجد
+            if (str_contains($s, '.') || stripos($s, 'e') !== false) {
+                $use[$col] = (float) $s;
+            } else {
+                $use[$col] = (int) $s;
+            }
+            continue;
+        }
+        // مثل رقم الطلبية 2026-28 أو نص ملاحظة على عمود رقمي
+        unset($use[$col]);
+    }
+
+    return $use;
 }
 
 /**
@@ -1216,11 +1280,12 @@ function oracle_order_insert_row(array $conn, string $from, array $colMeta, arra
             $use[$col] = $val;
         }
     }
+    $use = oracle_order_fill_required($use, $colMeta, $sample);
+    $use = oracle_order_force_forms_fields($use, $cols);
+    $use = oracle_order_sanitize_numeric_binds($use, $colTypes);
     if (!isset($use['TYPE'], $use['V_NUM'])) {
         throw new RuntimeException('أعمدة TYPE/V_NUM غير موجودة في ' . $from . '.');
     }
-    $use = oracle_order_fill_required($use, $colMeta, $sample);
-    $use = oracle_order_force_forms_fields($use, $cols);
     $names = array_keys($use);
     $sqlCols = implode(', ', $names);
     $parts = [];

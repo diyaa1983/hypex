@@ -307,7 +307,7 @@ async function renderForm(req, res, orderId) {
     order_date: isoDate(order ? order.order_date : todayIso()),
     customer_id: order ? order.customer_id : 0,
     customer_label: order
-      ? `${order.customer_code || ''} — ${order.customer_name || ''}`.replace(/^ — /, '')
+      ? String(order.customer_name || '').trim() || String(order.customer_code || '').trim()
       : '',
     use_wholesale_price: order ? (Number(order.use_wholesale_price) === 1 ? 1 : 0) : 0,
     sales_rep_id: order ? order.sales_rep_id : null,
