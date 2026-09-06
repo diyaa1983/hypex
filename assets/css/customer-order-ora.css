@@ -410,7 +410,7 @@ body.co-ora-body .main.si-main {
   background: transparent !important;
 }
 
-/* خط البنود غامق — بدون مربعات داخل الخلايا */
+/* خط البنود غامق — بدون مربعات داخل الخلايا — يمين */
 .co-ora-skin .si-lines input,
 .co-ora-skin .si-lines select,
 .co-ora-skin .si-lines .si-num-out,
@@ -421,6 +421,7 @@ body.co-ora-body .main.si-main {
   font-family: Arial, Helvetica, sans-serif !important;
   line-height: 1.25 !important;
   color: #000 !important;
+  text-align: right !important;
   min-height: 22px !important;
   height: 22px !important;
   padding: 1px 4px !important;
@@ -432,6 +433,38 @@ body.co-ora-body .main.si-main {
   outline: none !important;
   -webkit-appearance: none;
   appearance: none;
+}
+
+.co-ora-skin .si-lines input[dir='ltr'],
+.co-ora-skin .si-lines .js-item-sku,
+.co-ora-skin .si-lines .js-item-code,
+.co-ora-skin .si-lines input[type='number'] {
+  text-align: right !important;
+  direction: ltr !important;
+  unicode-bidi: plaintext;
+}
+
+.co-ora-skin .si-lines .si-item-name-cell input.js-item-name,
+.co-ora-skin .si-lines input.js-item-name {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+.co-ora-skin .si-lines td.si-row-num {
+  text-align: center !important;
+}
+
+/* التاريخ في الوسط داخل الحقل */
+.co-ora-skin #co_date,
+.co-ora-skin .si-f--date .si-field,
+.co-ora-skin .si-f--date input[type='date'],
+.co-ora-skin .si-f--date input.js-date-dmy,
+.co-ora-skin .si-meta input[type='date'],
+.co-ora-skin .si-meta .js-date-dmy,
+.co-ora-skin .si-f--date .date-dmy-field .js-date-dmy,
+.co-ora-skin .date-dmy-field .js-date-dmy {
+  text-align: center !important;
+  direction: ltr !important;
 }
 
 .co-ora-skin .si-lines input:focus,
