@@ -30,7 +30,7 @@
 .hx-lk__panel {
   position: relative;
   z-index: 1;
-  width: min(28rem, 100%);
+  width: min(42rem, 100%);
   max-height: min(78vh, 640px);
   display: flex;
   flex-direction: column;
@@ -152,6 +152,37 @@
   padding: 5px 8px;
   font: inherit;
   cursor: pointer;
+}
+
+/* مواد F3: باركود | اسم | رقم المادة — سطر واحد */
+.hx-lk__row--item {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: right;
+}
+
+.hx-lk__row--item .hx-lk__bc,
+.hx-lk__row--item .hx-lk__sku {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e4d8c;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hx-lk__row--item .hx-lk__nm {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
 }
 
 .hx-lk__row:nth-child(even) {

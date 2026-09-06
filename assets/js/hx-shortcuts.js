@@ -507,13 +507,24 @@
           btn.type = 'button';
           btn.className = 'hx-lk__row';
           if (mode === 'items') {
+            var bc = String(row.barcode != null ? row.barcode : '').trim();
+            var sku = String(row.sku != null ? row.sku : '').trim();
+            var nm = String(row.name_ar != null ? row.name_ar : '').trim();
+            if (!bc && row.code && String(row.code).trim() !== sku) {
+              bc = String(row.code).trim();
+            }
+            btn.className = 'hx-lk__row hx-lk__row--item';
             btn.innerHTML =
-              '<strong>' +
-              esc(row.name_ar || '') +
-              '</strong><span dir="ltr">' +
-              esc(row.code || row.sku || '') +
-              (row.sale_price != null ? ' · ' + esc(String(row.sale_price)) : '') +
+              '<span class="hx-lk__bc" dir="ltr">' +
+              esc(bc || '—') +
+              '</span>' +
+              '<strong class="hx-lk__nm">' +
+              esc(nm || '—') +
+              '</strong>' +
+              '<span class="hx-lk__sku" dir="ltr">' +
+              esc(sku || '—') +
               '</span>';
+            btn.title = [bc, nm, sku].filter(Boolean).join(' · ');
             btn.addEventListener('click', function () {
               applyItem(row);
             });
