@@ -23,6 +23,7 @@ body.co-ora-body .main.si-main {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 0;
   padding: 2px 3px !important;
   margin: 0 0 6px !important;
@@ -55,7 +56,12 @@ body.co-ora-body .main.si-main {
 }
 
 .co-ora-skin .si-tb-group--status {
-  margin-inline-start: auto !important;
+  order: -1;
+  margin-inline-end: auto !important;
+  margin-inline-start: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-start;
 }
 
 .co-ora-skin .si-tb {
