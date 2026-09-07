@@ -584,6 +584,14 @@
     for (var i = 0; i < (payload.lines || []).length; i++) {
       var ln = payload.lines[i];
       if (!ln || !ln.item_id) continue;
+      if (!(Number(ln.qty) > 0)) {
+        hxAlert('أدخل الكمية للبند رقم ' + (i + 1) + ' قبل الحفظ.', {
+          title: 'الكمية مطلوبة',
+          kind: 'warning',
+        });
+        focusLineField(i, '.js-qty', true);
+        return false;
+      }
       if (!(Number(ln.unit_price) > 0)) {
         hxAlert('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', {
           title: 'تنبيه',
@@ -801,6 +809,11 @@
       bindRow(tr);
     });
     recomputeFooter();
+    try {
+      document.dispatchEvent(new CustomEvent('hx:lines-rendered', { bubbles: true }));
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function escAttr(s) {
@@ -916,7 +929,7 @@
     syncLinesFromDom();
     if (!state.lines || !state.lines[idx]) return;
     state.lines.splice(idx, 1);
-    if (!state.lines.length) addEmptyLine();
+    if (!state.lines.length) addEmptyLine({ force: true });
     else renderLines();
     // حذف البند دون رسالة — تثبيت صامت في القاعدة إن وُجدت فاتورة
     if (state.id) {
@@ -975,6 +988,11 @@
           });
         }
       });
+      if (cls === 'js-qty') {
+        el.addEventListener('blur', function () {
+          enforceQtyBeforeLeave(el);
+        });
+      }
     });
     var unitEl = tr.querySelector('.js-unit');
     if (unitEl) {
@@ -1218,7 +1236,9 @@
     placeFloatSuggest(box, fallback);
   }
 
-  function addEmptyLine() {
+  function addEmptyLine(opts) {
+    opts = opts || {};
+    if (!opts.force && !canAddNewLine()) return;
     state.lines = state.lines || [];
     state.lines.push({
       item_id: 0,
@@ -1253,7 +1273,7 @@
       }
     }
     if (idx < 0) {
-      addEmptyLine();
+      addEmptyLine({ force: true });
       idx = state.lines.length - 1;
     }
     state.lines[idx] = applyItemToLine(state.lines[idx] || {}, it);
@@ -1420,7 +1440,7 @@
   function onCustomerSelected(c) {
     if (!c || !c.id) return;
     if (custId) custId.value = c.id;
-    if (custInput) custInput.value = (c.code || '') + ' — ' + (c.name_ar || '');
+    if (custInput) custInput.value = String(c.name_ar || c.name || '').trim() || String(c.code || '');
     setCustomerPriceMode(c);
     if (custBox) {
       custBox.hidden = true;
@@ -1433,7 +1453,7 @@
   function focusFirstItemBarcode() {
     setTimeout(function () {
       if (posted) return;
-      if (!(state.lines || []).length) addEmptyLine();
+      if (!(state.lines || []).length) addEmptyLine({ force: true });
       focusLineField(0, '.js-item-sku', true);
     }, 40);
   }
@@ -1816,7 +1836,14 @@
           if (window.HypexUI && window.HypexUI.toast) {
             window.HypexUI.toast(data.message || 'تم حذف الفاتورة', 'ok', 2500);
           }
-          window.location.href = '/sales/documents';
+          formDirty = false;
+          var goId = Number(data.redirect_id || data.next_id || data.prev_id || 0);
+          var hx = typeof window.hxPath === 'function' ? window.hxPath : function (p) { return p; };
+          if (goId > 0) {
+            window.location.href = hx('/sales/invoices/' + goId);
+          } else {
+            window.location.href = hx('/sales/invoices/new');
+          }
         })
         .catch(function () {
           setBusy(false);
@@ -2284,9 +2311,7 @@
     if (cid) cid.value = inv.customer_id || '';
     var cust = document.getElementById('inv_customer');
     if (cust) {
-      var label =
-        (inv.customer_code ? inv.customer_code + ' — ' : '') + (inv.customer_name || '');
-      cust.value = label;
+      cust.value = String(inv.customer_name || '').trim() || String(inv.customer_code || '').trim();
     }
     setCustomerPriceMode({ use_wholesale_price: inv.use_wholesale_price }, { reprice: false });
     var wh = document.getElementById('inv_wh');
@@ -2393,6 +2418,95 @@
 
   function lineHasItem(ln) {
     return !!(ln && Number(ln.item_id) > 0);
+  }
+
+  function lineQtyValue(src) {
+    if (src == null) return 0;
+    if (typeof src === 'object' && !(src instanceof HTMLElement)) {
+      return Number(src.qty) || 0;
+    }
+    if (src && src.value != null) return Number(src.value) || 0;
+    return Number(src) || 0;
+  }
+
+  function lineHasQty(ln) {
+    return lineQtyValue(ln) > 0;
+  }
+
+  var qtyLeaveGuard = false;
+
+  function enforceQtyBeforeLeave(qtyEl, opts) {
+    opts = opts || {};
+    if (posted || !qtyEl || qtyLeaveGuard) return true;
+    if (!qtyEl.classList || !qtyEl.classList.contains('js-qty')) return true;
+    var tr = qtyEl.closest ? qtyEl.closest('tr[data-idx]') : null;
+    if (!tr) return true;
+    var idx = Number(tr.getAttribute('data-idx'));
+    try {
+      readLineFromRow(tr);
+    } catch (e) {
+      /* ignore */
+    }
+    var ln = state.lines[idx];
+    if (!lineHasItem(ln)) return true;
+    if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0) return true;
+
+    var msg = 'أدخل الكمية للبند قبل مغادرة الحقل.';
+    setMsg(msg, 'error');
+    qtyLeaveGuard = true;
+    window.setTimeout(function () {
+      try {
+        qtyEl.focus();
+        if (typeof qtyEl.select === 'function') qtyEl.select();
+      } catch (e2) {
+        /* ignore */
+      }
+      if (!opts.silentAlert) {
+        hxAlert(msg, { title: 'الكمية مطلوبة', kind: 'warning' }).then(function () {
+          qtyLeaveGuard = false;
+          try {
+            qtyEl.focus();
+            if (typeof qtyEl.select === 'function') qtyEl.select();
+          } catch (e3) {
+            /* ignore */
+          }
+        });
+      } else {
+        qtyLeaveGuard = false;
+      }
+    }, 0);
+    return false;
+  }
+
+  function canAddNewLine(opts) {
+    opts = opts || {};
+    try {
+      syncLinesFromDom();
+    } catch (e) {
+      /* ignore */
+    }
+    var lines = state.lines || [];
+    for (var i = 0; i < lines.length; i++) {
+      if (!lineHasItem(lines[i])) {
+        if (!opts.silent) {
+          focusLineField(i, '.js-item-sku', true);
+          setMsg('اختر المادة في السطر الحالي قبل إضافة سطر جديد.', 'error');
+        }
+        return false;
+      }
+      if (!lineHasQty(lines[i])) {
+        if (!opts.silent) {
+          focusLineField(i, '.js-qty', true);
+          setMsg('أدخل الكمية في السطر الحالي قبل إضافة سطر جديد.', 'error');
+          hxAlert('أدخل الكمية قبل إضافة سطر جديد.', {
+            title: 'الكمية مطلوبة',
+            kind: 'warning',
+          });
+        }
+        return false;
+      }
+    }
+    return true;
   }
 
   function focusLineField(idx, cls, doSelect) {
@@ -2618,8 +2732,10 @@
       }, 0);
       return true;
     }
+    if (!canAddNewLine()) return false;
     addEmptyLine();
     var newIdx = (state.lines || []).length - 1;
+    if (newIdx <= idx) return false;
     window.setTimeout(function () {
       focusLineField(newIdx, '.js-item-sku', true);
     }, 0);
@@ -2647,12 +2763,20 @@
         }
       }
       if (i >= 0 && i < rowEls.length - 1) {
+        if (fromEl.classList && fromEl.classList.contains('js-qty') && !enforceQtyBeforeLeave(fromEl)) {
+          return;
+        }
         focusElement(rowEls[i + 1], true);
         return;
       }
       if (!lineHasItem(curLn)) {
         focusLineField(idx, '.js-item-sku', true);
         hxAlert('اختر المادة أولاً قبل الانتقال لسطر جديد.', { title: 'تنبيه', kind: 'warning' });
+        return;
+      }
+      if (!lineHasQty(curLn)) {
+        focusLineField(idx, '.js-qty', true);
+        hxAlert('أدخل الكمية قبل الانتقال لسطر جديد.', { title: 'الكمية مطلوبة', kind: 'warning' });
         return;
       }
       goToNextLineSku(idx);
@@ -2666,7 +2790,7 @@
       return;
     }
     if (hi === headers.length - 1 || fromEl.id === 'inv_customer') {
-      if (!(state.lines || []).length) addEmptyLine();
+      if (!(state.lines || []).length) addEmptyLine({ force: true });
       focusLineField(0, '.js-item-sku', true);
     }
   }
@@ -2754,6 +2878,11 @@
       if (dir > 0) {
         if (!lineHasItem(state.lines[idx])) {
           setMsg('اختر المادة أولاً قبل إضافة سطر جديد.', 'error');
+          return;
+        }
+        if (!lineHasQty(state.lines[idx])) {
+          focusLineField(idx, '.js-qty', true);
+          setMsg('أدخل الكمية قبل إضافة سطر جديد.', 'error');
           return;
         }
         addEmptyLine();

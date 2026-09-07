@@ -89,9 +89,11 @@ function toolbarCaps(user, inv) {
 function toolbarHtml(caps, inv) {
   const id = inv && inv.id ? Number(inv.id) : 0;
   const posted = !!(inv && inv.is_posted);
-  const b = (idAttr, label, cls, disabled, extra = '', key = '') => {
+  const b = (idAttr, label, cls, disabled, extra = '', key = '', keyDesc = '') => {
     const keyHtml = key
-      ? `<kbd class="si-tb-key" title="${esc(key)}">${esc(key)}</kbd>`
+      ? `<span class="si-tb-keywrap" title="${esc(keyDesc || key)}"><kbd class="si-tb-key">${esc(key)}</kbd>${
+          keyDesc ? `<span class="si-tb-keydesc">${esc(keyDesc)}</span>` : ''
+        }</span>`
       : '';
     return `<button type="button" class="si-tb ${cls || ''}" id="${idAttr}" ${
       disabled ? 'disabled' : ''
@@ -106,7 +108,7 @@ function toolbarHtml(caps, inv) {
          data-allow-delete="${d(caps.allowDelete)}" data-allow-archive="${d(caps.allowArchive)}"
          data-allow-einvoice="${d(caps.allowEinvoice)}">
       <div class="si-tb-group si-tb-group--core">
-        ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10')}
+        ${b('si-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10', 'حفظ')}
         ${b('si-post', 'ترحيل', 'si-tb--post', !caps.canPost && !(caps.canSave && !id), ' title="ترحيل"')}
       </div>
       <div class="si-tb-group">
@@ -293,7 +295,9 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       invoice_no: inv ? inv.invoice_no : '',
       invoice_date: inv ? inv.invoice_date : todayIso(),
       customer_id: inv ? inv.customer_id : 0,
-      customer_label: inv ? `${inv.customer_code || ''} — ${inv.customer_name}` : '',
+      customer_label: inv
+        ? String(inv.customer_name || '').trim() || String(inv.customer_code || '').trim()
+        : '',
       customer_email: inv ? inv.customer_email || '' : '',
       use_wholesale_price: inv ? Number(inv.use_wholesale_price) === 1 ? 1 : 0 : 0,
       sales_rep_id: inv ? inv.sales_rep_id : null,
@@ -350,30 +354,12 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
       : 'فاتورة مبيعات جديدة';
 
     const bodyHtml = `
-      <div class="si-stage si-stage--toolbar-first">
+      <div class="si-stage si-stage--toolbar-first co-ora-skin" id="si-ora-root">
         ${toolbarHtml(caps, initial)}
         <div class="si-doc-top-row">
           <div class="si-doc-screen-head">
             <h1 class="si-doc-screen-title" id="si-screen-title">${titleLine}</h1>
-            <div class="si-doc-screen-badge" id="si-screen-badge">${badge}</div>
-          </div>
-          <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
-            <span class="si-count si-count--keys">
-              <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
-              <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
-              <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
-              <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
-            </span>
-          </div>
-        </div>
-
-        <section class="si-surface">
-          <div class="si-surface-head">
-            <h2>بيانات المستند</h2>
-            <span class="si-count">header</span>
-          </div>
-          <div class="si-meta si-meta--invoice">
-            <label class="si-f si-f--docno">
+            <label class="si-f si-f--docno si-f--docno-top">
               <span class="si-f-head">رقم الفاتورة</span>
               <div class="si-docno-row" dir="ltr">
                 <button type="button" class="si-btn si-docno-btn" id="inv_first" title="أول فاتورة">«</button>
@@ -386,6 +372,24 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
                 <button type="button" class="si-btn si-docno-btn si-docno-btn--last" id="inv_last" title="آخر فاتورة (أكبر رقم)">»</button>
               </div>
             </label>
+            <div class="si-doc-screen-badge" id="si-screen-badge">${badge}</div>
+          </div>
+          <div class="si-keys-bar" role="group" aria-label="اختصارات لوحة المفاتيح">
+            <span class="si-count si-count--keys">
+              <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
+              <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
+              <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
+              <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
+            </span>
+          </div>
+        </div>
+
+        <div class="oracle-rec-canvas co-ora-canvas">
+        <section class="si-surface oracle-rec-block">
+          <div class="si-surface-head oracle-rec-block-caption">
+            <h2>بيانات المستند</h2>
+          </div>
+          <div class="si-meta si-meta--invoice si-meta--order oracle-rec-fields">
             <label class="si-f si-f--date">
               <span class="si-f-head">التاريخ</span>
               <input class="si-field si-field--mono" id="inv_date" type="date" value="${esc(
@@ -428,12 +432,12 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
           </div>
         </section>
 
-        <section class="si-surface">
-          <div class="si-surface-head">
+        <section class="si-surface oracle-rec-block">
+          <div class="si-surface-head oracle-rec-block-caption">
             <h2>بنود الفاتورة</h2>
           </div>
-          <div class="si-lines-wrap">
-            <table class="si-lines si-lines--co" id="si-lines">
+          <div class="si-lines-wrap oracle-rec-grid-wrap">
+            <table class="si-lines si-lines--co oracle-rec-grid" id="si-lines">
               ${ui.linesColgroup()}
               <thead>
                 <tr>
@@ -455,7 +459,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
               <tbody id="si-lines-body"></tbody>
             </table>
           </div>
-          <div class="si-doc-foot">
+          <div class="si-doc-foot oracle-rec-fields oracle-rec-fields-second">
             <div class="si-totals">
               <label>خصم مستوى الفاتورة
                 <input class="si-field" id="inv_discount" type="text" value="${esc(
@@ -475,10 +479,10 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
           </div>
         </section>
 
-      <section class="si-surface co-ora-ar-panel" id="inv-ora-ar-panel" ${
+      <section class="si-surface oracle-rec-block co-ora-ar-panel" id="inv-ora-ar-panel" ${
         initial.customer_id ? '' : 'hidden'
       }>
-        <div class="si-surface-head">
+        <div class="si-surface-head oracle-rec-block-caption">
           <h2>رصيد العميل والشيكات</h2>
           <span class="si-count" id="inv-ora-ar-name">—</span>
         </div>
@@ -530,6 +534,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         </div>
       </section>
       </div>
+      </div>
       <script type="application/json" id="si-initial">${JSON.stringify(initial).replace(
         /</g,
         '\\u003c'
@@ -541,9 +546,13 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         user: req.session.user,
         title: isNew ? 'فاتورة مبيعات جديدة' : `فاتورة ${initial.invoice_no}`,
         bodyHtml,
-        bodyClass: 'si-2027',
+        bodyClass: 'si-2027 co-ora-body',
         mainClass: 'main si-main',
-        css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-doc.css'],
+        css: [
+          '/assets/css/sales-2027.css',
+          '/assets/css/customer-order-doc.css',
+          '/assets/css/customer-order-ora.css',
+        ],
         js: ['/assets/js/doc-nav.js', '/assets/js/hx-offers-client.js', '/assets/js/sales-invoice.js'],
       })
     );

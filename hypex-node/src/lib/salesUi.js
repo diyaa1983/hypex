@@ -4,7 +4,11 @@ const { esc, fmtAmt, fmtUnitPrice, isoToDmy, todayIso } = require('../lib/html')
 const { renderApp, phpUrl, embedUrl } = require('../lib/layout');
 const { salesCatalog } = require('../sales/catalog');
 
-const SALES_CSS = ['/assets/css/sales-2027.css'];
+const SALES_CSS = [
+  '/assets/css/sales-2027.css',
+  '/assets/css/customer-order-ora.css',
+  '/assets/css/hypex-ora-global.css',
+];
 
 const {
   BACK_ICON_SVG,
@@ -33,15 +37,42 @@ function stripNodeMarketing(text) {
   return s;
 }
 
-function salesPage({ user, title, bodyHtml, js = [], css = [], activePath = '', printTitle = '', bodyClass = 'si-2027' }) {
+function ensureOraBodyClass(bodyClass) {
+  let bc = String(bodyClass || 'si-2027 co-ora-body').trim();
+  if (!/\bsi-2027\b/.test(bc)) bc = `si-2027 ${bc}`.trim();
+  if (!/\bco-ora-body\b/.test(bc)) bc = `${bc} co-ora-body`.trim();
+  return bc;
+}
+
+function mergeOraCss(css) {
+  const list = Array.isArray(css) ? [...css] : [];
+  const out = [...SALES_CSS];
+  for (const c of list) {
+    if (!c) continue;
+    if (out.includes(c)) continue;
+    out.push(c);
+  }
+  return out;
+}
+
+function salesPage({
+  user,
+  title,
+  bodyHtml,
+  js = [],
+  css = [],
+  activePath = '',
+  printTitle = '',
+  bodyClass = 'si-2027 co-ora-body',
+}) {
   const printJs = js.includes('/assets/js/sales-print.js') ? js : [...js, '/assets/js/sales-print.js'];
   return renderApp({
     user,
     title,
     bodyHtml,
-    bodyClass,
+    bodyClass: ensureOraBodyClass(bodyClass),
     mainClass: 'main si-main',
-    css: [...SALES_CSS, ...css],
+    css: mergeOraCss(css),
     js: printJs,
     activePath,
     printChrome: true,
@@ -256,6 +287,8 @@ function oracleStatementUrl(user, customerId, data = {}) {
 
 module.exports = {
   salesPage,
+  ensureOraBodyClass,
+  mergeOraCss,
   oracleStatementUrl,
   linesColgroup,
   hero,

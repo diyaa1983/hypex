@@ -156,6 +156,17 @@ function renderApp({
   }
   // واجهة تنبيهات/تأكيد + اختصارات + تواريخ يوم-شهر-سنة لكل الشاشات
   if (user) {
+    // جلد Oracle Forms لكل شاشات النظام (قوائم / تقارير / مستندات)
+    if (!/\bco-ora-body\b/.test(String(bodyClass || ''))) {
+      bodyClass = `${String(bodyClass || '').trim()} co-ora-body`.trim();
+    }
+    const hasSalesCss = allCss.some((c) => String(c).indexOf('sales-2027.css') !== -1);
+    if (!hasSalesCss) allCss.push('/assets/css/sales-2027.css');
+    const hasOraCss = allCss.some((c) => String(c).indexOf('customer-order-ora.css') !== -1);
+    if (!hasOraCss) allCss.push('/assets/css/customer-order-ora.css');
+    const hasOraGlobal = allCss.some((c) => String(c).indexOf('hypex-ora-global.css') !== -1);
+    if (!hasOraGlobal) allCss.push('/assets/css/hypex-ora-global.css');
+
     const hasDec = allJs.some((j) => String(j).indexOf('hx-decimals.js') !== -1);
     if (!hasDec) allJs.unshift(`/assets/js/hx-decimals.js?v=${decVer}`);
     const hasUi = allJs.some((j) => String(j).indexOf('hx-ui.js') !== -1);

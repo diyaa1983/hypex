@@ -130,7 +130,7 @@ router.get('/inventory/price-adjust', async (req, res) => {
         .join('') || ui.emptyRow(7, 'لا تعديلات بعد');
 
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         ${ui.hero({
           mark: '💰',
           kicker: KICKER,
@@ -174,7 +174,7 @@ async function renderForm(req, res, id) {
   const adjNoClass = isPosted ? 'is-approved' : hasId ? 'is-saved' : '';
 
   const body = `
-    <div class="si-stage" id="pa-root" data-posted="${isPosted ? '1' : '0'}" data-has-id="${hasId ? '1' : '0'}" data-pa-ux="co-v2">
+    <div class="si-stage co-ora-skin" id="pa-root" data-posted="${isPosted ? '1' : '0'}" data-has-id="${hasId ? '1' : '0'}" data-pa-ux="co-v2">
       ${ui.hero({
         mark: '💰',
         kicker: KICKER,
@@ -410,7 +410,7 @@ router.get('/inventory/reports/price-adjustments', async (req, res) => {
         .join('') || ui.emptyRow(10, 'لا توجد مواد معدّلة الأسعار في هذه الفترة');
 
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         ${ui.hero({
           mark: '📋',
           kicker: KICKER,

@@ -126,7 +126,7 @@ async function renderDocForm(req, res, conf) {
   const titleLine = initial.doc_no ? `${esc(conf.title)} ${esc(initial.doc_no)}` : conf.titleNew;
 
   const bodyHtml = `
-    <div class="si-stage">
+    <div class="si-stage co-ora-skin">
       <header class="si-hero">
         <div class="si-brand-lockup">
           <div class="si-brand-text">
@@ -251,9 +251,9 @@ async function renderDocForm(req, res, conf) {
       user,
       title: doc ? `${conf.title} ${initial.doc_no}` : conf.titleNew,
       bodyHtml,
-      bodyClass: 'si-2027',
+      bodyClass: 'si-2027 co-ora-body',
       mainClass: 'main si-main',
-      css: ['/assets/css/sales-2027.css'],
+      css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-ora.css', '/assets/css/hypex-ora-global.css'],
       js: ['/assets/js/doc-nav.js', '/assets/js/doc-form.js'],
       activePath: conf.listHref,
     })

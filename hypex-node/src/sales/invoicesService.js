@@ -1028,7 +1028,36 @@ async function deleteInvoice(invoiceId, userId) {
   if (await isPosted(id)) {
     return { ok: false, error: 'لا يمكن حذف فاتورة مرحّلة. فك الترحيل أولاً.' };
   }
-  return phpAction('delete', userId, { invoice_id: id });
+
+  // الجيران قبل الحذف — للبقاء في الشاشة والانتقال للتالية
+  let nextId = 0;
+  let prevId = 0;
+  try {
+    const nextRows = await db.query(
+      `SELECT id FROM sal_invoice WHERE id > ? ORDER BY id ASC LIMIT 1`,
+      [id]
+    );
+    const prevRows = await db.query(
+      `SELECT id FROM sal_invoice WHERE id < ? ORDER BY id DESC LIMIT 1`,
+      [id]
+    );
+    nextId = nextRows[0] ? Number(nextRows[0].id) : 0;
+    prevId = prevRows[0] ? Number(prevRows[0].id) : 0;
+  } catch {
+    /* ignore — الترحيل للحذف يبقى */
+  }
+
+  const result = await phpAction('delete', userId, { invoice_id: id });
+  if (!result || !result.ok) {
+    return result || { ok: false, error: 'تعذر الحذف.' };
+  }
+  const redirectId = nextId > 0 ? nextId : prevId > 0 ? prevId : 0;
+  return {
+    ...result,
+    next_id: nextId,
+    prev_id: prevId,
+    redirect_id: redirectId,
+  };
 }
 
 async function sendEinvoice(invoiceId, userId) {

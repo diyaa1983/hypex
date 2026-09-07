@@ -125,7 +125,7 @@ router.get('/sales/returns/documents', async (req, res) => {
       })
       .join('');
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         <header class="si-hero">
           <div class="si-brand-lockup">
             <div class="si-brand-text">
@@ -177,9 +177,9 @@ router.get('/sales/returns/documents', async (req, res) => {
         user: req.session.user,
         title: 'قائمة المرتجعات',
         bodyHtml: body,
-        bodyClass: 'si-2027',
+        bodyClass: 'si-2027 co-ora-body',
         mainClass: 'main si-main',
-        css: ['/assets/css/sales-2027.css'],
+        css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-ora.css', '/assets/css/hypex-ora-global.css'],
       })
     );
   } catch (e) {
@@ -227,7 +227,7 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
       : '<span class="si-pill si-pill--wait">مسودة</span>';
     const title = initial.return_no ? `مرتجع ${esc(initial.return_no)}` : 'مرتجع مبيعات جديد';
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         <header class="si-hero">
           <div class="si-brand-lockup">
             <div class="si-brand-text">
@@ -332,9 +332,9 @@ router.get(['/sales/returns/form/new', '/sales/returns/form/:id'], async (req, r
         user: req.session.user,
         title: isNew ? 'مرتجع جديد' : `مرتجع ${initial.return_no}`,
         bodyHtml: body,
-        bodyClass: 'si-2027',
+        bodyClass: 'si-2027 co-ora-body',
         mainClass: 'main si-main',
-        css: ['/assets/css/sales-2027.css'],
+        css: ['/assets/css/sales-2027.css', '/assets/css/customer-order-ora.css', '/assets/css/hypex-ora-global.css'],
         js: ['/assets/js/doc-nav.js', '/assets/js/sales-return-node.js'],
       })
     );

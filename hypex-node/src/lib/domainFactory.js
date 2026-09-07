@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * مصنع مسارات نطاق كامل (hub + tiles + list/report/bridge)
@@ -48,7 +48,7 @@ function createDomainRouter(conf) {
         ui.salesPage({
           user: u,
           title: 'ممنوع',
-          bodyHtml: `<div class="si-stage">${ui.hero({
+          bodyHtml: `<div class="si-stage co-ora-skin">${ui.hero({
             title: 'لا صلاحية',
             subtitle: 'ليس لديك صلاحيات في هذا القسم',
           })}</div>`,
@@ -65,7 +65,7 @@ function createDomainRouter(conf) {
           ui.salesPage({
             user: req.session.user,
             title: 'ممنوع',
-            bodyHtml: `<div class="si-stage">${ui.hero({
+            bodyHtml: `<div class="si-stage co-ora-skin">${ui.hero({
               title: 'ممنوع',
               subtitle: 'لا صلاحية لهذه الشاشة',
             })}</div>`,
@@ -88,7 +88,7 @@ function createDomainRouter(conf) {
     const user = req.session.user;
     const primary = flat.find((it) => it.kind === 'list') || flat[0];
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         ${ui.hero({
           title: hubTitle,
           subtitle: hubSubtitle,
@@ -121,7 +121,7 @@ function createDomainRouter(conf) {
     const actions = [...extraActions, { label: `لوحة ${hubTitle}`, href: basePath }];
     // لا نفتح تبويب PHP خارجي — الشاشات داخل Node
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         ${ui.hero({ title, subtitle, actions })}
         ${filtersHtml || (searchPath ? ui.railSearch(searchPath, qVal) : '')}
         ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml)}
@@ -218,7 +218,7 @@ function createDomainRouter(conf) {
           ui.salesPage({
             user: req.session.user,
             title: 'خطأ',
-            bodyHtml: `<div class="si-stage">${ui.hero({
+            bodyHtml: `<div class="si-stage co-ora-skin">${ui.hero({
               title: 'خطأ في الشاشة',
               subtitle: String(e.message || e),
             })}</div>`,

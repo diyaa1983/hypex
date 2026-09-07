@@ -181,7 +181,7 @@ router.get('/sales/offers', async (req, res) => {
         .join('') || ui.emptyRow(7, 'لا عروض بعد');
 
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         ${ui.hero({
           mark: '🎁',
           kicker: KICKER,
@@ -249,7 +249,7 @@ async function renderForm(req, res, id) {
     : `سند ${esc(offerNo)}${offerName ? ' · ' + esc(offerName) : ''}`;
 
   const body = `
-    <div class="si-stage" id="so-root" data-so-ux="1"
+    <div class="si-stage co-ora-skin" id="so-root" data-so-ux="1"
          data-prev-id="${Number(nav.prev_id) || 0}"
          data-next-id="${Number(nav.next_id) || 0}"
          data-first-id="${Number(nav.first_id) || 0}"
@@ -700,7 +700,7 @@ router.get('/sales/reports/offers', async (req, res) => {
     }
 
     const body = `
-      <div class="si-stage">
+      <div class="si-stage co-ora-skin">
         ${ui.hero({
           mark: '📋',
           kicker: KICKER,

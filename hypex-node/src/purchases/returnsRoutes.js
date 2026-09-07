@@ -86,7 +86,7 @@ async function formNew(req, res) {
     `<tr><td colspan="10" class="muted" style="text-align:center">اختر المورد ثم فاتورة شراء مرحّلة لعرض البنود</td></tr>`;
 
   const body = `
-    <div class="si-stage">
+    <div class="si-stage co-ora-skin">
       ${ui.hero({
         mark: '↩',
         kicker: KICKER,
@@ -288,7 +288,7 @@ router.get('/purchases/returns/:id', async (req, res, next) => {
       .join('') || ui.emptyRow(8);
 
   const body = `
-    <div class="si-stage">
+    <div class="si-stage co-ora-skin">
       ${ui.hero({
         mark: '↩',
         kicker: KICKER,

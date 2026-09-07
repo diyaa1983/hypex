@@ -104,14 +104,14 @@ function listPage(res, user, opts) {
     qVal,
     extraActions = [],
     phpRoute,
-    oraSkin = false,
+    oraSkin = true,
   } = opts;
   const actions = [
     ...extraActions,
     { label: 'لوحة المبيعات', href: '/sales' },
   ];
   const body = `
-    <div class="si-stage${oraSkin ? ' co-ora-skin' : ''}">
+    <div class="si-stage co-ora-skin">
       ${ui.hero({ mark, title, subtitle, actions })}
       ${searchPath ? ui.railSearch(searchPath, qVal) : ''}
       ${ui.tableSurface(tableTitle || title, `${count} صف`, headers, rowsHtml)}
@@ -121,8 +121,7 @@ function listPage(res, user, opts) {
       user,
       title,
       bodyHtml: body,
-      bodyClass: oraSkin ? 'si-2027 co-ora-body' : 'si-2027',
-      css: oraSkin ? ['/assets/css/customer-order-ora.css'] : [],
+      bodyClass: 'si-2027 co-ora-body',
     })
   );
 }
