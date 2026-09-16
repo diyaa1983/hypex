@@ -180,8 +180,18 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
     return $ok;
 }
 
-function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate): string
+/**
+ * توليد رقم طلب عميل.
+ * - بدون مندوب (ويندوز/مكتب): YYYY-N
+ * - مع مندوب موبايل ($salesRepId): {رمز_المندوب}-N  مثال: 20-1 ثم 20-2
+ */
+function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate, ?int $salesRepId = null): string
 {
+    $repId = (int) ($salesRepId ?? 0);
+    if ($repId > 0) {
+        return sal_customer_order_generate_next_no_for_rep($pdo, $repId);
+    }
+
     $year = (int) date('Y', strtotime($orderDate) ?: time());
     $yearStr = (string) $year;
     require_once app_path('includes/doc_number_pool.php');
@@ -217,6 +227,41 @@ function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate): strin
     }
 
     return $yearStr . '-' . (string) ($max + 1);
+}
+
+/**
+ * تسلسل مستقل لكل مندوب: {رمز_المندوب}-{تسلسل}
+ * يُستخدم لمسار الموبايل فقط.
+ */
+function sal_customer_order_generate_next_no_for_rep(PDO $pdo, int $salesRepId): string
+{
+    $repId = (int) $salesRepId;
+    if ($repId < 1) {
+        throw new RuntimeException('مندوب غير صالح لتوليد رقم الطلب.');
+    }
+    $stRep = $pdo->prepare('SELECT code FROM crm_sales_rep WHERE id = ? LIMIT 1');
+    $stRep->execute([$repId]);
+    $rawCode = trim((string) ($stRep->fetchColumn() ?: ''));
+    $code = preg_replace('/[^A-Za-z0-9\-_]/', '', $rawCode) ?: '';
+    if ($code === '') {
+        $code = 'R' . $repId;
+    }
+
+    $prefix = $code . '-';
+    $st = $pdo->prepare(
+        'SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? FOR UPDATE'
+    );
+    $st->execute([$prefix . '%']);
+    $max = 0;
+    $codeQ = preg_quote($code, '/');
+    foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $no) {
+        $no = (string) $no;
+        if (preg_match('/^' . $codeQ . '-(\\d+)$/', $no, $m)) {
+            $max = max($max, (int) $m[1]);
+        }
+    }
+
+    return $prefix . (string) ($max + 1);
 }
 
 function sal_customer_order_status_label(string $status): string
@@ -781,8 +826,10 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
                 )->execute($params);
             }
         } else {
-            $no = sal_customer_order_generate_next_no($pdo, $date);
+            // الموبايل يمرّر $forceRepId → رقم الطلب = رمز_المندوب-التسلسل
+            // الويندوز/المكتب بدون forceRepId → يبقى YYYY-N
             $rep = $forceRepId ?? ($salesRepInput > 0 ? $salesRepInput : null);
+            $no = sal_customer_order_generate_next_no($pdo, $date, $forceRepId);
             if ($hasPricing) {
                 $payCol = $hasPay ? 'payment_type,' : '';
                 $payQ = $hasPay ? '?,' : '';

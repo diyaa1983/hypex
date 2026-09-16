@@ -429,261 +429,348 @@ async function itemForm(req, res, id) {
                   `<option value="${u.id}"${Number(pu.unit_id) === Number(u.id) ? ' selected' : ''}>${esc(u.name_ar)}</option>`
               )
               .join('');
-            return `<div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
-              <label style="flex:1.2;min-width:9rem">الوحدة
+            return `<div class="inv-pack-row">
+              <label>الوحدة
                 <select class="si-field" name="pack_unit_id[]" ${packFieldsLocked ? 'disabled' : ''}>
                   <option value="">—</option>${opts}
                 </select>
               </label>
-              <label style="flex:1;min-width:7rem">العدد في الوحدة
+              <label>العدد في الوحدة
                 <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1"
                        value="${esc(facStr)}" dir="ltr" ${packFieldsLocked ? 'readonly' : ''} placeholder="مثال: 24">
               </label>
-              ${
-                packFieldsLocked
-                  ? ''
-                  : `<button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>`
-              }
+              ${packFieldsLocked ? '' : `<button type="button" class="si-btn js-pack-remove">حذف</button>`}
             </div>`;
           })
           .join('')
-      : `<div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
-          <label style="flex:1.2;min-width:9rem">الوحدة
+      : `<div class="inv-pack-row">
+          <label>الوحدة
             <select class="si-field" name="pack_unit_id[]">
               <option value="">— إضافة وحدة إضافية —</option>${unitOptionsHtml}
             </select>
           </label>
-          <label style="flex:1;min-width:7rem">العدد في الوحدة
+          <label>العدد في الوحدة
             <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1" value="" dir="ltr"
                    placeholder="قطعة=1 · كرتون=24">
           </label>
-          <button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>
+          <button type="button" class="si-btn js-pack-remove">حذف</button>
         </div>`;
 
+  let nav = { prev_id: 0, next_id: 0, first_id: 0, last_id: 0 };
+  try {
+    const { neighbors } = require('../lib/docBrowse');
+    nav = await neighbors('inv_item', id || 0);
+  } catch {
+    /* ignore */
+  }
+  const navId = item ? Number(item.id) : 0;
+  const prevHref = nav.prev_id ? '/inventory/items/' + nav.prev_id : '#';
+  const nextHref = nav.next_id ? '/inventory/items/' + nav.next_id : '#';
+  const firstHref = nav.first_id ? '/inventory/items/' + nav.first_id : '#';
+  const lastHref = nav.last_id ? '/inventory/items/' + nav.last_id : '#';
+
+  const catName =
+    (lookups.categories || []).find((c) => Number(c.id) === Number(item?.category_id))?.name_ar || '—';
+  const unitName =
+    (lookups.units || []).find((u) => Number(u.id) === Number(item?.unit_id))?.name_ar || '—';
+  const whName =
+    (lookups.warehouses || []).find((w) => Number(w.id) === Number(item?.default_warehouse_id))?.name_ar ||
+    '—';
+
   const lockNote = pricesLocked
-    ? `<p class="si-pill si-pill--lock" style="display:inline-block;margin:0 0 .75rem">
-         الأسعار مقفلة بعد حركات على المادة. عدّل سعر الكلفة/البيع/الجملة من الشاشات الخاصة لاحقاً.
-       </p>`
-    : `<p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.5">
-         عند أول تعريف تُدخل الأسعار هنا. بعد أي حركة مخزون/فاتورة تُقفل ولا تُعدَّل من هذه البطاقة.
-       </p>`;
+    ? `<p class="ic-warn">الأسعار مقفلة بعد حركات على المادة — عدّلها من شاشات الأسعار المخصصة.</p>`
+    : `<p class="muted" style="margin:0 0 4px;font-size:10px;line-height:1.35">سعر الحبة فقط؛ الكرتون = سعر الحبة × العدد.</p>`;
 
   const ro = pricesLocked ? 'readonly' : '';
   const expiryVal =
     item?.expiry_date != null ? String(item.expiry_date).slice(0, 10) : '';
 
-  const body = `
-    <div class="si-stage">
-      ${ui.hero({
-        mark: 'It',
-        kicker: KICKER,
-        title: isNew ? 'بطاقة مادة جديدة' : `بطاقة المادة: ${esc(item.name_ar || '')}`,
-        subtitle: 'رقم المادة للأغراض الداخلية · الباركود هو الظاهر في الفواتير والتقارير',
-        actions: [
-          { label: 'القائمة الكاملة', href: '/inventory/items?view=list' },
-          { label: 'الفئات', href: '/inventory/categories' },
-          { label: 'الوحدات', href: '/inventory/units' },
-        ],
-      })}
-      ${err ? alertHtml('err', err) : ''}
-      ${flash ? alertHtml('ok', flash) : ''}
+  const movesHref = item
+    ? '/inventory/reports/item-moves?item_id=' + encodeURIComponent(String(item.id))
+    : '/inventory/reports/item-moves';
 
-      <div class="si-cmd si-doc-toolbar" role="toolbar">
+  const body = `
+    <div class="si-stage co-ora-skin ic-card-stage">
+      ${err ? `<div class="ic-flash">${alertHtml('err', err)}</div>` : ''}
+      ${flash ? `<div class="ic-flash">${alertHtml('ok', flash)}</div>` : ''}
+
+      <div class="si-cmd si-doc-toolbar" role="toolbar" aria-label="إجراءات بطاقة المادة">
         <div class="si-tb-group si-tb-group--core">
-          <button type="submit" form="item-form" class="si-tb si-tb--save">
+          <button type="submit" form="item-form" class="si-tb si-tb--save" data-hx-save="1">
             <span class="si-tb-lbl">حفظ</span>
-            <span class="si-tb-keywrap"><kbd class="si-tb-key">F10</kbd></span>
+            <span class="si-tb-keywrap"><kbd class="si-tb-key">F10</kbd><span class="si-tb-keydesc">حفظ</span></span>
           </button>
+          <a class="si-tb" href="/inventory/items/new"><span class="si-tb-lbl">جديد</span></a>
           <button type="button" class="si-tb si-tb--accent" data-hx-item-picker="1">
-            <span class="si-tb-lbl">قائمة المواد</span>
+            <span class="si-tb-lbl">تحديد المادة</span>
           </button>
-          <a class="si-tb" href="/inventory/items/new"><span class="si-tb-lbl">＋ إضافة مادة</span></a>
+          <a class="si-tb" href="${esc(movesHref)}" ${isNew ? 'tabindex="-1" style="pointer-events:none;opacity:.45"' : ''}>
+            <span class="si-tb-lbl">كشف حركات</span>
+          </a>
+        </div>
+        <div class="si-tb-group">
+          <a class="si-tb" href="/inventory/categories"><span class="si-tb-lbl">الفئات</span></a>
+          <a class="si-tb" href="/inventory/units"><span class="si-tb-lbl">الوحدات</span></a>
+          <a class="si-tb si-tb--ghost" href="/inventory/items?view=list"><span class="si-tb-lbl">القائمة</span></a>
           <form method="post" action="/inventory/items/${item ? item.id : 0}/delete" style="display:inline"
                 onsubmit="return confirm('حذف المادة نهائياً؟ لا يمكن التراجع.');">
-            <button type="submit" class="si-tb si-tb--danger" ${isNew ? 'disabled' : ''}
-                    title="${isNew ? 'اختر مادة من القائمة أولاً' : 'حذف المادة'}">
+            <button type="submit" class="si-tb si-tb--danger" ${isNew ? 'disabled' : ''}>
               <span class="si-tb-lbl">حذف</span>
             </button>
           </form>
         </div>
-        <div class="si-tb-group">
-          <a class="si-tb si-tb--ghost" href="/inventory/items?view=list">
-            <span class="si-tb-lbl">القائمة الكاملة</span>
-          </a>
+        <div class="si-tb-group si-tb-group--status">
+          <span class="si-msg" id="ic-msg">${isNew ? 'اختر مادة من القائمة بالأسفل' : esc(item.name_ar || '')}</span>
         </div>
       </div>
 
-      <section class="si-surface">
-        <div class="si-surface-head">
-          <h2>بيانات المادة</h2>
-          <button class="si-btn si-btn--primary" type="submit" form="item-form">حفظ</button>
-        </div>
-        <form id="item-form" method="post" action="${isNew ? '/inventory/items/new' : '/inventory/items/' + id}" style="padding:1rem 1.1rem 1.25rem">
-          <input type="hidden" name="id" value="${item ? item.id : 0}">
-
-          <div class="si-meta">
-            <label>رقم المادة
-              <input class="si-field si-field--mono" name="sku" value="${esc(item?.sku || '')}" dir="ltr"
-                     placeholder="${isNew ? 'تلقائي إن تُرك فارغاً' : ''}" autocomplete="off"
-                     title="رقم داخلي — لا يظهر في الفواتير">
-            </label>
-            <label>باركود المادة *
-              <input class="si-field si-field--mono" name="barcode" value="${esc(item?.barcode || defaultBarcode)}"
-                     dir="ltr" autocomplete="off" inputmode="numeric" maxlength="14" required
-                     title="المعرّف الظاهر في الشاشات والفواتير والتقارير">
-            </label>
-            <p class="si-span-2 muted" style="margin:0;font-size:.8rem">
-              <strong>الباركود</strong> هو ما يظهر في الفواتير والتقارير. <strong>رقم المادة</strong> داخلي فقط.
-            </p>
-
-            <label class="si-span-2">اسم المادة بالعربي *
-              <input class="si-field" name="name_ar" required value="${esc(item?.name_ar || '')}" autocomplete="off">
-            </label>
-            <label class="si-span-2">اسم المادة بالإنجليزي
-              <input class="si-field" name="name_en" value="${esc(item?.name_en || '')}" dir="ltr" autocomplete="off">
-            </label>
-
-            <label>فئة المادة
-              <select class="si-field" name="category_id">${catOpts}</select>
-            </label>
-            <label>المستودع
-              <select class="si-field" name="default_warehouse_id">${whOpts}</select>
-            </label>
-            <label>ضريبة المادة
-              <select class="si-field" name="tax_rate_id">${taxOpts}</select>
-            </label>
-            <label>تاريخ الانتهاء
-              <input class="si-field si-field--mono" type="date" name="expiry_date" value="${esc(expiryVal)}" dir="ltr">
-            </label>
+      <section class="ic-list-dock" id="ic-pick" aria-label="قائمة المواد">
+        <header class="ic-list-dock__head">
+          <div>
+            <h2 class="ic-list-dock__title">قائمة المواد</h2>
+            <p class="ic-list-dock__sub muted">رقم المادة · الباركود · الاسم — مثل طلبات الشراء</p>
           </div>
+          <div class="ic-list-dock__search">
+            <input type="search" id="ic-pick-q" class="si-field" placeholder="بحث: رقم مادة / باركود / اسم…"
+                   autocomplete="off">
+          </div>
+        </header>
+        <div class="ic-list-dock__cols" aria-hidden="true">
+          <span>رقم المادة</span>
+          <span>الباركود</span>
+          <span>اسم المادة</span>
+        </div>
+        <div class="ic-list-dock__hint muted" id="ic-pick-hint">جاري التحميل…</div>
+        <div class="ic-list-dock__list" id="ic-pick-list" role="listbox" aria-label="نتائج المواد"
+             data-current-id="${navId || 0}"></div>
+        <footer class="ic-list-dock__foot">
+          <span class="ic-card-nav" title="تنقّل بين المواد">
+            <a href="${esc(firstHref)}" class="${nav.first_id ? '' : 'is-disabled'}" title="أول">«</a>
+            <a href="${esc(prevHref)}" class="${nav.prev_id ? '' : 'is-disabled'}" title="السابق">‹</a>
+            <input type="text" class="ic-card-nav-id" id="ic-card-nav-id" dir="ltr"
+                   inputmode="numeric" autocomplete="off" spellcheck="false"
+                   value="${navId || ''}" placeholder="—"
+                   title="اكتب رقم البطاقة ثم Enter" aria-label="رقم البطاقة">
+            <a href="${esc(nextHref)}" class="${nav.next_id ? '' : 'is-disabled'}" title="التالي">›</a>
+            <a href="${esc(lastHref)}" class="${nav.last_id ? '' : 'is-disabled'}" title="آخر">»</a>
+          </span>
+          <span class="ic-list-dock__sel" id="ic-list-sel">${isNew ? '—' : esc(item.name_ar || '')}</span>
+        </footer>
+      </section>
 
-          <div style="margin-top:1.15rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
-            <h3 style="margin:0 0 .45rem;font-size:.95rem">الأسعار (لأقل وحدة — غير شامل الضريبة)</h3>
-            ${lockNote}
-            <p class="muted" style="margin:0 0 .65rem;font-size:.8rem;line-height:1.45">
-              أدخل <b>سعر الحبة / أقل وحدة</b> فقط. عند البيع بالكرتون (مثلاً 12) يحسب النظام السعر تلقائياً =
-              سعر الحبة × 12 في الفاتورة وطلب العميل.
-              · خانات الأسعار (إعداد «سعر الوحدة»): <b dir="ltr">${unitDp}</b>
-              · خانات النظام: <b dir="ltr">${amountDp}</b>
-            </p>
-            <div class="si-meta" data-hx-price-fields="1" data-unit-dp="${unitDp}" data-amount-dp="${amountDp}">
-              <label>سعر الكلفة
-                <input class="si-field si-field--mono js-hx-unit-price" name="default_cost" type="text" inputmode="decimal"
-                       step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
-                       value="${esc(fmtPrice(item?.default_cost != null ? item.default_cost : 0))}" dir="ltr" ${ro}
-                       pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
-              </label>
-              <label>سعر البيع
-                <input class="si-field si-field--mono js-hx-unit-price" name="default_sale" type="text" inputmode="decimal"
-                       step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
-                       value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}
-                       pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
-              </label>
-              <label>سعر الجملة
-                <input class="si-field si-field--mono js-hx-unit-price" name="default_wholesale" type="text" inputmode="decimal"
-                       step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
-                       value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}
-                       pattern="[0-9]*[.]?[0-9]*" autocomplete="off">
-              </label>
+      <form id="item-form" method="post" action="${isNew ? '/inventory/items/new' : '/inventory/items/' + id}">
+        <input type="hidden" name="id" value="${item ? item.id : 0}">
+
+        <div class="ic-panel">
+          <div class="ic-panel-cap">بطاقة المادة ${isNew ? '— جديدة' : '— ' + esc(String(item.barcode || item.sku || item.id || ''))}</div>
+          <div class="ic-top-grid">
+            <div class="ic-col">
+              <div class="ic-row">
+                <span class="ic-lab">الاسم الرئيسي *</span>
+                <input class="si-field" name="name_ar" required value="${esc(item?.name_ar || '')}" autocomplete="off">
+              </div>
+              <div class="ic-row">
+                <span class="ic-lab">الاسم الثانوي</span>
+                <input class="si-field" name="name_en" value="${esc(item?.name_en || '')}" dir="ltr" autocomplete="off">
+              </div>
+              <div class="ic-row">
+                <span class="ic-lab">التصنيف الرئيسي</span>
+                <select class="si-field" name="category_id">${catOpts}</select>
+              </div>
+              <div class="ic-row">
+                <span class="ic-lab">المستودع</span>
+                <select class="si-field" name="default_warehouse_id">${whOpts}</select>
+              </div>
+              <div class="ic-row">
+                <span class="ic-lab">رقم المادة</span>
+                <input class="si-field si-field--mono" name="sku" value="${esc(item?.sku || '')}" dir="ltr"
+                       placeholder="${isNew ? 'تلقائي إن تُرك فارغاً' : ''}" autocomplete="off"
+                       title="رقم داخلي — لا يظهر في الفواتير">
+              </div>
+            </div>
+
+            <div class="ic-col">
+              <div class="ic-row">
+                <span class="ic-lab">الباركود *</span>
+                <input class="si-field si-field--mono" name="barcode" value="${esc(item?.barcode || defaultBarcode)}"
+                       dir="ltr" autocomplete="off" inputmode="numeric" maxlength="14" required>
+              </div>
+              <div class="ic-price-box" data-hx-price-fields="1" data-unit-dp="${unitDp}" data-amount-dp="${amountDp}">
+                <div class="ic-row">
+                  <span class="ic-lab">وحدة القياس *</span>
+                  <select class="si-field" name="unit_id" id="inv-base-unit" ${lookups.units.length ? 'required' : ''} ${
+                    unitsLocked ? 'disabled' : ''
+                  }>${unitOpts}</select>
+                </div>
+                ${unitsLocked ? `<input type="hidden" name="unit_id" value="${esc(String(item?.unit_id || ''))}">` : ''}
+                <div class="ic-row">
+                  <span class="ic-lab">تكلفة أساسية</span>
+                  <input class="si-field si-field--mono js-hx-unit-price" name="default_cost" type="text" inputmode="decimal"
+                         step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
+                         value="${esc(fmtPrice(item?.default_cost != null ? item.default_cost : 0))}" dir="ltr" ${ro}
+                         autocomplete="off">
+                </div>
+                <div class="ic-row">
+                  <span class="ic-lab">سعر البيع</span>
+                  <input class="si-field si-field--mono js-hx-unit-price" name="default_sale" type="text" inputmode="decimal"
+                         step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
+                         value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}
+                         autocomplete="off">
+                </div>
+                <div class="ic-row">
+                  <span class="ic-lab">سعر الجملة</span>
+                  <input class="si-field si-field--mono js-hx-unit-price" name="default_wholesale" type="text" inputmode="decimal"
+                         step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
+                         value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}
+                         autocomplete="off">
+                </div>
+                <div class="ic-row">
+                  <span class="ic-lab">الضريبة</span>
+                  <select class="si-field" name="tax_rate_id">${taxOpts}</select>
+                </div>
+              </div>
+              ${lockNote}
+            </div>
+
+            <div class="ic-col ic-media">
+              <div class="ic-photo" aria-hidden="true">صورة الصنف<br><span style="font-size:10px">(قريباً)</span></div>
+              <div class="ic-flags">
+                <label>
+                  <input type="checkbox" name="is_active" value="1" ${isActive ? 'checked' : ''}>
+                  <span>المادة نشطة / ظاهرة للبيع</span>
+                </label>
+                <label>
+                  <input type="checkbox" name="notify_on_expiry" value="1" ${
+                    item && Number(item.notify_on_expiry) === 1 ? 'checked' : ''
+                  }>
+                  <span>تنبيه الصلاحية</span>
+                </label>
+              </div>
+              <div class="ic-row">
+                <span class="ic-lab">تاريخ الانتهاء</span>
+                <input class="si-field si-field--mono" type="date" name="expiry_date" value="${esc(expiryVal)}" dir="ltr">
+              </div>
+              ${
+                isNew
+                  ? `<div class="ic-row">
+                <span class="ic-lab">رصيد افتتاحي</span>
+                <input class="si-field si-field--mono" name="opening_qty" type="number" step="any" min="0" value="" dir="ltr" placeholder="0">
+              </div>`
+                  : ''
+              }
+              <p class="ic-warn">* تعديل التعبئة يؤثر في التقارير بعد وجود حركات.</p>
             </div>
           </div>
+        </div>
 
-          <div style="margin-top:1.15rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
-            <h3 style="margin:0 0 .45rem;font-size:.95rem">وحدات الصرف والتعبئة</h3>
-            <p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.5">
-              الوحدة الأساسية (مثل <b>قطعة</b>) عددها دائماً 1. أضف وحدة أخرى دون تكرار (مثال: <b>كرتون</b> والعدد 24).
-              في الفواتير وطلبات الشراء/المبيعات تُستخدم هذه الوحدات فقط.
+        <div class="ic-tabs" role="tablist">
+          <button type="button" class="ic-tab is-active" data-ic-tab="opts" role="tab">خيارات المادة</button>
+          <button type="button" class="ic-tab" data-ic-tab="pack" role="tab">التعبئة والوحدات</button>
+          <button type="button" class="ic-tab" data-ic-tab="info" role="tab">معلومات</button>
+        </div>
+        <div class="ic-tab-panels">
+          <div class="ic-tab-panel" data-ic-panel="opts" role="tabpanel">
+            <div class="ic-opt-grid">
+              <div class="ic-opt-col">
+                <h3 class="ic-opt-title">الحالة</h3>
+                <div class="ic-flags">
+                  <label><input type="checkbox" ${isActive ? 'checked' : ''} disabled> يمكن بيعها</label>
+                  <label><input type="checkbox" ${isActive ? 'checked' : ''} disabled> يمكن شراؤها</label>
+                  <label><input type="checkbox" ${item && Number(item.notify_on_expiry) === 1 ? 'checked' : ''} disabled> تتبع الصلاحية</label>
+                </div>
+                <p class="muted" style="margin:.55rem 0 0;font-size:10px;line-height:1.4">
+                  التفعيل/الإيقاف من خانة «المادة نشطة» أعلاه. تتبع الصلاحية من «تنبيه الصلاحية».
+                </p>
+              </div>
+              <div class="ic-opt-col">
+                <h3 class="ic-opt-title">الوحدة الأساسية</h3>
+                <div class="ic-row">
+                  <span class="ic-lab">العدد الأساسي</span>
+                  <input class="si-field si-field--mono" type="number" value="1" dir="ltr" readonly>
+                </div>
+                <p class="muted" style="margin:.45rem 0 0;font-size:10px;line-height:1.4">
+                  الوحدة الأساسية دائماً 1. عبّئ الكرتون من تبويب التعبئة.
+                </p>
+              </div>
+              <div class="ic-opt-col">
+                <h3 class="ic-opt-title">عرض الأسعار</h3>
+                <div class="ic-row">
+                  <span class="ic-lab">خانات سعر الوحدة</span>
+                  <input class="si-field si-field--mono" value="${esc(String(unitDp))}" dir="ltr" readonly>
+                </div>
+                <div class="ic-row">
+                  <span class="ic-lab">خانات النظام</span>
+                  <input class="si-field si-field--mono" value="${esc(String(amountDp))}" dir="ltr" readonly>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="ic-tab-panel" data-ic-panel="pack" role="tabpanel" hidden>
+            <h3 class="ic-opt-title">وحدات الصرف والتعبئة</h3>
+            <p class="muted" style="margin:0 0 8px;font-size:11px;line-height:1.45">
+              أضف وحدة دون تكرار (مثال: كرتون والعدد 24).
               ${
                 packFieldsLocked
-                  ? ' <b>الوحدات مقفلة بعد الحركات (لا يمكن تعديل معامل الكرتون).</b>'
+                  ? ' <b>الوحدات مقفلة بعد الحركات.</b>'
                   : unitsLocked
-                    ? ' الوحدة الأساسية مقفلة بعد الحركات — يمكنك إضافة وحدة التعبئة (كرتون) إن لم تُعرَّف بعد.'
+                    ? ' الوحدة الأساسية مقفلة — يمكنك إضافة وحدة التعبئة إن لم تُعرَّف.'
                     : ''
               }
             </p>
-            <div class="si-meta" style="margin-bottom:.65rem">
-              <label>الوحدة الأساسية *
-                <select class="si-field" name="unit_id" id="inv-base-unit" ${lookups.units.length ? 'required' : ''} ${
-                  unitsLocked ? 'disabled' : ''
-                }>${unitOpts}</select>
-              </label>
-              <label>العدد بالوحدة الأساسية
-                <input class="si-field si-field--mono" type="number" value="1" dir="ltr" readonly>
-              </label>
-            </div>
-            ${unitsLocked ? `<input type="hidden" name="unit_id" value="${esc(String(item?.unit_id || ''))}">` : ''}
-            <div id="inv-pack-list">${packRowsHtml}</div>
+            <div id="inv-pack-list" class="ic-pack-list">${packRowsHtml}</div>
             ${
               packFieldsLocked
                 ? ''
-                : `<button type="button" class="si-btn" id="inv-pack-add" style="margin-top:.25rem">＋ إضافة وحدة أخرى</button>
+                : `<button type="button" class="si-btn" id="inv-pack-add" style="margin-top:4px">＋ إضافة وحدة أخرى</button>
                    <template id="inv-pack-tpl">
-                     <div class="inv-pack-row" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;margin-bottom:.5rem">
-                       <label style="flex:1.2;min-width:9rem">الوحدة
+                     <div class="inv-pack-row">
+                       <label>الوحدة
                          <select class="si-field" name="pack_unit_id[]">
                            <option value="">—</option>${unitOptionsHtml}
                          </select>
                        </label>
-                       <label style="flex:1;min-width:7rem">العدد في الوحدة
+                       <label>العدد في الوحدة
                          <input class="si-field si-field--mono" name="pack_factor[]" type="number" step="1" min="1" value="" dir="ltr" placeholder="مثال: 24">
                        </label>
-                       <button type="button" class="si-btn js-pack-remove" style="margin-bottom:.1rem">حذف</button>
+                       <button type="button" class="si-btn js-pack-remove">حذف</button>
                      </div>
                    </template>`
             }
           </div>
-
-          <div style="margin-top:1.15rem;padding-top:1rem;border-top:1px solid rgba(15,23,42,.08)">
-            <label style="display:flex;align-items:center;gap:.5rem;font-weight:700;cursor:pointer">
-              <input type="checkbox" name="is_active" value="1" ${isActive ? 'checked' : ''}>
-              <span>المادة نشطة (إلغاء التفعيل يوقف المادة عن البيع والشراء)</span>
-            </label>
-            <label style="display:flex;align-items:center;gap:.5rem;font-weight:600;margin-top:.65rem;cursor:pointer">
-              <input type="checkbox" name="notify_on_expiry" value="1" ${
-                item && Number(item.notify_on_expiry) === 1 ? 'checked' : ''
-              }>
-              <span>تنبيه عند اقتراب/انتهاء الصلاحية</span>
-            </label>
-            ${
-              isNew
-                ? `<div class="si-meta" style="margin-top:.85rem">
-              <label>رصيد افتتاحي (اختياري)
-                <input class="si-field si-field--mono" name="opening_qty" type="number" step="any" min="0" value="" dir="ltr" placeholder="0">
-              </label>
-            </div>`
-                : ''
-            }
+          <div class="ic-tab-panel" data-ic-panel="info" role="tabpanel" hidden>
+            <div class="ic-opt-grid">
+              <div class="ic-opt-col">
+                <h3 class="ic-opt-title">المعرّفات</h3>
+                <div class="ic-row"><span class="ic-lab">المعرّف</span><input class="si-field si-field--mono" value="${esc(String(item?.id || '—'))}" dir="ltr" readonly></div>
+                <div class="ic-row"><span class="ic-lab">الباركود</span><input class="si-field si-field--mono" value="${esc(item?.barcode || '')}" dir="ltr" readonly></div>
+                <div class="ic-row"><span class="ic-lab">رقم المادة</span><input class="si-field si-field--mono" value="${esc(item?.sku || '')}" dir="ltr" readonly></div>
+              </div>
+              <div class="ic-opt-col">
+                <h3 class="ic-opt-title">التصنيف</h3>
+                <div class="ic-row"><span class="ic-lab">الفئة</span><input class="si-field" value="${esc(catName)}" readonly></div>
+                <div class="ic-row"><span class="ic-lab">الوحدة</span><input class="si-field" value="${esc(unitName)}" readonly></div>
+                <div class="ic-row"><span class="ic-lab">المستودع</span><input class="si-field" value="${esc(whName)}" readonly></div>
+              </div>
+              <div class="ic-opt-col">
+                <h3 class="ic-opt-title">تنبيه</h3>
+                <p class="muted" style="margin:0;font-size:11px;line-height:1.5">
+                  الباركود هو الظاهر في الفواتير والتقارير. رقم المادة داخلي للبطاقة فقط.
+                </p>
+              </div>
+            </div>
           </div>
-
-          <div style="display:flex;gap:.5rem;margin-top:1.1rem;flex-wrap:wrap">
-            <button class="si-btn si-btn--primary" type="submit">حفظ البطاقة</button>
-            <button type="button" class="si-btn" data-hx-item-picker="1">قائمة المواد</button>
-            <a class="si-btn" href="/inventory/items/new">بطاقة جديدة</a>
-          </div>
-        </form>
-      </section>
-    </div>
-
-    <div class="ic-pick-overlay" id="ic-pick-overlay" hidden>
-      <section class="ic-pick" id="ic-pick" data-modal="1" role="dialog" aria-modal="true"
-               aria-labelledby="ic-pick-title">
-        <header class="ic-pick__head">
-          <h2 id="ic-pick-title">قائمة المواد</h2>
-          <p class="muted">ابحث بالباركود أو الاسم ثم اختر المادة لتعديل بطاقتها</p>
-          <button type="button" class="ic-pick__close" id="ic-pick-close" aria-label="إغلاق">×</button>
-        </header>
-        <div class="ic-pick__search">
-          <input type="search" id="ic-pick-q" class="si-field" placeholder="باركود / اسم المادة…"
-                 autocomplete="off">
         </div>
-        <div class="ic-pick__hint muted" id="ic-pick-hint">جاري التحميل…</div>
-        <div class="ic-pick__list" id="ic-pick-list" role="listbox" aria-label="نتائج المواد"></div>
-        <footer class="ic-pick__foot">
-          <span class="muted">↑↓ للتنقل · Enter للفتح · Esc للإغلاق</span>
-          <a class="si-btn" href="/inventory/items/new">＋ مادة جديدة</a>
-        </footer>
-      </section>
+
+        <div class="ic-panel">
+          <div class="ic-meta-bar">
+            <span>البطاقة: <strong dir="ltr">${isNew ? 'جديد' : esc(String(item.id))}</strong></span>
+            <span class="muted">${pricesLocked ? 'أسعار مقفلة · ' : ''}${unitsLocked ? 'وحدات أساسية مقفلة' : 'قابل للتعديل'}</span>
+            <button class="si-btn si-btn--primary" type="submit">حفظ البطاقة</button>
+          </div>
+        </div>
+      </form>
     </div>
+
     <script>
     (function(){
       var list = document.getElementById('inv-pack-list');
@@ -709,8 +796,19 @@ async function itemForm(req, res, id) {
         }
         row.remove();
       });
-
-      // أسعار البطاقة: قص حسب إعدادات الشركة فوراً (حتى قبل تحميل HxDec)
+      document.querySelectorAll('.ic-tab').forEach(function(tab){
+        tab.addEventListener('click', function(){
+          var id = tab.getAttribute('data-ic-tab');
+          document.querySelectorAll('.ic-tab').forEach(function(t){ t.classList.toggle('is-active', t === tab); });
+          document.querySelectorAll('.ic-tab-panel').forEach(function(p){
+            p.hidden = p.getAttribute('data-ic-panel') !== id;
+          });
+        });
+      });
+    })();
+    </script>
+    <script>
+    (function(){
       function unitDp() {
         if (window.HxDec && typeof window.HxDec.unitPlaces === 'function') return window.HxDec.unitPlaces();
         var c = window.__HYPEX_DECIMALS__ || {};
@@ -741,6 +839,7 @@ async function itemForm(req, res, id) {
   res.send(
     page(req.session.user, isNew ? 'مادة جديدة' : 'بطاقة المادة', body, {
       js: [itemCardPickerJsSrc()],
+      css: ['/assets/css/item-card-ora.css'],
     })
   );
 }
