@@ -1,0 +1,2778 @@
+:root {
+  --shell-bg: #f4f6f9;
+  --shell-panel: #ffffff;
+  --shell-border: #e2e8f0;
+  --shell-text: #0f172a;
+  --shell-text-muted: #1e293b;
+  --shell-hover: #f1f5f9;
+  --shell-active: #eff6ff;
+  --shell-active-text: #1d4ed8;
+  --bg: var(--shell-bg);
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #1e293b;
+  --border: #e2e8f0;
+  --ora12-border: #cbd5e1;
+  --sidebar: #ffffff;
+  --sidebar-2: #ffffff;
+  --accent: #2563eb;
+  --accent-2: #16a34a;
+  --danger: #dc2626;
+  --chrome-btn-bg: #ffffff;
+  --chrome-btn-border: #cbd5e1;
+  --chrome-btn-text: #0f172a;
+  --chrome-btn-hover-bg: #f8fafc;
+  --chrome-btn-hover-border: #94a3b8;
+  --chrome-btn-home-bg: #eff6ff;
+  --chrome-btn-home-border: #2563eb;
+  --chrome-btn-home-text: #1e40af;
+  --chrome-btn-home-hover-bg: #dbeafe;
+  --radius: 10px;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+  --font: Arial, Helvetica, sans-serif;
+  --font-mono: Arial, Helvetica, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; padding: 0; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--font);
+}
+
+body.app-body {
+  margin: 0 !important;
+  padding: 0 !important;
+  padding-top: 0 !important;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 700;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* شريط العنوان ملتصق بأعلى الشاشة في الكلاسيك وERP معاً — بدون فراغ علوي */
+body.app-body > .app-titlebar,
+body.app-body .app-titlebar {
+  position: relative !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  inset: auto !important;
+  box-sizing: border-box;
+}
+
+/* شريط عنوان — ERPNext: أزرار + اسم الشركة/الشاشة على سطر واحد */
+.app-titlebar {
+  flex-shrink: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: #1e3a5f;
+  color: #fff;
+  border-bottom: 1px solid #152a47;
+  border-radius: 0;
+  box-sizing: border-box;
+  -webkit-app-region: drag;
+  app-region: drag;
+  z-index: 50;
+}
+
+.app-titlebar__row {
+  direction: ltr;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  height: 33px;
+  min-height: 33px;
+  max-height: 33px;
+  padding: 0 0.65rem 0 0.4rem;
+  overflow: hidden;
+}
+
+.app-titlebar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  display: block;
+  direction: rtl;
+  text-align: left;
+  unicode-bidi: plaintext;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 33px;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  app-region: drag;
+}
+
+.app-titlebar__btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  border-radius: 4px;
+  box-sizing: border-box;
+  cursor: pointer;
+  app-region: no-drag;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+/* أزرار شريط العنوان — مظهر حديث دائري */
+.app-titlebar__back-btn,
+.app-titlebar__refresh-btn,
+.app-titlebar__home-btn {
+  width: 1.85rem;
+  height: 1.85rem;
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: none;
+  border-radius: 999px;
+}
+
+.app-titlebar__back-btn:hover,
+.app-titlebar__refresh-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.app-titlebar__home-btn {
+  color: #bfdbfe;
+  background: rgba(59, 130, 246, 0.22);
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.app-titlebar__home-btn:hover {
+  background: rgba(59, 130, 246, 0.35);
+  border-color: rgba(147, 197, 253, 0.55);
+  color: #eff6ff;
+}
+
+.app-titlebar__refresh-btn .app-titlebar__btn-icon {
+  font-size: 1.02rem;
+}
+
+.app-titlebar__home-btn .app-titlebar__btn-svg {
+  width: 16px;
+  height: 16px;
+}
+
+.app-titlebar__btn-svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.app-titlebar__btn--placeholder {
+  width: 1.65rem;
+  height: 1.65rem;
+  visibility: hidden;
+  pointer-events: none;
+  border: none;
+  background: transparent;
+}
+
+/* في وضع التطبيق: لا نعرض شريط عنوان يشبه المتصفح — فقط شريط النظام القصير */
+@media (display-mode: fullscreen), (display-mode: standalone), (display-mode: window-controls-overlay) {
+  body.app-body .app-titlebar__title {
+    /* اسم الشركة فقط — بدون عنوان الصفحة الطويل */
+    max-width: 40vw;
+  }
+}
+
+html.hypex-desktop-app body.app-body .app-titlebar__title,
+body.app-body--electron .app-titlebar__title {
+  /* غلاف Electron: عنوان ثابت قصير */
+  font-size: 0.78rem;
+}
+
+/* إخفاء أي فراغ علوي كان يحاكي شريط المتصفح */
+html.hypex-desktop-app,
+html.hypex-desktop-app body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+html.hypex-desktop-app body.app-body {
+  overflow: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* PWA / WCO: شريط الاسم بعرض كامل ملتصق بأعلى النافذة — بدون فراغ علوي */
+@supports (height: env(titlebar-area-height)) {
+  @media (display-mode: standalone), (display-mode: window-controls-overlay) {
+    body.app-body,
+    body.app-body.app-body--wco,
+    body.app-body.ui-theme-classic,
+    body.app-body.ui-theme-basic,
+    body.app-body.ui-theme-modern {
+      padding-top: 0 !important;
+    }
+
+    body.app-body .app-titlebar,
+    body.app-body--wco .app-titlebar,
+    body.app-body.ui-theme-classic .app-titlebar {
+      position: relative !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      margin: 0 !important;
+      height: max(33px, env(titlebar-area-height, 33px));
+      min-height: max(33px, env(titlebar-area-height, 33px));
+      max-height: none;
+      border-bottom: 1px solid #152a47;
+      border-radius: 0 !important;
+      z-index: 10000;
+    }
+
+    body.app-body--wco .app-titlebar__row {
+      height: 100%;
+      min-height: 0;
+      max-height: none;
+      padding: 0 0.55rem 0 0.35rem;
+    }
+
+    body.app-body--wco .app-titlebar__title {
+      line-height: 1.2;
+      align-self: center;
+    }
+  }
+}
+
+@media (display-mode: standalone), (display-mode: window-controls-overlay) {
+  body.app-body .app-titlebar {
+    position: relative !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  body.app-body .app-shell {
+    min-height: calc(100vh - 33px);
+  }
+
+  body.app-body .app-shell:not(.app-shell--focus) {
+    min-height: calc(100vh - 33px);
+  }
+}
+
+.app-shell {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-height: calc(100vh - 33px);
+  direction: rtl;
+}
+
+.app-shell:not(.app-shell--focus) {
+  flex-wrap: wrap;
+  align-content: flex-start;
+  min-height: calc(100vh - 33px);
+}
+
+.app-screen-head {
+  flex: 0 0 100%;
+  width: 100%;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem 0.9rem;
+  padding: 0.5rem 1rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e8edf3;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  z-index: 12;
+  min-height: 3.5rem;
+  height: auto;
+}
+
+.app-screen-head-account,
+.app-topbar-account {
+  grid-column: 1;
+  justify-self: start;
+  flex-shrink: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.app-screen-head-title {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+  max-width: min(42vw, 28rem);
+  margin: 0;
+  padding: 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--shell-text, #0f172a);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* لا يُعرض اسم الشاشة خلف كبسات شريط الأدوات */
+.app-screen-head:has(.master-toolbar) .app-screen-head-title,
+.app-topbar:has(.master-toolbar) .app-screen-head-title {
+  display: none !important;
+}
+
+.app-screen-head-main,
+.app-topbar-main {
+  grid-column: 2;
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-width: 0;
+  overflow: visible;
+  z-index: 1;
+  position: relative;
+  background: #ffffff;
+}
+
+.app-screen-head-main .ora12-title-bar__controls,
+.app-topbar-main .ora12-title-bar__controls {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+.app-screen-head-main > .ora12-title-bar__close.app-screen-exit-btn,
+.app-topbar-main > .ora12-title-bar__close.app-screen-exit-btn,
+.app-screen-head-main > .app-screen-exit-btn,
+.app-topbar-main > .app-screen-exit-btn {
+  order: 0;
+  margin: 0 !important;
+  margin-inline-end: 0.35rem !important;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+.app-screen-head-main .app-check-bell-wrap,
+.app-topbar-main .app-check-bell-wrap {
+  flex-shrink: 0;
+}
+
+.app-screen-head-main .master-toolbar,
+.app-topbar-main .master-toolbar {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border-bottom: none;
+  padding: 0;
+  z-index: auto;
+}
+
+.app-screen-head-main .master-toolbar-inner,
+.app-topbar-main .master-toolbar-inner {
+  justify-content: flex-start;
+}
+
+.app-screen-head-account > .ora12-title-bar__close.app-screen-exit-btn,
+.app-topbar-account > .ora12-title-bar__close.app-screen-exit-btn,
+.app-screen-head-account > .app-screen-exit-btn,
+.app-topbar-account > .app-screen-exit-btn {
+  order: 0;
+  margin: 0 !important;
+  margin-inline-end: 0.45rem !important;
+  flex-shrink: 0;
+  z-index: 5;
+}
+
+.app-header-account {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding-inline-end: 0.85rem;
+  border-inline-end: 1px solid #e8edf3;
+  min-height: 2.5rem;
+}
+
+.app-header-account__name {
+  font-size: 0.875rem;
+  font-weight: 650;
+  color: #475569;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-header-logout-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  text-decoration: none;
+  box-sizing: border-box;
+  box-shadow: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.app-header-logout-btn:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.1);
+}
+
+.app-header-logout-btn__icon {
+  display: flex;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.app-header-logout-btn__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.app-header-back {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #0f172a;
+  text-decoration: none;
+  background: #e8eaef;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.app-header-back:hover {
+  background: #dde1e8;
+  color: #0f172a;
+  border-color: #64748b;
+}
+
+.app-header-back--placeholder {
+  width: 2rem;
+  height: 2rem;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.co-pack-hint,
+.m-inv-pack-hint {
+  display: inline-block;
+  margin-inline-start: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0369a1;
+  white-space: nowrap;
+  background: #e0f2fe;
+  border: 1px solid #bae6fd;
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  line-height: 1.3;
+  vertical-align: middle;
+}
+
+/* زر × — داخل شريط عنوان الشاشة (يسار الشريط) كجزء من الإطار */
+.dashboard-ora-screen-title > .ora12-title-bar__close,
+.dashboard-ora-screen-title > .ora12-title-bar__controls,
+.report-ora12-screen-title > .ora12-title-bar__close,
+.report-ora12-screen-title > .ora12-title-bar__controls,
+.app-screen-title-bar > .ora12-title-bar__close {
+  order: 100;
+  flex-shrink: 0;
+  align-self: center;
+  margin-inline-start: auto !important;
+  margin-inline-end: 0 !important;
+}
+
+.dashboard-ora-screen-title > .ora12-title-bar__close.app-screen-exit-btn,
+.dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.report-ora12-screen-title > .ora12-title-bar__close.app-screen-exit-btn,
+.report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn,
+header.dashboard-ora-screen-title > a.ora12-title-bar__close {
+  width: 1.7rem !important;
+  height: 1.7rem !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.42) !important;
+  background: linear-gradient(180deg, #f04343 0%, #dc2626 55%, #b91c1c 100%) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.22) inset,
+    0 1px 2px rgba(0, 0, 0, 0.18) !important;
+}
+
+/* عند وجود badges مع margin auto — الزر يبقى مباشرة بجانبها على اليسار */
+.dashboard-ora-screen-title:has(.sales-inv-status-badges) > .ora12-title-bar__close.app-screen-exit-btn {
+  margin-inline-start: 0.4rem !important;
+}
+
+.dashboard-ora-screen-title > .ora12-title-bar__close.app-screen-exit-btn:hover,
+.report-ora12-screen-title > .ora12-title-bar__close.app-screen-exit-btn:hover,
+.app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn:hover,
+header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
+  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 55%, #991b1b 100%) !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  transform: none;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.28) inset,
+    0 2px 4px rgba(0, 0, 0, 0.22) !important;
+}
+
+/* شريط عنوان شفاف (مفضلة فقط) */
+.app-screen-title-bar {
+  justify-content: flex-start;
+  gap: 0.45rem;
+}
+
+.app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn {
+  border-radius: 999px !important;
+}
+
+/* لا زر عائم خارج الإطار */
+.app-floating-exit-btn {
+  display: none !important;
+}
+
+/* زر الخروج من الشاشة — أحمر في جميع الشاشات */
+.app-screen-exit-btn,
+.ora12-title-bar__close,
+.ora12-title-bar__close.app-screen-exit-btn,
+.ora12-title-bar__btn.ora12-title-bar__close,
+.dashboard-ora-screen-title > .ora12-title-bar__close,
+.dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.report-ora12-screen-title > .ora12-title-bar__close,
+.report-ora12-screen-title .ora12-title-bar__controls .ora12-title-bar__close,
+.app-screen-title-bar > .ora12-title-bar__close,
+.app-screen-title-bar .ora12-title-bar__close,
+.app-floating-exit-btn,
+.hr-ora-title-bar__close,
+.nav-hub-head__actions .ora12-title-bar__close {
+  flex-shrink: 0;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 2rem !important;
+  height: 2rem !important;
+  margin: 0;
+  padding: 0 !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: #ffffff !important;
+  text-decoration: none !important;
+  background: #dc2626 !important;
+  border: 1px solid #b91c1c !important;
+  border-radius: 999px !important;
+  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.35);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+  cursor: pointer;
+}
+
+.app-screen-exit-btn:hover,
+.ora12-title-bar__close:hover,
+.ora12-title-bar__close.app-screen-exit-btn:hover,
+.ora12-title-bar__btn.ora12-title-bar__close:hover,
+.dashboard-ora-screen-title > .ora12-title-bar__close:hover,
+.dashboard-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close:hover,
+.report-ora12-screen-title > .ora12-title-bar__close:hover,
+.app-screen-title-bar > .ora12-title-bar__close:hover,
+.app-screen-title-bar .ora12-title-bar__close:hover,
+.app-floating-exit-btn:hover,
+.hr-ora-title-bar__close:hover,
+.nav-hub-head__actions .ora12-title-bar__close:hover {
+  color: #ffffff !important;
+  background: #b91c1c !important;
+  border-color: #991b1b !important;
+  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.4);
+  transform: translateY(-1px);
+}
+
+.app-screen-exit-btn:active,
+.ora12-title-bar__close:active,
+.ora12-title-bar__close.app-screen-exit-btn:active,
+.app-floating-exit-btn:active,
+.hr-ora-title-bar__close:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.app-screen-exit-btn__icon,
+.ora12-title-bar__close .app-screen-exit-btn__icon {
+  display: block;
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  color: inherit;
+  stroke: currentColor;
+}
+
+.hr-ora-title-bar__close {
+  font-size: 0.9rem !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+
+.hr-ora-title-bar__close-glyph {
+  color: inherit;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+/* تم نقل زر × إلى داخل شريط العنوان — لا حاجة لإخفاء/تكرار */
+
+/* شريط عنوان الشاشة يثبت أعلى منطقة التمرير (احتياطي مع الزر الثابت) */
+.main-content .dashboard-ora-screen-title,
+.main-content .report-ora12-screen-title,
+.main-content .app-screen-title-bar,
+.main-content .hr-ora-title-bar,
+.app-embed-main .dashboard-ora-screen-title,
+.app-embed-main .report-ora12-screen-title,
+.app-embed-main .app-screen-title-bar,
+.app-embed-main .hr-ora-title-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.app-shell-body {
+  display: flex;
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+}
+
+.app-shell:not(.app-shell--focus) .app-shell-body {
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.sidebar--compact-head {
+  align-self: stretch;
+  height: auto;
+  max-height: none;
+  min-height: calc(100vh - 33px - 3.35rem);
+}
+
+/* وضع ملء الشاشة: بدون قائمة جانبية — شريط علوي (شعار + أزرار) فقط */
+.app-shell--focus {
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  /* املأ باقي النافذة تحت شريط العنوان دون قصّ المحتوى عند التصغير */
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.app-body--focus {
+  overflow: hidden;
+  overflow-x: hidden;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.app-body--focus .app-shell--focus {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  flex: 1 1 auto;
+}
+
+.app-topbar {
+  flex-shrink: 0;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem 0.9rem;
+  padding: 0.5rem 1rem;
+  background: #ffffff;
+  border-bottom: 1px solid #e8edf3;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.03);
+  z-index: 10;
+  min-height: 3.5rem;
+  height: auto;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.app-topbar-brand-wrap,
+.app-topbar-brand {
+  display: none !important;
+}
+
+.sidebar-logout-btn {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+  background: #e8eaef;
+  border: 1px solid #94a3b8;
+  border-radius: 8px;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.sidebar-logout-btn:hover {
+  background: #dde1e8;
+  color: #0f172a;
+}
+
+.app-session-actions,
+.sidebar-session-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.sidebar-session-actions {
+  margin-top: 0.35rem;
+}
+
+.app-session-actions .app-topbar-logout,
+.sidebar-session-actions .sidebar-logout-btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-exit-btn {
+  flex: 0 0 42px;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.45rem;
+  color: var(--chrome-btn-text);
+  background: var(--chrome-btn-bg);
+  border: 1px solid var(--chrome-btn-border);
+  border-radius: 8px;
+  text-decoration: none;
+  box-sizing: border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-exit-btn:hover {
+  background: var(--chrome-btn-hover-bg);
+  color: #020617;
+  border-color: var(--chrome-btn-hover-border);
+}
+
+.nav-exit-btn__icon {
+  display: flex;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.nav-exit-btn__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+[dir="rtl"] .nav-exit-btn__icon svg {
+  transform: scaleX(-1);
+}
+
+.app-shell--focus .app-topbar-main {
+  flex: 1;
+  min-width: 0;
+  overflow: visible;
+  align-self: center;
+}
+
+.app-shell--focus .app-topbar-main .master-toolbar {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border-bottom: none;
+  padding: 0;
+  z-index: auto;
+  overflow: visible;
+}
+
+.app-shell--focus .app-topbar-main .master-toolbar-inner {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.app-topbar-brand-wrap {
+  flex-shrink: 0;
+}
+
+.app-topbar-user {
+  margin-inline-start: auto;
+}
+
+.main-content--focus {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  max-width: 100%;
+  padding: 0.75rem 1rem 1rem;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* شاشات الخرائط/التتبّع تملأ الارتفاع المتاح داخل وضع التركيز */
+.main-content--focus:has(.ugt-page) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.5rem 0.65rem 0.65rem;
+  min-height: 0;
+}
+
+.main-content--focus:has(.ugt-page) > .ugt-page,
+.main-content--focus:has(.ugt-page) > #ugt-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+}
+
+.main-content--focus:has(.ugt-page) > .dashboard-ora,
+.main-content--focus:has(.ugt-page) > .report-ora12-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-content--focus:has(.ugt-page) .dashboard-ora-workspace,
+.main-content--focus:has(.ugt-page) .report-ora12-workspace {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.main-content--focus:has(.ugt-page) .dashboard-ora-screen-title,
+.main-content--focus:has(.ugt-page) .report-ora12-screen-title {
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  .main-content--focus:has(.ugt-page) .dashboard-ora-screen-title__text,
+  .main-content--focus:has(.ugt-page) .report-ora12-screen-title .dashboard-ora-screen-title__text {
+    font-size: 0.95rem;
+  }
+}
+
+/* لوحة التحكم: بطاقات المجالات بدل القائمة الجانبية */
+.dashboard-nav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.dashboard-nav-domain {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem;
+}
+
+.dashboard-nav-domain-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin: 0 0 0.65rem;
+  color: var(--text);
+}
+
+.dashboard-nav-links {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.dashboard-nav-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text);
+  font-size: 0.88rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+
+.dashboard-nav-link:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dashboard-nav-link-badge {
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: #fff;
+  border-radius: 999px;
+  padding: 0.1rem 0.45rem;
+}
+
+.sidebar {
+  width: 280px;
+  flex: 0 0 280px;
+  background: var(--shell-bg);
+  color: var(--shell-text);
+  display: flex;
+  flex-direction: column;
+  border-inline-start: 1px solid var(--shell-border);
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: visible;
+  isolation: isolate;
+  z-index: 40;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.85rem 0.75rem;
+  border-bottom: 1px solid var(--shell-border);
+  flex-shrink: 0;
+}
+
+.brand-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.brand-identity .brand-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.brand-mark.lg { width: 52px; height: 52px; border-radius: 16px; font-size: 1.25rem; }
+
+.brand-logo {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #fff;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.brand-name { font-weight: 700; font-size: 0.95rem; line-height: 1.3; color: var(--shell-text); }
+.brand-sub { font-size: 0.75rem; color: var(--shell-text-muted); margin-top: 0.15rem; }
+
+.sidebar-nav {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0.75rem 0.5rem 1rem;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.sidebar-nav::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+/* روابط القائمة معطّلة داخل الشاشات؛ الخروج عبر الشريط العلوي فقط */
+.sidebar-nav--locked .nav-subgroup-link {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+.sidebar-nav--locked .nav-subgroup-link:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+/* مجال في الشريط — عنوان مطوي خفيف بدون شريط ترويسة ثقيل */
+.nav-domain-fold {
+  margin-bottom: 0.15rem;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.nav-domain-summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.52rem 0.72rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--shell-text);
+  letter-spacing: 0.02em;
+  border-radius: 8px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-domain-summary:hover {
+  color: var(--shell-text);
+  background: var(--shell-hover);
+}
+
+.nav-domain-fold[open] > .nav-domain-summary {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+  box-shadow: none;
+}
+
+.nav-domain-fold[open] {
+  border-bottom: none;
+}
+
+.nav-domain-fold[open] > .nav-domain-inner {
+  background: transparent;
+  border-radius: 0;
+  margin-top: 0.05rem;
+  padding: 0.1rem 0.25rem 0.2rem;
+  box-shadow: none;
+}
+
+.nav-domain-summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-domain-summary::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-inline-end: 2px solid var(--shell-text-muted);
+  border-block-end: 2px solid var(--shell-text-muted);
+  transform: rotate(45deg);
+  flex-shrink: 0;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.nav-domain-fold[open] > .nav-domain-summary::after {
+  transform: rotate(-135deg);
+  border-inline-end-color: var(--shell-text-muted);
+  border-block-end-color: var(--shell-text-muted);
+}
+
+.nav-domain-inner {
+  padding: 0.1rem 0 0;
+  border-top: none;
+  transition: background 0.2s ease;
+}
+
+.nav-domain-inner--flat {
+  padding-top: 0.2rem;
+}
+
+/* مجموعة فرعية داخل المجال (شاشات / تقارير) */
+.nav-subfold {
+  border-top: 1px solid var(--shell-border);
+  margin-top: 0;
+}
+
+.nav-subfold:first-of-type {
+  border-top: none;
+}
+
+.nav-subfold-summary {
+  list-style: none;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--shell-text);
+  padding: 0.55rem 0.75rem 0.4rem;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  border-radius: 8px;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nav-subfold-summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-subfold-summary::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-inline-end: 2px solid var(--shell-text-muted);
+  border-block-end: 2px solid var(--shell-text-muted);
+  transform: rotate(45deg);
+  flex-shrink: 0;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.nav-subfold[open] > .nav-subfold-summary::after {
+  transform: rotate(-135deg);
+  border-inline-end-color: var(--shell-text-muted);
+  border-block-end-color: var(--shell-text-muted);
+}
+
+.nav-subfold[open] > .nav-subfold-summary {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+  box-shadow: none;
+}
+
+.nav-subfold[open] {
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0.25rem;
+}
+
+.nav-subfold-summary-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-subfold-badge {
+  flex-shrink: 0;
+  min-width: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--shell-panel);
+  color: var(--shell-text);
+  border: 1px solid var(--shell-border);
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.nav-subfold[open] > .nav-subfold-summary .nav-subfold-badge {
+  background: var(--shell-active);
+  color: var(--shell-active-text);
+  border-color: var(--shell-border);
+}
+
+.nav-sidebar-hint {
+  max-width: 36rem;
+}
+
+.nav-list-sub--flat {
+  margin-bottom: 0.35rem;
+}
+
+.nav-list-sub {
+  padding: 0 0 0.45rem;
+}
+
+.nav-list-sub .nav-link {
+  padding-inline-start: 1.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--shell-text);
+}
+
+.nav-list-sub .nav-link:hover {
+  color: var(--shell-text);
+  background: var(--shell-hover);
+}
+
+.nav-list-sub .nav-link.is-active {
+  color: var(--shell-active-text);
+  background: var(--shell-active);
+  box-shadow: inset 0 0 0 1px var(--shell-border);
+}
+
+.nav-list { list-style: none; margin: 0; padding: 0; }
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  color: var(--shell-text);
+  font-weight: 700;
+  text-decoration: none;
+  font-size: 0.9rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-link:hover { background: var(--shell-hover); color: var(--shell-text); }
+.nav-link.is-active {
+  background: var(--shell-active);
+  color: var(--shell-active-text);
+  box-shadow: inset 0 0 0 1px var(--shell-border);
+}
+
+.nav-ico { width: 1.5rem; text-align: center; opacity: 0.9; }
+
+/* مجموعة فرعية في الشريط → تفتح شبكة الأيقونات */
+.nav-subgroup-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0.2rem 0.35rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 10px;
+  color: var(--shell-text);
+  font-size: 1rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nav-subgroup-link:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.nav-subgroup-link.is-active {
+  background: var(--shell-active);
+  color: var(--shell-active-text);
+  box-shadow: inset 0 0 0 1px var(--shell-border);
+}
+
+.nav-subgroup-link-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.nav-subgroup-link-badge {
+  flex-shrink: 0;
+  min-width: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: var(--shell-panel);
+  color: var(--shell-text);
+  border: 1px solid var(--shell-border);
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.nav-subgroup-link.is-active .nav-subgroup-link-badge {
+  background: var(--shell-active);
+  color: var(--shell-active-text);
+  border-color: var(--shell-border);
+}
+
+/* روابط المجالات في الشريط الجانبي */
+.nav-domain-link {
+  display: block;
+  margin: 0.2rem 0.35rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  color: var(--shell-text);
+  font-size: 0.95rem;
+  font-weight: 800;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.nav-domain-link:hover {
+  background: var(--shell-hover);
+  color: var(--shell-text);
+}
+
+.nav-domain-link.is-active {
+  background: var(--shell-active);
+  color: var(--shell-active-text);
+  box-shadow: inset 0 0 0 1px var(--shell-border);
+}
+
+/* عناصر المفضلة في الشريط — نفس مظهر روابط المجالات (مثل فاتورة مبيعات) */
+.nav-favorite-link {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.nav-favorite-link__icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  text-align: center;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.nav-favorite-link__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-favorites-hint {
+  margin: 0.2rem 0.5rem 0.45rem;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: rgba(241, 245, 249, 0.55);
+}
+
+/* قسم المفضلة (النسخة القديمة — للتوافق إن وُجدت) */
+.nav-favorites {
+  margin: 0.35rem 0.35rem 0.6rem;
+  padding: 0.5rem 0.4rem 0.4rem;
+  border-radius: 10px;
+  background: rgba(245, 158, 11, 0.06);
+  border: 1px solid rgba(245, 158, 11, 0.18);
+}
+
+.nav-favorites-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.4rem 0.45rem;
+  color: #fde68a;
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.nav-favorites-star {
+  color: #fbbf24;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.nav-favorites-empty {
+  padding: 0.3rem 0.55rem 0.5rem;
+  font-size: 0.78rem;
+  color: rgba(241, 245, 249, 0.55);
+}
+
+.nav-favorites-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.nav-favorites-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  color: #e5e7eb;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-favorites-link:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+}
+
+.nav-favorites-link.is-active {
+  background: rgba(245, 158, 11, 0.22);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.45);
+}
+
+.nav-favorites-icon {
+  width: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.nav-favorites-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* شبكة المجلدات والشاشات (منطقة العمل الرئيسية) */
+.nav-hub-page {
+  max-width: 1100px;
+}
+
+.nav-hub-head {
+  margin-bottom: 1.25rem;
+}
+
+.nav-hub-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.nav-hub-sub {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.nav-hub-head-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.65rem;
+  margin-bottom: 0.5rem;
+}
+
+.nav-hub-back {
+  display: inline-block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #4f46e5;
+  text-decoration: none;
+}
+
+.nav-hub-back:hover {
+  text-decoration: underline;
+}
+
+.nav-hub-back--prev {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  line-height: 1.35;
+}
+
+.nav-hub-back--prev:hover {
+  text-decoration: none;
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+}
+
+.nav-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
+  gap: 1rem;
+}
+
+.nav-hub-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  min-height: 132px;
+  padding: 1.1rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
+  color: #0f172a;
+  text-decoration: none;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-hub-tile:hover {
+  transform: translateY(-2px);
+  border-color: #a5b4fc;
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.15);
+}
+
+.nav-hub-tile-icon {
+  font-size: 2.35rem;
+  line-height: 1;
+}
+
+.nav-hub-tile--folder {
+  min-height: 148px;
+  border-color: #c7d2fe;
+  background: linear-gradient(180deg, #fff 0%, #eef2ff 100%);
+}
+
+.nav-hub-tile-meta {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.nav-hub-grid--folders {
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+}
+
+.nav-hub-tile-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.sidebar-foot {
+  padding: 1rem;
+  border-top: 1px solid var(--shell-border);
+  background: var(--shell-bg);
+  flex-shrink: 0;
+}
+
+.user-chip {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.user-av {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: #808080;
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.user-name { font-size: 0.85rem; font-weight: 700; color: var(--shell-text); }
+.user-meta { font-size: 0.72rem; color: var(--shell-text-muted); font-weight: 600; }
+
+.main-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+  background: var(--bg);
+}
+
+/* شعار الشركة من الإعدادات — كبير وباهت في خلفية منطقة العمل (بجانب القائمة) */
+.main-bg-logo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.main-bg-logo img {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  transform: translate(-50%, -50%);
+  width: min(480px, 58vw);
+  max-height: min(72vh, 540px);
+  height: auto;
+  object-fit: contain;
+  opacity: 0.08;
+  filter: grayscale(0.1) contrast(0.95);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.main-wrap--has-logo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 75% 65% at 50% 50%,
+    transparent 0%,
+    rgba(212, 208, 200, 0.4) 50%,
+    rgba(212, 208, 200, 0.85) 100%
+  );
+}
+
+.main-wrap > .main-content,
+.app-screen-head-main > .master-toolbar {
+  position: relative;
+  z-index: 1;
+}
+
+/* شريط الأزرار الموحّد (Master) — مظهر أنظمة ERP عالمية */
+.master-toolbar {
+  flex-shrink: 0;
+  background: #ffffff;
+  border-bottom: 1px solid #e8edf3;
+  padding: 0.45rem 1rem;
+  z-index: 6;
+}
+
+.master-toolbar-inner {
+  display: flex;
+  flex-wrap: wrap;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+
+.master-toolbar .master-toolbar-btn {
+  flex-shrink: 0;
+  min-width: auto;
+  min-height: 2.15rem;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.25;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  white-space: nowrap;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+}
+
+.master-toolbar-btn__label {
+  display: inline;
+}
+
+.master-toolbar-shortcut {
+  display: inline-block;
+  margin: 0;
+  padding: 0.08rem 0.32rem;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 6px;
+  background: rgba(15, 23, 42, 0.04);
+  color: #64748b;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.625rem;
+  font-weight: 650;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.master-toolbar .master-toolbar-btn.btn-primary .master-toolbar-shortcut {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: #eff6ff;
+}
+
+/* اختصارات الحقول (F7 عملاء / F3 مواد) — عامة لكل الشاشات */
+.sales-inv-field-hotkey {
+  flex-shrink: 0;
+  display: inline-block;
+  margin: 0;
+  padding: 0.05rem 0.28rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #f8fafc;
+  color: #475569;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+}
+
+.sales-inv-item-hotkey {
+  align-self: center;
+  margin-inline-start: 0.15rem;
+}
+
+.master-toolbar .master-toolbar-btn.master-toolbar-btn--icon {
+  width: 2.15rem;
+  min-width: 2.15rem;
+  max-width: 2.15rem;
+  min-height: 2.15rem;
+  padding: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.master-toolbar-icon {
+  display: flex;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+}
+
+.master-toolbar-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* اتجاه معقول للأيقونة في الواجهة العربية (RTL) */
+[dir="rtl"] .master-toolbar-btn[data-master-action="exit"] .master-toolbar-icon svg {
+  transform: scaleX(-1);
+}
+
+.master-toolbar .master-toolbar-btn.btn-secondary {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+.master-toolbar .master-toolbar-btn.btn-secondary:hover:not(:disabled):not(.is-inactive) {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+  filter: none;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.08);
+}
+
+.master-toolbar .master-toolbar-btn.btn-primary {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.28);
+}
+
+.master-toolbar .master-toolbar-btn.btn-primary:hover:not(:disabled):not(.is-inactive) {
+  filter: none;
+  background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+  transform: translateY(-1px);
+}
+
+.master-toolbar .master-toolbar-btn.btn-danger {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+.master-toolbar .master-toolbar-btn.btn-danger:hover:not(:disabled):not(.is-inactive) {
+  background: #ffe4e6;
+  color: #9f1239;
+  border-color: #fda4af;
+  filter: none;
+}
+
+.master-toolbar .master-toolbar-btn[data-master-action="post"] {
+  border-color: #fde68a;
+  color: #a16207;
+  background: #fffbeb;
+}
+
+.master-toolbar .master-toolbar-btn[data-master-action="post"]:hover:not(:disabled):not(.is-inactive) {
+  background: #fef3c7;
+  color: #854d0e;
+  border-color: #fcd34d;
+  filter: none;
+}
+
+.master-toolbar .master-toolbar-btn:disabled,
+.master-toolbar .master-toolbar-btn.is-inactive {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* اسم الشاشة أعلى المحتوى */
+.app-screen-title-bar {
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.app-screen-title-bar--actions {
+  min-height: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+.app-screen-fav-btn {
+  background: transparent;
+  border: 0;
+  padding: 0.15rem 0.3rem;
+  cursor: pointer;
+  color: #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  border-radius: 6px;
+  transition: color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+
+.app-screen-fav-btn:hover {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+  transform: scale(1.05);
+}
+
+.app-screen-fav-btn.is-active {
+  color: #f59e0b;
+}
+
+.app-screen-fav-btn.is-active:hover {
+  color: #d97706;
+}
+
+.app-screen-fav-btn:active {
+  transform: scale(0.92);
+}
+
+/* نجمة المفضلة على الشريط الأزرق Oracle */
+.dashboard-ora-screen-title .app-screen-fav-btn,
+.app-screen-fav-btn--on-blue {
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+.dashboard-ora-screen-title .app-screen-fav-btn:hover,
+.app-screen-fav-btn--on-blue:hover {
+  color: #fbbf24;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dashboard-ora-screen-title .app-screen-fav-btn.is-active,
+.app-screen-fav-btn--on-blue.is-active {
+  color: #fbbf24;
+}
+
+.dashboard-ora-screen-title .app-screen-fav-btn.is-active:hover,
+.app-screen-fav-btn--on-blue.is-active:hover {
+  color: #f59e0b;
+}
+
+.app-screen-fav-icon {
+  display: block;
+}
+
+@media print {
+  .app-screen-fav-btn,
+  .no-print {
+    display: none !important;
+  }
+}
+
+.app-screen-title {
+  margin: 0;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #64748b;
+  letter-spacing: 0.01em;
+}
+
+.main-content--focus .app-screen-title-bar {
+  margin-bottom: 0.55rem;
+}
+
+.main-content {
+  padding: 1.5rem 1.75rem 2.5rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.main-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  padding: 1.25rem 1.5rem;
+}
+
+.card + .card { margin-top: 1rem; }
+
+.muted { color: var(--muted); font-size: 0.9rem; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: #4338ca;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.btn-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+.btn-block { width: 100%; }
+
+.input, select.input, textarea.input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fff;
+}
+
+textarea.input { min-height: 90px; resize: vertical; }
+
+.field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 0.9rem; }
+.field-label { font-size: 0.82rem; font-weight: 600; color: #334155; }
+
+.form-grid { max-width: 720px; }
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.form-row .field { margin-bottom: 0; }
+
+.form-section + .form-section {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+}
+
+.form-section-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.page-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.page-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.inner-panel {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.inner-panel-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.field-hint {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.form-actions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.einv-verify-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.einv-verify-table th,
+.einv-verify-table td {
+  border: 1px solid var(--border);
+  padding: 0.45rem 0.6rem;
+  text-align: start;
+}
+
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.alert-error { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+.alert-success { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
+
+.table-wrap { overflow: auto; border-radius: 12px; border: 1px solid var(--border); }
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+.data-table th, .data-table td {
+  padding: 0.65rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  text-align: start;
+}
+.data-table th { background: #f8fafc; font-weight: 700; color: #475569; }
+.data-table tr:last-child td { border-bottom: none; }
+
+.perm-grid {
+  display: grid;
+  gap: 0.35rem 1.25rem;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.perm-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0;
+  font-size: 0.9rem;
+}
+
+.perm-domain-block {
+  margin-bottom: 1.35rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.perm-domain-block:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.perm-domain-h {
+  margin: 0 0 0.65rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.perm-subfold {
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0 0.65rem 0.65rem;
+  background: #f8fafc;
+}
+
+.perm-subfold-sum {
+  cursor: pointer;
+  list-style: none;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.65rem 0.35rem;
+  color: #334155;
+}
+
+.perm-subfold-sum::-webkit-details-marker {
+  display: none;
+}
+
+.perm-grid-nested {
+  margin-top: 0.15rem;
+}
+
+.perm-table-wrap {
+  margin-top: 0.35rem;
+  border-radius: 10px;
+}
+
+.perm-table th,
+.perm-table td {
+  vertical-align: middle;
+}
+
+.perm-table td code {
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.perm-table td:first-child,
+.perm-table th:first-child {
+  text-align: center;
+}
+
+.perm-subfold .perm-table-wrap {
+  background: #fff;
+}
+
+.perm-filter-row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+.perm-filter-row .field {
+  margin: 0;
+  width: 100%;
+  max-width: 420px;
+}
+
+.perm-filter-row input[type="search"] {
+  min-width: 0;
+}
+
+.login-body {
+  min-height: 100vh;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  background: radial-gradient(1200px 600px at 20% 0%, #e0e7ff, transparent),
+              radial-gradient(900px 500px at 100% 20%, #dbeafe, transparent),
+              var(--bg);
+  font-family: var(--font);
+  direction: rtl;
+}
+
+.login-page-main {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem 1rem 2rem;
+}
+
+.login-card {
+  width: min(420px, 92vw);
+  background: var(--surface);
+  padding: 1.5rem 1.75rem 2rem;
+  border-radius: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.login-brand { display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; }
+.login-title { font-weight: 800; font-size: 1.1rem; }
+.login-sub { color: var(--muted); font-size: 0.9rem; margin-top: 0.2rem; }
+.login-sub--center {
+  text-align: center;
+  margin: 0 0 1.25rem;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+.login-hint { font-size: 0.78rem; color: var(--muted); margin-top: 1rem; line-height: 1.5; }
+.login-forgot-link { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
+.login-forgot-link a { color: var(--primary, #2563eb); text-decoration: none; font-weight: 600; }
+.login-forgot-link a:hover { text-decoration: underline; }
+.login-recaptcha-wrap { display: flex; justify-content: center; margin: 0.25rem 0 0.5rem; }
+
+.badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.badge-ok { background: #ecfdf5; color: #166534; }
+.badge-warn { background: #fffbeb; color: #92400e; }
+.badge-off { background: #f1f5f9; color: #64748b; }
+
+.sal-gps-src {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.sal-gps-src--mobile {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.sal-gps-src--desktop {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.sal-gps-src--unknown {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.btn-sm { padding: 0.35rem 0.65rem; font-size: 0.82rem; border-radius: 8px; }
+.btn-secondary {
+  background: var(--chrome-btn-bg);
+  color: var(--chrome-btn-text);
+  border: 1px solid var(--chrome-btn-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--chrome-btn-hover-bg);
+  border-color: var(--chrome-btn-hover-border);
+  filter: none;
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #f87171;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #fecaca;
+  filter: none;
+}
+
+.btn-ghost {
+  background: var(--chrome-btn-bg);
+  color: var(--chrome-btn-text);
+  border: 1px solid var(--chrome-btn-border);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--chrome-btn-hover-bg);
+  border-color: var(--chrome-btn-hover-border);
+  color: #020617;
+}
+
+/* شريط Master — أزرار حديثة مسطّحة */
+#master-toolbar.master-toolbar {
+  background: transparent;
+  border-bottom: none;
+  padding: 0;
+}
+
+#master-toolbar .master-toolbar-btn {
+  font-weight: 600;
+  border-radius: 999px;
+  filter: none;
+  /* توحيد ارتفاع/حشو كل أزرار الشريط (بحث، حفظ، ترحيل…) */
+  min-height: 2.15rem !important;
+  height: 2.15rem;
+  padding: 0 0.85rem !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.2 !important;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+#master-toolbar .master-toolbar-btn.btn-secondary {
+  background: #f8fafc;
+  color: #334155;
+  border-color: #e2e8f0;
+}
+
+#master-toolbar .master-toolbar-btn.btn-secondary:hover:not(:disabled):not(.is-inactive) {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+  filter: none;
+}
+
+#master-toolbar .master-toolbar-btn.btn-primary {
+  background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.28);
+}
+
+#master-toolbar .master-toolbar-btn.btn-danger {
+  background: #fff1f2;
+  color: #be123c;
+  border-color: #fecdd3;
+}
+
+#master-toolbar .master-toolbar-btn.btn-danger:hover:not(:disabled):not(.is-inactive) {
+  background: #ffe4e6;
+  color: #9f1239;
+  filter: none;
+}
+
+#master-toolbar .master-toolbar-btn[data-master-action="post"] {
+  background: #fffbeb;
+  color: #a16207;
+  border-color: #fde68a;
+}
+
+#master-toolbar .master-toolbar-btn[data-master-action="post"]:hover:not(:disabled):not(.is-inactive) {
+  background: #fef3c7;
+  color: #854d0e;
+  filter: none;
+}
+
+.row-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.row-actions form { display: inline; }
+
+/* ترقيم صفحات القوائم */
+.list-pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.list-pager-info {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.list-pager-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.list-pager-btn,
+.list-pager-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.list-pager-btn:hover,
+.list-pager-num:hover {
+  border-color: #a5b4fc;
+  color: #4338ca;
+  background: #eef2ff;
+}
+
+.list-pager-num.is-active {
+  background: #4f46e5;
+  border-color: #4f46e5;
+  color: #fff;
+  pointer-events: none;
+}
+
+.list-pager-ellipsis {
+  padding: 0 0.25rem;
+  color: #94a3b8;
+  font-weight: 700;
+}
+
+/* ثبات شريط النظام والأيقونات عند تكبير المتصفح (Ctrl + / zoom) */
+.app-screen-head-main .master-toolbar,
+.app-topbar-main .master-toolbar {
+  overflow: visible;
+}
+
+.app-screen-head-main .master-toolbar-inner,
+.app-topbar-main .master-toolbar-inner {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.app-topbar-brand-wrap,
+.app-screen-head-account,
+.app-topbar-account,
+.app-check-bell-wrap,
+.nav-exit-btn {
+  flex-shrink: 0;
+}
+
+.master-toolbar .master-toolbar-btn .master-toolbar-icon svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.toolbar .btn,
+.dashboard-ora-toolbar .btn,
+.dashboard-ora-toolbar .dashboard-ora-btn,
+.dashboard-ora-toolbar .ledger-back-btn {
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  .app-topbar {
+    padding: 0.5rem 0.75rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+  }
+
+  .app-topbar-account,
+  .app-screen-head-account {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .app-topbar-main,
+  .app-screen-head-main {
+    grid-column: 1;
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-screen-head-title {
+    position: static;
+    left: auto;
+    top: auto;
+    transform: none;
+    max-width: 100%;
+    width: 100%;
+    order: -1;
+    padding: 0.15rem 0;
+    grid-column: 1;
+    text-align: start;
+    pointer-events: auto;
+  }
+
+  .app-header-account {
+    width: 100%;
+    justify-content: space-between;
+    padding-inline-end: 0;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--shell-border);
+    padding-bottom: 0.35rem;
+  }
+
+  .app-header-account__name {
+    max-width: none;
+    flex: 1;
+  }
+
+  .app-shell--focus {
+    height: auto;
+    max-height: none;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .main-content--focus {
+    padding: 0.55rem 0.55rem 0.75rem;
+  }
+
+  .app-shell { flex-direction: column-reverse; }
+  .sidebar {
+    position: relative;
+    top: auto;
+    align-self: stretch;
+    width: 100%;
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .sidebar-nav { display: flex; flex-wrap: wrap; gap: 0.5rem; max-height: none; min-height: 0; overflow: visible; }
+  .nav-block { margin: 0; }
+  .nav-list { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+  .sidebar-foot { width: 100%; }
+}
+
+#app-nav-progress {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 3px;
+  z-index: 9999;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(90deg, #2563eb, #38bdf8);
+  transform: scaleX(0);
+  transform-origin: right center;
+  transition: opacity 0.15s ease;
+}
+
+#app-nav-progress.is-active {
+  opacity: 1;
+  animation: app-nav-progress-run 0.9s ease-in-out infinite;
+}
+
+@keyframes app-nav-progress-run {
+  0% {
+    transform: scaleX(0.08);
+  }
+  50% {
+    transform: scaleX(0.72);
+  }
+  100% {
+    transform: scaleX(0.2);
+  }
+}
+
+/* تبديل اللغة / الواجهة */
+.app-lang-switch,
+.app-theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.app-lang-switch__btn,
+.app-theme-switch__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  height: 1.75rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--chrome-btn-border, #64748b);
+  border-radius: 6px;
+  background: var(--chrome-btn-bg, #e8eaef);
+  color: var(--chrome-btn-text, #0f172a);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: none;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.app-lang-switch__btn:hover,
+.app-theme-switch__btn:hover {
+  background: var(--chrome-btn-hover-bg, #d5dbe3);
+}
+
+.app-lang-switch--header,
+.app-theme-switch--header {
+  margin-inline-end: 0.35rem;
+}
+
+/* إنجليزي: عكس الاتجاه الكامل LTR */
+html[dir="ltr"] .app-shell,
+html[dir="ltr"] .app-shell-body,
+html[dir="ltr"] .app-titlebar__title,
+html[dir="ltr"] .login-card,
+html[dir="ltr"] .sidebar-nav {
+  direction: ltr;
+}
+
+html[dir="ltr"] .app-titlebar__title {
+  text-align: left;
+}
+
+html[dir="ltr"] #app-nav-progress {
+  transform-origin: left center;
+}
+
+html[dir="ltr"] [dir="rtl"] {
+  direction: ltr;
+}
+
+
+/* طولي / عرضي — معاينة الطباعة (مشترك) */
+.print-orient,
+.report-print-orient {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem;
+  margin-inline-end: 0.35rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  background: #f8fafc;
+}
+.print-orient__label,
+.report-print-orient__label {
+  padding: 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: #64748b;
+  white-space: nowrap;
+}
+.print-orient__btn,
+.report-print-orient__btn {
+  min-height: 1.9rem;
+  padding: 0.3rem 0.85rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.print-orient__btn:hover,
+.report-print-orient__btn:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+.print-orient__btn.is-active,
+.report-print-orient__btn.is-active {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25);
+}
+.print-overlay--landscape .sales-inv-print-paper,
+.sales-inv-print-paper--landscape {
+  width: 297mm;
+  min-height: 210mm;
+}

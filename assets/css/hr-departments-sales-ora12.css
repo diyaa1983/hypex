@@ -1,0 +1,241 @@
+/* ── شاشة أقسام الموظفين — مثل شاشة الموظفين (Oracle 12c) ── */
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-grid-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-grid-flash {
+    margin: 0;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.35rem 0.55rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: flex-end;
+    margin-bottom: 0.05rem;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    text-decoration: none;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn-danger {
+    color: #fff;
+    background: linear-gradient(180deg, #e85a4a 0%, #c74634 55%, #a33a2b 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+    border-color: var(--ora12-border);
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn-primary:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn-danger:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #f06a5a 0%, #d75040 55%, #b33f30 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-top-bar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-toolbar-hint {
+    margin: 0;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+    background: var(--ora12-blue-light);
+    border: 1px solid var(--ora12-border);
+    text-align: start;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-editor-panel.hr-dept-editor {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-editor-close {
+    float: left;
+    min-width: 1.55rem;
+    margin-bottom: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-editor-fields .field-label,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .input,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap select.input,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap textarea.input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .input:focus,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap select.input:focus,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap textarea.input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-code-display {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #f3f5f7;
+    color: var(--ora12-text);
+    font-weight: 700;
+    font-size: 0.88rem;
+    justify-content: flex-start;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-code-hint,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-editor-hint {
+    font-size: 0.72rem;
+    color: var(--ora12-muted);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-active-check {
+    min-height: 1.65rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-active-check input[type="checkbox"],
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-toggle-chk input[type="checkbox"] {
+    width: 0.95rem;
+    height: 0.95rem;
+    accent-color: #0572ce;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-name-add-row .btn {
+    min-height: 1.65rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-grid-wrap {
+    background: #fff;
+    border: none;
+    border-radius: 0;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-grid-table th,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-grid-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row--pending td,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-pending td {
+    background: var(--ora12-blue-light);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-linked td {
+    background: #fff8e1;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-inactive td {
+    color: var(--ora12-muted);
+    background: var(--ora12-stripe);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-selected.is-linked td,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-selected.is-inactive td,
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-row:hover td {
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap.is-editing .hr-dept-grid-panel .dashboard-ora-panel__body {
+    outline: 2px solid #0572ce;
+    outline-offset: -1px;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-section {
+    margin: 0;
+}
+
+.dashboard-ora.hr-dept-ora12-screen.hr-dept-wrap .hr-dept-editor-form .hr-dept-editor-fields {
+    margin-bottom: 0.5rem;
+}

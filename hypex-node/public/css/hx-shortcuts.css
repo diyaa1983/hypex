@@ -1,0 +1,450 @@
+/**
+ * اختصارات النظام — نافذة قوائم F3 / F7
+ * طراز Oracle Forms (مثل acc-DKzaman)
+ * للرجوع: hx-shortcuts.css.bak
+ */
+
+.hx-lk {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 6vh 1rem 1rem;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  direction: rtl;
+}
+
+.hx-lk[hidden] {
+  display: none !important;
+}
+
+.hx-lk__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(80, 80, 80, 0.45);
+}
+
+.hx-lk__panel {
+  position: relative;
+  z-index: 1;
+  width: min(42rem, 100%);
+  max-height: min(78vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: #d4d0c8;
+  border: 2px solid #000;
+  border-radius: 0;
+  box-shadow: 4px 4px 0 #808080, 6px 6px 16px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.hx-lk__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.15rem 0.2rem 0.15rem 0.55rem;
+  direction: rtl;
+  background: linear-gradient(180deg, #3a6ea5 0%, #1e4d8c 45%, #0f3a7a 100%);
+  border-bottom: 1px solid #000;
+}
+
+.hx-lk__kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #dce8ff;
+}
+
+.hx-lk__head h2 {
+  margin: 0.05rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.25;
+}
+
+.hx-lk__x {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: default;
+}
+
+.hx-lk__x:hover {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+}
+
+.hx-lk__x:active {
+  border-color: #404040 #fff #fff #404040;
+}
+
+.hx-lk__search {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #ece9e4;
+  border-bottom: 1px solid #888;
+}
+
+.hx-lk__cat {
+  background: #fff;
+}
+
+.hx-lk__input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 24px;
+  min-height: 24px;
+  border: 1px solid #808080;
+  border-top-color: #404040;
+  border-left-color: #404040;
+  border-radius: 0;
+  padding: 2px 6px;
+  font: inherit;
+  font-size: 12px;
+  background: #fff;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.08);
+  color: #000;
+}
+
+.hx-lk__input:focus {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+  background: #ffffcc;
+  border-color: #808080;
+}
+
+.hx-lk__list {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 8rem;
+  max-height: 48vh;
+  background: #fff;
+  border-top: 1px solid #808080;
+}
+
+.hx-lk__row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  width: 100%;
+  text-align: start;
+  border: 0;
+  border-bottom: 1px solid #c0c0c0;
+  background: #fff;
+  padding: 5px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* مواد F3: باركود | اسم | رقم المادة — سطر واحد */
+.hx-lk__row--item {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: right;
+}
+
+.hx-lk__row--item .hx-lk__bc,
+.hx-lk__row--item .hx-lk__sku {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e4d8c;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hx-lk__row--item .hx-lk__nm {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+/* عملاء/موردين F7: رقم | اسم — سطر واحد */
+.hx-lk__row--party {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55rem;
+  text-align: right;
+}
+
+.hx-lk__row--party .hx-lk__code {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1e4d8c;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.hx-lk__row--party .hx-lk__nm {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.hx-lk__row--party .hx-lk__phone {
+  flex: 0 0 auto;
+  font-size: 10px;
+  color: #666;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.hx-lk__row:nth-child(even) {
+  background: #f8f8f8;
+}
+
+.hx-lk__row strong {
+  font-size: 12px;
+  color: #000;
+  font-weight: 700;
+}
+
+.hx-lk__row span {
+  font-size: 11px;
+  color: #444;
+}
+
+.hx-lk__row:hover,
+.hx-lk__row:focus {
+  background: #ffffcc;
+  outline: none;
+}
+
+/* زر فتح قائمة F7 بجانب حقل العميل */
+.hx-lov-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  width: 100%;
+  min-width: 0;
+}
+
+.hx-lov-wrap > .si-field,
+.hx-lov-wrap > input,
+.hx-lov-wrap > select {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: auto !important;
+}
+
+td .hx-lov-wrap,
+.si-unit-cell .hx-lov-wrap,
+.si-item-sku-cell .hx-lov-wrap {
+  width: 100%;
+  max-width: 100%;
+}
+
+.hx-lov-btn,
+.si-item-pick.hx-lov-btn,
+button.si-item-pick {
+  flex: 0 0 1.55rem;
+  width: 1.55rem;
+  min-width: 1.55rem;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #808080;
+  border-inline-start: none;
+  border-radius: 0;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  color: #0f3a7a;
+  cursor: pointer;
+  box-sizing: border-box;
+  font-size: 0;
+  line-height: 0;
+}
+
+.hx-lov-btn:hover,
+.si-item-pick.hx-lov-btn:hover,
+button.si-item-pick:hover {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+  color: #1e4d8c;
+}
+
+.hx-lov-btn:active,
+button.si-item-pick:active {
+  border-color: #404040 #808080 #808080 #404040;
+  background: #c8c4bc;
+}
+
+.hx-lov-btn__ico {
+  display: block;
+  pointer-events: none;
+}
+
+body.co-ora-body .hx-lov-btn,
+.co-ora-skin .hx-lov-btn,
+body.co-ora-body .si-item-pick,
+.co-ora-skin .si-item-pick {
+  height: auto;
+  align-self: stretch;
+}
+
+body.co-ora-body .hx-lov-wrap > .si-field,
+.co-ora-skin .hx-lov-wrap > .si-field,
+body.co-ora-body .hx-lov-wrap > select,
+.co-ora-skin .hx-lov-wrap > select,
+body.co-ora-body .si-item-sku-wrap input.js-item-sku,
+.co-ora-skin .si-item-sku-wrap input.js-item-sku {
+  border-start-end-radius: 0 !important;
+  border-end-end-radius: 0 !important;
+}
+
+body.co-ora-body .si-item-sku-wrap,
+.co-ora-skin .si-item-sku-wrap {
+  display: inline-flex;
+  width: 100%;
+  max-width: 100%;
+  align-items: stretch;
+}
+
+/* خلايا البنود: الوحدة / الضريبة / رقم المادة */
+.si-lines td .hx-lov-wrap select.js-unit,
+.si-lines td .hx-lov-wrap select.js-tax {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hx-lk__empty {
+  margin: 0;
+  padding: 1rem 0.75rem;
+  color: #555;
+  font-size: 12px;
+  text-align: center;
+  background: #fff;
+}
+
+.hx-lk__empty--err {
+  color: #7f1d1d;
+}
+
+.hx-lk__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 4px 8px;
+  border-top: 1px solid #888;
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%);
+  font-size: 11px;
+  color: #333;
+}
+
+.hx-lk__link {
+  color: #0f3a7a;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.hx-lk__link:hover {
+  text-decoration: underline;
+  color: #1e4d8c;
+}
+
+.hx-sc-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(1rem);
+  z-index: 13000;
+  background: linear-gradient(180deg, #3a6ea5 0%, #0f3a7a 100%);
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid #000;
+  border-radius: 0;
+  box-shadow: 2px 2px 0 #808080;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  max-width: min(28rem, 92vw);
+  text-align: center;
+}
+
+.hx-sc-toast.is-on {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* اقتراحات المواد/العميل العائمة داخل شاشات Oracle */
+body.co-ora-body .si-suggest,
+body.co-ora-body .js-item-suggest,
+body.co-ora-body .si-suggest--float {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: 3px 3px 0 #808080 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  font-size: 12px !important;
+}
+
+body.co-ora-body .si-suggest button,
+body.co-ora-body .si-suggest .si-suggest__item,
+body.co-ora-body .js-item-suggest button {
+  border-radius: 0 !important;
+  border-bottom: 1px solid #c0c0c0 !important;
+  padding: 5px 8px !important;
+  font-size: 12px !important;
+  text-align: right !important;
+}
+
+body.co-ora-body .si-suggest button:hover,
+body.co-ora-body .si-suggest button:focus,
+body.co-ora-body .js-item-suggest button:hover {
+  background: #ffffcc !important;
+}
+
+body.co-ora-body .si-suggest-empty {
+  padding: 8px !important;
+  color: #555 !important;
+  font-size: 12px !important;
+}
+
+@media print {
+  .hx-lk,
+  .hx-sc-toast,
+  .si-keys,
+  .hx-sc-keys {
+    display: none !important;
+  }
+}

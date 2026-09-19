@@ -1,0 +1,35 @@
+# إعدادات محلية (لا تُرفع للاستضافة)
+config/database.local.php
+config/app.local.php
+config/einvoice.local.php
+config/oracle.local.php
+
+# سجلات وتشغيل
+logs/*
+!logs/.htaccess
+!logs/.gitkeep
+
+# رفع المستخدمين (عدا الحماية)
+uploads/logos/*
+!uploads/.htaccess
+!uploads/logos/.gitkeep
+
+# أدوات التطوير المحلية
+_cookies.txt
+_dash_headers.txt
+_einv_headers.txt
+composer.phar
+
+# كاش بناء Flutter/Gradle المحلي
+mobile-flutter/.gradle-home/
+mobile-flutter/_build_out.txt
+mobile-flutter/android/.kotlin/
+mobile-flutter/android/*.hprof
+mobile-flutter/android/hs_err_pid*.log
+mobile-flutter/android/replay_pid*.log
+
+
+# Hypex Node — أسرار وتبعيات محلية (التفاصيل في hypex-node/.gitignore)
+hypex-node/node_modules/
+hypex-node/.env
+hypex-node/logs/

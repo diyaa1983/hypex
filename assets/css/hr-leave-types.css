@@ -1,0 +1,36 @@
+.hr-lt-page,
+.hr-leave-type-page {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-leave-type-fields {
+    display: grid;
+    grid-template-columns: 120px 1fr 120px 140px 100px;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.hr-leave-type-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.hr-leave-type-row-actions {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.hr-leave-type-delete-form {
+    display: inline;
+    margin: 0;
+}
+
+@media (max-width: 720px) {
+    .hr-leave-type-fields {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,66 @@
+body.app-is-busy {
+    pointer-events: none;
+}
+
+body.app-is-busy .app-busy {
+    pointer-events: auto;
+}
+
+.app-busy {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.app-busy[hidden] {
+    display: none !important;
+}
+
+.app-busy-panel {
+    min-width: min(20rem, 92vw);
+    max-width: 26rem;
+    padding: 1.35rem 1.5rem 1.2rem;
+    text-align: center;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    box-shadow: 0 14px 42px rgba(15, 23, 42, 0.28);
+    box-sizing: border-box;
+}
+
+.app-busy-spinner {
+    width: 2.35rem;
+    height: 2.35rem;
+    margin: 0 auto 0.85rem;
+    border: 3px solid #e2e8f0;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: app-busy-spin 0.8s linear infinite;
+}
+
+@keyframes app-busy-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.app-busy-msg {
+    margin: 0 0 0.4rem;
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #161513;
+    line-height: 1.35;
+}
+
+.app-busy-hint {
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #64748b;
+    line-height: 1.35;
+}

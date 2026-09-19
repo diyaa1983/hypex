@@ -1,0 +1,280 @@
+<?php
+declare(strict_types=1);
+
+require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/sal_invoice_schema.php');
+require_once app_path('includes/sal_invoice_post.php');
+
+/** عرض/تحميل فواتير المبيعات من الهاتف أو سطح المكتب. */
+function mobile_can_access_sales_invoice_api(): bool
+{
+    return user_can_sales_invoices() || user_can('m_sales_invoices');
+}
+
+/** تعديل فاتورة غير مرحّلة من تطبيق الهاتف. */
+function mobile_can_edit_sales_invoice(): bool
+{
+    return mobile_can_access_sales_invoice_api();
+}
+
+/** ترحيل فاتورة من الهاتف (صلاحية ترحيل سطح المكتب أو شاشة فاتورة الموبايل). */
+function mobile_can_post_sales_invoice(): bool
+{
+    if (!mobile_can_access_sales_invoice_api()) {
+        return false;
+    }
+    if (user_can_action('action_post_sales_invoice')) {
+        return true;
+    }
+
+    if (!user_can('m_sales_invoices')) {
+        return false;
+    }
+
+    return mobile_is_context() || user_in_mobile_group();
+}
+
+/** حذف فاتورة غير مرحّلة من الهاتف (صلاحية حذف سطح المكتب أو شاشة فاتورة الموبايل). */
+function mobile_can_delete_sales_invoice(): bool
+{
+    if (!mobile_can_access_sales_invoice_api()) {
+        return false;
+    }
+    if (user_can_action('action_delete_sales_invoice')) {
+        return true;
+    }
+
+    return user_can('m_sales_invoices') && mobile_is_context();
+}
+
+/** رفع صورة الطلبية إلى أرشيف الفاتورة من الهاتف. */
+function mobile_can_archive_sales_invoice(): bool
+{
+    if (!mobile_can_access_sales_invoice_api()) {
+        return false;
+    }
+    if (user_can_action('action_archive_sales_invoice')) {
+        return true;
+    }
+
+    return user_can('m_sales_invoices') && mobile_is_context();
+}
+
+/** إرسال فوترة: صلاحية سطح المكتب أو مدير النظام. */
+function mobile_can_send_sales_einvoice(): bool
+{
+    if (user_is_system_admin()) {
+        return true;
+    }
+    $uid = (int) (current_user()['id'] ?? 0);
+    if ($uid < 1) {
+        return false;
+    }
+    $st = db()->prepare(
+        'SELECT 1 FROM sys_user_group ug
+         INNER JOIN sys_group_permission gp ON gp.group_id = ug.group_id AND gp.allowed = 1
+         INNER JOIN sys_screen s ON s.id = gp.screen_id AND s.code = ?
+         WHERE ug.user_id = ? LIMIT 1'
+    );
+    $st->execute(['sales_send_einvoice', $uid]);
+
+    return (bool) $st->fetchColumn();
+}
+
+/** @param array<string, mixed> $invoice */
+function mobile_invoice_enrich_display(PDO $pdo, array $invoice): array
+{
+    $cid = (int) ($invoice['customer_id'] ?? 0);
+    if ($cid > 0) {
+        $st = $pdo->prepare('SELECT name_ar, code FROM crm_customer WHERE id = ? LIMIT 1');
+        $st->execute([$cid]);
+        $c = $st->fetch(PDO::FETCH_ASSOC);
+        if ($c) {
+            $invoice['customer_name'] = (string) ($c['name_ar'] ?? '');
+            $invoice['customer_code'] = (string) ($c['code'] ?? '');
+        }
+    }
+    $wid = (int) ($invoice['warehouse_id'] ?? 0);
+    if ($wid > 0) {
+        $st = $pdo->prepare('SELECT name_ar FROM inv_warehouse WHERE id = ? LIMIT 1');
+        $st->execute([$wid]);
+        $w = $st->fetchColumn();
+        if (is_string($w) && $w !== '') {
+            $invoice['warehouse_name'] = $w;
+        }
+    }
+    $invoice['payment_label'] = (($invoice['payment_type'] ?? '') === 'credit') ? 'ذمة' : 'نقدي';
+    require_once app_path('includes/sal_einvoice_tracking.php');
+    if (!array_key_exists('einv_tracking_required', $invoice)) {
+        $invoice['einv_tracking_required'] = sal_einvoice_doc_date_requires_tracking(
+            (string) ($invoice['invoice_date'] ?? '')
+        );
+    }
+    require_once app_path('includes/company_settings.php');
+    $co = company_settings($pdo);
+    $invoice['company_name'] = trim((string) ($co['company_name_ar'] ?? ''));
+    if ($invoice['company_name'] === '') {
+        $invoice['company_name'] = 'الشركة';
+    }
+    $qr = trim((string) ($invoice['einv_qr'] ?? ''));
+    if ($qr === '') {
+        $qr = trim((string) ($invoice['einv_inv_uuid'] ?? $invoice['invoice_uuid'] ?? ''));
+    }
+    if ($qr === '') {
+        $no = trim((string) ($invoice['invoice_no'] ?? ''));
+        $qr = $no !== '' ? ('INV:' . $no) : ('INV-ID:' . (int) ($invoice['id'] ?? 0));
+    }
+    $invoice['qr_payload'] = $qr;
+
+    return $invoice;
+}
+
+/** @return list<array<string, mixed>> */
+/**
+ * @param array{customer_id?:int,from?:string,to?:string} $extra
+ * @return array{0:string,1:list<mixed>,2:string} [fromWhereSql, params, postedExpr]
+ */
+function mobile_invoice_list_from_where(
+    PDO $pdo,
+    string $filter = 'all',
+    string $search = '',
+    array $extra = []
+): array {
+    sal_invoice_ensure_schema($pdo);
+    crm_ledger_ensure_schema($pdo);
+    require_once app_path('includes/sal_documents_list.php');
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    einvoice_ensure_schema($pdo);
+
+    if (!in_array($filter, ['all', 'unposted', 'posted'], true)) {
+        $filter = 'all';
+    }
+    $search = trim($search);
+    $postedExpr = sal_invoice_sql_is_posted_expr('i');
+
+    $fromWhere = " FROM sal_invoice i
+            LEFT JOIN crm_customer c ON c.id = i.customer_id
+            LEFT JOIN crm_sales_rep sr ON sr.id = i.sales_rep_id
+            WHERE i.status = 'confirmed'";
+    $params = [];
+    $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    if ($scopedRepId !== null) {
+        [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
+        $fromWhere .= ' AND (i.sales_rep_id = ? OR ' . $linkSql . ')';
+        $params[] = $scopedRepId;
+        $params = array_merge($params, $linkParams);
+    }
+    if ($filter === 'unposted') {
+        $fromWhere .= " AND NOT ({$postedExpr})";
+    } elseif ($filter === 'posted') {
+        $fromWhere .= " AND ({$postedExpr})";
+    }
+    $customerId = (int) ($extra['customer_id'] ?? 0);
+    if ($customerId > 0) {
+        $fromWhere .= ' AND i.customer_id = ?';
+        $params[] = $customerId;
+    }
+    $fromDate = trim((string) ($extra['from'] ?? ''));
+    $toDate = trim((string) ($extra['to'] ?? ''));
+    if ($fromDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromDate)) {
+        $fromWhere .= ' AND i.invoice_date >= ?';
+        $params[] = $fromDate;
+    }
+    if ($toDate !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $toDate)) {
+        $fromWhere .= ' AND i.invoice_date <= ?';
+        $params[] = $toDate;
+    }
+    if ($search !== '') {
+        $fromWhere .= ' AND (i.invoice_no LIKE ? OR c.name_ar LIKE ? OR c.code LIKE ? OR sr.name_ar LIKE ?)';
+        $like = '%' . $search . '%';
+        array_push($params, $like, $like, $like, $like);
+    }
+
+    return [$fromWhere, $params, $postedExpr];
+}
+
+function mobile_invoice_list_count(
+    PDO $pdo,
+    string $filter = 'all',
+    string $search = '',
+    array $extra = []
+): int {
+    [$fromWhere, $params] = mobile_invoice_list_from_where($pdo, $filter, $search, $extra);
+    $st = $pdo->prepare('SELECT COUNT(*)' . $fromWhere);
+    $st->execute($params);
+
+    return (int) $st->fetchColumn();
+}
+
+function mobile_invoice_list_rows(
+    PDO $pdo,
+    string $filter = 'all',
+    string $search = '',
+    int $limit = 100,
+    int $offset = 0,
+    array $extra = []
+): array {
+    require_once app_path('includes/sal_documents_list.php');
+    [$fromWhere, $params, $postedExpr] = mobile_invoice_list_from_where($pdo, $filter, $search, $extra);
+    $limit = max(1, min(200, $limit));
+    $offset = max(0, $offset);
+    $einvExpr = sal_documents_list_einv_sent_expr_invoice($pdo, 'i');
+
+    $sql = "SELECT i.id, i.invoice_no, i.invoice_date, i.total, i.subtotal, i.tax_amount,
+                   i.payment_type, i.customer_id, c.name_ar AS customer_name, c.code AS customer_code,
+                   i.sales_rep_id, COALESCE(sr.name_ar, '') AS sales_rep_name,
+                   ({$postedExpr}) AS is_posted,
+                   ({$einvExpr}) AS einv_sent"
+        . $fromWhere
+        . ' ORDER BY i.id DESC LIMIT ' . (int) $limit . ' OFFSET ' . (int) $offset;
+
+    $st = $pdo->prepare($sql);
+    $st->execute($params);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    foreach ($rows as &$row) {
+        $row['is_posted'] = !empty($row['is_posted']);
+        $row['einv_sent'] = !empty($row['einv_sent']);
+        $row['payment_label'] = (($row['payment_type'] ?? '') === 'credit') ? 'ذمة' : 'نقدي';
+        $row['invoice_date_dmy'] = format_date_dmY((string) ($row['invoice_date'] ?? ''));
+        $row['total_fmt'] = format_amount((float) ($row['total'] ?? 0));
+        $row['sales_rep_name'] = trim((string) ($row['sales_rep_name'] ?? ''));
+    }
+    unset($row);
+
+    return $rows;
+}
+
+/**
+ * رفع صورة الطلبية إلى أرشيف السيرفر مع حفظ الفاتورة (multipart archive_photo).
+ *
+ * @param array<string, mixed> $file
+ * @return string|null رسالة خطأ أو null عند النجاح
+ */
+function sal_invoice_archive_upload_photo_from_request(PDO $pdo, int $invoiceId, array $file): ?string
+{
+    if ($invoiceId < 1) {
+        return 'معرّف الفاتورة غير صالح.';
+    }
+    $err = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($err === UPLOAD_ERR_NO_FILE) {
+        return null;
+    }
+    if ($err !== UPLOAD_ERR_OK) {
+        return 'تعذر رفع الصورة إلى السيرفر (رمز ' . $err . ').';
+    }
+
+    require_once app_path('includes/fin_voucher_archive.php');
+    if (!mobile_can_archive_sales_invoice() && !user_can_action('action_archive_sales_invoice')) {
+        return 'لا تملك صلاحية رفع صور الأرشيف.';
+    }
+
+    try {
+        $userId = (int) (current_user()['id'] ?? 0);
+        fin_voucher_archive_upload($pdo, 'sales_invoice', $invoiceId, $file, $userId > 0 ? $userId : 0);
+
+        return null;
+    } catch (Throwable $e) {
+        return $e->getMessage() !== '' ? $e->getMessage() : 'تعذر حفظ الصورة على السيرفر.';
+    }
+}

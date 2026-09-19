@@ -1,0 +1,89 @@
+/* ── نمط Oracle Forms — شاشات البيانات الأساسية (عملاء، مندوبين) ── */
+
+.customers-ora-screen .form-grid {
+  max-width: 720px;
+  margin: 0;
+}
+
+.sales-reps-ora-screen .form-grid {
+  max-width: 640px;
+  margin: 0;
+}
+
+.customers-ora-screen .muted,
+.sales-reps-ora-screen .muted {
+  color: #404040;
+  font-weight: 600;
+}
+
+.customers-ora-screen .data-table td.muted,
+.sales-reps-ora-screen .data-table td.muted {
+  text-align: center;
+  padding: 0.65rem 0.35rem;
+}
+
+.customers-ora-screen .data-table .row-actions,
+.sales-reps-ora-screen .data-table .row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.customers-ora-screen .data-table .row-actions form,
+.sales-reps-ora-screen .data-table .row-actions form {
+  display: inline;
+  margin: 0;
+}
+
+.customers-ora-screen .customers-ora-search-actions,
+.sales-reps-ora-screen .sales-reps-ora-search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.customers-ora-screen .customers-ora-search-field,
+.sales-reps-ora-screen .sales-reps-ora-search-field {
+  flex: 1;
+  min-width: 220px;
+  margin: 0;
+}
+
+.sales-reps-ora-screen .data-table .sales-reps-address-cell {
+  font-size: 0.78rem;
+  max-width: 220px;
+}
+
+.customers-ora-screen .customers-reps-field {
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.customers-ora-screen .customers-reps-field legend {
+  margin-bottom: 0.35rem;
+}
+
+.customers-ora-screen .customers-reps-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--ora12-border, #c0c0c0);
+  background: #fff;
+  border-radius: 2px;
+}
+
+.customers-ora-screen .customers-rep-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.customers-ora-screen .customers-rep-check input {
+  margin: 0;
+}

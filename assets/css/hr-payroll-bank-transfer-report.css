@@ -1,0 +1,159 @@
+.hr-pr-bank-rpt-page {
+    max-width: 1100px;
+    margin-inline: auto;
+}
+
+.hr-pr-bank-rpt-filters {
+    margin-bottom: 1rem;
+}
+
+.hr-pr-bank-rpt-filters-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem;
+    padding: 0.85rem 1rem;
+}
+
+.hr-pr-bank-rpt-filters-form .field {
+    margin: 0;
+    min-width: 160px;
+}
+
+.hr-pr-bank-rpt-check-field {
+    min-width: auto;
+}
+
+.hr-pr-bank-rpt-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.88rem;
+    white-space: nowrap;
+}
+
+.hr-pr-bank-rpt-doc {
+    padding: 0.75rem 1rem 1.5rem;
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+    position: relative;
+}
+
+.hr-pr-bank-rpt-doc .doc-print-header-title {
+    font-size: 1.55rem;
+    font-weight: 800;
+}
+
+.hr-pr-bank-rpt-block {
+    margin-bottom: 1.25rem;
+}
+
+.hr-pr-bank-rpt-bank-name {
+    margin: 0 0 0.45rem;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.hr-pr-bank-rpt-bank-code {
+    font-weight: 600;
+    color: #475569;
+}
+
+.hr-pr-bank-rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    table-layout: fixed;
+}
+
+.hr-pr-bank-rpt-table th,
+.hr-pr-bank-rpt-table td {
+    border: 1px solid #94a3b8;
+    padding: 0.4rem 0.5rem;
+    text-align: right;
+    vertical-align: middle;
+}
+
+.hr-pr-bank-rpt-table thead th {
+    background: #d9d9d9 !important;
+    font-weight: 700;
+    text-align: center;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.hr-pr-bank-rpt-table .col-seq {
+    width: 1.5rem;
+    text-align: center;
+}
+
+.hr-pr-bank-rpt-table .col-emp-code {
+    width: 3.75rem;
+    text-align: center;
+    font-weight: 800;
+    color: #1e3a8a;
+    background: #f8fafc;
+}
+
+.hr-pr-bank-rpt-table thead th.col-emp-code {
+    background: #dbeafe !important;
+    color: #1e3a8a;
+}
+
+.hr-pr-bank-rpt-table .col-emp-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hr-pr-bank-rpt-table .col-account {
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.hr-pr-bank-rpt-table td.col-money {
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.hr-pr-bank-rpt-sum td {
+    background: #e2e8f0;
+    font-weight: 700;
+}
+
+.hr-pr-bank-rpt-sum--grand td {
+    background: #cbd5e1;
+}
+
+.hr-pr-bank-rpt-table--grand {
+    margin-top: 0.5rem;
+}
+
+.hr-pr-bank-rpt-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+@media print {
+    .hr-pr-bank-rpt-doc {
+        box-shadow: none;
+        border: none;
+        padding: 0;
+    }
+
+    .hr-pr-bank-rpt-table thead th,
+    .hr-pr-bank-rpt-sum td,
+    .hr-pr-bank-rpt-table .col-emp-code {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+@media (max-width: 720px) {
+    .hr-pr-bank-rpt-table {
+        font-size: 0.78rem;
+    }
+}

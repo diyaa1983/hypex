@@ -1,0 +1,24 @@
+/**
+ * طباعة: إخفاء القوائم — الترويسة الرسمية من iframe (sales-print.js)
+ */
+@media print {
+  .sidebar,
+  .no-print,
+  .si-rail,
+  .si-hero-actions,
+  .ora-filters,
+  .si-btn--print,
+  [data-print] {
+    display: none !important;
+  }
+
+  .app-shell {
+    display: block !important;
+    grid-template-columns: none !important;
+  }
+
+  .main,
+  .main.si-main {
+    padding: 0 !important;
+  }
+}

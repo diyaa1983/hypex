@@ -1,0 +1,51 @@
+<?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__) . '/includes/bootstrap.php';
+require_once app_path('includes/pur_order_schema.php');
+
+header('Content-Type: application/json; charset=utf-8');
+
+if (!is_logged_in() || !user_can_purchase_orders() || !user_can_action('action_unapprove_purchase_order')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'error' => 'forbidden'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(['ok' => false, 'error' => 'method'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (!verify_csrf($_POST['_csrf'] ?? null)) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'انتهت صلاحية الجلسة.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$orderId = (int) ($_POST['order_id'] ?? $_POST['invoice_id'] ?? 0);
+if ($orderId < 1) {
+    echo json_encode(['ok' => false, 'message' => 'معرّف الطلب غير صالح.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$pdo = db();
+pur_order_ensure_schema($pdo);
+
+$status = pur_order_fetch_status($pdo, $orderId);
+if ($status !== 'approved') {
+    echo json_encode(['ok' => false, 'message' => 'يمكن فك اعتماد الطلبات المعتمدة (غير المنفَّذة) فقط.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (pur_order_linked_invoice_count($pdo, $orderId) > 0) {
+    echo json_encode(['ok' => false, 'message' => 'لا يمكن فك الاعتماد — يوجد فواتير مرتبطة بالطلب.'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$pdo->prepare(
+    "UPDATE pur_order SET status = 'draft', approved_by = NULL, approved_at = NULL WHERE id = ?"
+)->execute([$orderId]);
+
+echo json_encode(['ok' => true, 'message' => 'تم فك اعتماد طلب الشراء.', 'order_id' => $orderId], JSON_UNESCAPED_UNICODE);

@@ -1,0 +1,229 @@
+/* شاشة نسب الضمان الاجتماعي — نمط الأقسام */
+
+.hr-ss-rate-grid-page {
+    --hr-ss-accent: #0369a1;
+    --hr-ss-accent-soft: #e0f2fe;
+    --hr-ss-accent-deep: #075985;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-ss-rate-grid-flash {
+    margin-bottom: 0.75rem;
+}
+
+.hr-ss-rate-grid-title {
+    margin: 0 0 0.85rem;
+    text-align: center;
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-ss-rate-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.hr-ss-rate-toolbar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.hr-ss-rate-editor {
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem 1rem;
+    background: var(--hr-ss-accent-soft);
+    border: 1px solid var(--hr-ss-accent);
+    border-radius: 0.5rem;
+    box-shadow: 0 2px 10px rgba(3, 105, 161, 0.12);
+}
+
+.hr-ss-rate-editor-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-ss-rate-editor-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--hr-ss-accent-deep);
+}
+
+.hr-ss-rate-editor-close {
+    min-width: 2rem;
+    padding: 0.2rem 0.45rem;
+    line-height: 1.2;
+}
+
+.hr-ss-rate-editor-fields {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.22fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(100px, 0.28fr);
+    gap: 0.65rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.hr-ss-rate-editor-fields .field {
+    margin: 0;
+}
+
+.hr-ss-rate-editor-fields .field-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+}
+
+.hr-ss-rate-code-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.35rem;
+    padding: 0.4rem 0.65rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 0.4rem;
+    background: #f1f5f9;
+    color: #0f172a;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    font-size: 1.05rem;
+    user-select: none;
+}
+
+.hr-ss-rate-code-hint,
+.hr-ss-rate-pct-hint {
+    display: block;
+    margin-top: 0.25rem;
+    font-size: 0.72rem;
+    color: #64748b;
+    line-height: 1.35;
+}
+
+.hr-ss-rate-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.hr-ss-rate-grid-page.is-editing .hr-ss-rate-grid-wrap {
+    outline: 2px solid #7dd3fc;
+    outline-offset: 2px;
+}
+
+.hr-ss-rate-grid-wrap {
+    background: #fff;
+    border: 1px solid #0f172a;
+    border-radius: 2px;
+    overflow: auto;
+}
+
+.hr-ss-rate-grid-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 0.95rem;
+}
+
+.hr-ss-rate-grid-table th,
+.hr-ss-rate-grid-table td {
+    border: 1px solid #0f172a;
+    padding: 0.45rem 0.5rem;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.hr-ss-rate-grid-table thead th {
+    background: #d9d9d9;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-ss-rate-pct-cell {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.hr-ss-rate-col-active,
+.hr-ss-rate-cell-active {
+    width: 5.5rem;
+}
+
+.hr-ss-rate-toggle-form {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hr-ss-rate-toggle-chk input[type="checkbox"] {
+    width: 1.15rem;
+    height: 1.15rem;
+    accent-color: var(--hr-ss-accent);
+    cursor: pointer;
+}
+
+.hr-ss-rate-row {
+    cursor: pointer;
+}
+
+.hr-ss-rate-row.is-inactive td {
+    color: #94a3b8;
+    background: #f8fafc;
+}
+
+.hr-ss-rate-row.is-selected td {
+    background: var(--hr-ss-accent-soft);
+}
+
+.hr-ss-rate-row:hover td {
+    background: #f8fafc;
+}
+
+.hr-ss-rate-row.is-selected:hover td {
+    background: var(--hr-ss-accent-soft);
+}
+
+.hr-ss-rate-editor-field-active {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+.hr-ss-rate-active-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.35rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid #bae6fd;
+    border-radius: 0.4rem;
+    background: #f0f9ff;
+    cursor: pointer;
+}
+
+.hr-ss-rate-active-check input[type="checkbox"] {
+    accent-color: var(--hr-ss-accent);
+}
+
+@media (max-width: 860px) {
+    .hr-ss-rate-editor-fields {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .hr-ss-rate-editor-field-code {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 520px) {
+    .hr-ss-rate-editor-fields {
+        grid-template-columns: 1fr;
+    }
+}

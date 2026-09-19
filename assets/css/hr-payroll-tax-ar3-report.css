@@ -1,0 +1,312 @@
+/* نموذج QP 177-F3 — مطابق للنموذج الرسمي */
+
+.hr-tax-ar3-page {
+  max-width: 210mm;
+  margin-inline: auto;
+}
+
+.hr-tax-ar3-filters {
+  margin-bottom: 1rem;
+}
+
+.hr-tax-ar3-filters-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+}
+
+.hr-tax-ar3-filters-form .field {
+  margin: 0;
+  min-width: 160px;
+}
+
+.hr-tax-ar3-filters-form .field--wide {
+  flex: 1 1 280px;
+  min-width: 240px;
+}
+
+.hr-tax-ar3-hint {
+  margin: 0 1rem 0.5rem;
+  font-size: 0.85rem;
+}
+
+.hr-tax-ar3-doc {
+  position: relative;
+  padding: 5mm 6mm 7mm;
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.08);
+  font-family: 'Traditional Arabic', 'Simplified Arabic', 'Arial', 'Tahoma', sans-serif;
+  font-size: 9pt;
+  line-height: 1.35;
+  color: #000;
+}
+
+.hr-tax-ar3-doc .doc-print-watermark,
+.hr-tax-ar3-doc .doc-print-watermark--overlay {
+  display: none !important;
+}
+
+.tax-ar3-official-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr) minmax(0, 1fr);
+  gap: 6px;
+  align-items: start;
+  margin-bottom: 2px;
+}
+
+.tax-ar3-official-head__side--code {
+  text-align: start;
+  padding-top: 2px;
+}
+
+.tax-ar3-official-head__side--right {
+  text-align: end;
+  padding-top: 8px;
+}
+
+.tax-ar3-official-head__center {
+  text-align: center;
+}
+
+.tax-ar3-emblem {
+  display: block;
+  width: 78px;
+  height: auto;
+  max-height: 52px;
+  margin: 0 auto 2px;
+  object-fit: contain;
+}
+
+.tax-ar3-kingdom {
+  font-weight: 800;
+  font-size: 10pt;
+  line-height: 1.25;
+}
+
+.tax-ar3-ministry,
+.tax-ar3-department {
+  font-weight: 800;
+  font-size: 9pt;
+  line-height: 1.35;
+}
+
+.tax-ar3-form-code {
+  font-weight: 800;
+  font-size: 9pt;
+  white-space: nowrap;
+}
+
+.tax-ar3-official-title {
+  margin: 2px 0 1px;
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.tax-ar3-official-subtitle {
+  margin: 0 0 5px;
+  text-align: center;
+  font-size: 7.5pt;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.tax-ar3-grid-table,
+.tax-ar3-financial-table,
+.tax-ar3-employer-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: -1px;
+}
+
+.tax-ar3-grid-table td,
+.tax-ar3-grid-table th,
+.tax-ar3-financial-table th,
+.tax-ar3-financial-table td,
+.tax-ar3-employer-table td {
+  border: 1px solid #000;
+  padding: 2px 4px;
+  vertical-align: middle;
+  text-align: center;
+}
+
+.tax-ar3-section-title,
+.tax-ar3-subsection-title {
+  font-size: 8pt;
+  font-weight: 800;
+  background: #fff;
+  padding: 2px 4px !important;
+}
+
+.tax-ar3-label-row td {
+  font-size: 7pt;
+  font-weight: 800;
+  background: #fff;
+  height: 18px;
+  padding: 1px 3px !important;
+}
+
+.tax-ar3-value-row td {
+  font-size: 8.5pt;
+  font-weight: 700;
+  height: 22px;
+  text-align: center;
+}
+
+.tax-ar3-info-section {
+  margin-bottom: 4px;
+}
+
+.tax-ar3-financial-table {
+  margin: 0 0 4px;
+}
+
+.tax-ar3-section-head {
+  background: #fff !important;
+  font-weight: 800;
+  font-size: 7.5pt;
+  padding: 2px 3px !important;
+  line-height: 1.25;
+}
+
+.tax-ar3-value-head th {
+  background: #fff !important;
+  font-weight: 800;
+  font-size: 7pt;
+  padding: 1px !important;
+}
+
+.tax-ar3-sub-head th {
+  background: #fff !important;
+  font-weight: 800;
+  font-size: 7pt;
+  padding: 1px !important;
+}
+
+.tax-ar3-row-label-head {
+  width: 31%;
+  background: #fff !important;
+}
+
+.tax-ar3-row-label {
+  font-size: 6.8pt;
+  line-height: 1.2;
+  font-weight: 700;
+  text-align: center !important;
+  padding: 1px 2px !important;
+}
+
+.tax-ar3-financial-table tbody tr td {
+  min-height: 16px;
+  height: 16px;
+}
+
+.tax-ar3-money {
+  width: 10%;
+  text-align: center !important;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-variant-numeric: tabular-nums;
+  font-size: 7.5pt;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tax-ar3-money--empty {
+  font-weight: 400;
+}
+
+.tax-ar3-total-row td {
+  background: #fff;
+  vertical-align: middle;
+  font-weight: 800;
+}
+
+.tax-ar3-declaration {
+  margin: 0 0 4px;
+  padding: 4px 6px;
+  border: 1px solid #000;
+  font-size: 7.5pt;
+  font-weight: 700;
+  line-height: 1.55;
+  text-align: center;
+}
+
+.tax-ar3-employer-table .tax-ar3-info-label {
+  width: 14%;
+  font-size: 7.5pt;
+  font-weight: 800;
+  text-align: center;
+  background: #fff;
+}
+
+.tax-ar3-employer-table .tax-ar3-employer-val {
+  font-weight: 700;
+  font-size: 8pt;
+  text-align: center;
+}
+
+.tax-ar3-sign-space {
+  width: 28%;
+  min-height: 58px;
+  font-size: 7.5pt;
+  font-weight: 800;
+  text-align: center;
+  vertical-align: middle !important;
+}
+
+.tax-ar3-doc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 8pt;
+  font-weight: 700;
+}
+
+.tax-ar3-doc-footer__note {
+  font-size: 7pt;
+  font-weight: 700;
+}
+
+.tax-ar3-footnote {
+  margin: 6px 0 0;
+  font-size: 7pt;
+}
+
+@media print {
+  .hr-tax-ar3-page {
+    max-width: none;
+  }
+
+  .hr-tax-ar3-doc {
+    border: 1px solid #000;
+    box-shadow: none;
+    padding: 4mm 5mm 5mm;
+    font-size: 8pt;
+    page-break-inside: avoid;
+  }
+
+  .tax-ar3-emblem {
+    width: 72px;
+    max-height: 48px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .tax-ar3-official-title {
+    font-size: 9.5pt;
+  }
+
+  .tax-ar3-grid-table,
+  .tax-ar3-employer-table,
+  .tax-ar3-financial-table {
+    page-break-inside: avoid;
+  }
+}

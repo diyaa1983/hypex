@@ -1,0 +1,111 @@
+/* تقرير الموظفين حسب الجنسية */
+
+.hr-emp-nat-rpt-block {
+    margin: 0 0 1.25rem;
+    page-break-inside: avoid;
+}
+
+.hr-emp-nat-rpt-nat-name {
+    margin: 0 0 0.65rem;
+    padding: 0.35rem 0.5rem;
+    font-size: 1.05rem;
+    font-weight: 700;
+    background: #eef2f7;
+    border: 1px solid #c5ced9;
+}
+
+.hr-emp-nat-rpt-nat-meta {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #475569;
+}
+
+.hr-emp-nat-rpt-page .report-sales-table-wrap {
+    overflow-x: auto;
+}
+
+.hr-emp-nat-rpt-table {
+    table-layout: auto !important;
+    width: 100%;
+    white-space: nowrap;
+}
+
+.hr-emp-nat-rpt-table th,
+.hr-emp-nat-rpt-table td {
+    white-space: nowrap !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    word-break: keep-all !important;
+    vertical-align: middle;
+    line-height: 1.35;
+    padding-block: 0.35rem;
+}
+
+.hr-emp-nat-rpt-table .col-customer-name,
+.hr-emp-nat-rpt-table .hr-emp-nat-rpt-col-job {
+    white-space: nowrap !important;
+    text-align: start;
+    word-break: keep-all !important;
+}
+
+.hr-emp-nat-rpt-table .hr-emp-nat-rpt-sum td {
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.hr-emp-nat-rpt-grand {
+    margin-top: 1rem;
+    page-break-inside: avoid;
+}
+
+.hr-emp-nat-rpt-grand-table {
+    width: auto;
+    min-width: 18rem;
+    border-collapse: collapse;
+}
+
+.hr-emp-nat-rpt-grand-table th,
+.hr-emp-nat-rpt-grand-table td {
+    border: 1px solid #333;
+    padding: 0.35rem 0.55rem;
+}
+
+.hr-emp-nat-rpt-grand-table th {
+    background: #f0f0f0;
+    text-align: start;
+    font-weight: 700;
+}
+
+.hr-emp-nat-rpt-empty {
+    text-align: center;
+    padding: 1.25rem;
+}
+
+@media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm 10mm;
+    }
+
+    .hr-emp-nat-rpt-block {
+        page-break-inside: avoid;
+    }
+
+    .hr-emp-nat-rpt-table {
+        table-layout: auto !important;
+        width: 100% !important;
+        font-size: 8.5pt !important;
+    }
+
+    .hr-emp-nat-rpt-table th,
+    .hr-emp-nat-rpt-table td,
+    .hr-emp-nat-rpt-table .col-customer-name,
+    .hr-emp-nat-rpt-table .hr-emp-nat-rpt-col-job {
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        word-break: keep-all !important;
+        line-height: 1.25 !important;
+        padding: 3px 5px !important;
+    }
+}

@@ -1,0 +1,501 @@
+/* ── رواتب الموظفين — Oracle 12c ── */
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 0.8125rem;
+    color: var(--ora12-text, #161513);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-flash {
+    margin-bottom: 0.45rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel {
+    margin-bottom: 0.45rem;
+    overflow: hidden;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel-title {
+    margin: 0;
+    padding: 0.42rem 0.7rem;
+    text-align: start;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom: 1px solid #024d8f;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel--allow .hr-sal-panel-title {
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+    border-bottom-color: #024d8f;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel-body {
+    padding: 0.55rem 0.65rem 0.65rem;
+    background: var(--ora12-surface, #fff);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel-body--flush {
+    padding: 0;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-grid {
+    display: grid;
+    grid-template-columns: minmax(8.8rem, 9.25rem) minmax(12rem, 1fr);
+    gap: 0.45rem 0.65rem;
+    align-items: end;
+    max-width: 44rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-grid--salary {
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid var(--ora12-border, #cbd5e1);
+    grid-template-columns: repeat(3, minmax(7.25rem, 1fr));
+    max-width: 40rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-field-label {
+    display: block;
+    margin: 0 0 0.12rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-cell .input {
+    width: 100%;
+    min-height: 1.65rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-cell--code .input {
+    width: 4.8rem;
+    min-width: 4.8rem;
+    max-width: 4.8rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-code-nav {
+    display: inline-flex;
+    align-items: stretch;
+    direction: ltr;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-code-nav .input {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-nav-btn {
+    width: 1.35rem;
+    min-width: 1.35rem;
+    min-height: 1.65rem;
+    padding: 0;
+    border: 0;
+    border-inline-end: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 0;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    color: var(--ora12-text, #161513);
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-nav-btn:last-child {
+    border-inline-end: 0;
+    border-inline-start: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-nav-btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #eef2f6 100%);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-nav-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-cell--pick {
+    align-self: end;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-cell--allow-total .input,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-cell--gross-total .input {
+    text-align: center;
+    background: #f8fafc;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-cell--name {
+    position: relative;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-picker-slot {
+    display: block;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-picker-slot > label {
+    display: block;
+    margin: 0 0 0.12rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-picker-slot .sales-inv-cust-open {
+    width: 100%;
+    min-height: 1.65rem;
+    padding: 0.18rem 0.45rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-pick-hint {
+    margin: 0;
+    padding: 0.65rem 0.7rem;
+    text-align: start;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+    background: var(--ora12-stripe, #f7f9fb);
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+    max-width: 36rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.35rem;
+    padding: 0.35rem 0.55rem;
+    background: var(--ora12-stripe, #f7f9fb);
+    border-bottom: 1px solid var(--ora12-border, #cbd5e1);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel--allow .hr-sal-panel-toolbar {
+    background: #eef5fc;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-panel-toolbar .btn:disabled {
+    opacity: 0.55;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-wrap {
+    padding: 0;
+    background: transparent;
+    border: none;
+    overflow-x: auto;
+    max-width: 40rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table {
+    width: 100%;
+    min-width: 0;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table th,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table tbody tr.hr-sal-row {
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table tbody tr.hr-sal-row:hover td {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table tbody tr.hr-sal-row.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table tbody tr.hr-sal-row.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table tbody tr.hr-sal-row--entry td,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-grid-table tbody tr.hr-sal-row.is-editing td {
+    background: #fff8e1;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-col-num {
+    width: 4.5rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-col-amount-h,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-col-amount {
+    width: 5.5rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-component,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-amount {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-amount {
+    min-height: 1.65rem;
+    max-height: 1.65rem;
+    padding: 0 0.35rem;
+    border-radius: 2px;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1.2;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-amount[readonly] {
+    background: #f8fafc;
+    cursor: not-allowed;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-picker {
+    display: block;
+    width: 100%;
+    position: relative;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-component-smart {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    font-weight: 700;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-list {
+    margin-top: 0.2rem;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    max-height: 11rem;
+    overflow: auto;
+    text-align: start;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-item {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #eef2f7;
+    background: #fff;
+    color: var(--ora12-text, #161513);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 700;
+    padding: 0.25rem 0.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-item:last-child {
+    border-bottom: 0;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-item:hover,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-item.is-active {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-item code {
+    font-size: 0.72rem;
+    color: #374151;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-comp-pick-empty {
+    padding: 0.35rem 0.4rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-inline-hint {
+    margin: 0;
+    padding: 0.35rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+    background: var(--ora12-stripe, #f7f9fb);
+    border-top: 1px solid var(--ora12-border, #cbd5e1);
+    max-width: 40rem;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen.is-editing-allow .hr-sal-panel--allow {
+    outline: 2px solid #0572ce;
+    outline-offset: -1px;
+}
+
+/* LOV — Oracle 12c */
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+    min-height: 1.65rem;
+    max-height: 1.65rem;
+    direction: rtl;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov:focus-within {
+    border-color: #0572ce;
+    outline: 1px solid rgba(5, 114, 206, 0.35);
+    outline-offset: 0;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov-field {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    text-align: start;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.2;
+    appearance: none;
+    -webkit-appearance: none;
+    box-shadow: none !important;
+    min-height: 0;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov-smart-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    margin: 0;
+    padding: 0 0.35rem;
+    border: none !important;
+    border-radius: 0;
+    background: transparent !important;
+    text-align: start;
+    font-size: 0.78rem;
+    font-weight: 700;
+    line-height: 1.2;
+    box-shadow: none !important;
+    min-height: 0;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov-smart-input:focus {
+    outline: none;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov-btn {
+    flex: 0 0 1.1rem;
+    width: 1.1rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    margin: 0 2px;
+    padding: 0;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    color: var(--ora12-text, #161513);
+    font-size: 0.45rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-ora-lov-btn::before {
+    content: "\25BC";
+    display: block;
+    line-height: 1rem;
+    text-align: center;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-list {
+    position: absolute;
+    top: calc(100% + 2px);
+    inset-inline: 0;
+    z-index: 1001;
+    max-height: min(260px, 45vh);
+    overflow: auto;
+    border: 1px solid var(--ora12-border, #cbd5e1);
+    border-radius: 2px;
+    background: #fff;
+    box-shadow: 0 10px 22px rgba(2, 77, 143, 0.18);
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding: 0.35rem 0.45rem;
+    border: none;
+    border-bottom: 1px solid #edf2f7;
+    background: #fff;
+    color: var(--ora12-text, #161513);
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-align: start;
+    cursor: pointer;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-item:last-child {
+    border-bottom: none;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-item:hover,
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-item.is-active {
+    background: #e8f0f8;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-item code {
+    margin-inline-start: auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #024d8f;
+}
+
+body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-emp-pick-empty {
+    padding: 0.42rem 0.5rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--ora12-muted, #5c5c5c);
+}
+
+@media (max-width: 720px) {
+    body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-grid {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+    }
+
+    body.hr-ora-ui .hr-sal-classic.hr-sal-ora-screen .hr-sal-master-grid--salary {
+        grid-template-columns: 1fr;
+        max-width: 100%;
+    }
+
+}

@@ -1,0 +1,415 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../services/location_presence_service.dart';
+import '../services/location_tracking_service.dart';
+import 'api_client.dart';
+import 'config.dart';
+import 'device_identity.dart';
+import 'gps_tracking_config.dart';
+
+/// حالة الجلسة: عنوان السيرفر، الدخول، الصلاحيات، CSRF.
+class SessionController extends ChangeNotifier {
+  SessionController(this.api);
+
+  final ApiClient api;
+  static const _kServer = 'server_base';
+  static const _kRemember = 'remember_login';
+  static const _secure = FlutterSecureStorage();
+
+  bool booting = true;
+  bool authenticated = false;
+  bool busy = false;
+  bool isSystemAdmin = false;
+  String? userName;
+  String? userUsername;
+  int userId = 0;
+  String csrf = '';
+  Set<String> permissions = <String>{};
+  String? lastError;
+  GpsTrackingConfig gpsConfig = GpsTrackingConfig.defaults;
+
+  /// عدد أسطر الصفحة من إعدادات النظام (10 / 15 / 20).
+  int rowsPerPage = 10;
+
+  /// فتح إعدادات التتبّع بعد التحقق من كلمة مرور مدير النظام (جلسة التطبيق فقط).
+  bool settingsUnlocked = false;
+
+  bool can(String code) => permissions.contains(code);
+
+  void lockSettings() {
+    if (!settingsUnlocked) return;
+    settingsUnlocked = false;
+    notifyListeners();
+  }
+
+  void unlockSettings() {
+    if (settingsUnlocked) return;
+    settingsUnlocked = true;
+    notifyListeners();
+  }
+
+  /// التحقق من بيانات أي مستخدم في مجموعة ADMINS دون تغيير جلسة المندوب.
+  Future<String?> verifyAdminPassword(String username, String password) async {
+    try {
+      final res = await api.postForm(
+        AppConfig.verifyAdminPath,
+        fields: {
+          'username': username.trim(),
+          'password': password,
+        },
+      );
+      if (res['ok'] == true) {
+        unlockSettings();
+        return null;
+      }
+      return (res['message'] as String?) ?? 'تعذّر التحقق من المدير.';
+    } on ApiException catch (e) {
+      return e.message;
+    }
+  }
+
+  Future<Map<String, String>> _deviceFields() async {
+    final id = await DeviceIdentity.id();
+    String label = 'هاتف';
+    if (!kIsWeb) {
+      try {
+        label = Platform.isAndroid
+            ? 'أندرويد'
+            : (Platform.isIOS ? 'آيفون' : Platform.operatingSystem);
+      } catch (_) {}
+    }
+    return {'device_id': id, 'device_label': label};
+  }
+
+  /// تحميل العنوان المحفوظ ومحاولة استرجاع الجلسة.
+  Future<void> boot() async {
+    final prefs = await SharedPreferences.getInstance();
+    var saved = (prefs.getString(_kServer) ?? '').trim();
+    if (saved.isEmpty || AppConfig.isLegacyDefaultServer(saved)) {
+      saved = AppConfig.defaultServerBase;
+      await prefs.setString(_kServer, saved);
+    }
+    api.setBase(saved);
+    final device = await _deviceFields();
+    api.setDevice(device['device_id']!, label: device['device_label']!);
+    await LocationTrackingService.saveDeviceId(
+      device['device_id']!,
+      label: device['device_label']!,
+    );
+    await _syncTrackingCredentials();
+    if (saved.isNotEmpty) {
+      try {
+        await refreshMe();
+      } catch (_) {
+        authenticated = false;
+      }
+    }
+    LocationPresenceService.bind(api, csrf: csrf);
+    if (authenticated) {
+      await _syncGpsTracking();
+    }
+    booting = false;
+    notifyListeners();
+  }
+
+  /// نسخ بيانات الدخول المحفوظة إلى خدمة الخلفية (isolate منفصل).
+  Future<void> _syncTrackingCredentials() async {
+    await LocationTrackingService.saveCredentials(base: api.base);
+    final u = await _secure.read(key: 'u');
+    final p = await _secure.read(key: 'p');
+    if (u != null && p != null && u.isNotEmpty && p.isNotEmpty) {
+      await LocationTrackingService.saveCredentials(
+        base: api.base,
+        username: u,
+        password: p,
+      );
+    }
+  }
+
+  bool get hasServer => api.base.isNotEmpty;
+
+  Future<void> saveServer(String raw) async {
+    api.setBase(raw);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kServer, api.base);
+    await LocationTrackingService.saveCredentials(base: api.base);
+    notifyListeners();
+  }
+
+  /// يُعيد CSRF الحالي، ويحدّث الجلسة إن كان فارغاً.
+  Future<String> ensureCsrf() async {
+    if (csrf.isNotEmpty) return csrf;
+    if (!authenticated && api.base.isEmpty) return '';
+    try {
+      await refreshMe();
+    } catch (_) {}
+    return csrf;
+  }
+
+  /// فحص الاتصال بالسيرفر.
+  Future<bool> ping() async {
+    try {
+      return await api.ping();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> refreshMe() async {
+    final wasAuth = authenticated;
+    final device = await _deviceFields();
+    final res = await api.getJson(
+      AppConfig.sessionPath,
+      query: {
+        'action': 'me',
+        ...device,
+      },
+    );
+    final stillAuth = res['authenticated'] == true;
+    if (wasAuth && !stillAuth) {
+      final reason = res['session_end_reason'] as String?;
+      if (reason == 'device_in_use' ||
+          reason == 'device_id_required' ||
+          reason == 'admin_killed') {
+        _apply(res);
+        lastError = (res['message'] as String?) ??
+            'تم إنهاء الجلسة — الحساب مستخدم على جهاز آخر.';
+        await _clearLocalSession(stopServices: true);
+        return;
+      }
+      if (await _silentRelogin()) return;
+      return;
+    }
+    _apply(res);
+    LocationPresenceService.setCsrf(csrf);
+    if (authenticated) {
+      await _syncGpsTracking();
+    }
+  }
+
+  /// استعادة الجلسة من بيانات الدخول المحفوظة دون إخراج المستخدم من الشاشة.
+  Future<bool> _silentRelogin() async {
+    final saved = await savedCredentials();
+    final u = saved.u;
+    final p = saved.p;
+    if (u == null || p == null || u.isEmpty || p.isEmpty) return false;
+    try {
+      final device = await _deviceFields();
+      api.setDevice(device['device_id']!, label: device['device_label']!);
+      final res = await api.postForm(
+        AppConfig.sessionPath,
+        fields: {
+          'action': 'login',
+          'username': u,
+          'password': p,
+          ...device,
+        },
+      );
+      if (res['authenticated'] != true) return false;
+      _apply(res);
+      LocationPresenceService.setCsrf(csrf);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> login(
+    String username,
+    String password, {
+    bool remember = true,
+  }) async {
+    busy = true;
+    lastError = null;
+    notifyListeners();
+    try {
+      final device = await _deviceFields();
+      api.setDevice(device['device_id']!, label: device['device_label']!);
+      final res = await api.postForm(
+        AppConfig.sessionPath,
+        fields: {
+          'action': 'login',
+          'username': username,
+          'password': password,
+          ...device,
+        },
+      );
+      _apply(res);
+      if (authenticated) {
+        await LocationTrackingService.saveDeviceId(
+          device['device_id']!,
+          label: device['device_label']!,
+        );
+        // دائماً نمرّر بيانات الدخول لخدمة التتبّع — وإلا تعمل الخدمة شكلياً دون إرسال.
+        await LocationTrackingService.saveCredentials(
+          base: api.base,
+          username: username,
+          password: password,
+        );
+        if (remember) {
+          await _secure.write(key: 'u', value: username);
+          await _secure.write(key: 'p', value: password);
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_kRemember, true);
+        } else {
+          await _secure.delete(key: 'u');
+          await _secure.delete(key: 'p');
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(_kRemember, false);
+        }
+        await _syncGpsTracking();
+      }
+      return authenticated;
+    } on ApiException catch (e) {
+      lastError = e.message;
+      authenticated = false;
+      return false;
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<({String? u, String? p})> savedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kRemember) != true) {
+      return (u: null, p: null);
+    }
+    return (u: await _secure.read(key: 'u'), p: await _secure.read(key: 'p'));
+  }
+
+  Future<void> logout() async {
+    await _clearLocalSession(stopServices: true, callServer: true);
+  }
+
+  /// إنهاء الجلسة محلياً بعد رفض السيرفر (جهاز آخر نشط).
+  Future<void> handleDeviceConflict(String message) async {
+    lastError = message;
+    await _clearLocalSession(stopServices: true, callServer: false);
+  }
+
+  Future<void> _clearLocalSession({
+    bool stopServices = false,
+    bool callServer = false,
+  }) async {
+    if (stopServices) {
+      try {
+        await LocationPresenceService.stop();
+        await LocationTrackingService.stop();
+        await LocationTrackingService.clearCredentials();
+      } catch (_) {}
+    }
+    if (callServer) {
+      try {
+        // أعد ضبط معرّف الجهاز صراحةً قبل الخروج حتى يُحرَّر القفل على السيرفر.
+        final device = await _deviceFields();
+        api.setDevice(device['device_id']!, label: device['device_label']!);
+        await api.postForm(
+          AppConfig.sessionPath,
+          fields: {
+            'action': 'logout',
+            ...device,
+          },
+        );
+      } catch (_) {}
+    }
+    await api.clearCookies();
+    final prefs = await SharedPreferences.getInstance();
+    // بيانات "تذكّرني" تبقى بعد تسجيل الخروج لتعبئة شاشة الدخول التالية.
+    // إيقاف تذكّرها يتم عند دخول لاحق مع إلغاء الخيار.
+    if (prefs.getBool(_kRemember) != true) {
+      await _secure.delete(key: 'u');
+      await _secure.delete(key: 'p');
+    }
+    authenticated = false;
+    isSystemAdmin = false;
+    permissions = <String>{};
+    userName = null;
+    userUsername = null;
+    userId = 0;
+    gpsConfig = GpsTrackingConfig.defaults;
+    rowsPerPage = 10;
+    settingsUnlocked = false;
+    notifyListeners();
+  }
+
+  Future<void> _syncGpsTracking() async {
+    if (!authenticated || !gpsConfig.enabled) {
+      await LocationPresenceService.stop();
+      await LocationTrackingService.stop();
+      return;
+    }
+
+    await LocationTrackingService.applyServerConfig(
+      intervalSec: gpsConfig.intervalSec,
+      minDistanceM: gpsConfig.minDistanceM,
+    );
+
+    // إذا مُنع إيقاف التتبّع من النظام — فرض التشغيل دائماً عند auto_enable.
+    final explicit = await LocationTrackingService.enabledFlagOrNull;
+    final forceOn = gpsConfig.autoEnable && !gpsConfig.userCanDisable;
+    final shouldAutoStart = forceOn
+        ? true
+        : (gpsConfig.autoEnable
+            ? explicit != false
+            : (explicit == true || explicit == null));
+
+    if (shouldAutoStart) {
+      if (forceOn) {
+        await LocationTrackingService.setEnabledFlag(true);
+      }
+      if (!await LocationTrackingService.isRunning) {
+        final err = await LocationTrackingService.start();
+        if (err != null) return;
+      }
+      await LocationPresenceService.resumeIfNeeded(
+        api: api,
+        csrf: csrf,
+        authenticated: true,
+        intervalSec: gpsConfig.intervalSec,
+      );
+      return;
+    }
+
+    await LocationPresenceService.resumeIfNeeded(
+      api: api,
+      csrf: csrf,
+      authenticated: true,
+      intervalSec: gpsConfig.intervalSec,
+    );
+  }
+
+  void _apply(Map<String, dynamic> res) {
+    authenticated = res['authenticated'] == true;
+    csrf = (res['csrf'] as String?) ?? csrf;
+    isSystemAdmin = res['is_system_admin'] == true;
+    final rawGps = res['gps_tracking'];
+    if (rawGps is Map) {
+      gpsConfig = GpsTrackingConfig.fromJson(
+        rawGps.map((k, v) => MapEntry(k.toString(), v)),
+      );
+    }
+    final rpp = (res['rows_per_page'] as num?)?.toInt() ?? rowsPerPage;
+    rowsPerPage = (rpp == 10 || rpp == 15 || rpp == 20) ? rpp : 10;
+    final user = res['user'];
+    if (user is Map) {
+      userId = (user['id'] as num?)?.toInt() ?? 0;
+      userName = user['name'] as String?;
+      userUsername = user['username'] as String?;
+    } else {
+      userUsername = null;
+    }
+    final perms = res['permissions'];
+    if (perms is List) {
+      permissions = perms.map((e) => e.toString()).toSet();
+    }
+    if (!authenticated) {
+      settingsUnlocked = false;
+    }
+    LocationPresenceService.setCsrf(csrf);
+  }
+}

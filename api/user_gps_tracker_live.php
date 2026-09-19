@@ -1,0 +1,123 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * تتبّع المواقع الحية — نقاط المستخدمين على الخريطة (تحديث لحظي).
+ *
+ * GET:
+ *   online_seconds  (افتراضي 20) — شارة «متصل» إن وُجدت نبضة خلال هذه الثواني
+ *   stale_seconds   (افتراضي = online) — لا يُستخدم عند include_stale=0
+ *   include_stale   0|1 (افتراضي 0) — إظهار غير المتصلين ضمن النافذة
+ *   q               بحث بالاسم
+ *
+ * توافق خلفي: online_minutes / stale_minutes ما زالا مقبولين.
+ */
+require_once dirname(__DIR__) . '/includes/bootstrap.php';
+require_once app_path('includes/sys_user_location.php');
+require_once app_path('includes/app_osm.php');
+
+header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate');
+
+if (!sys_user_location_may_track()) {
+    http_response_code(403);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'forbidden',
+        'message' => 'لا توجد صلاحية لتتبّع المواقع الحية.',
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+try {
+    $pdo = db();
+    sys_user_location_ensure_schema($pdo);
+
+    $onlineSeconds = isset($_GET['online_seconds'])
+        ? (int) $_GET['online_seconds']
+        : (isset($_GET['online_minutes']) ? (int) $_GET['online_minutes'] * 60 : 60);
+    $staleSeconds = isset($_GET['stale_seconds'])
+        ? (int) $_GET['stale_seconds']
+        : (isset($_GET['stale_minutes']) ? (int) $_GET['stale_minutes'] * 60 : $onlineSeconds);
+    // افتراضياً: المتصلون فقط (نبضة خلال online_seconds).
+    $includeStale = isset($_GET['include_stale']) && (string) $_GET['include_stale'] === '1';
+    $q = trim((string) ($_GET['q'] ?? ''));
+
+    $onlineSeconds = max(15, min(12 * 3600, $onlineSeconds));
+    $staleSeconds = max($onlineSeconds, min(24 * 3600, $staleSeconds));
+
+    $rows = sys_user_location_tracker_rows(
+        $pdo,
+        1,
+        1,
+        $q,
+        $includeStale,
+        $onlineSeconds,
+        $staleSeconds
+    );
+
+    $online = 0;
+    $offline = 0;
+    foreach ($rows as $r) {
+        if (!empty($r['is_online'])) {
+            $online++;
+        } else {
+            $offline++;
+        }
+    }
+
+    $lastPings = sys_user_location_recent_snapshots($pdo, 8);
+    $hint = '';
+    if ($rows === [] && $lastPings !== []) {
+        $top = $lastPings[0];
+        $hint = 'لا يوجد متصل الآن. آخر موقع محفوظ: '
+            . (string) ($top['user_label'] ?? '')
+            . ' — '
+            . (string) ($top['age_label'] ?? '')
+            . '.';
+        if (empty($top['coords_valid'])) {
+            $hint .= ' الإحداثيات غير صالحة للعرض على الخريطة.';
+        } elseif ((int) ($top['age_sec'] ?? 999999) > $onlineSeconds) {
+            $hint .= ' النبضة أقدم من نافذة الاتصال (' . $onlineSeconds . ' ثانية).';
+        }
+    } elseif ($rows === []) {
+        $hint = 'لا يوجد متصل الآن. تأكد أن تطبيق المندوب يرسل الموقع كل 10 ثوانٍ إلى نفس هذا السيرفر.';
+    }
+
+    $osm = app_osm_js_config();
+
+    echo json_encode([
+        'ok' => true,
+        'server_time' => date('c'),
+        'online_seconds' => $onlineSeconds,
+        'stale_seconds' => $staleSeconds,
+        'include_stale' => $includeStale,
+        'online_minutes' => max(1, (int) ceil($onlineSeconds / 60)),
+        'stale_minutes' => max(1, (int) ceil($staleSeconds / 60)),
+        'counts' => [
+            'total' => count($rows),
+            'online' => $online,
+            'away' => $offline,
+            'offline' => $offline,
+        ],
+        'hint' => $hint,
+        'last_pings' => $lastPings,
+        'map' => [
+            'tile_url' => $osm['tileUrl'],
+            'attribution' => $osm['attribution'],
+            'map_provider' => $osm['mapProvider'],
+            'default_lat' => 31.9539,
+            'default_lng' => 35.9106,
+            'default_zoom' => 8,
+        ],
+        'markers' => $rows,
+    ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+} catch (Throwable $e) {
+    error_log('user_gps_tracker_live: ' . $e->getMessage());
+    http_response_code(500);
+    echo json_encode([
+        'ok' => false,
+        'error' => 'server_error',
+        'message' => 'حدث خطأ أثناء تحميل نقاط التتبّع.',
+    ], JSON_UNESCAPED_UNICODE);
+}

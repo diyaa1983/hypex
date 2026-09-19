@@ -1,0 +1,144 @@
+.hr-att-shift-page {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-att-shift-hint {
+    margin: 0 0 0.65rem;
+    font-size: 0.78rem;
+}
+
+.hr-att-shift-fields {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.55rem 0.75rem;
+}
+
+.hr-att-shift-fields .field {
+    margin: 0;
+    min-width: 0;
+}
+
+.hr-att-shift-field-code {
+    flex: 0 0 5.25rem;
+    width: 5.25rem;
+}
+
+.hr-att-shift-field-name {
+    flex: 0 0 11.5rem;
+    width: 11.5rem;
+}
+
+.hr-att-shift-field-time {
+    flex: 0 0 5.75rem;
+    width: 5.75rem;
+}
+
+.hr-att-shift-field-holiday {
+    flex: 0 0 auto;
+}
+
+.hr-att-shift-field-holiday .field-label {
+    visibility: hidden;
+}
+
+.hr-att-shift-field-holiday .hr-att-shift-holiday-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 1.65rem;
+    white-space: nowrap;
+    font-size: 0.68rem;
+    padding: 0.15rem 0.45rem;
+}
+
+.hr-att-shift-field-active {
+    flex: 0 0 auto;
+}
+
+.hr-att-shift-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.hr-att-shift-row-actions {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.hr-att-shift-delete-form {
+    display: inline;
+    margin: 0;
+}
+
+.hr-att-shift-toggle-form {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hr-att-shift-toggle-chk input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+}
+
+.hr-att-shift-cross-tag {
+    display: inline-block;
+    padding: 0.05rem 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
+    border-radius: 2px;
+    background: #eff6ff;
+}
+
+.hr-att-shift-holiday-tag {
+    display: inline-block;
+    margin-inline-start: 0.25rem;
+    padding: 0.05rem 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    border-radius: 2px;
+    background: #fef2f2;
+}
+
+.hr-att-shift-table tr.is-holiday td:nth-child(2) {
+    color: #b91c1c;
+}
+
+.hr-att-shift-table tr.is-inactive td {
+    color: #94a3b8;
+}
+
+@media (max-width: 720px) {
+    .hr-att-shift-fields {
+        gap: 0.55rem;
+    }
+
+    .hr-att-shift-field-code,
+    .hr-att-shift-field-name,
+    .hr-att-shift-field-time {
+        flex: 1 1 calc(50% - 0.35rem);
+        width: auto;
+        min-width: 5rem;
+    }
+
+    .hr-att-shift-field-name {
+        flex: 1 1 100%;
+    }
+
+    .hr-att-shift-field-holiday,
+    .hr-att-shift-field-active {
+        flex: 0 0 auto;
+    }
+}

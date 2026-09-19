@@ -1,0 +1,157 @@
+/* تسجيل العمل الإضافي */
+
+.hr-ot-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.hr-ot-flash,
+.hr-ot-access-msg {
+    margin-bottom: 0.5rem;
+}
+
+.hr-ot-panel {
+    margin-bottom: 0.65rem;
+}
+
+.hr-ot-master-grid {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.35fr) minmax(12rem, 1fr) minmax(14rem, 1.2fr);
+    gap: 0.65rem 0.85rem;
+    align-items: end;
+}
+
+.hr-ot-field-label {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 700;
+    margin-bottom: 0.2rem;
+}
+
+.hr-ot-calc-meta {
+    margin-bottom: 0.75rem;
+    line-height: 1.5;
+}
+
+.hr-ot-editor-fields {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem 0.85rem;
+    align-items: end;
+}
+
+.hr-ot-field-multiplier {
+    grid-column: 1 / -1;
+}
+
+.hr-ot-multiplier-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.65rem 1rem;
+    margin-top: 0.2rem;
+}
+
+.hr-ot-multiplier-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.hr-ot-multiplier-option input {
+    margin: 0;
+}
+
+.hr-ot-amount-readonly {
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.hr-ot-editor-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.hr-ot-pick-emp {
+    text-align: center;
+    padding: 1rem;
+}
+
+.hr-ot-emp-code {
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.hr-ot-list-meta {
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.9;
+}
+
+.hr-ot-table-wrap {
+    overflow-x: auto;
+}
+
+.hr-ot-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.hr-ot-table th,
+.hr-ot-table td {
+    border: 1px solid var(--ora12-border, #5c6670);
+    padding: 0.35rem 0.5rem;
+    vertical-align: middle;
+}
+
+.hr-ot-table thead th {
+    background: #f0f0f0;
+    font-weight: 700;
+    text-align: center;
+}
+
+.hr-ot-table td.num {
+    text-align: center;
+    white-space: nowrap;
+}
+
+.hr-ot-row.is-selected td {
+    background: #e8f4fc;
+}
+
+.hr-ot-row-link {
+    color: inherit;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.hr-ot-row-link:hover {
+    text-decoration: underline;
+}
+
+.hr-ot-empty {
+    text-align: center;
+    padding: 1rem;
+}
+
+.hr-ot-sum td {
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.hidden {
+    display: none !important;
+}
+
+@media (max-width: 900px) {
+    .hr-ot-master-grid,
+    .hr-ot-editor-fields {
+        grid-template-columns: 1fr;
+    }
+}

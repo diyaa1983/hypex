@@ -1,0 +1,273 @@
+/* كشف الرواتب للأقسام — معاينة الطباعة: sales-invoice.css */
+
+.sales-inv-print-preview-body.hr-pr-dept-rpt-doc {
+    max-width: 1000px;
+    margin-inline: auto;
+    box-shadow: none;
+    border: none;
+}
+
+.sales-inv-print-preview-body .hr-pr-dept-rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.sales-inv-print-preview-body .hr-pr-dept-rpt-table th,
+.sales-inv-print-preview-body .hr-pr-dept-rpt-table td {
+    border: 1px solid #94a3b8;
+    padding: 0.4rem 0.5rem;
+}
+
+.sales-inv-print-preview-body .hr-pr-dept-rpt-table thead th {
+    background-color: #d9d9d9 !important;
+    text-align: center;
+}
+
+.sales-inv-print-preview-body .doc-print-header-title {
+    font-size: 1.55rem;
+    font-weight: 800;
+}
+
+.hr-pr-dept-rpt-page-title {
+    margin: 0 0 0.75rem;
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.hr-pr-dept-rpt-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.65rem;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1rem;
+    max-width: 960px;
+    margin-inline: auto;
+}
+
+.hr-pr-dept-rpt-filters .field {
+    margin: 0;
+    min-width: 140px;
+}
+
+.hr-pr-dept-rpt-doc {
+    max-width: 1000px;
+    margin: 1rem auto 2rem;
+    padding: 0.75rem 1rem 1.5rem;
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+    position: relative;
+}
+
+/* ترويسة موحدة مع باقي التقارير — عنوان أكبر في الوسط */
+.hr-pr-dept-rpt-doc .doc-print-header-title {
+    font-size: 1.55rem;
+    font-weight: 800;
+    color: #0f172a;
+    padding-top: 0.55rem;
+}
+
+.hr-pr-dept-rpt-doc .doc-print-header-top {
+    margin-bottom: 0;
+}
+
+.hr-pr-dept-rpt-block {
+    margin-bottom: 1.5rem;
+}
+
+.hr-pr-dept-rpt-dept-name {
+    margin: 0 0 0.4rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.hr-pr-dept-rpt-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.88rem;
+}
+
+.hr-pr-dept-rpt-table th,
+.hr-pr-dept-rpt-table td {
+    border: 1px solid #94a3b8;
+    padding: 0.4rem 0.5rem;
+    text-align: right;
+}
+
+.hr-pr-dept-rpt-table thead tr {
+    background-color: #d9d9d9;
+}
+
+.hr-pr-dept-rpt-table thead th {
+    background-color: #d9d9d9 !important;
+    background: #d9d9d9 !important;
+    font-weight: 700;
+    text-align: center;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.hr-pr-dept-rpt-table td.num {
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.hr-pr-dept-rpt-table td.hr-pr-dept-rpt-na {
+    text-align: center;
+    color: #64748b;
+    font-size: 0.82rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.hr-pr-dept-rpt-table tbody td:first-child,
+.hr-pr-dept-rpt-table thead th:first-child {
+    text-align: center;
+    width: 3rem;
+}
+
+.hr-pr-dept-rpt-sum td {
+    background: #e2e8f0;
+    font-weight: 700;
+}
+
+.hr-pr-dept-rpt-sum td:first-child {
+    text-align: right;
+}
+
+.hr-pr-dept-rpt-grand {
+    margin-top: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.35rem;
+}
+
+.hr-pr-dept-rpt-grand-title {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #0f172a;
+    align-self: stretch;
+    text-align: right;
+}
+
+.hr-pr-dept-rpt-grand-table {
+    border-collapse: collapse;
+    min-width: 480px;
+    font-size: 0.92rem;
+}
+
+.hr-pr-dept-rpt-grand-table th,
+.hr-pr-dept-rpt-grand-table td {
+    border: 1px solid #64748b;
+    padding: 0.45rem 0.65rem;
+}
+
+.hr-pr-dept-rpt-grand-table th {
+    background-color: #d9d9d9 !important;
+    background: #d9d9d9 !important;
+    text-align: right;
+    font-weight: 700;
+    color: #0f172a;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.hr-pr-dept-rpt-grand-table td.num {
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    min-width: 7rem;
+}
+
+.hr-pr-dept-rpt-grand-highlight th,
+.hr-pr-dept-rpt-grand-highlight td {
+    background: #f1f5f9;
+}
+
+.hr-pr-dept-rpt-grand-total th,
+.hr-pr-dept-rpt-grand-total td {
+    background: #e2e8f0;
+    font-size: 0.98rem;
+}
+
+.hr-pr-dept-rpt-empty {
+    text-align: center;
+    padding: 2rem 1rem;
+}
+
+@media print {
+    @page {
+        margin: 8mm 10mm;
+    }
+
+    .app-screen-head,
+    .app-screen-title-bar,
+    .sidebar,
+    .sidebar-foot,
+    .app-shell-body > .sidebar,
+    .master-toolbar,
+    .hr-pr-dept-rpt-page .no-print,
+    .btn {
+        display: none !important;
+    }
+
+    .app-shell,
+    .app-shell-body,
+    .main-wrap,
+    .main-content {
+        display: block !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: visible !important;
+    }
+
+    body,
+    .app-body {
+        background: #fff !important;
+    }
+
+    .main-bg-logo {
+        display: none !important;
+    }
+
+    .hr-pr-dept-rpt-doc {
+        box-shadow: none;
+        border: none;
+        max-width: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .hr-pr-dept-rpt-block {
+        page-break-inside: avoid;
+    }
+
+    .hr-pr-dept-rpt-table thead th,
+    .hr-pr-dept-rpt-grand-table th {
+        background-color: #d9d9d9 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+@media (max-width: 720px) {
+    .hr-pr-dept-rpt-table {
+        font-size: 0.78rem;
+    }
+
+    .hr-pr-dept-rpt-grand {
+        justify-content: stretch;
+    }
+
+    .hr-pr-dept-rpt-grand-table {
+        width: 100%;
+        min-width: 0;
+    }
+}

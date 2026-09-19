@@ -1,0 +1,1732 @@
+/* ── فواتير الموبايل — Oracle 12c (مثل نظام سطح المكتب) ── */
+
+.m-ora12-invoice-ui {
+  --ora12-blue: #0572ce;
+  --ora12-blue-dark: #024d8f;
+  --ora12-blue-light: #e8f4fc;
+  --ora12-bg: #e8eaed;
+  --ora12-surface: #ffffff;
+  --ora12-border: #5c6670;
+  --ora12-text: #161513;
+  --ora12-muted: #5c5c5c;
+  --ora12-link: #0066cc;
+  --ora12-hover: #f0f6fc;
+  --ora12-stripe: #f7f9fb;
+  --ora12-title: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+}
+
+.m-ora12-invoice-ui.m-body {
+  background: var(--ora12-bg);
+}
+
+.m-ora12-invoice-ui .m-header {
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+/* إدخال فاتورة البيع: ملء الشاشة بدون ترويسة التطبيق */
+.m-ora12-invoice-ui.m-page-invoice-doc .m-header {
+  display: none;
+}
+
+.m-ora12-invoice-ui.m-page-invoice-doc .m-main {
+  padding-top: calc(0.35rem + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+}
+
+.m-ora12-invoice-ui.m-page-inv-view .m-main {
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 0.35rem);
+}
+
+.m-ora12-invoice-ui .m-header-brand {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+.m-ora12-invoice-ui .m-main {
+  padding: 0.45rem 0.5rem 0.65rem;
+}
+
+.m-ora12 {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.75rem;
+  color: var(--ora12-text);
+}
+
+.m-ora12-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.m-ora12-panel {
+  background: var(--ora12-surface);
+  border: 1px solid var(--ora12-border);
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+  overflow: hidden;
+}
+
+.m-ora12-panel__title {
+  margin: 0;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+  line-height: 1.35;
+}
+
+.m-ora12-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+}
+
+.m-ora12-panel__head .m-ora12-panel__title {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.m-ora12-panel__body {
+  padding: 0.55rem;
+  background: var(--ora12-surface);
+}
+
+.m-ora12-panel__body--flush {
+  padding: 0;
+}
+
+.m-ora12-invoice-ui .m-doc-entry-kicker {
+  display: none;
+}
+
+.m-ora12-invoice-ui .m-ora12-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-meta .m-field--full {
+  grid-column: 1 / -1;
+}
+
+.m-ora12-invoice-ui .m-ora12-meta .m-field {
+  margin-bottom: 0;
+}
+
+.m-ora12-invoice-ui .m-ora12-panel__body--compact {
+  padding: 0.45rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-inv-pick-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-inv-pick-row .m-btn--pick {
+  width: 100%;
+  min-width: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-pick-row .m-btn-pick-label {
+  font-size: 0.68rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+  padding: 0.28rem 0.35rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  gap: 0.22rem 0.2rem;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-field {
+  min-width: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-field--date .m-input--date-digits {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-align: center;
+  direction: ltr;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-field-label {
+  font-size: 0.54rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  letter-spacing: 0;
+  margin-bottom: 0.12rem;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-input,
+.m-ora12-invoice-ui .m-inv-meta-row .m-select {
+  min-width: 0;
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ora12-text);
+  padding: 0.22rem 0.3rem;
+  min-height: 1.55rem;
+  background: #fff;
+  line-height: 1.25;
+}
+
+.m-ora12-invoice-ui .m-inv-meta-row .m-input:focus,
+.m-ora12-invoice-ui .m-inv-meta-row .m-select:focus {
+  font-size: 16px;
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field .m-field-label {
+  font-weight: 800;
+  color: var(--ora12-text);
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field .m-input {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ora12-text);
+  min-height: 1.55rem;
+  padding: 0.22rem 0.35rem;
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field .m-input:focus {
+  font-size: 16px;
+}
+
+/* منع تكبير iOS في شاشات الاختيار */
+.m-ora12-invoice-ui .m-picker .m-input,
+.m-ora12-invoice-ui .m-picker .m-input--sm {
+  font-size: 16px;
+}
+
+.m-ora12-invoice-ui .m-select--truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-ora12-invoice-ui .m-inv-notes-field {
+  margin-top: 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-panel--inv-top .m-customer-chosen {
+  margin-bottom: 0.35rem;
+}
+
+.m-ora12-invoice-ui .m-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+  margin-bottom: 0.15rem;
+}
+
+.m-ora12-invoice-ui .m-input,
+.m-ora12-invoice-ui .m-select {
+  min-height: 1.65rem;
+  padding: 0.2rem 0.45rem;
+  font-size: 0.78rem;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-input:focus,
+.m-ora12-invoice-ui .m-select:focus {
+  outline: none;
+  border-color: var(--ora12-blue);
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.m-ora12-invoice-ui .m-btn--pick {
+  min-height: 1.65rem;
+  padding: 0.35rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ora12-text);
+  background: #fff;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-btn--pick:active {
+  background: var(--ora12-hover);
+  border-color: var(--ora12-blue);
+}
+
+.m-ora12-invoice-ui .m-customer-chosen {
+  margin-bottom: 0.35rem;
+  padding: 0.35rem 0.45rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  text-align: start;
+}
+
+.m-ora12-invoice-ui .m-customer-chosen-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-lines-swipe-hint,
+.m-ora12-invoice-ui .m-lines-empty {
+  margin: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.m-ora12-invoice-ui .m-lines-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.m-ora12-invoice-ui .m-inv-lines-wrap {
+  margin: 0.35rem 0.25rem 0.45rem;
+}
+
+.m-ora12-invoice-ui .m-inv-lines-scroll {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  background: #fff;
+  max-height: min(42vh, 20rem);
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.m-ora12-invoice-ui .m-inv-grid-table thead th {
+  background: var(--ora12-blue, #0572ce);
+  color: #fff;
+  border-color: var(--ora12-blue-dark, #024d8f);
+  font-size: 0.42rem;
+}
+
+.m-ora12-invoice-ui .m-inv-grid-table th,
+.m-ora12-invoice-ui .m-inv-grid-table td {
+  border-color: var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-grid-table tbody tr:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-inv-grid-table .m-input--xs,
+.m-ora12-invoice-ui .m-inv-grid-table .m-select {
+  min-height: 1.1rem;
+  height: 1.1rem;
+  padding: 0.06rem 0.02rem;
+  font-size: 0.52rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-inv-grid-table .m-input--xs:focus,
+.m-ora12-invoice-ui .m-inv-grid-table .m-select:focus {
+  font-size: 16px;
+}
+
+.m-ora12-invoice-ui .m-inv-cell-seq .m-inv-seq {
+  border-radius: 2px;
+  background: #f3f5f7;
+  color: var(--ora12-text);
+  border: 1px solid var(--ora12-border);
+  font-size: 0.54rem;
+}
+
+.m-ora12-invoice-ui .m-inv-cell-gross .m-inv-gross--inline {
+  font-size: 0.54rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-line-delete--inline {
+  border-radius: 2px;
+  border: 1px solid #e8b4a8;
+  background: #fdecea;
+}
+
+.m-ora12-invoice-ui .m-inv-lines {
+  display: table-row-group;
+}
+
+.m-page-invoice-doc .m-lines-swipe-hint {
+  margin: 0.35rem 0.45rem 0.3rem;
+}
+
+.m-ora12-invoice-ui .m-inv-fixed-actions .m-action-dock-actions .m-toolbar-btn {
+  --m-toolbar-btn-h: 2.15rem;
+  --m-toolbar-btn-ico: 0.88rem;
+  --m-toolbar-btn-lbl: 0.5rem;
+}
+
+.m-ora12-invoice-ui .m-picker .m-item-tile.is-selected {
+  border-color: var(--ora12-blue, #0572ce);
+  background: #d9ecfa;
+  box-shadow:
+    0 0 0 2px rgba(5, 114, 206, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.65);
+}
+
+.m-ora12-invoice-ui .m-picker .m-item-tile.is-selected .m-item-tile-name {
+  color: var(--ora12-blue-dark, #024d8f);
+}
+
+.m-ora12-invoice-ui .m-picker .m-item-tile.is-selected .m-item-tile-check {
+  background: var(--ora12-blue, #0572ce);
+}
+
+.m-ora12-invoice-ui .m-inv-line-delete--inline {
+  border-radius: 2px;
+  border: 1px solid #e8b4a8;
+  background: #fdecea;
+}
+
+.m-ora12-invoice-ui .m-inv-line-all .m-input--xs,
+.m-ora12-invoice-ui .m-inv-line-all .m-select {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-inv-line .m-input--xs,
+.m-ora12-invoice-ui .m-inv-line .m-select {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.m-ora12-invoice-ui .m-inv-mini span {
+  font-size: 0.65rem;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-btn--add-line {
+  margin: 0.55rem;
+  width: calc(100% - 1.1rem);
+}
+
+.m-ora12-invoice-ui .m-ora12-totals {
+  padding: 0.45rem 0.55rem;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-total-row {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ora12-text);
+  padding: 0.12rem 0;
+}
+
+.m-ora12-invoice-ui .m-total-row--grand {
+  border-top: 2px solid var(--ora12-border);
+  padding-top: 0.35rem;
+  margin-top: 0.2rem;
+  font-size: 0.88rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-alert {
+  border-radius: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.m-ora12-invoice-ui .m-alert--success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.m-ora12-invoice-ui .m-alert--error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+/* قائمة الفواتير */
+.m-ora12-invoice-ui .m-hub-strip--invoice {
+  background: var(--ora12-title);
+  border: 1px solid var(--ora12-blue-dark);
+  border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.m-ora12-invoice-ui .m-hub-head-btn,
+.m-ora12-invoice-ui .m-btn--primary {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid var(--ora12-blue-dark);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-hub-head-btn:active,
+.m-ora12-invoice-ui .m-btn--primary:active {
+  background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+}
+
+.m-ora12-invoice-ui .m-ora12-list-panel .m-ora12-panel__body {
+  padding: 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-seg-item {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.4rem 0.5rem;
+}
+
+.m-ora12-invoice-ui .m-seg-item:has(input:checked) {
+  background: var(--ora12-blue-light);
+  border-color: var(--ora12-blue);
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-strip-list {
+  gap: 0;
+  margin-top: 0.45rem;
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-strip {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #fff;
+  box-shadow: none;
+  padding: 0.5rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-inv-strip:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-inv-strip:last-child {
+  border-bottom: none;
+}
+
+.m-ora12-invoice-ui .m-inv-strip:active {
+  transform: none;
+  background: var(--ora12-hover);
+}
+
+.m-ora12-invoice-ui .m-inv-strip--selected {
+  background: var(--ora12-blue-light);
+  box-shadow: inset 3px 0 0 var(--ora12-blue);
+}
+
+.m-ora12-invoice-ui .m-inv-strip-icon-wrap {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  box-shadow: none;
+}
+
+.m-ora12-invoice-ui .m-inv-strip-no {
+  color: var(--ora12-blue-dark);
+  font-size: 0.78rem;
+}
+
+.m-ora12-invoice-ui .m-inv-strip-party {
+  font-size: 0.76rem;
+}
+
+.m-ora12-invoice-ui .m-inv-strip-amt {
+  font-size: 0.82rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-tag {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-tag--ok {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.m-ora12-invoice-ui .m-tag--warn {
+  background: #fffbeb;
+  border-color: #e8d4a8;
+  color: #8b5a00;
+}
+
+/* عرض الفاتورة */
+.m-ora12-invoice-ui .m-inv-view-doc,
+.m-ora12-invoice-ui .m-inv-view-lines-panel,
+.m-ora12-invoice-ui .m-inv-view-totals {
+  border: 1px solid var(--ora12-border);
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(22, 21, 19, 0.06);
+  padding: 0;
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-view-doc-head {
+  padding: 0.55rem 0.65rem;
+  background: #f3f5f7;
+  border-bottom: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-view-no {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-facts {
+  display: block;
+  margin: 0;
+  gap: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem;
+  border-bottom: 1px solid var(--ora12-border);
+  min-height: 2.35rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact--wide {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact dt {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact dd {
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin: 0;
+  text-align: end;
+}
+
+.m-ora12-invoice-ui .m-inv-view-fact--wide dd {
+  text-align: start;
+  margin-top: 0.1rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-totals {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0.45rem 0.65rem 0.5rem;
+  background: #f3f5f7;
+  border-top: none;
+}
+
+.m-ora12-invoice-ui .m-inv-view-total-row {
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-inv-view-total-row--grand {
+  border-top: 2px solid var(--ora12-border);
+  font-size: 0.88rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-lines-title {
+  margin: 0;
+  padding: 0.42rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ora12-title);
+  border-bottom: 1px solid var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-lines-scroll {
+  padding: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-view-lines-list {
+  gap: 0;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card {
+  border: none;
+  border-radius: 0;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #fff;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card:nth-child(even) {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-head {
+  background: transparent;
+  border-bottom: 1px solid var(--ora12-border);
+  padding: 0.4rem 0.55rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-seq {
+  border-radius: 2px;
+  background: #f3f5f7;
+  color: var(--ora12-text);
+  border: 1px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-name {
+  font-size: 0.76rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-gross {
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-grid {
+  padding: 0.32rem 0.4rem 0.4rem;
+  gap: 0.18rem 0.1rem;
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-grid dt {
+  font-size: 0.5rem;
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-inv-view-line-card-grid dd {
+  font-size: 0.6rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-inv-view-extra .m-btn--ghost {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.m-ora12-invoice-ui .m-tabbar-item.is-active .m-tabbar-icon-wrap--tab {
+  box-shadow: 0 2px 6px rgba(5, 114, 206, 0.35);
+}
+
+/* كشف حساب عميل/مورد */
+.m-ora12-invoice-ui .m-ora12-chips {
+  gap: 0.4rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-chips .m-seg-item {
+  flex: 1;
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.42rem 0.5rem;
+  min-height: 2rem;
+}
+
+.m-ora12-invoice-ui .m-ora12-chips .m-seg-item:has(input:checked) {
+  background: var(--ora12-blue-light);
+  border-color: var(--ora12-blue);
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-pick-clear {
+  border-radius: 2px;
+  border: 1px solid #e8b4a8;
+  background: #fdecea;
+  color: #c74634;
+}
+
+.m-ora12-invoice-ui .m-ps-summary {
+  padding: 0.5rem 0.65rem;
+  border-bottom: 1px solid var(--ora12-border);
+  background: #f3f5f7;
+}
+
+.m-ora12-invoice-ui .m-ps-summary-name {
+  font-size: 0.82rem;
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-summary-type {
+  color: var(--ora12-muted);
+}
+
+.m-ora12-invoice-ui .m-ps-result-card {
+  margin-bottom: 0;
+}
+
+.m-ora12-invoice-ui .m-ps-table-wrap {
+  margin: 0;
+  padding: 0;
+  border-top: none;
+}
+
+.m-ora12-invoice-ui .m-ps-table {
+  font-size: 0.72rem;
+  border-collapse: collapse;
+}
+
+.m-ora12-invoice-ui .m-ps-th {
+  background: linear-gradient(180deg, #f0f4f8 0%, #e2e8ef 100%);
+  color: var(--ora12-text);
+  font-weight: 700;
+  font-size: 0.68rem;
+  border: 1px solid var(--ora12-border);
+  border-bottom: 2px solid var(--ora12-border);
+  padding: 0.35rem 0.3rem;
+}
+
+.m-ora12-invoice-ui .m-ps-td {
+  border: 1px solid var(--ora12-border);
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.7rem;
+}
+
+.m-ora12-invoice-ui .m-ps-tr:nth-child(even) .m-ps-td {
+  background: var(--ora12-stripe);
+}
+
+.m-ora12-invoice-ui .m-ps-tr--open .m-ps-td {
+  background: var(--ora12-blue-light);
+}
+
+.m-ora12-invoice-ui .m-ps-td--date,
+.m-ora12-invoice-ui .m-ps-td--strong {
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-td--emph {
+  color: var(--ora12-blue-dark);
+}
+
+.m-ora12-invoice-ui .m-ps-tr--foot .m-ps-td,
+.m-ora12-invoice-ui .m-ps-table tfoot .m-ps-td {
+  background: #f3f5f7;
+  border-top: 2px solid var(--ora12-border);
+}
+
+.m-ora12-invoice-ui .m-action-dock {
+  border-top: 1px solid var(--ora12-border);
+  background: #f3f5f7;
+}
+
+.m-ora12-invoice-ui .m-toolbar-btn.m-btn--primary {
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid var(--ora12-blue-dark);
+  border-radius: 2px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.25) inset;
+  color: #fff;
+}
+
+.m-ora12-invoice-ui .m-toolbar-btn.m-btn--secondary {
+  border-radius: 2px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+  color: var(--ora12-text);
+}
+
+.m-ora12-invoice-ui.m-page-party-stmt .m-ps-table-wrap {
+  max-height: min(50vh, 480px);
+  overflow-y: auto;
+}
+
+/* ── أرشيف الفاتورة (موبايل) ── */
+body.m-inv-archive-open {
+  overflow: hidden;
+}
+
+.m-inv-archive-root {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.m-inv-archive-root[hidden] {
+  display: none !important;
+}
+
+.m-inv-archive-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.m-inv-archive-panel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  background: var(--ora12-surface, #fff);
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0.85rem 0;
+  overflow: hidden;
+}
+
+.m-inv-archive-foot {
+  flex: 0 0 auto;
+  padding: 0.65rem 0 0.85rem;
+  margin-top: 0.35rem;
+  border-top: 1px solid #e8edf3;
+}
+
+.m-inv-archive-camera-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(5, 114, 206, 0.28);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-inv-archive-camera-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.m-inv-archive-camera-btn:disabled,
+.m-inv-archive-camera-btn--busy {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.m-inv-archive-camera-btn__ico {
+  flex-shrink: 0;
+}
+
+.m-inv-archive-camera-btn[hidden] {
+  display: none !important;
+}
+
+.m-inv-archive-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 0.35rem;
+}
+
+.m-inv-archive-card--pending {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.m-inv-archive-card-meta--pending {
+  color: #b45309 !important;
+  font-weight: 700;
+}
+
+.m-inv-archive-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.m-inv-archive-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ora12-text, #161513);
+}
+
+.m-inv-archive-close {
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 0.15rem 0.4rem;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.m-inv-archive-sub {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.m-inv-archive-sub--warn {
+  color: #b42318;
+}
+
+.m-inv-archive-loading,
+.m-inv-archive-empty {
+  padding: 1rem 0.5rem;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.m-inv-archive-item--pending .m-inv-archive-card {
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.35);
+}
+
+.m-inv-archive-item {
+  position: relative;
+  margin: 0;
+}
+
+.m-inv-archive-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  border: 1px solid var(--ora12-border, #5c6670);
+  border-radius: 8px;
+  background: var(--ora12-stripe, #f7f9fb);
+  padding: 0.35rem;
+  text-align: center;
+  min-height: 8.5rem;
+}
+
+.m-inv-archive-thumb {
+  width: 100%;
+  height: 5.5rem;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #e8eaed;
+}
+
+.m-inv-archive-file-ico {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 5.5rem;
+  font-size: 2rem;
+}
+
+.m-inv-archive-card-name {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-inv-archive-card-meta {
+  display: block;
+  font-size: 0.62rem;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.m-inv-archive-del {
+  position: absolute;
+  top: 0.2rem;
+  inset-inline-end: 0.2rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(180, 0, 0, 0.88);
+  color: #fff;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.m-inv-archive-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 12001;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.m-inv-archive-lightbox[hidden] {
+  display: none !important;
+}
+
+.m-inv-archive-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.m-inv-archive-lightbox-close {
+  position: absolute;
+  top: 0.75rem;
+  inset-inline-end: 0.75rem;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.6rem;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+}
+
+.m-toolbar-btn--has-badge .m-toolbar-btn__lbl {
+  font-weight: 700;
+}
+
+.m-toolbar-btn--busy {
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+/* شريط تقدم رفع الصورة */
+body.m-inv-upload-busy {
+  touch-action: none;
+}
+
+.m-inv-upload-progress {
+  position: fixed;
+  inset: 0;
+  z-index: 13000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.m-inv-upload-progress[hidden] {
+  display: none !important;
+}
+
+.m-inv-upload-progress__card {
+  width: min(92vw, 360px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 1rem 1.1rem 0.9rem;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.22);
+  text-align: center;
+}
+
+.m-inv-upload-progress__title {
+  margin: 0 0 0.75rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.m-inv-upload-progress__track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e8edf3;
+  overflow: hidden;
+}
+
+.m-inv-upload-progress__bar {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2e6fd4, #1a8f4c);
+  transition: width 0.18s ease-out;
+}
+
+.m-inv-upload-progress__pct {
+  margin: 0.55rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #2e6fd4;
+  direction: ltr;
+}
+
+.m-inv-upload-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 13100;
+  transform: translateX(-50%) translateY(12px);
+  max-width: min(92vw, 340px);
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  background: #1a8f4c;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.m-inv-upload-toast[hidden] {
+  display: none !important;
+}
+
+.m-inv-upload-toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.m-inv-upload-toast.is-hiding {
+  opacity: 0;
+  transform: translateX(-50%) translateY(8px);
+}
+
+.m-inv-archive-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem 0;
+}
+
+.m-inv-archive-loading[hidden] {
+  display: none !important;
+}
+
+.m-inv-archive-loading-bar {
+  width: 100%;
+  max-width: 220px;
+  height: 6px;
+  border-radius: 999px;
+  background: #e8edf3;
+  overflow: hidden;
+}
+
+.m-inv-archive-loading-bar span {
+  display: block;
+  height: 100%;
+  width: 35%;
+  border-radius: inherit;
+  background: #2e6fd4;
+  animation: m-inv-archive-indeterminate 1s ease-in-out infinite;
+}
+
+@keyframes m-inv-archive-indeterminate {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+.m-inv-archive-loading-txt {
+  font-size: 0.82rem;
+  color: #5a6578;
+}
+
+/* ── شاشة إدخال الفاتورة — واجهة تطبيق موبايل حديثة ── */
+
+.m-app-ui.m-body {
+  background: #f0f2f5;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+.m-app-ui.m-page-invoice-doc .m-main {
+  padding: 0.65rem 0.75rem calc(var(--m-action-dock-h) + var(--m-safe-b) + 1.25rem);
+  padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
+}
+
+.m-app-ui.m-page-inv-view .m-main {
+  padding-bottom: calc(var(--m-action-dock-h) + var(--m-safe-b) + 1.25rem);
+}
+
+.m-app-ui .m-ora12-workspace {
+  gap: 0.75rem;
+}
+
+.m-app-ui .m-ora12 {
+  font-size: 0.875rem;
+}
+
+/* بطاقة بيانات الفاتورة */
+.m-inv-app-sheet {
+  background: #fff;
+  border-radius: 16px;
+  padding: 0.85rem;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  border: none;
+}
+
+.m-inv-app-customer {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem;
+  margin: 0 0 0.65rem;
+  border: 1px solid #e8edf3;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  text-align: start;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.m-inv-app-customer:active {
+  background: #eef2f7;
+  border-color: #c7d7e8;
+}
+
+.m-inv-app-customer__avatar {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.m-inv-app-customer__avatar-empty {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.m-inv-app-customer__avatar-inner,
+.m-inv-app-customer .m-customer-avatar {
+  width: 2.75rem;
+  height: 2.75rem;
+  font-size: 0.95rem;
+}
+
+.m-inv-app-customer__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.m-inv-app-customer__lbl {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.m-inv-app-customer__name {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.m-inv-app-customer__name.is-placeholder {
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.m-inv-app-customer__arrow {
+  flex-shrink: 0;
+  font-size: 1.35rem;
+  font-weight: 300;
+  color: #94a3b8;
+  line-height: 1;
+  transform: rotate(180deg);
+}
+
+.m-inv-app-items-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 2.85rem;
+  margin: 0 0 0.75rem;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  color: #fff;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(5, 114, 206, 0.28);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.m-inv-app-items-btn:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(5, 114, 206, 0.22);
+}
+
+.m-inv-app-items-btn__ico {
+  flex-shrink: 0;
+}
+
+.m-inv-app-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.m-inv-app-meta__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.m-inv-app-meta__field--full {
+  grid-column: 1 / -1;
+}
+
+.m-inv-app-meta__lbl {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #64748b;
+  text-align: center;
+}
+
+.m-inv-app-meta__input {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.35rem;
+  padding: 0.4rem 0.45rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+  text-align: center;
+}
+
+.m-inv-app-meta__field--date .m-inv-app-meta__input {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+}
+
+.m-inv-app-meta__field--wh .m-inv-app-meta__input {
+  text-align: start;
+  padding-inline: 0.5rem;
+}
+
+.m-inv-app-meta__input:focus {
+  outline: none;
+  border-color: #0572ce;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(5, 114, 206, 0.12);
+}
+
+.m-inv-app-notes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.m-inv-app-notes__lbl {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.m-inv-app-notes__input {
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  font-size: 16px;
+  font-weight: 500;
+  color: #0f172a;
+}
+
+.m-inv-app-notes__input:focus {
+  outline: none;
+  border-color: #0572ce;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(5, 114, 206, 0.12);
+}
+
+/* قسم البنود */
+.m-inv-app-section {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.m-inv-app-section__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.55rem;
+  padding: 0 0.15rem;
+}
+
+.m-inv-app-section__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.m-inv-app-section__badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #0572ce;
+  background: #e8f4fc;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+}
+
+.m-inv-app-empty {
+  margin: 0 0 0.5rem;
+  padding: 1.25rem 0.85rem;
+  text-align: center;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  background: #fff;
+  border-radius: 14px;
+  border: 1px dashed #cbd5e1;
+}
+
+.m-app-ui .m-lines-swipe-hint {
+  margin: 0 0 0.45rem;
+  padding: 0 0.15rem;
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.m-app-ui .m-lines-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin: 0;
+}
+
+.m-app-ui .m-inv-line-swipe {
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  overflow: hidden;
+}
+
+.m-app-ui .m-inv-line__panel {
+  border-radius: 14px;
+  background: #fff;
+}
+
+.m-app-ui .m-inv-line-head {
+  padding: 0.65rem 0.75rem;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.m-app-ui .m-inv-seq {
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.72rem;
+  background: #e8f4fc;
+  color: #0572ce;
+}
+
+.m-app-ui .m-inv-item-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.m-app-ui .m-inv-item-code {
+  font-size: 0.72rem;
+  margin-top: 0.12rem;
+}
+
+.m-app-ui .m-inv-gross {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #024d8f;
+}
+
+.m-app-ui .m-inv-line-body {
+  padding: 0.55rem 0.65rem 0.65rem;
+}
+
+.m-app-ui .m-inv-field-grid {
+  gap: 0.35rem 0.3rem;
+}
+
+.m-app-ui .m-inv-mini span {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.m-app-ui .m-inv-line .m-input--xs,
+.m-app-ui .m-inv-line .m-select {
+  min-height: 2.35rem;
+  padding: 0.4rem 0.35rem;
+  border-radius: 10px;
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.m-app-ui .m-inv-line .m-input--xs:focus,
+.m-app-ui .m-inv-line .m-select:focus {
+  border-color: #0572ce;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(5, 114, 206, 0.1);
+}
+
+.m-app-ui .m-inv-line-swipe__rail {
+  border-radius: 14px 0 0 14px;
+}
+
+.m-app-ui .m-inv-swipe-delete {
+  border-radius: 12px;
+}
+
+/* المجاميع */
+.m-inv-app-totals {
+  background: #fff;
+  border-radius: 16px;
+  padding: 0.85rem 1rem;
+  box-shadow: 0 2px 12px rgba(15, 23, 42, 0.06);
+  border: none;
+}
+
+.m-inv-app-totals__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.m-inv-app-totals__row--grand {
+  margin-top: 0.45rem;
+  padding-top: 0.65rem;
+  border-top: 2px solid #e8f4fc;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.m-inv-app-totals__row--grand strong {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #024d8f;
+}
+
+/* شريط الإجراءات السفلي */
+.m-app-ui .m-bottom-dock {
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -6px 24px rgba(15, 23, 42, 0.1);
+  border-top: none;
+}
+
+.m-app-ui .m-action-dock {
+  border-top: none;
+  padding-top: 0.45rem;
+}
+
+.m-app-ui .m-toolbar-btn {
+  border-radius: 12px !important;
+}
+
+.m-app-ui .m-toolbar-btn.m-btn--primary {
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(5, 114, 206, 0.25);
+}
+
+.m-app-ui .m-alert {
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+/* شاشات الاختيار */
+.m-app-ui .m-picker-head {
+  background: linear-gradient(135deg, #1a8fe8 0%, #0572ce 55%, #024d8f 100%);
+  border-bottom: none;
+}
+
+.m-app-ui .m-picker .m-item-tile {
+  border-radius: 12px;
+}
+
+.m-app-ui .m-picker .m-item-tile.is-selected {
+  border-radius: 12px;
+  background: #e8f4fc;
+  box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.35);
+}
+
+@media (max-width: 360px) {
+  .m-inv-app-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .m-inv-app-meta__field--wh {
+    grid-column: 1 / -1;
+  }
+
+  .m-app-ui .m-inv-field-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .m-app-ui .m-inv-mini--tax {
+    grid-column: 1 / -1;
+  }
+}

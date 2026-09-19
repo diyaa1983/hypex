@@ -1,0 +1,1103 @@
+/**
+ * طلب شراء عميل (Node UI) — طراز Oracle Forms مثل acc-DKzaman
+ * يُحمَّل فوق sales-2027.css
+ * للرجوع: احذف هذا الملف من css[] في customerOrdersRoutes.js
+ * واسترجع customerOrdersRoutes.js.bak
+ */
+
+body.co-ora-body .si-main,
+body.co-ora-body .main.si-main {
+  background: #d4d0c8 !important;
+  font-family: Arial, Tahoma, sans-serif;
+}
+
+body.co-ora-body .si-stage , .co-ora-skin {
+  font-family: Arial, Tahoma, sans-serif;
+  font-size: 12px;
+  color: #111;
+}
+
+/* شريط الأدوات — طراز SQL Developer: مسطّح وصغير */
+body.co-ora-body .si-stage .si-cmd.si-doc-toolbar , .co-ora-skin .si-cmd.si-doc-toolbar {
+  direction: ltr;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 2px 3px !important;
+  margin: 0 0 6px !important;
+  background: linear-gradient(180deg, #f7f7f7 0%, #ebebeb 100%) !important;
+  border: 1px solid #b0b0b0 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+
+body.co-ora-body .si-stage .si-tb-group , .co-ora-skin .si-tb-group {
+  direction: rtl;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+  align-items: center;
+  padding: 1px 4px !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+}
+
+body.co-ora-body .si-stage .si-tb-group + .si-tb-group , .co-ora-skin .si-tb-group + .si-tb-group {
+  border-inline-start: 1px solid #b8b8b8 !important;
+  margin-inline-start: 2px;
+  padding-inline-start: 5px !important;
+  box-shadow: inset 1px 0 0 #fff !important;
+}
+
+body.co-ora-body .si-stage .si-tb-group--status , .co-ora-skin .si-tb-group--status {
+  order: -1;
+  margin-inline-end: auto !important;
+  margin-inline-start: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+body.co-ora-body .si-stage .si-tb , .co-ora-skin .si-tb {
+  --tb-bg: #f3f3f3;
+  --tb-fg: #1a1a1a;
+  --tb-bd: #9a9a9a;
+  appearance: none;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  box-sizing: border-box !important;
+  color: var(--tb-fg) !important;
+  border: 1px solid var(--tb-bd) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #efefef 100%) !important;
+  padding: 1px 7px !important;
+  border-radius: 0 !important;
+  font-size: 11px !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.2 !important;
+  min-height: 20px !important;
+  height: 20px !important;
+  min-width: 0 !important;
+  width: auto !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  transform: none !important;
+  transition: background 0.08s ease, border-color 0.08s ease !important;
+}
+
+body.co-ora-body .si-stage .si-tb:hover:not(:disabled) , .co-ora-skin .si-tb:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fff 0%, #e4eef8 100%) !important;
+  border-color: #5b7fa6 !important;
+  color: #0b3d6e !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+body.co-ora-body .si-stage .si-tb:active:not(:disabled) , .co-ora-skin .si-tb:active:not(:disabled) {
+  background: #dce6f0 !important;
+  border-color: #4a6a8a !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12) !important;
+}
+
+body.co-ora-body .si-stage .si-tb:disabled , .co-ora-skin .si-tb:disabled {
+  opacity: 0.42 !important;
+  cursor: not-allowed !important;
+  color: #777 !important;
+  background: #ececec !important;
+  border-color: #bdbdbd !important;
+}
+
+body.co-ora-body .si-stage .si-tb--save, .co-ora-skin .si-tb--save,
+body.co-ora-body .si-stage .si-tb--post , .co-ora-skin .si-tb--post {
+  background: linear-gradient(180deg, #f4fff6 0%, #d7eedc 100%) !important;
+  border-color: #6a9a74 !important;
+  color: #1f5a2c !important;
+}
+
+body.co-ora-body .si-stage .si-tb--save:hover:not(:disabled), .co-ora-skin .si-tb--save:hover:not(:disabled),
+body.co-ora-body .si-stage .si-tb--post:hover:not(:disabled) , .co-ora-skin .si-tb--post:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ecffe5 0%, #c8e6cf 100%) !important;
+  border-color: #4e7f58 !important;
+  color: #164820 !important;
+}
+
+body.co-ora-body .si-stage .si-tb--danger , .co-ora-skin .si-tb--danger {
+  background: linear-gradient(180deg, #fff6f6 0%, #f0d8d8 100%) !important;
+  border-color: #b07070 !important;
+  color: #7a2020 !important;
+}
+
+body.co-ora-body .si-stage .si-tb--danger:hover:not(:disabled) , .co-ora-skin .si-tb--danger:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffeaea 0%, #e8c8c8 100%) !important;
+  border-color: #944040 !important;
+}
+
+body.co-ora-body .si-stage .si-tb--ghost , .co-ora-skin .si-tb--ghost {
+  background: linear-gradient(180deg, #ffffff 0%, #efefef 100%) !important;
+  border-color: #9a9a9a !important;
+  color: #1a1a1a !important;
+}
+
+body.co-ora-body .si-stage .si-tb-lbl , .co-ora-skin .si-tb-lbl {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 1.15 !important;
+}
+
+body.co-ora-body .si-stage .si-tb-keywrap , .co-ora-skin .si-tb-keywrap {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 2px !important;
+  margin-inline-start: 2px !important;
+  line-height: 1 !important;
+}
+
+body.co-ora-body .si-stage .si-tb-keywrap, .co-ora-skin .si-tb-keywrap,
+body.co-ora-body .si-stage .si-tb-keydesc , .co-ora-skin .si-tb-keydesc {
+  font-size: 9px !important;
+}
+
+body.co-ora-body .si-stage .si-tb-key, .co-ora-skin .si-tb-key,
+body.co-ora-body .si-stage kbd.si-tb-key , .co-ora-skin kbd.si-tb-key {
+  display: inline-block !important;
+  margin: 0 !important;
+  padding: 0 3px !important;
+  min-width: 0 !important;
+  height: auto !important;
+  border: 1px solid #a8a8a8 !important;
+  border-radius: 0 !important;
+  background: #f0f0f0 !important;
+  color: #333 !important;
+  font-size: 9px !important;
+  font-family: Tahoma, Arial, sans-serif !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  box-shadow: none !important;
+}
+
+body.co-ora-body .si-stage .si-tb-keydesc , .co-ora-skin .si-tb-keydesc {
+  display: none !important; /* شريط مضغوط مثل SQL */
+}
+
+/* عنوان الشاشة + رقم الطلب */
+body.co-ora-body .si-stage .si-doc-top-row , .co-ora-skin .si-doc-top-row {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%);
+  border: 1px solid #888;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+}
+
+body.co-ora-body .si-stage .si-doc-screen-title , .co-ora-skin .si-doc-screen-title {
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #1a4480 !important;
+  margin: 0 !important;
+}
+
+body.co-ora-body .si-stage .si-docno-row , .co-ora-skin .si-docno-row {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+  background: #fff;
+}
+
+body.co-ora-body .si-stage .si-docno-btn , .co-ora-skin .si-docno-btn {
+  border-radius: 0 !important;
+  background: #c0c0c0 !important;
+  border: none !important;
+  color: #000 !important;
+  min-height: 22px !important;
+  padding: 2px 8px !important;
+}
+
+body.co-ora-body .si-stage .si-docno-input , .co-ora-skin .si-docno-input {
+  border: none !important;
+  border-left: 1px solid #808080 !important;
+  border-right: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  box-shadow: none !important;
+}
+
+body.co-ora-body .si-stage .si-keys-bar , .co-ora-skin .si-keys-bar {
+  background: transparent !important;
+  border: none !important;
+}
+
+body.co-ora-body .si-stage .si-field-key, .co-ora-skin .si-field-key,
+body.co-ora-body .si-stage kbd.si-field-key , .co-ora-skin kbd.si-field-key {
+  background: #ececec !important;
+  border: 1px solid #808080 !important;
+  border-radius: 2px !important;
+  font-size: 10px !important;
+}
+
+/* كانفس السند */
+body.co-ora-body .si-stage .co-ora-canvas , .co-ora-skin .co-ora-canvas {
+  background: #ece9e4;
+  border: 2px solid #808080;
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #666, 2px 2px 6px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+}
+
+body.co-ora-body .si-stage .si-surface.oracle-rec-block , .co-ora-skin .si-surface.oracle-rec-block {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d8d8d8 100%) !important;
+  border: 1px solid #888 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  margin-bottom: 6px !important;
+  overflow: hidden;
+}
+
+body.co-ora-body .si-stage .si-surface-head.oracle-rec-block-caption, .co-ora-skin .si-surface-head.oracle-rec-block-caption,
+body.co-ora-body .si-stage .oracle-rec-block-caption , .co-ora-skin .oracle-rec-block-caption {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  padding: 3px 8px !important;
+  margin: 0 !important;
+}
+
+body.co-ora-body .si-stage .oracle-rec-block-caption h2, .co-ora-skin .oracle-rec-block-caption h2,
+body.co-ora-body .si-stage .si-surface-head.oracle-rec-block-caption h2 , .co-ora-skin .si-surface-head.oracle-rec-block-caption h2 {
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+  letter-spacing: 0.3px;
+}
+
+body.co-ora-body .si-stage .oracle-rec-block-caption .si-count , .co-ora-skin .oracle-rec-block-caption .si-count {
+  color: #e8f0ff !important;
+  font-size: 11px;
+}
+
+body.co-ora-body .si-stage .si-meta.oracle-rec-fields , .co-ora-skin .si-meta.oracle-rec-fields {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 8px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* اسم الحقل بجانب الحقل تماماً */
+body.co-ora-body .si-stage .si-f, .co-ora-skin .si-f,
+body.co-ora-body .si-stage .si-meta--invoice > .si-f, .co-ora-skin .si-meta--invoice > .si-f,
+body.co-ora-body .si-stage .si-meta--order > .si-f , .co-ora-skin .si-meta--order > .si-f {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 2px !important;
+  margin: 0 !important;
+  grid-template-rows: none !important;
+  grid-template-columns: none !important;
+}
+
+body.co-ora-body .si-stage .si-f-head, .co-ora-skin .si-f-head,
+body.co-ora-body .si-stage .si-meta--invoice .si-f-head, .co-ora-skin .si-meta--invoice .si-f-head,
+body.co-ora-body .si-stage .si-meta--order .si-f-head , .co-ora-skin .si-meta--order .si-f-head {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #222 !important;
+  white-space: nowrap !important;
+  min-width: 0 !important;
+  width: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+  padding: 0 0 0 2px !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  line-height: 1.2 !important;
+  min-height: 0 !important;
+}
+
+body.co-ora-body .si-stage .si-f > .si-field, .co-ora-skin .si-f > .si-field,
+body.co-ora-body .si-stage .si-f > .hx-lov-wrap, .co-ora-skin .si-f > .hx-lov-wrap,
+body.co-ora-body .si-stage .si-f > .date-dmy-field, .co-ora-skin .si-f > .date-dmy-field,
+body.co-ora-body .si-stage .si-f > .si-cust-wrap , .co-ora-skin .si-f > .si-cust-wrap {
+  flex: 0 1 auto !important;
+  margin: 0 !important;
+}
+
+body.co-ora-body .si-stage .si-field, .co-ora-skin .si-field,
+body.co-ora-body .si-stage select.si-field, .co-ora-skin select.si-field,
+body.co-ora-body .si-stage textarea#co_notes , .co-ora-skin textarea#co_notes {
+  height: 22px !important;
+  min-height: 22px !important;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+  font-family: Arial, sans-serif !important;
+  border: 1px solid #808080 !important;
+  border-top-color: #404040 !important;
+  border-left-color: #404040 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+body.co-ora-body .si-stage .si-field:focus, .co-ora-skin .si-field:focus,
+body.co-ora-body .si-stage select.si-field:focus, .co-ora-skin select.si-field:focus,
+body.co-ora-body .si-stage textarea#co_notes:focus , .co-ora-skin textarea#co_notes:focus {
+  outline: 1px dotted #000;
+  outline-offset: -2px;
+  background: #ffffcc !important;
+  box-shadow: none !important;
+}
+
+body.co-ora-body .si-stage .si-field[readonly], .co-ora-skin .si-field[readonly],
+body.co-ora-body .si-stage .si-field:disabled , .co-ora-skin .si-field:disabled {
+  background: #ececec !important;
+}
+
+body.co-ora-body .si-stage textarea#co_notes , .co-ora-skin textarea#co_notes {
+  height: auto !important;
+  min-height: 3.2rem !important;
+  width: 100%;
+}
+
+body.co-ora-body .si-stage .si-f--cust , .co-ora-skin .si-f--cust {
+  flex: 1 1 260px;
+  min-width: 220px;
+}
+
+body.co-ora-body .si-stage .si-cust-wrap , .co-ora-skin .si-cust-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+/* الجدول — مسطّر بالكامل + خط غامق */
+body.co-ora-body .si-stage .oracle-rec-grid-wrap, .co-ora-skin .oracle-rec-grid-wrap,
+body.co-ora-body .si-stage .si-lines-wrap , .co-ora-skin .si-lines-wrap {
+  border: 1px solid #000 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  margin: 0 6px 6px !important;
+  overflow: auto;
+}
+
+body.co-ora-body .si-stage .si-lines, .co-ora-skin .si-lines,
+body.co-ora-body .si-stage table.si-lines , .co-ora-skin table.si-lines {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  width: 100%;
+  border: 1px solid #000 !important;
+}
+
+body.co-ora-body .si-stage .si-lines thead th , .co-ora-skin .si-lines thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
+  color: #000 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #000 !important;
+  padding: 4px 6px !important;
+  text-align: center;
+}
+
+body.co-ora-body .si-stage .si-lines tbody td, .co-ora-skin .si-lines tbody td,
+body.co-ora-body .si-stage .si-lines tfoot td , .co-ora-skin .si-lines tfoot td {
+  border: 1px solid #000 !important;
+  background: #fff;
+  padding: 0 !important;
+  vertical-align: middle;
+  color: #000 !important;
+  font-weight: 700 !important;
+}
+
+body.co-ora-body .si-stage .si-lines tbody tr:nth-child(even) td , .co-ora-skin .si-lines tbody tr:nth-child(even) td {
+  background: #f4f4f4 !important;
+}
+
+body.co-ora-body .si-stage .si-lines tbody tr:hover td , .co-ora-skin .si-lines tbody tr:hover td {
+  background: #ffffcc !important;
+}
+
+body.co-ora-body .si-stage .si-lines .si-field , .co-ora-skin .si-lines .si-field {
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  height: 22px !important;
+  min-height: 22px !important;
+  background: transparent !important;
+}
+
+/* خط البنود غامق — بدون مربعات داخل الحقول — محاذاة يمين */
+body.co-ora-body .si-stage .si-lines input, .co-ora-skin .si-lines input,
+body.co-ora-body .si-stage .si-lines select , .co-ora-skin .si-lines select {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  line-height: 1.25 !important;
+  color: #000 !important;
+  text-align: right !important;
+  min-height: 22px !important;
+  height: 22px !important;
+  padding: 1px 4px !important;
+  border: none !important;
+  border-width: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  outline: none !important;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* خلايا المبالغ / الترقيم — مسطّرة مثل باقي الجدول */
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.si-num-out, .co-ora-skin .si-lines td.si-num-out,
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.si-row-num, .co-ora-skin .si-lines td.si-row-num,
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.js-sub, .co-ora-skin .si-lines td.js-sub,
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.js-gross, .co-ora-skin .si-lines td.js-gross,
+body.co-ora-body .si-stage .si-lines td.si-num-out, .co-ora-skin .si-lines td.si-num-out,
+body.co-ora-body .si-stage .si-lines td.si-row-num , .co-ora-skin .si-lines td.si-row-num {
+  display: table-cell !important;
+  border: 1px solid #000 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  font-family: Arial, Helvetica, sans-serif !important;
+  color: #000 !important;
+  text-align: right !important;
+  min-height: 22px !important;
+  height: 22px !important;
+  padding: 1px 4px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  width: auto !important;
+  overflow: visible !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.si-row-num, .co-ora-skin .si-lines td.si-row-num,
+body.co-ora-body .si-stage .si-lines td.si-row-num , .co-ora-skin .si-lines td.si-row-num {
+  text-align: center !important;
+}
+
+/* كل خلايا البنود مسطّرة بوضوح */
+body.co-ora-body body.co-ora-body .si-stage .si-lines, .co-ora-skin .si-lines,
+body.co-ora-body body.co-ora-body .si-stage table.si-lines , .co-ora-skin table.si-lines {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines th, .co-ora-skin .si-lines th,
+body.co-ora-body body.co-ora-body .si-stage .si-lines td , .co-ora-skin .si-lines td {
+  border: 1px solid #000 !important;
+}
+
+/* الحقول تملأ الخلية حتى يظهر المحاذاة لليمين */
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-item-sku, .co-ora-skin .si-lines.si-lines--co input.js-item-sku,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-item-code, .co-ora-skin .si-lines.si-lines--co input.js-item-code,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-item-name, .co-ora-skin .si-lines.si-lines--co input.js-item-name,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-qty, .co-ora-skin .si-lines.si-lines--co input.js-qty,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-qty-extra, .co-ora-skin .si-lines.si-lines--co input.js-qty-extra,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-price, .co-ora-skin .si-lines.si-lines--co input.js-price,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-disc, .co-ora-skin .si-lines.si-lines--co input.js-disc,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co select.js-unit, .co-ora-skin .si-lines.si-lines--co select.js-unit,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co select.js-tax, .co-ora-skin .si-lines.si-lines--co select.js-tax,
+body.co-ora-body body.co-ora-body .si-stage .si-lines input, .co-ora-skin .si-lines input,
+body.co-ora-body body.co-ora-body .si-stage .si-lines select , .co-ora-skin .si-lines select {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  text-align: right !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-item-sku, .co-ora-skin .si-lines.si-lines--co input.js-item-sku,
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-item-code, .co-ora-skin .si-lines.si-lines--co input.js-item-code,
+body.co-ora-body body.co-ora-body .si-stage .si-lines input[dir='ltr'] , .co-ora-skin .si-lines input[dir='ltr'] {
+  direction: ltr !important;
+  text-align: right !important;
+  unicode-bidi: isolate !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines.si-lines--co input.js-item-name, .co-ora-skin .si-lines.si-lines--co input.js-item-name,
+body.co-ora-body body.co-ora-body .si-stage .si-lines input.js-item-name , .co-ora-skin .si-lines input.js-item-name {
+  direction: rtl !important;
+  text-align: right !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines .si-item-sku-wrap, .co-ora-skin .si-lines .si-item-sku-wrap,
+body.co-ora-body body.co-ora-body .si-stage .si-lines .hx-lov-wrap , .co-ora-skin .si-lines .hx-lov-wrap {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines .si-item-sku-wrap input.js-item-sku, .co-ora-skin .si-lines .si-item-sku-wrap input.js-item-sku,
+body.co-ora-body body.co-ora-body .si-stage .si-lines .hx-lov-wrap > input, .co-ora-skin .si-lines .hx-lov-wrap > input,
+body.co-ora-body body.co-ora-body .si-stage .si-lines .hx-lov-wrap > select , .co-ora-skin .si-lines .hx-lov-wrap > select {
+  flex: 1 1 auto !important;
+  width: auto !important;
+  min-width: 0 !important;
+  text-align: right !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.si-num-out, .co-ora-skin .si-lines td.si-num-out,
+body.co-ora-body body.co-ora-body .si-stage .si-lines .si-num-out , .co-ora-skin .si-lines .si-num-out {
+  text-align: right !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-lines td.si-row-num , .co-ora-skin .si-lines td.si-row-num {
+  text-align: center !important;
+}
+
+/* التاريخ في وسط الحقل */
+body.co-ora-body body.co-ora-body .si-stage #co_date, .co-ora-skin #co_date,
+body.co-ora-body body.co-ora-body .si-stage .si-f--date .si-field, .co-ora-skin .si-f--date .si-field,
+body.co-ora-body body.co-ora-body .si-stage .si-f--date input, .co-ora-skin .si-f--date input,
+body.co-ora-body body.co-ora-body .si-stage .si-f--date .js-date-dmy, .co-ora-skin .si-f--date .js-date-dmy,
+body.co-ora-body body.co-ora-body .si-stage .date-dmy-field .js-date-dmy, .co-ora-skin .date-dmy-field .js-date-dmy,
+body.co-ora-body body.co-ora-body .si-stage .date-dmy-field .si-field , .co-ora-skin .date-dmy-field .si-field {
+  text-align: center !important;
+  direction: ltr !important;
+}
+
+body.co-ora-body body.co-ora-body .si-stage .si-f--date .date-dmy-field , .co-ora-skin .si-f--date .date-dmy-field {
+  width: 100% !important;
+}
+
+body.co-ora-body .si-stage .si-lines input[dir='ltr'], .co-ora-skin .si-lines input[dir='ltr'],
+body.co-ora-body .si-stage .si-lines .js-item-sku, .co-ora-skin .si-lines .js-item-sku,
+body.co-ora-body .si-stage .si-lines .js-item-code, .co-ora-skin .si-lines .js-item-code,
+body.co-ora-body .si-stage .si-lines input[type='number'] , .co-ora-skin .si-lines input[type='number'] {
+  text-align: right !important;
+  direction: ltr !important;
+  unicode-bidi: isolate;
+}
+
+body.co-ora-body .si-stage .si-lines .si-item-name-cell input.js-item-name, .co-ora-skin .si-lines .si-item-name-cell input.js-item-name,
+body.co-ora-body .si-stage .si-lines input.js-item-name , .co-ora-skin .si-lines input.js-item-name {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+body.co-ora-body .si-stage .si-lines td.si-row-num , .co-ora-skin .si-lines td.si-row-num {
+  text-align: center !important;
+}
+
+/* التاريخ في الوسط داخل الحقل */
+body.co-ora-body .si-stage #co_date, .co-ora-skin #co_date,
+body.co-ora-body .si-stage .si-f--date .si-field, .co-ora-skin .si-f--date .si-field,
+body.co-ora-body .si-stage .si-f--date input[type='date'], .co-ora-skin .si-f--date input[type='date'],
+body.co-ora-body .si-stage .si-f--date input.js-date-dmy, .co-ora-skin .si-f--date input.js-date-dmy,
+body.co-ora-body .si-stage .si-meta input[type='date'], .co-ora-skin .si-meta input[type='date'],
+body.co-ora-body .si-stage .si-meta .js-date-dmy , .co-ora-skin .si-meta .js-date-dmy {
+  text-align: center !important;
+  direction: ltr !important;
+}
+
+body.co-ora-body .si-stage .si-lines input:focus, .co-ora-skin .si-lines input:focus,
+body.co-ora-body .si-stage .si-lines select:focus , .co-ora-skin .si-lines select:focus {
+  background: #ffffcc !important;
+  outline: 1px dotted #000 !important;
+  outline-offset: -2px;
+  box-shadow: none !important;
+}
+
+body.co-ora-body .si-stage .si-lines input[readonly], .co-ora-skin .si-lines input[readonly],
+body.co-ora-body .si-stage .si-lines input:disabled, .co-ora-skin .si-lines input:disabled,
+body.co-ora-body .si-stage .si-lines select:disabled , .co-ora-skin .si-lines select:disabled {
+  background: transparent !important;
+  color: #222 !important;
+}
+
+/* اسم المادة: أصغر وغامق */
+body.co-ora-body .si-stage .si-lines .si-item-name-cell input.js-item-name, .co-ora-skin .si-lines .si-item-name-cell input.js-item-name,
+body.co-ora-body .si-stage .si-lines input.js-item-name , .co-ora-skin .si-lines input.js-item-name {
+  font-size: 9px !important;
+  font-weight: 700 !important;
+}
+
+body.co-ora-body .si-stage .si-lines select , .co-ora-skin .si-lines select {
+  padding-inline-end: 4px !important;
+  background-image: none !important;
+  background-color: transparent !important;
+  cursor: pointer;
+}
+
+body.co-ora-body .si-stage .si-lines select::-ms-expand , .co-ora-skin .si-lines select::-ms-expand {
+  display: none;
+}
+
+body.co-ora-body .si-stage .si-lines .hx-lov-wrap, .co-ora-skin .si-lines .hx-lov-wrap,
+body.co-ora-body .si-stage .si-lines .si-item-sku-wrap , .co-ora-skin .si-lines .si-item-sku-wrap {
+  min-height: 22px;
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+body.co-ora-body .si-stage .si-lines .hx-lov-btn, .co-ora-skin .si-lines .hx-lov-btn,
+body.co-ora-body .si-stage .si-lines .si-item-pick , .co-ora-skin .si-lines .si-item-pick {
+  min-height: 22px;
+  height: 22px;
+  border: none !important;
+  border-inline-start: 1px solid #d0d0d0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #555 !important;
+}
+
+body.co-ora-body .si-stage .si-lines .hx-lov-btn:hover, .co-ora-skin .si-lines .hx-lov-btn:hover,
+body.co-ora-body .si-stage .si-lines .si-item-pick:hover , .co-ora-skin .si-lines .si-item-pick:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+  color: #0f3a7a !important;
+}
+
+body.co-ora-body .si-stage .si-lines .si-del, .co-ora-skin .si-lines .si-del,
+body.co-ora-body .si-stage .si-lines button.si-del , .co-ora-skin .si-lines button.si-del {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+
+/* تذييل المجاميع */
+body.co-ora-body .si-stage .si-doc-foot.oracle-rec-fields-second , .co-ora-skin .si-doc-foot.oracle-rec-fields-second {
+  display: grid !important;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 0.75rem;
+  padding: 6px 8px !important;
+  border-top: 1px solid #bbb;
+  background: rgba(255, 255, 255, 0.35) !important;
+}
+
+@media (max-width: 900px) {
+  body.co-ora-body .si-stage .si-doc-foot.oracle-rec-fields-second , .co-ora-skin .si-doc-foot.oracle-rec-fields-second {
+    grid-template-columns: 1fr;
+  }
+}
+
+body.co-ora-body .si-stage .si-totals , .co-ora-skin .si-totals {
+  background: #fff;
+  border: 1px solid #808080;
+  border-radius: 0;
+  padding: 6px 8px;
+}
+
+body.co-ora-body .si-stage .si-tot-row , .co-ora-skin .si-tot-row {
+  font-size: 12px;
+  padding: 3px 0;
+  border-bottom: 1px dashed #bbb;
+}
+
+body.co-ora-body .si-stage .si-tot-grand , .co-ora-skin .si-tot-grand {
+  font-weight: 800;
+  border-bottom: none;
+  border-top: 1px solid #808080;
+  margin-top: 4px;
+  padding-top: 6px;
+}
+
+body.co-ora-body .si-stage .si-pill , .co-ora-skin .si-pill {
+  border-radius: 2px !important;
+  font-size: 11px !important;
+}
+
+body.co-ora-body .si-stage .co-ora-ar-status, .co-ora-skin .co-ora-ar-status,
+body.co-ora-body .si-stage .co-ora-ar-summary , .co-ora-skin .co-ora-ar-summary {
+  padding: 6px 8px;
+}
+
+body.co-ora-body .si-stage .co-ora-ar-kpi , .co-ora-skin .co-ora-ar-kpi {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+}
+
+/* ─── القوائم: طلبات / اعتماد / معتمدة ─── */
+body.co-ora-body .si-stagebody.co-ora-body .si-stage , .co-ora-skin {
+  padding: 8px;
+}
+
+body.co-ora-body .si-stage .si-hero , .co-ora-skin .si-hero {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%) !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+  padding: 8px 10px !important;
+  margin-bottom: 8px !important;
+}
+
+body.co-ora-body .si-stage .si-hero-mark , .co-ora-skin .si-hero-mark {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  border-radius: 0 !important;
+  border: 1px solid #1a3366 !important;
+  color: #fff !important;
+  font-weight: 800 !important;
+}
+
+body.co-ora-body .si-stage .si-hero h1, .co-ora-skin .si-hero h1,
+body.co-ora-body .si-stage .si-hero-title , .co-ora-skin .si-hero-title {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #1a4480 !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+}
+
+body.co-ora-body .si-stage .si-hero .muted, .co-ora-skin .si-hero .muted,
+body.co-ora-body .si-stage .si-hero-sub , .co-ora-skin .si-hero-sub {
+  font-size: 11px !important;
+  color: #444 !important;
+}
+
+body.co-ora-body .si-stage .si-btn, .co-ora-skin .si-btn,
+body.co-ora-body .si-stage a.si-btn, .co-ora-skin a.si-btn,
+body.co-ora-body .si-stage button.si-btn , .co-ora-skin button.si-btn {
+  color: #1a1a1a !important;
+  border: 1px solid #7a7a7a !important;
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%) !important;
+  border-radius: 2px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  min-height: 26px !important;
+  padding: 3px 10px !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+  text-decoration: none !important;
+}
+
+body.co-ora-body .si-stage .si-btn:hover, .co-ora-skin .si-btn:hover,
+body.co-ora-body .si-stage a.si-btn:hover , .co-ora-skin a.si-btn:hover {
+  background: linear-gradient(180deg, #fff 0%, #f0f0f0 100%) !important;
+  border-color: #5a5a5a !important;
+}
+
+body.co-ora-body .si-stage .si-btn--primary, .co-ora-skin .si-btn--primary,
+body.co-ora-body .si-stage a.si-btn--primary , .co-ora-skin a.si-btn--primary {
+  background: linear-gradient(180deg, #f0fff4 0%, #b8e6c4 45%, #8fd4a0 100%) !important;
+  border-color: #2d8a4e !important;
+  color: #145a32 !important;
+}
+
+body.co-ora-body .si-stage .si-btn--ghost , .co-ora-skin .si-btn--ghost {
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 100%) !important;
+}
+
+body.co-ora-body .si-stage .si-rail, .co-ora-skin .si-rail,
+body.co-ora-body .si-stage .si-search-rail, .co-ora-skin .si-search-rail,
+body.co-ora-body .si-stage form.si-rail-search , .co-ora-skin form.si-rail-search {
+  background: linear-gradient(180deg, #f0f0f0 0%, #dcdcdc 100%) !important;
+  border: 1px solid #888 !important;
+  border-radius: 0 !important;
+  padding: 6px 8px !important;
+  margin-bottom: 8px !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+}
+
+body.co-ora-body .si-stage .si-rail .si-search input[type="search"], .co-ora-skin .si-rail .si-search input[type="search"],
+body.co-ora-body .si-stage .si-rail input[type="search"] , .co-ora-skin .si-rail input[type="search"] {
+  height: 22px !important;
+  min-height: 22px !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  padding: 2px 6px !important;
+  background: #fff !important;
+}
+
+body.co-ora-body .si-stage .si-table-wrap , .co-ora-skin .si-table-wrap {
+  border: none !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+}
+
+body.co-ora-body .si-stage .si-hero-mark, .co-ora-skin .si-hero-mark,
+body.co-ora-body .si-stage .si-mark, .co-ora-skin .si-mark,
+body.co-ora-body .si-stage .si-brand-mark , .co-ora-skin .si-brand-mark {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  border-radius: 0 !important;
+  color: #fff !important;
+  border: 1px solid #1a3366 !important;
+}
+
+body.co-ora-body .si-stage .si-surface, .co-ora-skin .si-surface,
+body.co-ora-body .si-stage .si-table-wrap, .co-ora-skin .si-table-wrap,
+body.co-ora-body .si-stage .si-table-card , .co-ora-skin .si-table-card {
+  background: #ece9e4 !important;
+  border: 2px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 1px 1px 0 #fff, 2px 2px 4px rgba(0, 0, 0, 0.12) !important;
+  overflow: hidden;
+}
+
+body.co-ora-body .si-stage .si-surface-head, .co-ora-skin .si-surface-head,
+body.co-ora-body .si-stage .si-table-head , .co-ora-skin .si-table-head {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  padding: 4px 8px !important;
+  border-radius: 0 !important;
+}
+
+body.co-ora-body .si-stage .si-surface-head h2, .co-ora-skin .si-surface-head h2,
+body.co-ora-body .si-stage .si-table-head h2, .co-ora-skin .si-table-head h2,
+body.co-ora-body .si-stage .si-surface-head .si-count , .co-ora-skin .si-surface-head .si-count {
+  color: #fff !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  margin: 0 !important;
+}
+
+body.co-ora-body .si-stage table.si-table, .co-ora-skin table.si-table,
+body.co-ora-body .si-stage .si-table, .co-ora-skin .si-table,
+body.co-ora-body .si-stage .si-surface table , .co-ora-skin .si-surface table {
+  border-collapse: collapse !important;
+  width: 100%;
+  font-size: 12px !important;
+  background: #fff;
+}
+
+body.co-ora-body .si-stage table.si-table thead th, .co-ora-skin table.si-table thead th,
+body.co-ora-body .si-stage .si-table thead th, .co-ora-skin .si-table thead th,
+body.co-ora-body .si-stage .si-surface table thead th , .co-ora-skin .si-surface table thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
+  color: #000 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #808080 !important;
+  padding: 4px 6px !important;
+  text-align: center;
+}
+
+body.co-ora-body .si-stage table.si-table tbody td, .co-ora-skin table.si-table tbody td,
+body.co-ora-body .si-stage .si-table tbody td, .co-ora-skin .si-table tbody td,
+body.co-ora-body .si-stage .si-surface table tbody td , .co-ora-skin .si-surface table tbody td {
+  border: 1px solid #c0c0c0 !important;
+  padding: 4px 6px !important;
+  background: #fff;
+  vertical-align: middle;
+}
+
+body.co-ora-body .si-stage table.si-table tbody tr:nth-child(even) td, .co-ora-skin table.si-table tbody tr:nth-child(even) td,
+body.co-ora-body .si-stage .si-surface table tbody tr:nth-child(even) td , .co-ora-skin .si-surface table tbody tr:nth-child(even) td {
+  background: #f8f8f8 !important;
+}
+
+body.co-ora-body .si-stage table.si-table tbody tr:hover td, .co-ora-skin table.si-table tbody tr:hover td,
+body.co-ora-body .si-stage .si-surface table tbody tr:hover td , .co-ora-skin .si-surface table tbody tr:hover td {
+  background: #ffffcc !important;
+}
+
+body.co-ora-body .si-stage .si-pill--ok , .co-ora-skin .si-pill--ok {
+  background: #c8e6c9 !important;
+  color: #1b5e20 !important;
+  border: 1px solid #2d8a4e !important;
+}
+
+body.co-ora-body .si-stage .si-pill--wait , .co-ora-skin .si-pill--wait {
+  background: #fff3cd !important;
+  color: #7a5b00 !important;
+  border: 1px solid #c9a227 !important;
+}
+
+body.co-ora-body .si-stage .si-pill--lock , .co-ora-skin .si-pill--lock {
+  background: #e0e0e0 !important;
+  color: #333 !important;
+  border: 1px solid #808080 !important;
+}
+
+/* اقتراح العميل */
+body.co-ora-body .si-stage .si-suggest , .co-ora-skin .si-suggest {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.2) !important;
+  background: #fff !important;
+}
+
+body.co-ora-body .si-stage .si-suggest button, .co-ora-skin .si-suggest button,
+body.co-ora-body .si-stage .si-suggest .si-suggest-item , .co-ora-skin .si-suggest .si-suggest-item {
+  border-radius: 0 !important;
+  font-size: 12px !important;
+}
+
+body.co-ora-body .si-stage .si-suggest button:hover, .co-ora-skin .si-suggest button:hover,
+body.co-ora-body .si-stage .si-suggest .si-suggest-item:hover , .co-ora-skin .si-suggest .si-suggest-item:hover {
+  background: #ffffcc !important;
+}
+
+/* ─── نافذة ترحيل Oracle / التشغيلات ─── */
+.co-ora-body .co-batch-modal,
+body.co-ora-body #co-batch-modal {
+  background: rgba(80, 80, 80, 0.55) !important;
+}
+
+.co-ora-body .co-batch-panel {
+  background: #d4d0c8 !important;
+  border: 2px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #666,
+    4px 4px 16px rgba(0, 0, 0, 0.35) !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+  font-size: 12px !important;
+  max-width: min(960px, 96vw);
+}
+
+.co-ora-body .co-batch-head {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  padding: 6px 10px !important;
+  border-radius: 0 !important;
+}
+
+.co-ora-body .co-batch-head h3,
+.co-ora-body #co-batch-title {
+  color: #fff !important;
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  margin: 0 !important;
+}
+
+.co-ora-body .co-batch-head .muted,
+.co-ora-body #co-batch-sub {
+  color: #dce8ff !important;
+  font-size: 11px !important;
+}
+
+.co-ora-body .co-batch-body-wrap {
+  background: #ece9e4 !important;
+  padding: 6px !important;
+  border: none !important;
+}
+
+.co-ora-body .co-batch-table {
+  border-collapse: collapse !important;
+  width: 100%;
+  background: #fff;
+  font-size: 12px !important;
+}
+
+.co-ora-body .co-batch-table thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%) !important;
+  color: #000 !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #808080 !important;
+  padding: 4px 6px !important;
+  text-align: center;
+}
+
+.co-ora-body .co-batch-table tbody td {
+  border: 1px solid #c0c0c0 !important;
+  padding: 2px 4px !important;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.co-ora-body .co-batch-table tbody tr:nth-child(even) td {
+  background: #f8f8f8 !important;
+}
+
+.co-ora-body .co-batch-table input,
+.co-ora-body .co-batch-table select,
+.co-ora-body .co-batch-qty-input,
+.co-ora-body .co-batch-bonus-input,
+.co-ora-body .co-batch-take-input,
+.co-ora-body .co-batch-select {
+  height: 22px !important;
+  min-height: 22px !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  font-size: 12px !important;
+  padding: 1px 4px !important;
+  background: #fff !important;
+  box-shadow: inset 1px 1px 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+.co-ora-body .co-batch-table input:focus,
+.co-ora-body .co-batch-table select:focus {
+  background: #ffffcc !important;
+  outline: 1px dotted #000;
+}
+
+.co-ora-body .co-batch-row--invalid td {
+  background: #ffe8e8 !important;
+}
+
+.co-ora-body .co-batch-take--bad {
+  background: #ffcccc !important;
+  border-color: #b04040 !important;
+}
+
+.co-ora-body .co-batch-warn {
+  background: #fff3cd !important;
+  border: 1px solid #c9a227 !important;
+  border-radius: 0 !important;
+  padding: 4px 6px !important;
+  font-size: 11px !important;
+  color: #5c4500 !important;
+}
+
+.co-ora-body .co-batch-foot {
+  background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%) !important;
+  border-top: 1px solid #888 !important;
+  padding: 6px 8px !important;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.co-ora-body .co-batch-status {
+  flex: 1;
+  font-size: 11px;
+  color: #333;
+}
+
+.co-ora-body .co-batch-foot .si-btn,
+.co-ora-body #co-batch-cancel,
+.co-ora-body #co-batch-confirm {
+  color: #1a1a1a !important;
+  border: 1px solid #7a7a7a !important;
+  background: linear-gradient(180deg, #fefefe 0%, #e8e8e8 45%, #d4d4d4 100%) !important;
+  border-radius: 2px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  min-height: 26px !important;
+  padding: 4px 12px !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+}
+
+.co-ora-body #co-batch-confirm,
+.co-ora-body .co-batch-foot .si-tb--post {
+  background: linear-gradient(180deg, #f0fff4 0%, #b8e6c4 45%, #8fd4a0 100%) !important;
+  border-color: #2d8a4e !important;
+  color: #145a32 !important;
+}
+
+/* رسائل الشريط */
+body.co-ora-body .si-stage .si-msg , .co-ora-skin .si-msg {
+  font-size: 11px !important;
+  color: #222 !important;
+}
+
+body.co-ora-body .si-stage .si-msg.is-ok, .co-ora-skin .si-msg.is-ok,
+body.co-ora-body .si-stage .si-msg.ok , .co-ora-skin .si-msg.ok {
+  color: #145a32 !important;
+}
+
+body.co-ora-body .si-stage .si-msg.is-error, .co-ora-skin .si-msg.is-error,
+body.co-ora-body .si-stage .si-msg.err , .co-ora-skin .si-msg.err {
+  color: #7f1d1d !important;
+}

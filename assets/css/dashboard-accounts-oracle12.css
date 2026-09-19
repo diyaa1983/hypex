@@ -1,0 +1,84 @@
+/* حسابات الشاشة الرئيسية — Oracle 12c */
+
+.dash-acct-ora12-page {
+  width: 100%;
+  max-width: 100%;
+}
+
+.dash-acct-ora12-page .dashboard-ora-workspace {
+  padding: 0.5rem;
+}
+
+.dash-acct-ora12-page .alert,
+.dash-acct-ora12-page .dash-acct-ora12-flash {
+  margin: 0 0 0.5rem;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 2px;
+  border: 1px solid;
+  box-shadow: none;
+}
+
+.dash-acct-ora12-page .alert-success {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
+  color: #2e7d32;
+}
+
+.dash-acct-ora12-page .alert-error {
+  background: #fdecea;
+  border-color: #e8b4a8;
+  color: #c74634;
+}
+
+.dash-acct-ora12-page .dash-acct-ora12-panel {
+  margin: 0;
+}
+
+.dash-acct-ora12-table-wrap {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+.dash-acct-ora12-col-show {
+  width: 4.5rem;
+  text-align: center;
+}
+
+.dash-acct-ora12-col-code {
+  width: 8rem;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.dash-acct-ora12-col-type {
+  width: 8rem;
+  white-space: nowrap;
+}
+
+.dash-acct-ora12-table code {
+  font-size: 0.72rem;
+}
+
+.dash-acct-ora12-chk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+.dash-acct-ora12-chk input[type='checkbox'] {
+  width: 0.95rem;
+  height: 0.95rem;
+  margin: 0;
+  accent-color: var(--ora12-blue);
+  cursor: pointer;
+}
+
+.dash-acct-ora12-empty {
+  text-align: center;
+  padding: 1rem;
+}

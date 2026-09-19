@@ -1,0 +1,80 @@
+/**
+ * قائمة العملاء — نفس مظهر SSMS لشاشة المناطق
+ */
+
+.cu-ssms-split .rg-ssms-explorer {
+  max-width: 260px;
+}
+
+.cu-ssms-inline-form {
+  display: inline;
+  margin: 0;
+}
+
+.cu-ssms-tree-group {
+  list-style: none;
+  padding: 0.35rem 0.5rem 0.15rem;
+  pointer-events: none;
+}
+
+.cu-ssms-group-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cu-ssms-search {
+  width: 100%;
+}
+
+.cu-ssms-grid .col-act {
+  width: 14rem;
+  min-width: 12rem;
+}
+
+.cu-ssms-code a {
+  color: #0b5cab;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cu-ssms-code a:hover {
+  text-decoration: underline;
+}
+
+.cu-ssms-ora {
+  text-align: center;
+  color: #0b6a0b;
+  font-weight: 800;
+}
+
+.cu-ssms-pager {
+  padding: 0.35rem 0.5rem;
+  background: #f3f3f3;
+  border-top: 1px solid #d0d0d0;
+}
+
+.cu-ssms-pager .list-pager,
+.cu-ssms-pager nav {
+  font-size: 0.8rem;
+}
+
+/* شبكة أعرض للعملاء */
+.cu-ssms .rg-ssms-grid {
+  font-size: 0.78rem;
+}
+
+.cu-ssms .rg-ssms-grid thead th {
+  font-size: 0.72rem;
+}
+
+.cu-ssms .rg-ssms-grid .col-name {
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.cu-ssms .rg-ssms-results {
+  min-height: calc(100vh - 9rem);
+}

@@ -1,0 +1,66 @@
+/* إعدادات شفتات الدوام */
+.sh-section { margin-top: 0.75rem; }
+.sh-body { padding: 0.85rem 1.1rem 1.15rem; }
+.sh-hint {
+  margin: 0 0 0.85rem;
+  font-size: 0.88rem;
+  color: #475569;
+  font-weight: 600;
+  line-height: 1.55;
+}
+.sh-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+}
+.sh-form label {
+  display: grid;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+.sh-form .si-field { min-height: 2.35rem; font-weight: 500; color: #0f172a; }
+.sh-check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.35rem;
+  font-weight: 650 !important;
+  color: #334155 !important;
+}
+.sh-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+.sh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.sh-actions .si-btn {
+  min-height: 1.7rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.75rem;
+  border-radius: 8px;
+}
+.si-btn--danger {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+  font-weight: 700;
+}
+.si-table tr.is-active-row td {
+  background: rgba(15, 118, 110, 0.08) !important;
+}
+.si-table td.empty {
+  text-align: center;
+  color: #64748b;
+  font-weight: 600;
+  padding: 1.5rem 1rem;
+}

@@ -1,0 +1,8 @@
+{
+  "appUrl": "http://176.29.176.192:3000/",
+  "windowTitle": "هايبكس",
+  "minimizable": true,
+  "confirmOnClose": true,
+  "disableCloseButton": false,
+  "startMaximized": true
+}

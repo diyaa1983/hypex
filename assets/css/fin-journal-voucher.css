@@ -1,0 +1,140 @@
+.fin-jv-wrap .journal-entry-header.sales-inv-meta-row {
+  display: grid !important;
+  grid-template-columns: minmax(11rem, 1fr) minmax(9rem, 0.75fr) minmax(14rem, 2fr);
+  gap: 0.75rem 1rem;
+  align-items: end;
+  width: 100%;
+}
+
+.fin-jv-wrap .journal-entry-header .sales-inv-meta-item,
+.fin-jv-wrap .journal-entry-header .sales-inv-meta-no,
+.fin-jv-wrap .journal-entry-header .sales-inv-meta-date,
+.fin-jv-wrap .journal-entry-header .field {
+  flex: none !important;
+  width: 100%;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+.fin-jv-wrap .journal-entry-header .sales-inv-no-nav,
+.fin-jv-wrap .journal-entry-header .input-compact {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fin-jv-wrap .dashboard-ora-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.fin-jv-wrap .dashboard-ora-toolbar .dashboard-ora-btn {
+  min-height: 2.2rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .fin-jv-wrap .journal-entry-header.sales-inv-meta-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .fin-jv-wrap .journal-entry-header.sales-inv-meta-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fin-jv-wrap .journal-entry-card {
+  margin-top: 0.5rem;
+}
+
+.fin-jv-wrap .journal-lines-table {
+  border: 1px solid #94a3b8;
+}
+
+.fin-jv-wrap .journal-memo {
+  width: 100%;
+  min-width: 160px;
+}
+
+.fin-jv-wrap .jv-acc-picker-slot {
+  min-width: 0;
+  width: 100%;
+}
+
+.fin-jv-wrap .jv-acc-picker-btn {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.fin-jv-wrap .jv-acc-picker-btn .sales-inv-cust-open-label {
+  max-width: 100%;
+  font-weight: 600;
+}
+
+.fin-jv-wrap .col-party {
+  min-width: 160px;
+}
+
+.fin-jv-wrap .jv-party-picker-btn {
+  width: 100%;
+  min-height: 2rem;
+  padding: 0.22rem 0.45rem;
+  font-size: 0.72rem;
+}
+
+.fin-jv-wrap .jv-party-slot.is-hidden {
+  display: none;
+}
+
+.fin-jv-wrap .col-party.is-hidden-party .jv-party-slot {
+  display: none;
+}
+
+.fin-jv-wrap .col-party.is-hidden-party::after {
+  content: '—';
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.fin-jv-wrap .col-acc {
+  min-width: 200px;
+}
+
+.fin-jv-wrap.is-readonly .journal-account-select,
+.fin-jv-wrap.is-readonly .journal-amount,
+.fin-jv-wrap.is-readonly .journal-memo {
+  background: #f8fafc;
+  pointer-events: none;
+}
+
+.fin-jv-wrap.is-readonly #jv-add-line {
+  display: none;
+}
+
+.fin-jv-wrap.is-readonly .col-act {
+  display: none;
+}
+
+.fin-jv-wrap.fin-jv-form-is-cancelled .journal-entry-card input,
+.fin-jv-wrap.fin-jv-form-is-cancelled .journal-entry-card select,
+.fin-jv-wrap.fin-jv-form-is-cancelled .journal-entry-card textarea,
+.fin-jv-wrap.fin-jv-form-is-cancelled .jv-acc-picker-btn,
+.fin-jv-wrap.fin-jv-form-is-cancelled .jv-party-picker-btn,
+.fin-jv-wrap.fin-jv-form-is-cancelled #jv-add-line {
+  pointer-events: none;
+  cursor: default;
+}
+
+.fin-jv-wrap.fin-jv-form-is-auto .sales-inv-posted-badge.badge-auto {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}

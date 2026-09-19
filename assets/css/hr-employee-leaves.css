@@ -1,0 +1,473 @@
+.hr-emp-leave-page {
+
+    max-width: 1100px;
+
+    margin: 0 auto;
+
+    padding: 0.5rem 0.75rem 1.5rem;
+
+}
+
+
+
+.hr-emp-leave-toolbar {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 0.5rem 0.75rem;
+
+    align-items: center;
+
+    margin-bottom: 0.75rem;
+
+}
+
+
+
+.hr-emp-leave-voucher-bar {
+
+    display: inline-flex;
+
+    flex-direction: row;
+
+    flex-wrap: nowrap;
+
+    align-items: center;
+
+    gap: 0.45rem;
+
+    margin: 0;
+
+}
+
+
+
+.hr-emp-leave-voucher-label {
+
+    font-weight: 700;
+
+    color: #334155;
+
+    font-size: 0.82rem;
+
+    white-space: nowrap;
+
+    margin: 0;
+
+}
+
+
+
+.hr-emp-leave-no-nav {
+
+    display: inline-flex;
+
+    align-items: stretch;
+
+    gap: 0.25rem;
+
+    direction: ltr;
+
+}
+
+
+
+.hr-emp-leave-no-arrow {
+
+    flex: 0 0 1.7rem;
+
+    width: 1.7rem;
+
+    height: 1.7rem;
+
+    display: inline-flex;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border: 1px solid var(--border, #cbd5e1);
+
+    border-radius: 2px;
+
+    background: #f1f5f9;
+
+    color: #334155;
+
+    font-size: 1rem;
+
+    font-weight: 800;
+
+    line-height: 1;
+
+    text-decoration: none;
+
+    cursor: pointer;
+
+    user-select: none;
+
+    box-sizing: border-box;
+
+}
+
+
+
+.hr-emp-leave-no-arrow:hover {
+
+    background: #e2e8f0;
+
+}
+
+
+
+.hr-emp-leave-no-arrow.is-disabled {
+
+    opacity: 0.35;
+
+    cursor: default;
+
+    pointer-events: none;
+
+}
+
+
+
+.hr-emp-leave-no-input {
+
+    width: auto;
+
+    min-width: 2.5rem;
+
+    max-width: 6.5rem;
+
+    height: 1.7rem;
+
+    text-align: center;
+
+    font-weight: 800;
+
+    padding: 0.15rem 0.4rem;
+
+    font-size: 0.82rem;
+
+    box-sizing: border-box;
+
+    border-radius: 2px;
+
+}
+
+
+
+.hr-emp-leave-employee-head {
+
+    display: inline-flex;
+
+    flex-direction: row;
+
+    flex-wrap: nowrap;
+
+    align-items: center;
+
+    gap: 0.45rem;
+
+    flex: 0 1 auto;
+
+    min-width: 0;
+
+}
+
+
+
+.hr-emp-leave-employee-head .field-label {
+
+    font-size: 0.82rem;
+
+    font-weight: 700;
+
+    color: #334155;
+
+    white-space: nowrap;
+
+    margin: 0;
+
+}
+
+
+
+.hr-emp-leave-picker-slot {
+
+    width: 14rem;
+
+    min-width: 11rem;
+
+    max-width: 18rem;
+
+}
+
+
+
+.hr-emp-leave-picker-slot .sales-inv-cust-open,
+
+.hr-emp-leave-employee-readonly {
+
+    width: 100%;
+
+    min-width: 11rem;
+
+    max-width: 18rem;
+
+    height: 1.7rem;
+
+    min-height: 1.7rem;
+
+    padding: 0.15rem 0.4rem;
+
+    font-size: 0.82rem;
+
+    box-sizing: border-box;
+
+    border-radius: 2px;
+
+}
+
+
+
+.hr-emp-leave-picker-slot .sales-inv-cust-open-label {
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+}
+
+
+
+.hr-emp-leave-inline-form {
+
+    display: inline;
+
+    margin: 0;
+
+}
+
+
+
+.hr-emp-leave-fields {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    align-items: flex-end;
+
+    gap: 0.5rem 0.75rem;
+
+}
+
+
+
+.hr-emp-leave-fields .field {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 0.2rem;
+
+    margin: 0;
+
+    flex: 0 0 auto;
+
+    min-width: 0;
+
+}
+
+
+
+.hr-emp-leave-fields .field-label {
+
+    font-size: 0.78rem;
+
+    font-weight: 700;
+
+    color: #334155;
+
+    white-space: nowrap;
+
+}
+
+
+
+.hr-emp-leave-fields .input,
+
+.hr-emp-leave-fields select.input {
+
+    width: auto;
+
+    min-width: 7rem;
+
+    height: 1.7rem;
+
+    min-height: 1.7rem;
+
+    padding: 0.15rem 0.4rem;
+
+    font-size: 0.82rem;
+
+    border-radius: 2px;
+
+    box-sizing: border-box;
+
+}
+
+
+
+.hr-emp-leave-field-created .input {
+
+    min-width: 9.5rem;
+
+}
+
+
+
+.hr-emp-leave-field-date .input {
+
+    width: 6.5rem;
+
+    text-align: center;
+
+}
+
+
+
+.hr-emp-leave-field-type select.input {
+
+    min-width: 11rem;
+
+    max-width: 16rem;
+
+}
+
+
+
+.hr-emp-leave-field-days .input {
+
+    width: 4.5rem;
+
+    text-align: center;
+
+}
+
+
+
+.hr-emp-leave-notes {
+
+    flex: 1 1 12rem;
+
+    min-width: 10rem;
+
+    max-width: 22rem;
+
+}
+
+
+
+.hr-emp-leave-notes .input {
+
+    width: 100%;
+
+    min-width: 0;
+
+}
+
+
+
+.hr-emp-leave-field-status .input {
+
+    min-width: 6rem;
+
+}
+
+
+
+.hr-emp-leave-actions {
+
+    margin-top: 0.75rem;
+
+}
+
+
+
+.hr-emp-leave-table tr.hr-emp-leave-row {
+
+    cursor: pointer;
+
+}
+
+
+
+.hr-emp-leave-table tr.is-selected td {
+
+    background: #eff6ff;
+
+}
+
+
+
+@media (max-width: 900px) {
+
+    .hr-emp-leave-toolbar {
+
+        align-items: flex-start;
+
+    }
+
+
+
+    .hr-emp-leave-employee-head {
+
+        flex: 1 1 100%;
+
+    }
+
+
+
+    .hr-emp-leave-fields {
+
+        flex-direction: column;
+
+        align-items: stretch;
+
+    }
+
+
+
+    .hr-emp-leave-fields .field,
+
+    .hr-emp-leave-notes {
+
+        flex: 1 1 auto;
+
+        max-width: none;
+
+    }
+
+
+
+    .hr-emp-leave-fields .input,
+
+    .hr-emp-leave-fields select.input {
+
+        width: 100%;
+
+        max-width: none;
+
+    }
+
+}
+
+

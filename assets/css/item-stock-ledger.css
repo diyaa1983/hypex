@@ -1,0 +1,185 @@
+.item-stock-ledger-page {
+  max-width: 100%;
+}
+
+.sales-inv-header-bar .ledger-back-btn {
+  margin-left: 0.5rem;
+}
+
+.sales-inv-header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.item-stock-ledger-filters .form-row {
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.item-stock-ledger-item-field .sales-inv-item-pick {
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+.item-stock-ledger-actions {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.item-stock-ledger-toolbar {
+  margin: 1rem 0 0.75rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.item-stock-ledger-search {
+  flex: 1 1 16rem;
+  max-width: 22rem;
+  margin: 0;
+}
+
+.item-stock-ledger-table .item-stock-ledger-row.is-clickable {
+  cursor: pointer;
+}
+
+.item-stock-ledger-table .item-stock-ledger-row.is-clickable:hover td {
+  background: #eef2ff;
+}
+
+.item-stock-ledger-table .item-stock-ledger-row.is-clickable:focus td {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+}
+
+.item-stock-ledger-row.is-filtered-out {
+  display: none;
+}
+
+#item-stock-on-hand {
+  font-weight: 700;
+  text-align: center;
+  background: #f8fafc;
+  color: #1e3a8a;
+}
+
+/* ——— جدول كشف حركات المادة ——— */
+.report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.report-sales-page[data-report-route="item_stock_movements"] .report-sales-print-area .report-sales-table.item-stock-ledger-table {
+  table-layout: fixed !important;
+  width: 100% !important;
+  min-width: 64rem !important;
+  font-size: 0.7rem !important;
+}
+
+/* تجاوز report-sales.css — عمود التسلسل الضيق */
+.report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table col.col-seq,
+.report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table .col-seq {
+  width: 1.75rem !important;
+  min-width: 1.75rem !important;
+  max-width: 1.75rem !important;
+}
+
+.item-stock-ledger-table col.col-inv-no { width: 3.5rem; }
+.item-stock-ledger-table col.col-item-name { width: 7rem; }
+.item-stock-ledger-table col.col-mov-type { width: 4.5rem; }
+.item-stock-ledger-table col.col-party { width: 11rem; }
+.item-stock-ledger-table col.col-date-invoice { width: 4.25rem; }
+.item-stock-ledger-table col.col-datetime { width: 6.25rem; }
+.item-stock-ledger-table col.col-doc-no { width: 4.5rem; }
+.item-stock-ledger-table col.col-qty { width: 3.25rem; }
+.item-stock-ledger-table col.col-unit-price { width: 5.5rem; }
+.item-stock-ledger-table col.col-line-total { width: 5.75rem; }
+.item-stock-ledger-table col.col-balance { width: 5rem; }
+
+.item-stock-ledger-table th,
+.item-stock-ledger-table td {
+  vertical-align: middle;
+  line-height: 1.2;
+  padding: 0.3rem 0.25rem;
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.item-stock-ledger-table thead th {
+  font-size: 0.68rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+}
+
+.item-stock-ledger-table .col-seq {
+  text-align: center;
+}
+
+.item-stock-ledger-table .col-inv-no,
+.item-stock-ledger-table .col-doc-no,
+.item-stock-ledger-table .col-qty,
+.item-stock-ledger-table .col-unit-price,
+.item-stock-ledger-table .col-line-total,
+.item-stock-ledger-table .col-balance {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-overflow: clip;
+}
+
+.item-stock-ledger-table .col-item-name,
+.item-stock-ledger-table .col-party {
+  text-align: start;
+  text-overflow: ellipsis;
+}
+
+.item-stock-ledger-table .col-mov-type {
+  text-align: center;
+  text-overflow: ellipsis;
+}
+
+.item-stock-ledger-table .item-stock-ledger-party {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.item-stock-ledger-table .col-date-invoice,
+.item-stock-ledger-table .col-datetime {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+  font-size: 0.66rem;
+  text-overflow: clip;
+}
+
+.item-stock-ledger-table .col-datetime .ledger-datetime {
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+@media print {
+  .item-stock-ledger-toolbar {
+    display: none !important;
+  }
+
+  .report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table col.col-inv-no,
+  .report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table .col-inv-no,
+  .report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table col.col-item-name,
+  .report-sales-page[data-report-route="item_stock_movements"] .item-stock-ledger-table .col-item-name {
+    display: none !important;
+  }
+}

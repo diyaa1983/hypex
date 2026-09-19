@@ -1,0 +1,160 @@
+/* شاشة أنواع المغادرات — Oracle 12c */
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dep-type-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-grid-flash {
+    margin: 0;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-top-bar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.35rem 0.55rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-top-bar .btn,
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dep-type-actions .btn,
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-type-row-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    text-decoration: none;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .btn-danger {
+    color: #fff;
+    background: linear-gradient(180deg, #e85a4a 0%, #c74634 55%, #a33a2b 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+    border-color: var(--ora12-border);
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .btn-primary:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .btn-danger:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #f06a5a 0%, #d75040 55%, #b33f30 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .input,
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap select.input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .input:focus,
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap select.input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .input[readonly] {
+    background: #f3f5f7;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 1.65rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #fff;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-check input[type="checkbox"] {
+    width: 0.95rem;
+    height: 0.95rem;
+    accent-color: #0572ce;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-type-table th,
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-type-table td {
+    font-weight: 700;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-type-table tbody tr:hover td {
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-type-table tbody tr.is-editing td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dt-type-row-actions {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+    justify-content: center;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dep-type-delete-form {
+    display: inline;
+    margin: 0;
+}
+
+.dashboard-ora.hr-dt-ora12-screen.hr-dt-wrap .hr-dep-type-actions {
+    display: none;
+}

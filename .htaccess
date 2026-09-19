@@ -1,0 +1,47 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# PHP legacy entry / modules (embed + any remaining PHP screens)
+RewriteRule ^node-front\.php$ - [L]
+RewriteRule ^node-static\.php$ - [L]
+RewriteRule ^(index|login|logout|forgot_password|reset_password|activate_license|manifest|favicon)\.php$ - [L]
+RewriteRule ^sw\.js$ - [L]
+# APIs القديمة بصيغة api/*.php فقط — مسارات Node مثل /api/customers تُمرَّر لـ node-front
+RewriteRule ^api/.+\.php$ - [L]
+RewriteRule ^(modules|templates|lang|data|cron|database|config|includes|tools|deploy|mobile-app|mobile-flutter|desktop-win|logs)(/|$) - [L]
+# لا تُفتح شفرة Node من الويب مباشرة
+RewriteRule ^hypex-node(/|$) - [F]
+RewriteRule ^node_modules(/|$) - [F]
+
+# CSS/JS من القرص مباشرة — بدون PHP+curl إلى Node (أسرع على ويندوز)
+RewriteRule ^assets/(css|js)/(.+)$ node-static.php?p=$1/$2 [QSA,L]
+
+# صور/ملفات مرفوعة موجودة على القرص
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^uploads/ - [L]
+
+# باقي المسارات (الواجهة + /api لـ Node) → Node
+RewriteRule ^(.*)$ node-front.php [QSA,L]
+</IfModule>
+
+<IfModule mod_deflate.c>
+AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+ExpiresActive On
+ExpiresByType text/css "access plus 1 year"
+ExpiresByType application/javascript "access plus 1 year"
+ExpiresByType image/png "access plus 1 year"
+ExpiresByType image/jpeg "access plus 1 year"
+ExpiresByType image/gif "access plus 1 year"
+ExpiresByType image/webp "access plus 1 year"
+ExpiresByType image/svg+xml "access plus 1 year"
+ExpiresByType font/woff2 "access plus 1 year"
+</IfModule>
+
+<IfModule mod_headers.c>
+<FilesMatch "\.(css|js|png|jpe?g|gif|webp|svg|woff2?)$">
+Header set Cache-Control "public, max-age=31536000, immutable"
+</FilesMatch>
+</IfModule>

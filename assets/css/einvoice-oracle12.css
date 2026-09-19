@@ -1,0 +1,83 @@
+/* إعدادات الفوترة الإلكترونية — Oracle 12c (مكمل لـ settings-oracle12.css) */
+
+.einvoice-ora-intro {
+  margin: 0 0 0.45rem;
+  font-size: 0.78rem;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.einvoice-ora-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.55rem;
+  background: #f3f5f7;
+  border: 1px solid var(--ora12-border);
+}
+
+.einvoice-ora-toolbar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ora12-muted, #5c5c5c);
+}
+
+.einvoice-ora-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.einvoice-ora-toolbar .btn-test-jofotara {
+  color: #fff;
+  background: linear-gradient(180deg, #22a06b 0%, #16a34a 55%, #15803d 100%);
+  border-color: #15803d;
+}
+
+.einvoice-ora-conn-alert {
+  margin-bottom: 0.5rem;
+  line-height: 1.6;
+  font-size: 0.78rem;
+}
+
+.einvoice-ora-conn-meta {
+  font-size: 0.72rem;
+  color: var(--ora12-muted, #5c5c5c);
+  margin-top: 0.3rem;
+}
+
+.einvoice-ora-conn-meta code {
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.einvoice-ora-conn-alert details summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.einvoice-ora-conn-alert pre {
+  margin: 0.35rem 0 0;
+  padding: 0.45rem 0.55rem;
+  background: #1e1e1e;
+  color: #e8e8e8;
+  border: 1px solid #404040;
+  border-radius: 2px;
+  direction: ltr;
+  font-size: 0.72rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.einvoice-ora-verify-wrap {
+  max-width: 920px;
+}
+
+.einvoice-ora-verify-wrap .settings-ora-actions {
+  margin-top: 0.55rem;
+}

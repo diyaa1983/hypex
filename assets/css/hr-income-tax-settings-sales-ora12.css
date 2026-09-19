@@ -1,0 +1,341 @@
+/* ── شاشة إعدادات ضريبة الدخل — مثل فاتورة المبيعات / شاشة الموظفين (Oracle 12c) ── */
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-grid-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-grid-flash {
+    margin: 0;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-grid-sub {
+    margin: 0;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+    background: var(--ora12-blue-light);
+    border: 1px solid var(--ora12-border);
+    text-align: start;
+    line-height: 1.45;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-panel.dashboard-ora-panel {
+    margin: 0;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-panel .dashboard-ora-panel__body {
+    padding: 0.55rem;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-fields .field-label,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .input,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap select.input,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap textarea.input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .input:focus,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap select.input:focus,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap textarea.input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-exempt-block {
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #f3f5f7;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-exempt-label {
+    color: var(--ora12-text);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-account .acc-map-picker-btn {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-size: 0.78rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.35rem 0.55rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    align-self: flex-end;
+    margin-bottom: 0.05rem;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn-danger {
+    color: #fff;
+    background: linear-gradient(180deg, #e85a4a 0%, #c74634 55%, #a33a2b 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn:hover:not(:disabled) {
+    background: linear-gradient(180deg, #fff 0%, #dfe6ec 100%);
+    border-color: var(--ora12-border);
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn-primary:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn-danger:hover:not(:disabled) {
+    color: #fff;
+    background: linear-gradient(180deg, #f06a5a 0%, #d75040 55%, #b33f30 100%);
+    border-color: #a33a2b;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-top-bar .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-active-status {
+    align-self: center;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+    margin-inline-start: 0.25rem;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-toolbar-hint {
+    margin: 0;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+    background: var(--ora12-blue-light);
+    border: 1px solid var(--ora12-border);
+    text-align: start;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-editor-panel.hr-it-editor {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-editor-close {
+    float: left;
+    min-width: 1.55rem;
+    margin-bottom: 0.35rem;
+    padding: 0.1rem 0.4rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-seq-display {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    background: #f3f5f7;
+    color: var(--ora12-text);
+    font-weight: 700;
+    font-size: 0.88rem;
+    justify-content: flex-start;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-seq-hint,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-editor-hint {
+    font-size: 0.72rem;
+    color: var(--ora12-muted);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-bracket-add-row .btn,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-editor-actions .btn {
+    min-height: 1.6rem;
+    padding: 0.22rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-brackets-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+    align-items: start;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-bracket-panel.dashboard-ora-panel {
+    margin: 0;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-bracket-panel.is-active .dashboard-ora-panel__title {
+    color: #024d8f;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap.is-editing .hr-it-bracket-panel.is-active .dashboard-ora-panel__body {
+    outline: 2px solid #0572ce;
+    outline-offset: -1px;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-bracket-panel-exempt {
+    margin: 0;
+    padding: 0.25rem 0.55rem 0.35rem;
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-grid-wrap {
+    background: #fff;
+    border: none;
+    border-radius: 0;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-grid-table th,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-grid-table td {
+    text-align: center;
+    vertical-align: middle;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row.is-selected td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row.is-selected:hover td {
+    background: #0572ce;
+    color: #fff;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row--pending td,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row.is-pending td {
+    background: var(--ora12-blue-light);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row:hover td {
+    background: var(--ora12-hover);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-pct-cell,
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-amt-cell {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row-delete {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.2rem;
+    min-height: 1.35rem;
+    padding: 0.08rem 0.3rem;
+    margin-inline-start: 0.2rem;
+    font-size: 0.66rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(180deg, #e85a4a 0%, #c74634 55%, #a33a2b 100%);
+    border: 1px solid #a33a2b;
+    border-radius: 2px;
+    cursor: pointer;
+    vertical-align: middle;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row-delete:hover {
+    background: linear-gradient(180deg, #f06a5a 0%, #d75040 55%, #b33f30 100%);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-row.is-selected .hr-it-row-delete {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-pending-remove {
+    min-width: 1.45rem;
+    min-height: 1.35rem;
+    padding: 0.08rem 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    vertical-align: middle;
+}
+
+.dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-section {
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-brackets-cols {
+        grid-template-columns: 1fr;
+    }
+
+    .dashboard-ora.hr-it-ora12-screen.hr-it-wrap .hr-it-config-fields {
+        grid-template-columns: 1fr;
+    }
+}

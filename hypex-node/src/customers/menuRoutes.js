@@ -1,0 +1,1790 @@
+'use strict';
+
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+const auth = require('../auth');
+const q = require('./domainQueries');
+const masters = require('./mastersService');
+const ui = require('../lib/salesUi');
+const { customersCatalog } = require('./catalog');
+const { esc } = require('../lib/html');
+
+const router = express.Router();
+const HUB = '/customers';
+const KICKER = 'Hypex Customers · Node';
+
+const importUploadDir = path.join(masters.hypexRoot(), 'uploads');
+try {
+  fs.mkdirSync(importUploadDir, { recursive: true });
+} catch {
+  /* */
+}
+const excelUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, importUploadDir),
+    filename: (_req, file, cb) => {
+      const safe = String(file.originalname || 'import.xlsx')
+        .replace(/[^\w.\-\u0600-\u06FF]+/g, '_')
+        .slice(0, 80);
+      cb(null, 'region_import_' + Date.now() + '_' + safe);
+    },
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const name = String(file.originalname || '').toLowerCase();
+    if (name.endsWith('.xlsx')) return cb(null, true);
+    cb(new Error('يُقبل ملف Excel بصيغة .xlsx فقط.'));
+  },
+});
+
+function can(user, code) {
+  return auth.userCan(user, code) || user.is_admin;
+}
+
+function requireAnyCustomers(req, res, next) {
+  const u = req.session.user;
+  const any = customersCatalog.some((g) => g.items.some((it) => can(u, it.r)));
+  if (!any && !u.is_admin) {
+    return res.status(403).send(
+      ui.salesPage({
+        user: u,
+        title: 'ممنوع',
+        bodyHtml: `<div class="si-stage">${ui.hero({ kicker: KICKER, title: 'لا صلاحية', subtitle: 'ليس لديك شاشات عملاء' })}</div>`,
+      })
+    );
+  }
+  next();
+}
+
+function guard(code) {
+  return (req, res, next) => {
+    if (!can(req.session.user, code)) {
+      return res.status(403).send(
+        ui.salesPage({
+          user: req.session.user,
+          title: 'ممنوع',
+          bodyHtml: `<div class="si-stage">${ui.hero({ kicker: KICKER, title: 'ممنوع', subtitle: 'لا صلاحية لهذه الشاشة' })}</div>`,
+        })
+      );
+    }
+    next();
+  };
+}
+
+router.use((req, res, next) => {
+  const p = req.path || '';
+  const ok =
+    p.startsWith('/customers') ||
+    p === '/api/customers/region-addresses' ||
+    p.startsWith('/api/customers/region-addresses');
+  if (!ok) return next('router');
+  return auth.requireAuth(req, res, (err) => {
+    if (err) return next(err);
+    return requireAnyCustomers(req, res, next);
+  });
+});
+
+router.get('/customers', async (req, res) => {
+  const user = req.session.user;
+  const linked = await q.oracleLinkedCount();
+  const body = `
+    <div class="si-stage">
+      ${ui.hero({
+        mark: 'Cu',
+        kicker: KICKER,
+        title: 'العملاء',
+        subtitle: 'قائمة العملاء والمناطق والتقارير — إضافة وتعديل أصلية على Node.',
+        actions: [
+          { label: 'قائمة العملاء', href: '/customers/list', primary: true },
+          { label: 'لوحة التحكم', href: '/app', ghost: true },
+        ],
+      })}
+      <p style="margin:.5rem 0 0;color:#5c6578;font-size:.88rem">عملاء مربوطون بـ Oracle: <strong dir="ltr">${linked}</strong></p>
+      ${ui.hubTiles(can, user, customersCatalog)}
+    </div>`;
+  res.send(ui.salesPage({ user, title: 'العملاء', bodyHtml: body }));
+});
+
+function listPage(res, user, opts) {
+  const {
+    title,
+    mark,
+    subtitle,
+    headers,
+    rowsHtml,
+    count,
+    searchPath,
+    qVal,
+    extraActions = [],
+    phpRoute,
+    filtersHtml = '',
+    tableClass = 'si-table',
+    extraHtml = '',
+  } = opts;
+  const actions = [...extraActions, { label: 'لوحة العملاء', href: HUB }];
+  
+
+  const body = `
+    <div class="si-stage">
+      ${ui.hero({ mark, kicker: KICKER, title, subtitle, actions })}
+      ${filtersHtml || (searchPath ? ui.railSearch(searchPath, qVal) : '')}
+      ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml, tableClass)}
+      ${extraHtml}
+    </div>`;
+  res.send(ui.salesPage({ user, title, bodyHtml: body }));
+}
+
+function bridge(req, res, conf) {
+  const body = `
+    <div class="si-stage">
+      ${ui.hero({
+        mark: conf.mark,
+        kicker: KICKER,
+        title: conf.title,
+        subtitle: conf.subtitle,
+        actions: [{ label: 'لوحة العملاء', href: HUB }],
+      })}
+      ${ui.bridgeCard(conf.cardTitle, conf.phpRoute, conf.desc, HUB, 'عودة لوحة العملاء')}
+    </div>`;
+  res.send(ui.salesPage({ user: req.session.user, title: conf.title, bodyHtml: body }));
+}
+
+function dash(v) {
+  const s = v == null || v === '' ? '' : String(v);
+  return s === '' ? '—' : ui.esc(s);
+}
+
+/** CSV بترميز UTF-8 مع BOM ليفتحه Excel بالعربية */
+function sendExcelCsv(res, filename, tableRows) {
+  const csvCell = (v) => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+  const body =
+    '\uFEFF' +
+    tableRows.map((row) => row.map(csvCell).join(',')).join('\r\n') +
+    '\r\n';
+  const safe = String(filename || 'export')
+    .replace(/[^\w.\-]+/g, '_')
+    .slice(0, 80);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${safe}.csv"`);
+  res.setHeader('Cache-Control', 'no-store');
+  return res.send(body);
+}
+
+function plainDash(v) {
+  const s = v == null || v === '' ? '' : String(v).trim();
+  return s === '' ? '' : s;
+}
+
+function customerListQueryString(src = {}) {
+  const p = new URLSearchParams();
+  const qv = String(src.q || '').trim();
+  if (qv) p.set('q', qv);
+  const regionId = Number(src.region_id || 0) || 0;
+  if (regionId > 0) p.set('region_id', String(regionId));
+  if (String(src.all || '') === '1') p.set('all', '1');
+  if (String(src.oracle_pending || '') === '1') p.set('oracle_pending', '1');
+  const customerId = Number(src.customer_id || 0) || 0;
+  if (customerId > 0) p.set('customer_id', String(customerId));
+  const salesRepId = Number(src.sales_rep_id || 0) || 0;
+  if (salesRepId > 0) p.set('sales_rep_id', String(salesRepId));
+  return p.toString();
+}
+
+function rememberCustomerListFilter(req) {
+  if (!req.session) return;
+  const hasFilter =
+    Object.prototype.hasOwnProperty.call(req.query, 'q') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'region_id') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'all') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'oracle_pending') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'customer_id') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'sales_rep_id');
+  if (hasFilter) {
+    req.session.customerListQs = customerListQueryString(req.query);
+  }
+}
+
+function customerListBackHref(req) {
+  const qs = req.session && req.session.customerListQs ? String(req.session.customerListQs) : '';
+  return '/customers/list' + (qs ? '?' + qs : '');
+}
+
+function safeCustomerListReturn(req, msg) {
+  const raw = String((req.body && req.body.return_to) || '').trim();
+  let qs = '';
+  if (
+    raw.startsWith('/customers/list') &&
+    !raw.includes('://') &&
+    !raw.includes('\\') &&
+    raw.indexOf('//') === -1
+  ) {
+    const qIndex = raw.indexOf('?');
+    const pathOnly = qIndex === -1 ? raw : raw.slice(0, qIndex);
+    if (pathOnly === '/customers/list') {
+      qs = qIndex === -1 ? '' : raw.slice(qIndex + 1);
+    }
+  }
+  if (!qs && req.session && req.session.customerListQs) {
+    qs = String(req.session.customerListQs);
+  }
+  const p = new URLSearchParams(qs);
+  p.delete('msg');
+  p.delete('err');
+  if (msg) p.set('msg', msg);
+  const s = p.toString();
+  return '/customers/list' + (s ? '?' + s : '');
+}
+
+/* ── Customers list ── */
+router.get('/customers/list', guard('customers'), async (req, res) => {
+  const qv = String(req.query.q || '');
+  const showAll = String(req.query.all || '') === '1';
+  const oraclePending = String(req.query.oracle_pending || '') === '1';
+  const regionId = Number(req.query.region_id || 0) || 0;
+  const customerId = Number(req.query.customer_id || 0) || 0;
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const [regions, reps] = await Promise.all([q.regionOptions(), q.salesRepOptions()]);
+  const filter = {
+    q: '',
+    activeOnly: !showAll,
+    regionId,
+    salesRepId,
+    oraclePendingOnly: oraclePending,
+  };
+  const [rows, total] = await Promise.all([
+    q.listCustomers({ ...filter, limit: 20000 }),
+    q.countCustomers(filter),
+  ]);
+
+  const regionOpts = regions
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${regionId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}</option>`
+    )
+    .join('');
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar || '')}${
+          r.code ? ' (' + ui.esc(r.code) + ')' : ''
+        }</option>`
+    )
+    .join('');
+
+  const selected = customerId > 0 ? rows.find((r) => Number(r.id) === customerId) : null;
+  const selectedLabel = selected
+    ? [String(selected.code || '').trim(), String(selected.name_ar || '').trim()].filter(Boolean).join(' — ')
+    : qv;
+  const hasPicked = !!selected;
+
+  rememberCustomerListFilter(req);
+
+  const filtersHtml = `
+    <div class="si-rail" style="overflow:visible;border-radius:18px;align-items:flex-end">
+      <form id="cust-list-filter" method="get" action="/customers/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.55rem .65rem;align-items:flex-end;flex:1">
+        <label class="si-list-f" style="display:flex;flex-direction:column;gap:.18rem;flex:1 1 16rem;min-width:14rem;position:relative;z-index:5">
+          <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">العميل</span>
+          <div class="si-cust-wrap" style="position:relative;width:100%">
+            <input type="hidden" name="customer_id" id="cust-list-id" value="${hasPicked ? customerId : ''}">
+            <input class="si-field" type="search" name="q" id="cust-list-q" value="${ui.esc(selectedLabel)}" placeholder="ابحث بالرمز أو الاسم أو الهاتف…" autocomplete="off" style="width:100%;min-width:12rem;min-height:2.1rem">
+            <div class="si-suggest" id="cust-list-suggest" hidden></div>
+          </div>
+        </label>
+        <label class="si-list-f" style="display:flex;flex-direction:column;gap:.18rem;min-width:9rem">
+          <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">المنطقة</span>
+          <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:9rem">
+            <option value="0">كل المناطق</option>
+            ${regionOpts}
+          </select>
+        </label>
+        <label class="si-list-f" style="display:flex;flex-direction:column;gap:.18rem;min-width:11rem">
+          <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">المندوب</span>
+          <select name="sales_rep_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:11rem">
+            <option value="0">كل المندوبين</option>
+            ${repOpts}
+          </select>
+        </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem">
+          <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفين
+        </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem">
+          <input type="checkbox" name="oracle_pending" value="1" ${oraclePending ? 'checked' : ''}> بانتظار ربط Oracle
+        </label>
+        <button class="si-btn si-btn--primary" type="submit">عرض</button>
+      </form>
+    </div>`;
+
+  const rowsHtml =
+    rows
+      .map(
+        (r) => {
+          const oraKey = String(r.oracle_key || '').trim();
+          const pending =
+            oraKey === '' ||
+            Number(r.oracle_pending) === 1 ||
+            String(r.code || '').startsWith('P-');
+          const payLabels = {
+            cash_with_vehicle: 'كاش مع السيارة',
+            cash_with_rep: 'نقدي مع المندوب',
+            credit: 'ذمم',
+          };
+          const pay = payLabels[String(r.payment_period || '')] || '';
+          const searchBits = [r.code, r.name_ar, r.phone, r.region_name, r.sales_rep_name, pay]
+            .map((v) => String(v || ''))
+            .join(' ');
+          return `<tr data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
+      <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
+      <td>${ui.esc(r.name_ar || '')}</td>
+      <td>${pay ? ui.esc(pay) : '—'}</td>
+      <td class="si-num" dir="ltr">${dash(r.phone)}</td>
+      <td>${dash(r.region_name)}</td>
+      <td>${dash(r.sales_rep_name)}</td>
+      <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', Number(r.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
+      <td><a class="si-btn js-keep-cust-list" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">${pending ? 'ربط Oracle' : 'تعديل'}</a></td>
+    </tr>`;
+        }
+      )
+      .join('') || ui.emptyRow(8);
+
+  listPage(res, req.session.user, {
+    title: 'العملاء',
+    mark: 'Cl',
+    subtitle: 'دليل العملاء — إضافة وتعديل على Node',
+    headers: ['الرمز', 'الاسم', 'فترة السداد', 'الهاتف', 'المنطقة', 'المندوب', 'الحالة', ''],
+    rowsHtml,
+    count: hasPicked ? `1 من ${total}` : total > rows.length ? `${rows.length} من ${total}` : total,
+    phpRoute: 'customers',
+    filtersHtml,
+    tableClass: 'si-table si-table--lined',
+    extraHtml: `<script>
+      (function () {
+        var form = document.getElementById('cust-list-filter');
+        if (!form) return;
+        var qInput = document.getElementById('cust-list-q');
+        var idInput = document.getElementById('cust-list-id');
+        var box = document.getElementById('cust-list-suggest');
+        var table = document.querySelector('.si-table--lined');
+        var rows = table ? [].slice.call(table.querySelectorAll('tbody tr')) : [];
+        var countEl = document.querySelector('.si-surface-head .si-count');
+        var baseCount = ${Number(total) || 0};
+
+        function esc(s) {
+          return String(s || '').replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+          });
+        }
+        function pickedId() {
+          return Number(idInput && idInput.value ? idInput.value : 0) || 0;
+        }
+        function rowLabel(tr) {
+          var code = (tr.getAttribute('data-code') || '').trim();
+          var name = (tr.getAttribute('data-name') || '').trim();
+          if (code && name) return code + ' — ' + name;
+          return name || code;
+        }
+        function listUrl() {
+          var u = new URL('/customers/list', location.origin);
+          var picked = pickedId();
+          if (picked > 0) {
+            u.searchParams.set('customer_id', String(picked));
+          } else {
+            var q = (qInput && qInput.value ? qInput.value : '').trim();
+            if (q) u.searchParams.set('q', q);
+          }
+          var region = form.querySelector('[name="region_id"]');
+          if (region && region.value && region.value !== '0') u.searchParams.set('region_id', region.value);
+          var rep = form.querySelector('[name="sales_rep_id"]');
+          if (rep && rep.value && rep.value !== '0') u.searchParams.set('sales_rep_id', rep.value);
+          var all = form.querySelector('[name="all"]');
+          if (all && all.checked) u.searchParams.set('all', '1');
+          var ora = form.querySelector('[name="oracle_pending"]');
+          if (ora && ora.checked) u.searchParams.set('oracle_pending', '1');
+          return u.pathname + u.search;
+        }
+        function persist() {
+          var href = listUrl();
+          try { sessionStorage.setItem('hypex_customers_list', href); } catch (e) {}
+          if (history.replaceState) history.replaceState(null, '', href);
+        }
+        function hideSuggest() {
+          if (box) { box.hidden = true; box.innerHTML = ''; }
+        }
+        function applyFilter() {
+          var picked = pickedId();
+          var needle = (qInput && qInput.value ? qInput.value : '').trim().toLowerCase();
+          var n = 0;
+          rows.forEach(function (tr) {
+            if (tr.querySelector('td.empty')) return;
+            var ok;
+            if (picked > 0) {
+              ok = Number(tr.getAttribute('data-id')) === picked;
+            } else {
+              var hay = (tr.getAttribute('data-search') || '').toLowerCase();
+              ok = !needle || hay.indexOf(needle) !== -1;
+            }
+            tr.hidden = !ok;
+            if (ok) n++;
+          });
+          if (countEl) {
+            countEl.textContent = (picked > 0 || needle) ? (n + ' من ' + baseCount + ' صف') : (baseCount + ' صف');
+          }
+          persist();
+        }
+        function showSuggest() {
+          if (!box || !qInput) return;
+          if (pickedId() > 0) { hideSuggest(); return; }
+          var needle = (qInput.value || '').trim().toLowerCase();
+          if (!needle) { hideSuggest(); return; }
+          var html = '';
+          var n = 0;
+          rows.forEach(function (tr) {
+            if (tr.querySelector('td.empty')) return;
+            var hay = (tr.getAttribute('data-search') || '').toLowerCase();
+            if (hay.indexOf(needle) === -1) return;
+            n++;
+            if (n > 40) return;
+            html += '<button type="button" data-id="' + esc(tr.getAttribute('data-id') || '') + '">' +
+              esc(rowLabel(tr)) + '</button>';
+          });
+          if (!html) { hideSuggest(); return; }
+          box.innerHTML = html;
+          box.hidden = false;
+        }
+        function pickRow(id) {
+          var tr = rows.filter(function (r) {
+            return Number(r.getAttribute('data-id')) === Number(id);
+          })[0];
+          if (!tr || !idInput || !qInput) return;
+          idInput.value = String(id);
+          qInput.value = rowLabel(tr);
+          hideSuggest();
+          applyFilter();
+        }
+        if (qInput) {
+          qInput.addEventListener('input', function () {
+            if (idInput) idInput.value = '';
+            applyFilter();
+            showSuggest();
+          });
+          qInput.addEventListener('focus', function () {
+            if (pickedId() > 0) qInput.select();
+            else showSuggest();
+          });
+          qInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') hideSuggest();
+          });
+        }
+        if (box) {
+          box.addEventListener('mousedown', function (e) {
+            var btn = e.target && e.target.closest ? e.target.closest('button[data-id]') : null;
+            if (!btn) return;
+            e.preventDefault();
+            pickRow(btn.getAttribute('data-id'));
+          });
+        }
+        document.addEventListener('click', function (e) {
+          if (!box || box.hidden) return;
+          if (form.contains(e.target)) return;
+          hideSuggest();
+        });
+        form.addEventListener('submit', function () {
+          if (pickedId() > 0 && qInput) qInput.removeAttribute('name');
+        });
+        form.querySelectorAll('select, input[type="checkbox"]').forEach(function (el) {
+          el.addEventListener('change', function () { form.requestSubmit(); });
+        });
+        if ((qInput && qInput.value) || pickedId() > 0) applyFilter();
+        persist();
+      })();
+    </script>`,
+    extraActions: [
+      {
+        label: '＋ عميل جديد',
+        href: '/customers/new',
+        primary: true,
+      },
+    ],
+  });
+});
+
+/* ── تعريف المناطق: منطقة + عناوين متعددة بداخلها ── */
+router.get('/customers/regions', guard('customer_regions'), async (req, res) => {
+  const qv = String(req.query.q || '');
+  const showAll = String(req.query.all || '') === '1';
+  const wantsNew = String(req.query.new || '') === '1';
+  const rows = await q.listRegions({ q: qv, activeOnly: !showAll });
+  let focusId = Number(req.query.id || 0) || 0;
+  if (!wantsNew && !focusId && rows[0]) focusId = Number(rows[0].id);
+  const focus = focusId ? rows.find((r) => Number(r.id) === focusId) || (await masters.getRegion(focusId)) : null;
+  if (focusId && !focus) focusId = 0;
+  let addressRows = [];
+  let regionUse = { canDelete: false };
+  if (focusId > 0) {
+    addressRows = await q.listRegionAddresses(focusId);
+    regionUse = await masters.regionUsage(focusId);
+  }
+
+  const flash = String(req.query.msg || '');
+  const err = String(req.query.err || '');
+  const qsKeep = `${qv ? '&q=' + encodeURIComponent(qv) : ''}${showAll ? '&all=1' : ''}`;
+
+  const regionNav =
+    rows
+      .map((r) => {
+        const active = !wantsNew && Number(r.id) === focusId;
+        return `<a class="rg-nav-item${active ? ' is-active' : ''}${Number(r.is_active) !== 1 ? ' is-off' : ''}"
+          href="/customers/regions?id=${r.id}${qsKeep}">
+          <span class="rg-nav-name">${ui.esc(r.name_ar || '')}</span>
+          <span class="rg-nav-meta" dir="ltr">${Number(r.address_count || 0)} عنوان · ${Number(r.customer_count || 0)} عميل</span>
+        </a>`;
+      })
+      .join('') || `<p class="rg-empty">لا مناطق بعد — أضف منطقة من الزر أعلاه.</p>`;
+
+  let detailHtml = '';
+  if (wantsNew) {
+    detailHtml = `
+      <section class="si-surface rg-detail">
+        <div class="si-surface-head"><h2>تعريف منطقة جديدة</h2></div>
+        <form method="post" action="/customers/regions/new" class="si-meta" style="padding:1rem">
+          <label>الرمز
+            <input class="si-field si-field--mono" name="code" dir="ltr" placeholder="تلقائي إن فارغ">
+          </label>
+          <label>الترتيب
+            <input class="si-field" type="number" name="sort_order" value="0" dir="ltr">
+          </label>
+          <label class="si-span-2">اسم المنطقة *
+            <input class="si-field" name="name_ar" required autofocus placeholder="مثال: عمان الغربية">
+          </label>
+          <div class="si-form-actions si-span-2">
+            <button class="si-btn si-btn--primary" type="submit">حفظ المنطقة</button>
+            <a class="si-btn" href="/customers/regions${qsKeep ? '?' + qsKeep.slice(1) : ''}">إلغاء</a>
+          </div>
+        </form>
+        <p class="rg-hint">بعد الحفظ يمكنك إضافة أكثر من عنوان داخل المنطقة.</p>
+      </section>`;
+  } else if (focus) {
+    const aRows =
+      addressRows
+        .map(
+          (a) => `<tr>
+        <td>
+          <form method="post" action="/customers/regions/${focusId}/addresses/${a.id}/edit" class="rg-addr-edit">
+            <input type="hidden" name="sort_order" value="${Number(a.sort_order || 0)}">
+            <input class="si-field" name="name_ar" required value="${ui.esc(a.name_ar || '')}" aria-label="اسم العنوان">
+            <label class="rg-check">
+              <input type="checkbox" name="is_active" value="1" ${Number(a.is_active) === 1 ? 'checked' : ''}>
+              نشط
+            </label>
+            <button class="si-btn si-btn--primary" type="submit" style="min-height:1.85rem;padding:.25rem .65rem;font-size:.78rem">حفظ</button>
+          </form>
+        </td>
+        <td class="si-num" dir="ltr">${Number(a.customer_count || 0)}</td>
+        <td>${ui.statusPill(Number(a.is_active) === 1 ? 'ok' : 'lock', Number(a.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
+      </tr>`
+        )
+        .join('') || ui.emptyRow(3, 'لا عناوين بعد — أضف عنواناً أو أكثر أدناه');
+
+    detailHtml = `
+      <section class="si-surface rg-detail">
+        <div class="si-surface-head">
+          <h2>تعريف المنطقة</h2>
+          <span class="si-count" dir="ltr">${ui.esc(focus.code || '')}</span>
+        </div>
+        <form method="post" action="/customers/regions/${focusId}/edit" class="si-meta" style="padding:1rem">
+          <input type="hidden" name="id" value="${focusId}">
+          <label>الرمز
+            <input class="si-field si-field--mono" name="code" value="${ui.esc(focus.code || '')}" dir="ltr">
+          </label>
+          <label>الترتيب
+            <input class="si-field" type="number" name="sort_order" value="${Number(focus.sort_order || 0)}" dir="ltr">
+          </label>
+          <label class="si-span-2">اسم المنطقة *
+            <input class="si-field" name="name_ar" required value="${ui.esc(focus.name_ar || '')}">
+          </label>
+          <label class="rg-check-row si-span-2">
+            <input type="checkbox" name="is_active" value="1" ${Number(focus.is_active) === 1 ? 'checked' : ''}>
+            المنطقة مفعّلة
+          </label>
+          <div class="si-form-actions si-span-2">
+            <button class="si-btn si-btn--primary" type="submit">حفظ تعريف المنطقة</button>
+          </div>
+        </form>
+        <div class="si-form-actions" style="padding:0 1rem 1rem">
+          ${
+            regionUse.canDelete
+              ? `<form method="post" action="/customers/regions/${focusId}/delete" onsubmit="return confirm('حذف المنطقة نهائياً؟ لا يمكن التراجع.');">
+            <button class="si-btn si-btn--danger" type="submit">حذف المنطقة</button>
+          </form>`
+              : `<span class="rg-hint">لا يمكن حذف المنطقة لوجود عملاء أو جولات أو مندوبين مرتبطين بها.</span>`
+          }
+        </div>
+      </section>
+
+      <section class="si-surface rg-detail" style="margin-top:.75rem">
+        <div class="si-surface-head">
+          <h2>عناوين داخل «${ui.esc(focus.name_ar || '')}»</h2>
+          <span class="si-count">${addressRows.length} عنوان</span>
+        </div>
+        <div class="si-lines-wrap" style="padding:0 .85rem .85rem">
+          <table class="si-table" style="width:100%;margin:0">
+            <thead>
+              <tr>
+                <th>العنوان (حي / شارع)</th>
+                <th style="width:5rem">عملاء</th>
+                <th style="width:5.5rem">الحالة</th>
+              </tr>
+            </thead>
+            <tbody>${aRows}</tbody>
+          </table>
+        </div>
+        <form method="post" action="/customers/regions/${focusId}/addresses" class="si-meta" style="padding:0 1rem 1rem;border-top:1px solid #e8edf5">
+          <div class="si-surface-head" style="padding:.75rem 0 .35rem"><h2 style="font-size:.95rem">＋ إضافة عنوان آخر</h2></div>
+          <label class="si-span-2">اسم العنوان *
+            <input class="si-field" name="name_ar" required placeholder="مثال: الدوار السابع · خلدا · الجبيهة" autocomplete="off">
+          </label>
+          <label>الترتيب
+            <input class="si-field" type="number" name="sort_order" value="${addressRows.length * 10}" dir="ltr">
+          </label>
+          <div class="si-form-actions">
+            <button class="si-btn si-btn--primary" type="submit">إضافة العنوان للمنطقة</button>
+          </div>
+          <p class="rg-hint si-span-2">يمكن إضافة أكثر من عنوان لنفس المنطقة — كل عنوان على حدة.</p>
+        </form>
+      </section>`;
+  } else {
+    detailHtml = `
+      <section class="si-surface rg-detail">
+        <div class="si-surface-head"><h2>تعريف المنطقة</h2></div>
+        <p class="rg-empty" style="padding:1.25rem">اختر منطقة من القائمة أو أضف منطقة جديدة.</p>
+      </section>`;
+  }
+
+  const body = `
+    <style>
+      .rg-layout{display:grid;grid-template-columns:minmax(14rem,18rem) minmax(0,1fr);gap:.85rem;align-items:start}
+      @media (max-width:900px){.rg-layout{grid-template-columns:1fr}}
+      .rg-nav{display:flex;flex-direction:column;gap:.35rem;padding:.55rem;max-height:min(70vh,36rem);overflow:auto}
+      .rg-nav-item{display:flex;flex-direction:column;gap:.15rem;padding:.55rem .65rem;border-radius:10px;border:1px solid transparent;text-decoration:none;color:inherit;background:#f8fafc}
+      .rg-nav-item:hover{border-color:#cbd5e1;background:#fff}
+      .rg-nav-item.is-active{border-color:#0b6bcb;background:#eff6ff;box-shadow:0 0 0 1px rgba(11,107,203,.12)}
+      .rg-nav-item.is-off{opacity:.72}
+      .rg-nav-name{font-weight:700;font-size:.92rem}
+      .rg-nav-meta{font-size:.72rem;color:#64748b;font-weight:600}
+      .rg-empty{margin:0;padding:.75rem;color:#64748b;font-size:.88rem}
+      .rg-hint{margin:.35rem 0 0;font-size:.8rem;color:#64748b;line-height:1.45}
+      .rg-addr-edit{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center}
+      .rg-addr-edit .si-field{flex:1;min-width:10rem;min-height:2rem}
+      .rg-check,.rg-check-row{display:flex;align-items:center;gap:.35rem;font-size:.82rem;font-weight:700;color:#475569;flex-direction:row}
+      .rg-filters{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;flex:1}
+      .rg-import{margin:.15rem 0 .85rem;padding:1rem 1.1rem;border:1px solid #dbe4f0;border-radius:14px;background:linear-gradient(180deg,#f8fbff,#fff)}
+      .rg-import h3{margin:0 0 .35rem;font-size:.98rem;font-weight:800}
+      .rg-import p{margin:0 0 .65rem;font-size:.84rem;color:#64748b;line-height:1.5}
+      .rg-import-form{display:flex;flex-wrap:wrap;gap:.55rem;align-items:end}
+      .rg-import-form label{display:grid;gap:.3rem;font-size:.75rem;font-weight:700;color:#64748b;flex:1;min-width:12rem}
+      .rg-import-cols{margin:.65rem 0 0;padding:.55rem .7rem;border-radius:10px;background:#f1f5f9;font-size:.8rem;color:#475569;line-height:1.55}
+      .rg-import-cols code{font-size:.78rem;background:#fff;padding:.05rem .3rem;border-radius:4px}
+      .rg-import-warn{margin:.65rem 0 0;padding:.55rem .75rem;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;font-size:.82rem;color:#9a3412}
+      .rg-import-warn ul{margin:.35rem 0 0;padding-inline-start:1.1rem}
+    </style>
+    <div class="si-stage">
+      ${ui.hero({
+        mark: 'Rg',
+        kicker: KICKER,
+        title: 'تعريف المناطق',
+        subtitle: 'عرّف المنطقة ثم أضف بداخلها العناوين',
+        actions: [
+          { label: '＋ منطقة جديدة', href: '/customers/regions?new=1' + qsKeep, primary: true },
+          { label: 'العملاء', href: '/customers/list' },
+          { label: 'لوحة العملاء', href: HUB },
+        ],
+      })}
+      ${flash ? `<p class="si-pill si-pill--ok" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${ui.esc(flash)}</p>` : ''}
+      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${ui.esc(err)}</p>` : ''}
+      <div class="si-rail">
+        <form class="si-search rg-filters" method="get" action="/customers/regions" style="max-width:100%;margin:0">
+          ${focusId && !wantsNew ? `<input type="hidden" name="id" value="${focusId}">` : ''}
+          <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث منطقة أو عنوان…" autocomplete="off" style="flex:1;min-width:10rem">
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+            <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفة
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        </form>
+      </div>
+      <div class="rg-layout">
+        <section class="si-surface">
+          <div class="si-surface-head"><h2>المناطق</h2><span class="si-count">${rows.length}</span></div>
+          <nav class="rg-nav" aria-label="قائمة المناطق">${regionNav}</nav>
+        </section>
+        <div class="rg-detail-col">${detailHtml}</div>
+      </div>
+    </div>`;
+  res.send(ui.salesPage({ user: req.session.user, title: 'تعريف المناطق', bodyHtml: body }));
+});
+
+async function regionForm(req, res, id) {
+  /* نموذج منفصل لم يعد مستخدماً كشاشة رئيسية — إعادة توجيه للواجهة الموحدة */
+  const isNew = !id;
+  if (isNew) return res.redirect('/customers/regions?new=1');
+  return res.redirect('/customers/regions?id=' + Number(id));
+}
+
+router.get('/customers/regions/new', (req, res) => regionForm(req, res, 0));
+router.get('/customers/regions/:id/edit', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.redirect('/customers/regions');
+  return regionForm(req, res, id);
+});
+
+router.post('/customers/regions/import', guard('customer_regions'), (req, res) => {
+  excelUpload.single('excel_file')(req, res, async (uploadErr) => {
+    if (uploadErr) {
+      return res.redirect(
+        '/customers/regions?import=1&err=' + encodeURIComponent(uploadErr.message || 'فشل رفع الملف')
+      );
+    }
+    const file = req.file;
+    if (!file || !file.path) {
+      return res.redirect('/customers/regions?import=1&err=' + encodeURIComponent('اختر ملف Excel (.xlsx).'));
+    }
+    const replaceReps =
+      !req.body || req.body.replace_reps === undefined
+        ? true
+        : req.body.replace_reps === '1' ||
+          req.body.replace_reps === 'on' ||
+          req.body.replace_reps === true ||
+          req.body.replace_reps === 'true';
+    try {
+      const result = await masters.importRegionCustomerExcel(req.session.user.id, file.path, {
+        replaceReps,
+      });
+      try {
+        fs.unlinkSync(file.path);
+      } catch {
+        /* keep for debug */
+      }
+      if (!result.ok) {
+        return res.redirect(
+          '/customers/regions?import=1&err=' +
+            encodeURIComponent(result.error || result.message || 'فشل الاستيراد')
+        );
+      }
+      let qs =
+        '/customers/regions?msg=' + encodeURIComponent(result.message || 'تم الاستيراد');
+      const warns = Array.isArray(result.warnings) ? result.warnings : [];
+      if (warns.length) {
+        try {
+          qs +=
+            '&warn=' +
+            Buffer.from(JSON.stringify(warns.slice(0, 40)), 'utf8').toString('base64url');
+        } catch {
+          /* */
+        }
+      }
+      return res.redirect(qs);
+    } catch (e) {
+      try {
+        fs.unlinkSync(file.path);
+      } catch {
+        /* */
+      }
+      return res.redirect(
+        '/customers/regions?import=1&err=' + encodeURIComponent(e.message || 'فشل الاستيراد')
+      );
+    }
+  });
+});
+router.post('/customers/regions/new', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const result = await masters.saveRegion({ ...(req.body || {}), is_active: 1 });
+  if (!result.ok) return res.redirect('/customers/regions?new=1&err=' + encodeURIComponent(result.error));
+  res.redirect(
+    '/customers/regions?msg=' +
+      encodeURIComponent(result.message || 'تم') +
+      (result.id ? '&id=' + result.id : '')
+  );
+});
+router.post('/customers/regions/:id/edit', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const id = Number(req.params.id);
+  const result = await masters.saveRegion({ ...(req.body || {}), id });
+  if (!result.ok) {
+    return res.redirect('/customers/regions?id=' + id + '&err=' + encodeURIComponent(result.error));
+  }
+  res.redirect('/customers/regions?id=' + id + '&msg=' + encodeURIComponent(result.message || 'تم'));
+});
+router.post('/customers/regions/:id/delete', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const id = Number(req.params.id);
+  const result = await masters.deleteRegion(id);
+  if (!result.ok) {
+    return res.redirect('/customers/regions?id=' + id + '&err=' + encodeURIComponent(result.error));
+  }
+  res.redirect('/customers/regions?msg=' + encodeURIComponent(result.message || 'تم الحذف'));
+});
+router.post('/customers/regions/:id/addresses', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const regionId = Number(req.params.id);
+  const result = await masters.saveRegionAddress({ ...(req.body || {}), region_id: regionId });
+  const key = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/customers/regions?id=' + regionId + '&' + key + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+router.post('/customers/regions/:regionId/addresses/:addrId/edit', async (req, res) => {
+  if (!can(req.session.user, 'customer_regions')) return res.status(403).send('ممنوع');
+  const regionId = Number(req.params.regionId);
+  const addrId = Number(req.params.addrId);
+  const body = req.body || {};
+  const result = await masters.saveRegionAddress({
+    ...body,
+    id: addrId,
+    region_id: regionId,
+    is_active: body.is_active ? 1 : 0,
+  });
+  const key = result.ok ? 'msg' : 'err';
+  res.redirect(
+    '/customers/regions?id=' + regionId + '&' + key + '=' + encodeURIComponent(result.message || result.error || '')
+  );
+});
+
+/* ── مزامنة / ربط عملاء Oracle (واجهة Node كاملة) ── */
+const { registerOracleSyncRoutes } = require('./oracleSyncRoutes');
+registerOracleSyncRoutes(router, { guard, ui, q, HUB, KICKER });
+
+/* ── Reports ── */
+router.get('/customers/reports/list', guard('report_customers'), async (req, res) => {
+  const activeOnly = String(req.query.active_only || '') === '1';
+  const wantExcel = String(req.query.excel || '') === '1';
+  const rows = await q.reportCustomers({ activeOnly });
+  const active = rows.filter((r) => Number(r.is_active) === 1).length;
+  const inactive = rows.length - active;
+
+  if (wantExcel) {
+    const table = [
+      ['#', 'الرمز', 'الاسم', 'الهاتف', 'البريد', 'ضريبي', 'المنطقة', 'العنوان', 'المندوب', 'الحالة'],
+    ];
+    rows.forEach((r, i) => {
+      table.push([
+        i + 1,
+        plainDash(r.customer_code),
+        plainDash(r.customer_name),
+        plainDash(r.phone),
+        plainDash(r.email),
+        plainDash(r.tax_number),
+        plainDash(r.region_name),
+        plainDash(r.region_address_name),
+        plainDash(r.sales_rep_name),
+        Number(r.is_active) === 1 ? 'نشط' : 'موقوف',
+      ]);
+    });
+    return sendExcelCsv(res, 'customers_report', table);
+  }
+
+  const excelQs = new URLSearchParams();
+  if (activeOnly) excelQs.set('active_only', '1');
+  excelQs.set('excel', '1');
+  const excelHref = '/customers/reports/list?' + excelQs.toString();
+
+  const filtersHtml = `
+    <div class="si-rail no-print">
+      <form class="si-search" method="get" action="/customers/reports/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+          <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> العملاء النشطون فقط
+        </label>
+        <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        ${ui.siPrintBtnHtml('طباعة')}
+        <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
+      </form>
+    </div>
+    <div class="si-print-meta print-only">
+      <strong>تقرير العملاء</strong>
+      · نشط: ${active} · موقوف: ${inactive}
+      · طُبع: <span class="si-print-when" dir="ltr"></span>
+    </div>`;
+
+  const rowsHtml =
+    rows
+      .map(
+        (r, i) => `<tr>
+      <td class="si-num" dir="ltr">${i + 1}</td>
+      <td class="si-num" dir="ltr">${ui.esc(r.customer_code || '')}</td>
+      <td>${ui.esc(r.customer_name || '')}</td>
+      <td class="si-num" dir="ltr">${dash(r.phone)}</td>
+      <td>${dash(r.email)}</td>
+      <td class="si-num" dir="ltr">${dash(r.tax_number)}</td>
+      <td>${dash(r.region_name)}</td>
+      <td>${dash(r.region_address_name)}</td>
+      <td>${dash(r.sales_rep_name)}</td>
+      <td>${Number(r.is_active) === 1 ? 'نشط' : 'موقوف'}</td>
+    </tr>`
+      )
+      .join('') || ui.emptyRow(10);
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: 'R1',
+        kicker: KICKER,
+        title: 'تقرير العملاء',
+        subtitle: `${rows.length} عميل · نشط ${active} · موقوف ${inactive}`,
+        actions: [
+          ui.printAction(),
+          { label: 'Excel', href: excelHref },
+          { label: 'لوحة العملاء', href: HUB },
+        ],
+      })}
+      ${filtersHtml}
+      <div class="si-print-area">
+        ${ui.tableSurface(
+          'تقرير العملاء',
+          `${rows.length} عميل`,
+          ['#', 'الرمز', 'الاسم', 'الهاتف', 'البريد', 'ضريبي', 'المنطقة', 'العنوان', 'المندوب', 'الحالة'],
+          rowsHtml
+        )}
+      </div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير العملاء',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
+router.get('/customers/reports/by-rep', guard('report_customers_by_rep'), async (req, res) => {
+  const activeOnly = String(req.query.active_only || '') === '1';
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const wantExcel = String(req.query.excel || '') === '1';
+  const reps = await q.salesRepOptions();
+  const rows = await q.reportCustomersByRep({ activeOnly, salesRepId });
+
+  if (wantExcel) {
+    const table = [
+      ['#', 'رمز المندوب', 'المندوب', 'رمز العميل', 'اسم العميل', 'المنطقة', 'العنوان', 'الهاتف', 'البريد', 'الحالة'],
+    ];
+    rows.forEach((r, i) => {
+      table.push([
+        i + 1,
+        plainDash(r.rep_code),
+        plainDash(r.rep_name),
+        plainDash(r.customer_code),
+        plainDash(r.customer_name),
+        plainDash(r.region_name),
+        plainDash(r.region_address_name),
+        plainDash(r.phone),
+        plainDash(r.email),
+        Number(r.is_active) === 1 ? 'نشط' : 'موقوف',
+      ]);
+    });
+    const fname =
+      salesRepId > 0 ? 'customers_by_rep_' + salesRepId : 'customers_by_rep';
+    return sendExcelCsv(res, fname, table);
+  }
+
+  const groups = new Map();
+  for (const r of rows) {
+    const key = String(r.rep_id || 0);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        rep_id: Number(r.rep_id || 0),
+        rep_name: r.rep_name || '—',
+        rep_code: r.rep_code || '',
+        rows: [],
+        active: 0,
+      });
+    }
+    const g = groups.get(key);
+    g.rows.push(r);
+    if (Number(r.is_active) === 1) g.active += 1;
+  }
+
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}${r.code ? ' (' + ui.esc(r.code) + ')' : ''}</option>`
+    )
+    .join('');
+
+  const excelQs = new URLSearchParams();
+  if (salesRepId > 0) excelQs.set('sales_rep_id', String(salesRepId));
+  if (activeOnly) excelQs.set('active_only', '1');
+  excelQs.set('excel', '1');
+  const excelHref = '/customers/reports/by-rep?' + excelQs.toString();
+
+  const filtersHtml = `
+    <div class="si-rail no-print">
+      <form class="si-search" method="get" action="/customers/reports/by-rep" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.35rem">المندوب
+          <select name="sales_rep_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:11rem">
+            <option value="0">جميع المندوبين</option>
+            ${repOpts}
+          </select>
+        </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+          <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> النشطون فقط
+        </label>
+        <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        ${ui.siPrintBtnHtml('طباعة')}
+        <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
+      </form>
+    </div>`;
+
+  let blocks = '';
+  if (groups.size === 0) {
+    blocks = ui.tableSurface('النتيجة', '0', ['—'], ui.emptyRow(1, 'لا يوجد عملاء مطابقون'));
+  } else {
+    for (const g of groups.values()) {
+      const html = g.rows
+        .map(
+          (r, i) => `<tr>
+          <td class="si-num" dir="ltr">${i + 1}</td>
+          <td class="si-num" dir="ltr">${ui.esc(r.customer_code || '')}</td>
+          <td>${ui.esc(r.customer_name || '')}</td>
+          <td>${dash(r.region_name)}</td>
+          <td>${dash(r.region_address_name)}</td>
+          <td>${dash(r.rep_name)}</td>
+          <td class="si-num" dir="ltr">${dash(r.phone)}</td>
+          <td>${dash(r.email)}</td>
+          <td>${Number(r.is_active) === 1 ? 'نشط' : 'موقوف'}</td>
+        </tr>`
+        )
+        .join('');
+      const title = `المندوب: ${g.rep_name}${g.rep_code ? ' (' + g.rep_code + ')' : ''}`;
+      blocks += `<div style="margin-top:.75rem">${ui.tableSurface(
+        title,
+        `${g.rows.length} عميل · نشط ${g.active}`,
+        ['#', 'الرمز', 'الاسم', 'المنطقة', 'العنوان', 'المندوب', 'الهاتف', 'البريد', 'الحالة'],
+        html
+      )}</div>`;
+    }
+  }
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: 'R2',
+        kicker: KICKER,
+        title: 'تقرير العملاء حسب المندوب',
+        subtitle: `${groups.size} مجموعة · ${rows.length} صف عميل`,
+        actions: [
+          ui.printAction(),
+          { label: 'Excel', href: excelHref },
+          { label: 'لوحة العملاء', href: HUB },
+          { label: 'تقرير كامل', href: '/customers/reports/by-rep' },
+        ],
+      })}
+      ${filtersHtml}
+      <div class="si-print-area">${blocks}</div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير العملاء حسب المندوب',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
+router.get('/customers/reports/region-addresses', guard('report_customers_region_addresses'), async (req, res) => {
+  const activeOnly = String(req.query.active_only || '') === '1';
+  const regionId = Number(req.query.region_id || 0) || 0;
+  const wantExcel = String(req.query.excel || '') === '1';
+  const regions = await q.regionOptions();
+  const rows = await q.reportRegionAddresses({ activeOnly, regionId });
+
+  if (wantExcel) {
+    const table = [['#', 'رمز المنطقة', 'المنطقة', 'العنوان', 'المندوب', 'عدد العملاء', 'حالة المنطقة', 'حالة العنوان']];
+    rows.forEach((r, i) => {
+      table.push([
+        i + 1,
+        plainDash(r.region_code),
+        plainDash(r.region_name),
+        plainDash(r.address_name) || '— بدون عنوان —',
+        plainDash(r.sales_rep_name),
+        Number(r.customer_count || 0),
+        Number(r.region_active) === 1 ? 'نشط' : 'موقوف',
+        Number(r.address_id) > 0 ? (Number(r.address_active) === 1 ? 'نشط' : 'موقوف') : '',
+      ]);
+    });
+    const fname = regionId > 0 ? 'region_addresses_' + regionId : 'region_addresses';
+    return sendExcelCsv(res, fname, table);
+  }
+
+  const groups = new Map();
+  for (const r of rows) {
+    const key = String(r.region_id || 0);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        region_id: Number(r.region_id || 0),
+        region_name: r.region_name || '—',
+        region_code: r.region_code || '',
+        region_active: Number(r.region_active) === 1,
+        rows: [],
+        withRep: 0,
+      });
+    }
+    const g = groups.get(key);
+    g.rows.push(r);
+    if (String(r.sales_rep_name || '').trim()) g.withRep += 1;
+  }
+
+  const regionOpts = regions
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${regionId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}${
+          r.code ? ' (' + ui.esc(r.code) + ')' : ''
+        }</option>`
+    )
+    .join('');
+
+  const excelQs = new URLSearchParams();
+  if (regionId > 0) excelQs.set('region_id', String(regionId));
+  if (activeOnly) excelQs.set('active_only', '1');
+  excelQs.set('excel', '1');
+  const excelHref = '/customers/reports/region-addresses?' + excelQs.toString();
+
+  const filtersHtml = `
+    <div class="si-rail no-print">
+      <form class="si-search" method="get" action="/customers/reports/region-addresses" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.35rem">المنطقة
+          <select name="region_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:12rem">
+            <option value="0">كل المناطق</option>
+            ${regionOpts}
+          </select>
+        </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
+          <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> النشطة فقط
+        </label>
+        <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        ${ui.siPrintBtnHtml('طباعة')}
+        <a class="si-btn" href="${ui.esc(excelHref)}">Excel</a>
+      </form>
+    </div>
+    <div class="si-print-meta print-only">
+      <strong>تقرير العناوين والمنطقة</strong>
+      · ${groups.size} منطقة · ${rows.length} عنوان/صف
+      · طُبع: <span class="si-print-when" dir="ltr"></span>
+    </div>`;
+
+  let blocks = '';
+  if (groups.size === 0) {
+    blocks = ui.tableSurface('النتيجة', '0', ['—'], ui.emptyRow(1, 'لا توجد مناطق مطابقة'));
+  } else {
+    for (const g of groups.values()) {
+      const html = g.rows
+        .map(
+          (r, i) => `<tr>
+          <td class="si-num" dir="ltr">${i + 1}</td>
+          <td>${dash(r.address_name) === '—' ? '<span class="muted">— بدون عنوان —</span>' : dash(r.address_name)}</td>
+          <td>${dash(r.sales_rep_name)}</td>
+          <td class="si-num" dir="ltr">${Number(r.customer_count || 0)}</td>
+          <td>${
+            Number(r.address_id) > 0
+              ? Number(r.address_active) === 1
+                ? 'نشط'
+                : 'موقوف'
+              : '—'
+          }</td>
+        </tr>`
+        )
+        .join('');
+      const codePart = g.region_code ? ` (${g.region_code})` : '';
+      const statusPart = g.region_active ? '' : ' · موقوف';
+      const title = `المنطقة: ${g.region_name}${codePart}${statusPart}`;
+      blocks += `<div style="margin-top:.75rem">${ui.tableSurface(
+        title,
+        `${g.rows.length} عنوان · بمندوب ${g.withRep}`,
+        ['#', 'العنوان', 'المندوب', 'عملاء', 'حالة العنوان'],
+        html
+      )}</div>`;
+    }
+  }
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '🗺️',
+        kicker: KICKER,
+        title: 'تقرير العناوين والمنطقة',
+        subtitle: `${groups.size} منطقة · ${rows.length} صف · يعرض العناوين والمندوبين المربوطين`,
+        actions: [
+          ui.printAction(),
+          { label: 'Excel', href: excelHref },
+          { label: 'تعريف المناطق', href: '/customers/regions' },
+          { label: 'لوحة العملاء', href: HUB },
+        ],
+      })}
+      ${filtersHtml}
+      <div class="si-print-area">${blocks}</div>
+    </div>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير العناوين والمنطقة',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
+/* ── Customer form (بعد المسارات الثابتة) ── */
+async function customerForm(req, res, id) {
+  if (!can(req.session.user, 'customers')) return res.status(403).send('ممنوع');
+  const row = id ? await masters.getCustomer(id) : null;
+  if (id && !row) return res.status(404).send('غير موجود');
+  const isNew = !row;
+  const err = String(req.query.err || '');
+  const listBack = customerListBackHref(req);
+  let regions = await q.regionOptions();
+  const reps = await q.salesRepOptions();
+  const regionId = Number(row?.region_id || 0);
+  const regionAddressId = Number(row?.region_address_id || 0);
+  let addresses = regionId ? await masters.listAddressesForRegion(regionId, { activeOnly: false }) : [];
+  // إن كانت المنطقة الحالية موقوفة أضفها للقائمة حتى تظهر مختارة
+  if (regionId > 0 && !regions.some((r) => Number(r.id) === regionId)) {
+    const curReg = await masters.getRegion(regionId);
+    if (curReg) {
+      regions = [{ id: curReg.id, code: curReg.code, name_ar: curReg.name_ar }, ...regions];
+    }
+  }
+  if (
+    regionAddressId > 0 &&
+    !addresses.some((a) => Number(a.id) === regionAddressId)
+  ) {
+    try {
+      const one = await q.listRegionAddresses(regionId);
+      const hit = one.find((a) => Number(a.id) === regionAddressId);
+      if (hit) addresses = [hit, ...addresses];
+    } catch {
+      /* */
+    }
+  }
+  const selectedReps = new Set((row?.rep_ids || []).map(Number));
+  if (row?.sales_rep_id) selectedReps.add(Number(row.sales_rep_id));
+  const primaryRepId = [...selectedReps][0] || Number(row?.sales_rep_id || 0) || 0;
+  const oracleLocked = !isNew && String(row.oracle_key || '').trim() !== '';
+  const oraclePending =
+    !isNew &&
+    (String(row.oracle_key || '').trim() === '' ||
+      Number(row.oracle_pending) === 1 ||
+      String(row.code || '').startsWith('P-'));
+  const payPeriodLabels = {
+    cash_with_vehicle: 'كاش مع السيارة',
+    cash_with_rep: 'نقدي مع المندوب',
+    credit: 'ذمم',
+  };
+  const payPeriodLabel = payPeriodLabels[String(row?.payment_period || '')] || '';
+  const latVal =
+    row?.latitude != null && String(row.latitude).trim() !== '' ? String(row.latitude) : '';
+  const lngVal =
+    row?.longitude != null && String(row.longitude).trim() !== '' ? String(row.longitude) : '';
+  const accVal =
+    row?.gps_accuracy != null && String(row.gps_accuracy).trim() !== ''
+      ? String(row.gps_accuracy)
+      : '';
+  const hasGps = latVal !== '' && lngVal !== '';
+  const mapsHref = hasGps
+    ? `https://www.google.com/maps?q=${encodeURIComponent(latVal + ',' + lngVal)}`
+    : '';
+
+  const regionOpts = regions
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${regionId === Number(r.id) ? 'selected' : ''}>${esc(r.name_ar)}</option>`
+    )
+    .join('');
+  const addrOpts = addresses
+    .filter((a) => Number(a.is_active) === 1 || Number(a.id) === regionAddressId)
+    .map(
+      (a) =>
+        `<option value="${a.id}" ${regionAddressId === Number(a.id) ? 'selected' : ''}>${esc(
+          a.name_ar
+        )}</option>`
+    )
+    .join('');
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${primaryRepId === Number(r.id) ? 'selected' : ''}>${esc(r.name_ar)}${
+          r.code ? ' — ' + esc(r.code) : ''
+        }</option>`
+    )
+    .join('');
+
+  const body = `
+    <style>
+      .cf-form{padding:0!important;display:block!important}
+      .cf-body{padding:1rem 1.1rem 1.15rem;display:grid;gap:1rem}
+      .cf-sec{border:1px solid #e6ebf2;border-radius:14px;background:#fbfcfe;overflow:hidden}
+      .cf-sec-h{display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+        padding:.7rem 1rem;background:#fff;border-bottom:1px solid #eef1f6}
+      .cf-sec-h h3{margin:0;font-size:.95rem;font-weight:800;color:#0f172a}
+      .cf-sec-h span{font-size:.75rem;font-weight:700;color:#64748b}
+      .cf-sec-b{padding:.9rem 1rem 1rem;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem .85rem}
+      @media (max-width:900px){.cf-sec-b{grid-template-columns:1fr 1fr}}
+      @media (max-width:560px){.cf-sec-b{grid-template-columns:1fr}}
+      .cf-sec-b label{display:grid;gap:.32rem;font-size:.72rem;font-weight:700;letter-spacing:.03em;color:#64748b}
+      .cf-sec-b .cf-span-2{grid-column:span 2}
+      .cf-sec-b .cf-span-3{grid-column:1/-1}
+      @media (max-width:560px){.cf-sec-b .cf-span-2{grid-column:1/-1}}
+      .cf-chain{display:grid;grid-template-columns:1fr auto 1fr;gap:.55rem;align-items:end;grid-column:1/-1}
+      @media (max-width:720px){.cf-chain{grid-template-columns:1fr}}
+      .cf-chain-arrow{display:flex;align-items:center;justify-content:center;padding-bottom: .55rem;
+        color:#94a3b8;font-weight:800;font-size:1.1rem;user-select:none}
+      @media (max-width:720px){.cf-chain-arrow{display:none}}
+      .cf-field-note{margin:.15rem 0 0;font-size:.75rem;font-weight:600;color:#94a3b8;line-height:1.4}
+      .cf-foot{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.15rem 0 .25rem}
+      .cf-hint-line{margin:0;font-size:.8rem;color:#64748b;flex:1;min-width:10rem;line-height:1.45}
+      select#cust-region-addr:disabled{opacity:.65;cursor:not-allowed;background:#f1f5f9}
+      .cf-gps{display:grid;gap:.55rem;grid-column:1/-1;padding:.75rem .85rem;border-radius:12px;
+        border:1px dashed #cbd5e1;background:linear-gradient(180deg,#fff,#f8fafc)}
+      .cf-gps-status{margin:0;font-size:.86rem;font-weight:700;color:#0f172a}
+      .cf-gps-status.is-empty{color:#94a3b8;font-weight:600}
+      .cf-gps-coords{display:grid;grid-template-columns:1fr 1fr auto;gap:.55rem;align-items:end}
+      @media (max-width:640px){.cf-gps-coords{grid-template-columns:1fr}}
+      .cf-gps-coords label{margin:0}
+      .cf-gps-actions{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
+      .cf-gps-actions .si-btn{min-height:2rem;padding:.25rem .75rem;font-size:.8rem}
+    </style>
+    <div class="si-stage">
+      ${ui.hero({
+        mark: 'Cl',
+        kicker: KICKER,
+        title: isNew ? 'إضافة عميل' : 'تعريف العميل',
+        subtitle: isNew
+          ? 'بيانات العميل ← المنطقة ← العنوان ← المندوب'
+          : oracleLocked
+            ? 'عميل مربوط بـ Oracle — الاسم مقفل · ' + esc(row.code || '')
+            : esc(row.code || '') + ' — اختر المنطقة ثم العنوان ثم المندوب',
+        actions: [
+          { label: 'القائمة', href: listBack },
+          { label: 'تعريف المناطق', href: '/customers/regions' },
+        ],
+      })}
+      ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
+      ${
+        oraclePending
+          ? `<section class="si-surface" style="padding:1rem 1.1rem;margin-bottom:.75rem;border-color:#fde68a;background:#fffbeb">
+        <h3 style="margin:0 0 .5rem;font-size:.95rem">بانتظار ربط Oracle</h3>
+        <p class="muted" style="margin:0 0 .75rem;font-size:.82rem;line-height:1.45">
+          هذا العميل أُنشئ من الموبايل${payPeriodLabel ? ' — فترة السداد: <strong>' + esc(payPeriodLabel) + '</strong>' : ''}.
+          أدخل رقم عميل Oracle (112…) للربط — سيُستبدل الرمز والاسم من Oracle.
+        </p>
+        <form method="post" action="/customers/${id}/link-oracle" class="si-meta" style="align-items:end;flex-wrap:wrap">
+          <input type="hidden" name="return_to" class="js-return-to" value="${esc(listBack)}">
+          <label>رقم Oracle
+            <input class="si-field si-field--mono" name="oracle_key" required dir="ltr" placeholder="11200001" autocomplete="off">
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">ربط بـ Oracle</button>
+        </form>
+      </section>`
+          : ''
+      }
+      <section class="si-surface">
+        <div class="si-surface-head">
+          <h2>${isNew ? 'بيانات العميل' : esc(row.name_ar || 'تعديل عميل')}</h2>
+          ${!isNew && Number(row.is_active) === 1 ? '<span class="si-pill si-pill--ok">نشط</span>' : ''}
+        </div>
+        <form method="post" action="${isNew ? '/customers/new' : '/customers/' + id}" class="si-meta cf-form">
+          <input type="hidden" name="id" value="${row ? row.id : 0}">
+          <input type="hidden" name="return_to" class="js-return-to" value="${esc(listBack)}">
+          <div class="cf-body">
+
+            <div class="cf-sec">
+              <div class="cf-sec-h">
+                <h3>1 · بيانات العميل</h3>
+                <span>التعريف والاتصال</span>
+              </div>
+              <div class="cf-sec-b">
+                <label>رمز العميل
+                  <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" readonly placeholder="يُولَّد تلقائياً عند الحفظ">
+                </label>
+                <label class="cf-span-2">اسم العميل *
+                  <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" ${
+                    oracleLocked ? 'readonly' : ''
+                  } autocomplete="off" placeholder="الاسم كما يظهر في الفواتير">
+                </label>
+                <label>الهاتف
+                  <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" autocomplete="off" placeholder="07xxxxxxxx">
+                </label>
+                <label>البريد الإلكتروني
+                  <input class="si-field" name="email" type="email" value="${esc(row?.email || '')}" dir="ltr" autocomplete="off" placeholder="name@example.com">
+                </label>
+                <label>الرقم الضريبي
+                  <input class="si-field" name="tax_number" value="${esc(row?.tax_number || '')}" dir="ltr" autocomplete="off">
+                </label>
+                <label>فترة السداد
+                  <select class="si-field" name="payment_period">
+                    <option value="">— غير محدد —</option>
+                    <option value="cash_with_vehicle" ${String(row?.payment_period || '') === 'cash_with_vehicle' ? 'selected' : ''}>كاش مع السيارة</option>
+                    <option value="cash_with_rep" ${String(row?.payment_period || '') === 'cash_with_rep' ? 'selected' : ''}>نقدي مع المندوب</option>
+                    <option value="credit" ${String(row?.payment_period || '') === 'credit' ? 'selected' : ''}>ذمم</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="cf-sec" style="border-color:#86efac;background:linear-gradient(180deg,#f0fdf4,#fff)">
+              <div class="cf-sec-h" style="background:#ecfdf5;border-color:#bbf7d0">
+                <h3>سعر البيع / الجملة</h3>
+                <span>أي سعر يُستخدم عند البيع لهذا العميل</span>
+              </div>
+              <div class="cf-sec-b">
+                <label class="cf-span-3" style="display:flex;align-items:flex-start;gap:.65rem;font-weight:700;color:#0f172a;cursor:pointer;padding:.35rem 0">
+                  <input type="checkbox" name="use_wholesale_price" value="1"
+                         style="margin-top:.25rem;width:1.15rem;height:1.15rem;accent-color:#16a34a"
+                    ${Number(row?.use_wholesale_price) === 1 ? 'checked' : ''}>
+                  <span>
+                    تسعير بسعر الجملة (بدل سعر البيع)
+                    <span class="cf-field-note" style="display:block;font-weight:600;margin-top:.25rem;color:#166534">
+                      ✓ مفعّل: فاتورة البيع وطلب العميل يأخذان <b>سعر الجملة</b> من بطاقة المادة.
+                      بدون التفعيل: يُستخدم <b>سعر البيع</b>.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div class="cf-sec">
+              <div class="cf-sec-h">
+                <h3>2 · المنطقة والعنوان</h3>
+                <span>المنطقة أولاً ثم العنوان داخلها</span>
+              </div>
+              <div class="cf-sec-b">
+                <div class="cf-chain">
+                  <label>المنطقة
+                    <select class="si-field" name="region_id" id="cust-region">
+                      <option value="0">— اختر المنطقة —</option>
+                      ${regionOpts}
+                    </select>
+                  </label>
+                  <div class="cf-chain-arrow" aria-hidden="true">←</div>
+                  <label>العنوان ضمن المنطقة
+                    <select class="si-field" name="region_address_id" id="cust-region-addr" ${
+                      regionId < 1 ? 'disabled' : ''
+                    }>
+                      <option value="0">${regionId < 1 ? '— اختر المنطقة أولاً —' : '— اختر العنوان —'}</option>
+                      ${addrOpts}
+                    </select>
+                  </label>
+                </div>
+                <label class="cf-span-3">تفاصيل العنوان (اختياري)
+                  <textarea class="si-field" name="address_ar" rows="2" style="min-height:3.4rem" placeholder="شارع، مبنى، ملاحظات توصيل…">${esc(
+                    row?.address_ar || ''
+                  )}</textarea>
+                  <p class="cf-field-note">تُعرَّف المناطق وعناوينها من شاشة «تعريف المناطق». يتحدّث عنوان القائمة تلقائياً عند تغيير المنطقة.</p>
+                </label>
+                <div class="cf-gps" id="cust-gps-box">
+                  <div class="cf-sec-h" style="padding:0 0 .35rem;border:0;background:transparent">
+                    <h3 style="font-size:.88rem">موقع العميل (Location)</h3>
+                    <span>GPS على الخريطة</span>
+                  </div>
+                  <input type="hidden" name="latitude" id="cust-latitude" value="${esc(latVal)}">
+                  <input type="hidden" name="longitude" id="cust-longitude" value="${esc(lngVal)}">
+                  <input type="hidden" name="gps_accuracy" id="cust-gps-accuracy" value="${esc(accVal)}">
+                  <input type="hidden" name="clear_gps" id="cust-clear-gps" value="0">
+                  <p id="cust-gps-status" class="cf-gps-status${hasGps ? '' : ' is-empty'}">
+                    ${
+                      hasGps
+                        ? 'الموقع الحالي: <span dir="ltr">' +
+                          esc(latVal) +
+                          ' ، ' +
+                          esc(lngVal) +
+                          '</span>'
+                        : 'لم يُحدَّد موقع بعد — حدّد على الخريطة أو استخدم GPS الجهاز'
+                    }
+                  </p>
+                  <div class="cf-gps-coords">
+                    <label>خط العرض (Latitude)
+                      <input class="si-field si-field--mono" id="cust-lat-view" type="text" dir="ltr" readonly
+                             value="${esc(latVal)}" placeholder="—">
+                    </label>
+                    <label>خط الطول (Longitude)
+                      <input class="si-field si-field--mono" id="cust-lng-view" type="text" dir="ltr" readonly
+                             value="${esc(lngVal)}" placeholder="—">
+                    </label>
+                    <label>
+                      <span style="visibility:hidden">.</span>
+                      <a class="si-btn" id="cust-gps-maps" href="${mapsHref || '#'}" target="_blank" rel="noopener"
+                         style="justify-content:center;width:100%;${hasGps ? '' : 'pointer-events:none;opacity:.45'}">فتح في الخرائط</a>
+                    </label>
+                  </div>
+                  <div class="cf-gps-actions">
+                    <button type="button" class="si-btn si-btn--primary" id="cust-gps-pick-map">تحديد على الخريطة</button>
+                    <button type="button" class="si-btn" id="cust-gps-my-loc">موقعي الآن (GPS)</button>
+                    <button type="button" class="si-btn" id="cust-gps-clear" ${hasGps ? '' : 'disabled'}>مسح الموقع</button>
+                  </div>
+                  <p class="cf-field-note">يُستخدم الموقع في تطبيق المندوب وتحديد نطاق الزيارة حول العميل عند الترحيل.</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="cf-sec">
+              <div class="cf-sec-h">
+                <h3>3 · المندوب</h3>
+                <span>مندوب المبيعات المسؤول عن العميل</span>
+              </div>
+              <div class="cf-sec-b">
+                <label class="cf-span-2">المندوب
+                  <select class="si-field" name="sales_rep_id" id="cust-sales-rep">
+                    <option value="0">— بدون مندوب —</option>
+                    ${repOpts}
+                  </select>
+                </label>
+                <label>
+                  <span style="visibility:hidden">.</span>
+                  <a class="si-btn" href="/sales-reps/list" style="justify-content:center;width:100%">إدارة المندوبين</a>
+                </label>
+                <p class="cf-field-note cf-span-3">يُحفظ المندوب المختار مع العميل ويظهر في القوائم والتقارير.</p>
+              </div>
+            </div>
+
+            <div class="cf-foot">
+              <button class="si-btn si-btn--primary" type="submit">حفظ العميل</button>
+              <a class="si-btn js-cust-list-back" href="${esc(listBack)}">إلغاء</a>
+              <p class="cf-hint-line">التسلسل: العميل → المنطقة → العنوان → المندوب ثم الحفظ.</p>
+            </div>
+          </div>
+        </form>
+      </section>
+    </div>
+    <script>
+      (function () {
+        var back = '';
+        try { back = sessionStorage.getItem('hypex_customers_list') || ''; } catch (e) {}
+        if (!back || back.indexOf('/customers/list') !== 0) return;
+        document.querySelectorAll('input.js-return-to').forEach(function (inp) { inp.value = back; });
+        document.querySelectorAll('a.js-cust-list-back').forEach(function (a) { a.href = back; });
+        document.querySelectorAll('a[href="/customers/list"]').forEach(function (a) { a.href = back; });
+      })();
+    </script>
+    <script>
+      (function () {
+        var reg = document.getElementById('cust-region');
+        var addr = document.getElementById('cust-region-addr');
+        if (!reg || !addr) return;
+
+        function setAddrBusy(busy, text) {
+          addr.disabled = !!busy || !reg.value || reg.value === '0' || reg.value === '';
+          if (text != null) addr.innerHTML = '<option value="0">' + text + '</option>';
+        }
+
+        function loadAddresses(regionId, keepId) {
+          if (!regionId || regionId === '0') {
+            setAddrBusy(true, '— اختر المنطقة أولاً —');
+            return;
+          }
+          setAddrBusy(true, 'جاري التحميل…');
+          fetch('/api/customers/region-addresses?region_id=' + encodeURIComponent(regionId), {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              var rows = data.rows || [];
+              var opts = '<option value="0">— اختر العنوان —</option>';
+              rows.forEach(function (a) {
+                var id = String(a.id);
+                var name = String(a.name_ar || '')
+                  .replace(/&/g, '&amp;')
+                  .replace(/</g, '&lt;')
+                  .replace(/"/g, '&quot;');
+                var sel = keepId && String(keepId) === id ? ' selected' : '';
+                opts += '<option value="' + id + '"' + sel + '>' + name + '</option>';
+              });
+              if (!rows.length) {
+                opts = '<option value="0">— لا عناوين لهذه المنطقة —</option>';
+              }
+              addr.innerHTML = opts;
+              addr.disabled = false;
+            })
+            .catch(function () {
+              setAddrBusy(false, '— تعذر التحميل —');
+              addr.disabled = false;
+            });
+        }
+
+        reg.addEventListener('change', function () {
+          loadAddresses(reg.value, null);
+        });
+      })();
+
+      (function () {
+        var latEl = document.getElementById('cust-latitude');
+        var lngEl = document.getElementById('cust-longitude');
+        var accEl = document.getElementById('cust-gps-accuracy');
+        var clearFlag = document.getElementById('cust-clear-gps');
+        var statusEl = document.getElementById('cust-gps-status');
+        var latView = document.getElementById('cust-lat-view');
+        var lngView = document.getElementById('cust-lng-view');
+        var mapsLink = document.getElementById('cust-gps-maps');
+        var clearBtn = document.getElementById('cust-gps-clear');
+        var mapBtn = document.getElementById('cust-gps-pick-map');
+        var gpsBtn = document.getElementById('cust-gps-my-loc');
+        if (!latEl || !lngEl) return;
+
+        window.APP_GPS_ENABLED = true;
+
+        function fmt(n) {
+          var x = parseFloat(n);
+          if (!isFinite(x)) return '';
+          return String(Math.round(x * 1e7) / 1e7);
+        }
+        function syncViews() {
+          var lat = latEl.value || '';
+          var lng = lngEl.value || '';
+          var has = lat !== '' && lng !== '';
+          if (latView) latView.value = lat;
+          if (lngView) lngView.value = lng;
+          if (statusEl) {
+            if (has) {
+              statusEl.className = 'cf-gps-status';
+              statusEl.innerHTML = 'الموقع الحالي: <span dir="ltr">' + lat + ' ، ' + lng + '</span>';
+            } else {
+              statusEl.className = 'cf-gps-status is-empty';
+              statusEl.textContent = 'لم يُحدَّد موقع بعد — حدّد على الخريطة أو استخدم GPS الجهاز';
+            }
+          }
+          if (clearBtn) clearBtn.disabled = !has;
+          if (mapsLink) {
+            if (has) {
+              mapsLink.href = 'https://www.google.com/maps?q=' + encodeURIComponent(lat + ',' + lng);
+              mapsLink.style.pointerEvents = '';
+              mapsLink.style.opacity = '';
+            } else {
+              mapsLink.href = '#';
+              mapsLink.style.pointerEvents = 'none';
+              mapsLink.style.opacity = '0.45';
+            }
+          }
+          if (clearFlag) clearFlag.value = has ? '0' : '1';
+        }
+        function setGps(gps) {
+          if (!gps) return;
+          var lat = gps.latitude != null ? gps.latitude : gps.lat;
+          var lng = gps.longitude != null ? gps.longitude : gps.lng;
+          if (!isFinite(lat) || !isFinite(lng)) return;
+          latEl.value = fmt(lat);
+          lngEl.value = fmt(lng);
+          if (accEl) {
+            accEl.value =
+              gps.accuracy != null && isFinite(gps.accuracy) ? String(gps.accuracy) : '';
+          }
+          if (clearFlag) clearFlag.value = '0';
+          syncViews();
+        }
+        function clearGps() {
+          latEl.value = '';
+          lngEl.value = '';
+          if (accEl) accEl.value = '';
+          if (clearFlag) clearFlag.value = '1';
+          syncViews();
+        }
+
+        if (clearBtn) clearBtn.addEventListener('click', clearGps);
+
+        if (mapBtn) {
+          mapBtn.addEventListener('click', function () {
+            if (!window.AppGeoMapPick || typeof AppGeoMapPick.pickLocationOnMap !== 'function') {
+              alert('خريطة تحديد الموقع غير متاحة. حدّث الصفحة أو تأكد من تحميل ملفات الموقع.');
+              return;
+            }
+              var opts = { forPost: false, preferCurrentGps: true };
+              if (latEl.value && lngEl.value) {
+                opts.latitude = parseFloat(latEl.value);
+                opts.longitude = parseFloat(lngEl.value);
+              }
+              AppGeoMapPick.pickLocationOnMap(opts).then(setGps).catch(function () {});
+          });
+        }
+
+        if (gpsBtn) {
+          gpsBtn.addEventListener('click', function () {
+            if (!window.AppGeo || typeof AppGeo.withGpsForPost !== 'function') {
+              if (mapBtn) mapBtn.click();
+              return;
+            }
+            gpsBtn.disabled = true;
+            AppGeo.withGpsForPost('desktop', function (gps) {
+              gpsBtn.disabled = false;
+              if (gps === undefined) return;
+              if (!gps) {
+                alert('لم يُحدَّد موقع. اسمح بالوصول للموقع أو اختر على الخريطة.');
+                return;
+              }
+              setGps(gps);
+            });
+          });
+        }
+
+        syncViews();
+      })();
+    </script>`;
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: isNew ? 'إضافة عميل' : 'تعريف العميل',
+      bodyHtml: body,
+      css: ['/assets/css/geo-map-pick.css'],
+      js: ['/assets/js/geo.js', '/assets/js/geo-map-pick.js'],
+    })
+  );
+}
+
+router.get('/customers/new', (req, res) => customerForm(req, res, 0));
+router.post('/customers/new', async (req, res) => {
+  if (!can(req.session.user, 'customers')) return res.status(403).send('ممنوع');
+  const body = req.body || {};
+  const repId = Number(body.sales_rep_id || 0);
+  body.rep_ids = repId > 0 ? [repId] : [].concat(body.rep_ids || []).filter(Boolean);
+  body.sales_rep_id = repId > 0 ? repId : null;
+  const result = await masters.saveCustomer(body);
+  if (!result.ok) return res.redirect('/customers/new?err=' + encodeURIComponent(result.error));
+  res.redirect(safeCustomerListReturn(req, result.message || 'تم الحفظ'));
+});
+router.get('/api/customers/region-addresses', async (req, res) => {
+  if (!can(req.session.user, 'customers') && !can(req.session.user, 'customer_regions')) {
+    return res.status(403).json({ rows: [] });
+  }
+  const regionId = Number(req.query.region_id || 0);
+  const rows = await masters.listAddressesForRegion(regionId);
+  res.json({ rows });
+});
+router.get('/customers/:id', async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id < 1) return next();
+  return customerForm(req, res, id);
+});
+router.post('/customers/:id', async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id < 1) return next();
+  if (!can(req.session.user, 'customers')) return res.status(403).send('ممنوع');
+  const body = { ...(req.body || {}), id };
+  const repId = Number(body.sales_rep_id || 0);
+  body.rep_ids = repId > 0 ? [repId] : [].concat(body.rep_ids || []).filter(Boolean);
+  body.sales_rep_id = repId > 0 ? repId : null;
+  const result = await masters.saveCustomer(body);
+  if (!result.ok) return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.error));
+  res.redirect(safeCustomerListReturn(req, result.message || 'تم الحفظ'));
+});
+
+router.post('/customers/:id/link-oracle', async (req, res, next) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id < 1) return next();
+  if (!can(req.session.user, 'customers') && !can(req.session.user, 'oracle_customers_sync')) {
+    return res.status(403).send('ممنوع');
+  }
+  const oracleKey = String(req.body?.oracle_key || '').trim();
+  const result = await masters.linkCustomerOracle(id, oracleKey);
+  if (!result.ok) {
+    return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.message || 'تعذر الربط'));
+  }
+  res.redirect(safeCustomerListReturn(req, result.message || 'تم ربط العميل بـ Oracle'));
+});
+
+module.exports = router;

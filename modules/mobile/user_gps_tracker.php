@@ -1,0 +1,158 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * تتبّع المواقع الحية — خريطة الهاتف (/m).
+ */
+require_once app_path('includes/mobile_auth.php');
+require_once app_path('includes/sys_user_location.php');
+require_once app_path('includes/app_osm.php');
+
+if (!sys_user_location_may_track()) {
+    echo '<div class="m-alert m-alert--danger">لا توجد صلاحية لتتبّع المواقع الحية.</div>';
+    return;
+}
+
+$apiUrl = app_url('api/user_gps_tracker_live.php');
+$trackApiUrl = app_url('api/user_gps_track_day.php');
+$cssPath = app_path('assets/css/user-gps-tracker.css');
+$jsPath = app_path('assets/js/user-gps-tracker.js');
+$routeJsPath = app_path('assets/js/user-gps-route.js');
+$mapLayersPath = app_path('assets/js/leaflet-map-layers.js');
+$mapInteropPath = app_path('assets/js/map-interop.js');
+$leafletCssPath = app_path('assets/vendor/leaflet/leaflet.css');
+$leafletJsPath = app_path('assets/vendor/leaflet/leaflet.js');
+$cssV = is_file($cssPath) ? (string) filemtime($cssPath) : '';
+$jsV = is_file($jsPath) ? (string) filemtime($jsPath) : '';
+$routeJsV = is_file($routeJsPath) ? (string) filemtime($routeJsPath) : '';
+$mapLayersV = is_file($mapLayersPath) ? (string) filemtime($mapLayersPath) : '';
+$mapInteropV = is_file($mapInteropPath) ? (string) filemtime($mapInteropPath) : '';
+$leafletCssV = is_file($leafletCssPath) ? (string) filemtime($leafletCssPath) : '';
+$leafletJsV = is_file($leafletJsPath) ? (string) filemtime($leafletJsPath) : '';
+$osm = app_osm_js_config();
+$mapEngine = (string) ($osm['mapEngine'] ?? 'leaflet');
+$today = date('Y-m-d');
+?>
+<link rel="stylesheet" href="<?= esc(app_url('assets/css/user-gps-tracker.css')) ?><?= $cssV !== '' ? '?v=' . esc($cssV) : '' ?>">
+
+<div class="ugt-page ugt-page--mobile" id="ugt-root"
+     data-api="<?= esc($apiUrl) ?>"
+     data-tile-url="<?= esc($osm['tileUrl']) ?>"
+     data-attribution="<?= esc($osm['attribution']) ?>"
+     data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+     data-map-engine="<?= esc($mapEngine) ?>"
+     data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
+     data-poll-sec="3"
+     data-online-seconds="60"
+     data-stale-seconds="60"
+     data-mode="mobile">
+    <div class="ugt-toolbar ugt-toolbar--mobile">
+        <div class="ugt-toolbar__title">
+            <strong>تتبّع المواقع</strong>
+            <small id="ugt-mobile-summary">—</small>
+        </div>
+        <div class="ugt-toolbar__actions">
+            <button type="button" class="m-btn m-btn--ghost" id="ugt-clear-trails" title="مسح الخط الحي">⌫ خط</button>
+            <button type="button" class="m-btn m-btn--ghost" id="ugt-toggle-list" title="قائمة الأجهزة">☰</button>
+            <button type="button" class="m-btn m-btn--primary" id="ugt-refresh">⟳</button>
+        </div>
+    </div>
+
+    <div class="ugt-modeswitch ugt-modeswitch--mobile" role="tablist">
+        <button type="button" class="ugt-modeswitch__btn is-active" id="ugt-mode-live">التتبّع الحي</button>
+        <button type="button" class="ugt-modeswitch__btn" id="ugt-mode-route">المسار اليومي</button>
+    </div>
+
+    <div id="ugt-live-view" class="ugt-live-view">
+        <div class="ugt-body ugt-body--mobile">
+            <div class="ugt-drawer-backdrop" id="ugt-drawer-backdrop" hidden aria-hidden="true"></div>
+            <aside class="ugt-sidebar ugt-sidebar--drawer" id="ugt-sidebar" hidden>
+                <div class="ugt-sidebar__head">
+                    <span>المتصلون الآن</span>
+                    <button type="button" class="ugt-sidebar__close" id="ugt-close-list" aria-label="إغلاق القائمة">✕</button>
+                </div>
+                <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث..." autocomplete="off">
+                <div class="ugt-sidebar__list" id="ugt-list">
+                    <div class="ugt-empty">جاري التحميل...</div>
+                </div>
+            </aside>
+            <div class="ugt-map-wrap">
+                <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
+                <div class="ugt-legend ugt-legend--compact">
+                    <span><i class="ugt-dot ugt-dot--online"></i> متصل</span>
+                    <span><i class="ugt-line"></i> خط حي</span>
+                    <span>الرقم = القائمة</span>
+                </div>
+                <div class="ugt-status" id="ugt-status"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ugt-route-view" hidden>
+        <div class="ugr-root ugr-root--mobile" id="ugr-root"
+             data-track-api="<?= esc($trackApiUrl) ?>"
+             data-tile-url="<?= esc($osm['tileUrl']) ?>"
+             data-attribution="<?= esc($osm['attribution']) ?>"
+             data-map-provider="<?= esc($osm['mapProvider'] ?? 'carto') ?>"
+             data-google-key="<?= esc($osm['googleMapsKey'] ?? '') ?>"
+             data-today="<?= esc($today) ?>"
+             data-mode="mobile">
+            <div class="ugr-controls" id="ugr-controls">
+                <label class="ugr-field">
+                    <span>المندوب</span>
+                    <select id="ugr-user" class="ugr-select"><option value="">— اختر —</option></select>
+                </label>
+                <label class="ugr-field">
+                    <span>التاريخ</span>
+                    <input type="date" id="ugr-date" class="ugr-date" value="<?= esc($today) ?>" max="<?= esc($today) ?>">
+                </label>
+                <button type="button" class="m-btn m-btn--ghost" id="ugr-prev">‹</button>
+                <button type="button" class="m-btn m-btn--ghost" id="ugr-next">›</button>
+                <button type="button" class="m-btn m-btn--primary" id="ugr-load">عرض</button>
+            </div>
+            <div class="ugr-summary" id="ugr-summary"></div>
+            <div class="ugr-body">
+                <div class="ugr-map-wrap">
+                    <div id="ugr-map" class="ugr-map" role="application" aria-label="خريطة المسار"></div>
+                    <div class="ugr-legend">
+                        <span><i class="ugr-speed ugr-speed--slow"></i> بطيء</span>
+                        <span><i class="ugr-speed ugr-speed--med"></i> متوسط</span>
+                        <span><i class="ugr-speed ugr-speed--fast"></i> سريع</span>
+                        <span><i class="ugr-dot ugr-dot--start"></i> البداية</span>
+                        <span><i class="ugr-dot ugr-dot--stop"></i> توقف</span>
+                        <span><i class="ugr-dot ugr-dot--end"></i> النهاية</span>
+                    </div>
+                    <div class="ugr-status" id="ugr-status"></div>
+                    <div class="ugr-map-fabs" id="ugr-map-fabs" hidden>
+                        <button type="button" class="ugr-fab" id="ugr-fab-filters" title="تغيير المندوب/التاريخ">☰</button>
+                        <button type="button" class="ugr-fab ugr-fab--primary" id="ugr-fab-stops" title="التوقفات">توقفات</button>
+                    </div>
+                </div>
+                <aside class="ugr-sidebar" id="ugr-stops">
+                    <div class="ugr-sidebar__head">
+                        <span>التوقفات</span>
+                        <button type="button" class="ugr-sidebar__close" id="ugr-close-stops" hidden aria-label="إغلاق">✕</button>
+                    </div>
+                    <div class="ugr-empty">اختر مندوباً وتاريخاً ثم اضغط «عرض».</div>
+                </aside>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+window.AppOsmConfig = <?= json_encode($osm, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+</script>
+<?php if (is_file($leafletCssPath)): ?>
+<link rel="stylesheet" href="<?= esc(app_url('assets/vendor/leaflet/leaflet.css')) ?><?= $leafletCssV !== '' ? '?v=' . esc($leafletCssV) : '' ?>">
+<?php endif; ?>
+<?php if (is_file($leafletJsPath)): ?>
+<script src="<?= esc(app_url('assets/vendor/leaflet/leaflet.js')) ?><?= $leafletJsV !== '' ? '?v=' . esc($leafletJsV) : '' ?>"></script>
+<?php endif; ?>
+<script src="<?= esc(app_url('assets/js/leaflet-map-layers.js')) ?><?= $mapLayersV !== '' ? '?v=' . esc($mapLayersV) : '' ?>"></script>
+<?php if ($mapEngine === 'arcgis'): ?>
+<link rel="stylesheet" href="https://js.arcgis.com/4.29/esri/themes/light/main.css">
+<script src="<?= esc(app_url('assets/js/map-interop.js')) ?><?= $mapInteropV !== '' ? '?v=' . esc($mapInteropV) : '' ?>"></script>
+<?php endif; ?>
+<script src="<?= esc(app_url('assets/js/user-gps-tracker.js')) ?><?= $jsV !== '' ? '?v=' . esc($jsV) : '' ?>"></script>
+<script src="<?= esc(app_url('assets/js/user-gps-route.js')) ?><?= $routeJsV !== '' ? '?v=' . esc($routeJsV) : '' ?>"></script>

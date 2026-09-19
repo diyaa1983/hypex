@@ -1,0 +1,25 @@
+﻿<?php
+declare(strict_types=1);
+
+/**
+ * انسخ هذا الملف على السيرفر إلى:
+ *   C:\xampp\htdocs\system\config\oracle.local.php
+ * لا ترفع كلمات المرور إلى Git.
+ */
+return [
+    'enabled' => true,
+    'host' => '192.168.1.94',
+    'port' => 1521,
+    'sid' => 'taqwa',
+    'service_name' => '',
+    'user' => 'system',
+    'pass' => 'CHANGE_ME',
+    'charset' => 'AL32UTF8',
+    'odbc_dsn' => '',
+    'customers' => [
+        'owner' => '',
+        'table' => '',
+        'columns' => [],
+        'active_true_values' => ['1', 'Y', 'YES', 'ACTIVE', 'A'],
+    ],
+];

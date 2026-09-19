@@ -1,0 +1,138 @@
+/**
+ * عكس الواجهة بالكامل عند الإنجليزية (LTR)
+ * يُحمَّل دائماً — القواعد مقيّدة بـ html[dir="ltr"]
+ */
+
+html[dir="ltr"],
+html[dir="ltr"] body,
+html[dir="ltr"] body.app-body,
+html[dir="ltr"] body.login-body {
+  direction: ltr !important;
+  text-align: left;
+}
+
+/* الشريط والقائمة والمحتوى */
+html[dir="ltr"] .app-shell,
+html[dir="ltr"] .app-shell-body,
+html[dir="ltr"] .app-titlebar__title,
+html[dir="ltr"] .sidebar,
+html[dir="ltr"] .sidebar-nav,
+html[dir="ltr"] .main-content,
+html[dir="ltr"] .main-wrap,
+html[dir="ltr"] .login-card,
+html[dir="ltr"] .login-panel,
+html[dir="ltr"] .dashboard-ora {
+  direction: ltr !important;
+}
+
+html[dir="ltr"] .app-titlebar__title {
+  text-align: left !important;
+}
+
+/* القائمة على اليسار في الإنجليزية */
+html[dir="ltr"] .sidebar {
+  border-inline-start: none;
+  border-inline-end: 1px solid var(--shell-border, #e2e8f0);
+}
+
+html[dir="ltr"] .nav-domain-link.is-active,
+html[dir="ltr"] .sidebar-nav a.is-active,
+html[dir="ltr"] .nav-item-link.is-active,
+html[dir="ltr"] .nav-subgroup-link.is-active {
+  border-inline-start-width: 2px;
+  border-inline-end-width: 0;
+}
+
+html[dir="ltr"] .nav-domain-link,
+html[dir="ltr"] .sidebar-nav a,
+html[dir="ltr"] .nav-item-link,
+html[dir="ltr"] .nav-subgroup-link,
+html[dir="ltr"] .sidebar-nav .nav-domain-title,
+html[dir="ltr"] .sidebar-nav .nav-group-title {
+  text-align: left;
+}
+
+/* الترويسة والأدوات */
+html[dir="ltr"] .app-screen-head,
+html[dir="ltr"] .app-topbar,
+html[dir="ltr"] .app-screen-head-account,
+html[dir="ltr"] .app-topbar-account,
+html[dir="ltr"] .app-header-account,
+html[dir="ltr"] .master-toolbar-inner,
+html[dir="ltr"] .form-grid,
+html[dir="ltr"] .field,
+html[dir="ltr"] .field-label,
+html[dir="ltr"] .field-hint,
+html[dir="ltr"] .data-table,
+html[dir="ltr"] .card,
+html[dir="ltr"] .alert,
+html[dir="ltr"] .login-sub,
+html[dir="ltr"] .user-chip,
+html[dir="ltr"] .user-name,
+html[dir="ltr"] .user-meta {
+  text-align: left;
+}
+
+html[dir="ltr"] .app-screen-head-main .master-toolbar-inner,
+html[dir="ltr"] .app-topbar-main .master-toolbar-inner {
+  justify-content: flex-start;
+}
+
+/* نوافذ MDI: الشريط الجانبي يسار */
+html[dir="ltr"] .app-mdi-layer {
+  left: var(--app-mdi-sidebar, 0) !important;
+  right: 0 !important;
+}
+
+/* شريط التحميل */
+html[dir="ltr"] #app-nav-progress {
+  transform-origin: left center;
+}
+
+/* عناصر كانت مفروضة RTL داخل الصفحة */
+html[dir="ltr"] [dir="rtl"] {
+  direction: ltr;
+}
+
+/* أيقونات معكوسة للـ RTL — أعدها في LTR */
+html[dir="ltr"] .nav-exit-btn__icon svg,
+html[dir="ltr"] .master-toolbar-btn[data-master-action="exit"] .master-toolbar-icon svg {
+  transform: none;
+}
+
+/* تسجيل الدخول المنقسم */
+html[dir="ltr"] .login-modern-shell,
+html[dir="ltr"] .login-pro-shell,
+html[dir="ltr"] .login-split {
+  direction: ltr;
+}
+
+html[dir="ltr"] .login-panel__header,
+html[dir="ltr"] .login-panel__title,
+html[dir="ltr"] .login-panel__sub,
+html[dir="ltr"] .login-field__label {
+  text-align: left;
+}
+
+/* لوحات ولوحة التحكم */
+html[dir="ltr"] .dashboard-ora-panel__title,
+html[dir="ltr"] .dashboard-ora-panel__sub,
+html[dir="ltr"] .dashboard-ora-title,
+html[dir="ltr"] .hub-page-title,
+html[dir="ltr"] .page-title,
+html[dir="ltr"] .settings-ora-panel-head {
+  text-align: left;
+}
+
+html[dir="ltr"] .table-wrap,
+html[dir="ltr"] table.data-table,
+html[dir="ltr"] .dashboard-ora-table {
+  direction: ltr;
+}
+
+html[dir="ltr"] .dashboard-ora-table th,
+html[dir="ltr"] .dashboard-ora-table td,
+html[dir="ltr"] .data-table th,
+html[dir="ltr"] .data-table td {
+  text-align: left;
+}

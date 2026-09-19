@@ -1,0 +1,417 @@
+/* MDI — نوافذ Oracle داخل النظام (المرحلة 1) */
+
+.app-body--embed {
+  margin: 0;
+  min-height: 100vh;
+  overflow: auto;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+.app-embed-head {
+  padding: 0.28rem 0.45rem;
+  background: var(--shell-bg, #d4d0c8);
+  border-bottom: 1px solid var(--shell-border, #808080);
+}
+
+.app-embed-head .master-toolbar {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.app-embed-main {
+  padding: 0.35rem 0.45rem 0.65rem;
+  min-height: calc(100vh - 2.75rem);
+}
+
+/* إيقاف الشاشة في الذاكرة عند التصغير — بدون إعادة تحميل */
+body.app-mdi-page-parked .app-shell {
+  visibility: hidden;
+  pointer-events: none;
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app-mdi-hub-overlay {
+  position: fixed;
+  inset: 0 0 var(--app-mdi-bottom, 0) 0;
+  z-index: 1140;
+  background: var(--shell-bg, #d4d0c8);
+}
+
+.app-mdi-hub-overlay[hidden] {
+  display: none !important;
+}
+
+.app-mdi-hub-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* منع ظهور شريط مكرر إذا حمّل iframe صفحة كاملة بالخطأ */
+.app-mdi-hub-overlay .app-mdi-hub-frame {
+  overflow: hidden;
+}
+
+.app-mdi-layer {
+  position: fixed;
+  z-index: 1150;
+  pointer-events: none;
+  top: var(--app-mdi-top, 3.35rem);
+  left: 0;
+  right: var(--app-mdi-sidebar, 0);
+  bottom: var(--app-mdi-bottom, 0);
+}
+
+body.app-body:not(.app-body--focus) .app-mdi-layer {
+  --app-mdi-sidebar: 280px;
+}
+
+body.app-mdi-taskbar-open {
+  --app-mdi-bottom: 2.15rem;
+}
+
+.app-mdi-layer--active {
+  pointer-events: none;
+}
+
+.app-mdi-layer.app-mdi-layer--maximized {
+  --app-mdi-sidebar: 0;
+  z-index: 1175;
+}
+
+body.app-body--focus .app-mdi-layer.app-mdi-layer--maximized {
+  top: 0;
+}
+
+.app-mdi-window {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  width: min(760px, 92%);
+  height: min(520px, 82%);
+  max-height: calc(100% - 12px);
+  pointer-events: auto;
+  background: #d4d0c8;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+  box-shadow: 2px 2px 0 #808080;
+  font-family: Arial, Helvetica, sans-serif;
+  transform: translate(-50%, -50%);
+}
+
+.app-mdi-window.is-minimized {
+  display: none;
+}
+
+.app-mdi-window.is-maximized {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: none;
+  max-height: none;
+  transform: none !important;
+}
+
+.app-mdi-window.is-maximized .app-mdi-window-head {
+  cursor: default;
+}
+
+.app-mdi-window.is-focused {
+  box-shadow: 3px 3px 0 #606060;
+}
+
+.app-mdi-window-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.45rem;
+  padding: 0.28rem 0.55rem;
+  background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 48%, #024d8f 100%);
+  border-bottom: 1px solid #000;
+  cursor: move;
+  user-select: none;
+  flex: 0 0 auto;
+}
+
+body.app-mdi-window-dragging {
+  user-select: none;
+  cursor: move;
+}
+
+body.app-mdi-window-dragging .app-mdi-frame {
+  pointer-events: none;
+}
+
+.app-mdi-window-chrome {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  order: -1;
+}
+
+.app-mdi-window-chrome .app-mdi-tool-btn {
+  min-width: 1.45rem;
+  min-height: 1.35rem;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.app-mdi-window-title {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-mdi-window-toolbar {
+  display: none;
+}
+
+.app-mdi-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.5rem;
+  min-height: 1.55rem;
+  padding: 0.12rem 0.55rem;
+  border-radius: 0;
+  border: 1px solid;
+  border-color: #fff #404040 #404040 #fff;
+  background: linear-gradient(180deg, #f4f4f4 0%, #d4d0c8 55%, #c8c4bc 100%);
+  box-shadow: none;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.app-mdi-tool-btn:hover {
+  background: linear-gradient(180deg, #fafafa 0%, #dedad2 55%, #d0ccc4 100%);
+}
+
+.app-mdi-tool-btn:active {
+  border-color: #404040 #fff #fff #404040;
+  background: #c0c0c0;
+}
+
+.app-mdi-minimize {
+  color: #024d8f;
+}
+
+.app-mdi-close {
+  color: #8b0000;
+}
+
+.app-mdi-window-actions,
+.app-mdi-chrome {
+  display: none;
+}
+
+.app-mdi-window-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #808080;
+  border-top: 1px solid #5c6670;
+}
+
+.app-mdi-window:not(.is-maximized) .app-mdi-window-body {
+  overflow: auto;
+}
+
+.app-mdi-frame {
+  display: block;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.app-mdi-taskbar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 1160;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2rem;
+  padding: 0.2rem 0.45rem;
+  background: linear-gradient(180deg, #ece9e4 0%, #d4d0c8 100%);
+  border-top: 1px solid #808080;
+  box-shadow: 0 -1px 0 #fff inset;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.app-mdi-taskbar[hidden] {
+  display: none !important;
+}
+
+.app-mdi-taskbar-windows {
+  display: flex;
+  align-items: stretch;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.app-mdi-task-item {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: min(260px, 42vw);
+  border: 1px solid;
+  border-color: #808080 #fff #fff #808080;
+  background: #ece9e4;
+}
+
+.app-mdi-task-item.is-active .app-mdi-task-btn {
+  background: linear-gradient(180deg, #ffffe1 0%, #ece9e4 100%);
+  color: #000080;
+}
+
+.app-mdi-task-item.is-minimized .app-mdi-task-btn {
+  background: linear-gradient(180deg, #e8f4fc 0%, #d4ebfa 100%);
+  color: #024d8f;
+}
+
+.app-mdi-task-item--panel .app-mdi-task-btn {
+  background: linear-gradient(180deg, #fff8e7 0%, #f5e6b8 100%);
+  color: #5c4a1a;
+}
+
+.app-mdi-task-item--panel.is-minimized .app-mdi-task-btn {
+  background: linear-gradient(180deg, #fde68a 0%, #fcd34d 100%);
+  color: #78350f;
+}
+
+.app-mdi-task-btn {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0.18rem 0.5rem;
+  border: 0;
+  border-inline-end: 1px solid #808080;
+  background: #ece9e4;
+  color: #000;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: start;
+}
+
+.app-mdi-task-btn:hover {
+  background: #fff;
+}
+
+.app-mdi-task-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-mdi-task-close {
+  flex: 0 0 1.55rem;
+  border: 0;
+  border-inline-end: 1px solid #808080;
+  background: #d4d0c8;
+  color: #000;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-mdi-task-item:not(:has(.app-mdi-task-minimize)) .app-mdi-task-close {
+  border-inline-end: 0;
+}
+
+.app-mdi-task-minimize {
+  flex: 0 0 1.55rem;
+  border: 0;
+  background: #d4d0c8;
+  color: #024d8f;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.app-mdi-task-minimize:hover {
+  background: #d4ebfa;
+}
+
+.app-mdi-task-item.is-active .app-mdi-task-minimize {
+  background: linear-gradient(180deg, #e8f4fc 0%, #b8daf0 100%);
+}
+
+.app-mdi-task-close:hover {
+  background: #f4e0e0;
+  color: #8b0000;
+}
+
+.app-mdi-screen-minimize-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.65rem;
+  padding: 0.18rem 0.65rem;
+  margin-inline-end: 0.35rem;
+  border: 1px solid #024d8f;
+  border-radius: 0;
+  background: linear-gradient(180deg, #e8f4fc 0%, #b8daf0 100%);
+  color: #024d8f;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.app-mdi-screen-minimize-btn:hover {
+  background: linear-gradient(180deg, #d4ebfa 0%, #9ec5e8 100%);
+}
+
+.app-mdi-screen-minimize-btn--embed {
+  margin-inline-end: 0.45rem;
+}
+
+.app-embed-head {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@media (max-width: 900px) {
+  body.app-body:not(.app-body--focus) .app-mdi-layer {
+    --app-mdi-sidebar: 0;
+  }
+}

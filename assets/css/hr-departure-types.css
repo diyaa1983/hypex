@@ -1,0 +1,35 @@
+.hr-dep-type-page {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0.5rem 0.75rem 1.5rem;
+}
+
+.hr-dep-type-fields {
+    display: grid;
+    grid-template-columns: 140px 1fr 100px;
+    gap: 0.75rem;
+    align-items: end;
+}
+
+.hr-dep-type-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.hr-dep-type-row-actions {
+    display: flex;
+    gap: 0.35rem;
+    align-items: center;
+}
+
+.hr-dep-type-delete-form {
+    display: inline;
+    margin: 0;
+}
+
+@media (max-width: 720px) {
+    .hr-dep-type-fields {
+        grid-template-columns: 1fr;
+    }
+}

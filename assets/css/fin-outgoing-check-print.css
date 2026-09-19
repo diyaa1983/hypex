@@ -1,0 +1,128 @@
+/* طباعة تعبئة شيك صادر على ورقة شيك بنكية جاهزة — خلفية فارغة + بيانات فقط */
+
+.bank-check-page {
+  margin: 0;
+  padding: 1rem;
+  background: #e8ecf1;
+  font-family: Arial, Helvetica, "Segoe UI", Tahoma, sans-serif;
+  direction: rtl;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.bank-check-slip {
+  width: 17.8cm;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.bank-check-slip--fill .bank-check-fill {
+  position: relative;
+  width: 17.8cm;
+  height: 8.9cm;
+  box-sizing: border-box;
+  background: #fff;
+  /* إطار خفيف للمعاينة على الشاشة فقط — يُزال عند الطباعة */
+  outline: 1px dashed #94a3b8;
+  overflow: hidden;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.bank-check-fill__date,
+.bank-check-fill__check-no,
+.bank-check-fill__payee,
+.bank-check-fill__words,
+.bank-check-fill__amount {
+  position: absolute;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* مواضع تقريبية لحقول الشيك البنكي — يمكن ضبطها حسب مقاس بنككم */
+.bank-check-fill__date {
+  top: 1.15cm;
+  left: 1.1cm;
+  width: 3.6cm;
+  font-size: 11pt;
+  direction: ltr;
+  unicode-bidi: embed;
+  text-align: center;
+}
+
+.bank-check-fill__check-no {
+  top: 1.15cm;
+  left: 5.1cm;
+  width: 3.4cm;
+  font-size: 11pt;
+  direction: ltr;
+  unicode-bidi: embed;
+  text-align: center;
+}
+
+.bank-check-fill__payee {
+  top: 2.55cm;
+  right: 3.2cm;
+  left: 1.1cm;
+  width: auto;
+  font-size: 12pt;
+  white-space: normal;
+  max-height: 1.1cm;
+}
+
+.bank-check-fill__words {
+  top: 3.85cm;
+  right: 3.2cm;
+  left: 5.2cm;
+  width: auto;
+  font-size: 10pt;
+  white-space: normal;
+  max-height: 1.35cm;
+  line-height: 1.35;
+}
+
+.bank-check-fill__amount {
+  top: 3.75cm;
+  left: 1.1cm;
+  width: 3.8cm;
+  font-size: 13pt;
+  direction: ltr;
+  unicode-bidi: embed;
+  text-align: center;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+@media print {
+  html,
+  body.bank-check-page {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    min-height: auto !important;
+    display: block !important;
+  }
+
+  .bank-check-page {
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .bank-check-slip {
+    width: 17.8cm !important;
+    max-width: none !important;
+  }
+
+  .bank-check-slip--fill .bank-check-fill {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

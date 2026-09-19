@@ -1,0 +1,274 @@
+/**
+ * نوافذ النظام (تنبيه / تأكيد) — وسط الصفحة
+ */
+.hx-ui {
+  position: fixed;
+  inset: 0;
+  z-index: 20050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  font-family: Arial, Helvetica, sans-serif;
+  /* طبقة مستقلة تمنع اختفاء الحوار عند hover (مشاكل GPU مع blur) */
+  isolation: isolate;
+  pointer-events: auto;
+}
+
+.hx-ui[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.hx-ui__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(15, 23, 42, 0.5);
+  /* لا backdrop-filter — يسبب اختفاء اللوحة على بعض المتصفحات/الـ GPU */
+  pointer-events: auto;
+}
+
+.hx-ui__panel {
+  position: relative;
+  z-index: 2;
+  width: min(420px, 100%);
+  background: #fff;
+  border: 1px solid #d4e0ef;
+  border-radius: 14px;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.28);
+  padding: 1.15rem 1.25rem 1rem;
+  animation: hx-ui-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+  direction: rtl;
+  text-align: right;
+  pointer-events: auto;
+  /* تفادي اختفاء الطبقة عند مرور الماوس */
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+@keyframes hx-ui-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateZ(0);
+  }
+}
+
+.hx-ui__kicker {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.hx-ui__title {
+  margin: 0 0 0.55rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.hx-ui__msg {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hx-ui__msg[hidden] {
+  display: none !important;
+}
+
+.hx-ui__field {
+  margin: 0 0 1rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.hx-ui__field[hidden] {
+  display: none !important;
+}
+
+.hx-ui__field-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.hx-ui__input {
+  width: 100%;
+  min-height: 2.45rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 0.45rem 0.7rem;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #0f172a;
+  background: #f8fafc;
+  box-sizing: border-box;
+}
+
+.hx-ui__input:focus {
+  outline: none;
+  border-color: #0b6bcb;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(11, 107, 203, 0.15);
+}
+
+.hx-ui--warn .hx-ui__kicker {
+  color: #a16207;
+}
+
+.hx-ui--error .hx-ui__kicker {
+  color: #b91c1c;
+}
+
+.hx-ui--ok .hx-ui__kicker {
+  color: #047857;
+}
+
+.hx-ui--error .hx-ui__panel {
+  border-color: rgba(185, 28, 28, 0.25);
+}
+
+.hx-ui--ok .hx-ui__panel {
+  border-color: rgba(4, 120, 87, 0.22);
+}
+
+.hx-ui--warn .hx-ui__panel {
+  border-color: rgba(161, 98, 7, 0.25);
+}
+
+.hx-ui__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-start;
+}
+
+.hx-ui__btn {
+  appearance: none;
+  min-height: 2.25rem;
+  padding: 0.4rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+  font: 700 0.88rem Arial, Helvetica, sans-serif;
+  cursor: pointer;
+  pointer-events: auto;
+  position: relative;
+  z-index: 2;
+}
+
+.hx-ui__btn:hover:not(.hx-ui__btn--primary):not(.hx-ui__btn--danger) {
+  background: #f1f5f9;
+}
+
+.hx-ui__btn:focus {
+  outline: 2px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.hx-ui__btn--primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, #38bdf8 0%, #0284c7 100%);
+  color: #fff;
+}
+
+.hx-ui__btn--primary:hover,
+.hx-ui__btn--primary:focus {
+  background: linear-gradient(180deg, #7dd3fc 0%, #0369a1 100%);
+  color: #fff;
+  filter: none;
+}
+
+.hx-ui__btn--danger,
+.hx-ui__btn--primary.hx-ui__btn--danger {
+  border-color: transparent;
+  background: linear-gradient(180deg, #f87171 0%, #b91c1c 100%);
+  color: #fff;
+}
+
+.hx-ui__btn--danger:hover,
+.hx-ui__btn--primary.hx-ui__btn--danger:hover,
+.hx-ui__btn--danger:focus,
+.hx-ui__btn--primary.hx-ui__btn--danger:focus {
+  background: linear-gradient(180deg, #fca5a5 0%, #dc2626 100%);
+  color: #fff;
+  filter: none;
+}
+
+.hx-ui__panel {
+  pointer-events: auto;
+}
+
+.hx-ui__actions {
+  pointer-events: auto;
+}
+
+/* توست أسفل وسط — fixed فقط، بلا تأثير على تخطيط الصفحة */
+.hx-ui-toast-host {
+  position: fixed;
+  bottom: 1.35rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20060;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  width: min(420px, calc(100% - 1.5rem));
+  pointer-events: none;
+}
+
+.hx-ui-toast {
+  pointer-events: auto;
+  padding: 0.65rem 1.05rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  color: #f8fafc;
+  font: 700 0.88rem/1.4 Arial, Helvetica, sans-serif;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.32);
+  text-align: center;
+  direction: rtl;
+  max-width: 100%;
+  animation: hx-ui-toast-in 0.18s ease both;
+}
+
+.hx-ui-toast.is-ok {
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.32), 0 0 0 1px rgba(14, 165, 233, 0.1);
+}
+
+.hx-ui-toast.is-error {
+  background: linear-gradient(180deg, #7f1d1d 0%, #991b1b 100%);
+  border-color: rgba(252, 165, 165, 0.35);
+}
+
+.hx-ui-toast.is-warn {
+  background: linear-gradient(180deg, #92400e 0%, #78350f 100%);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+@keyframes hx-ui-toast-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

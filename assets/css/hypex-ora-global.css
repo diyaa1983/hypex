@@ -1,0 +1,366 @@
+/**
+ * جلد Oracle Forms — عام لكل شاشات النظام (قوائم، تقارير، نماذج، مربعات)
+ * يُحمَّل مع customer-order-ora.css عبر layout / salesPage
+ */
+
+body.co-ora-body {
+  font-family: Arial, Tahoma, sans-serif !important;
+}
+
+body.co-ora-body .si-main,
+body.co-ora-body .main.si-main,
+body.co-ora-body .main.main--wide {
+  background: #d4d0c8 !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+  color: #111 !important;
+  max-width: none !important;
+  width: 100% !important;
+}
+
+/* أي si-stage بدون co-ora-skin يحصل على نفس الأساس */
+body.co-ora-body .si-stage {
+  display: block !important;
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  font-family: Arial, Tahoma, sans-serif;
+  font-size: 12px;
+  color: #111;
+  flex: 1 1 auto;
+}
+
+/* ترويسة الصفحة */
+body.co-ora-body .si-hero {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%) !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 1px 1px 0 #fff !important;
+  padding: 8px 10px !important;
+  margin: 0 0 8px !important;
+}
+
+body.co-ora-body .si-hero h1 {
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  color: #1a4480 !important;
+  margin: 0 !important;
+}
+
+body.co-ora-body .si-kicker,
+body.co-ora-body .si-hero-sub {
+  color: #444 !important;
+  font-size: 11px !important;
+}
+
+body.co-ora-body .si-brand-mark {
+  border-radius: 0 !important;
+  border: 1px solid #808080 !important;
+  background: #fff !important;
+}
+
+/* أزرار عامة */
+body.co-ora-body .si-btn {
+  appearance: none;
+  border-radius: 0 !important;
+  border: 1px solid #808080 !important;
+  background: linear-gradient(180deg, #fff 0%, #e8e8e8 100%) !important;
+  color: #111 !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  min-height: 24px !important;
+  padding: 2px 10px !important;
+  box-shadow: inset 1px 1px 0 #fff !important;
+}
+
+body.co-ora-body .si-btn--primary {
+  background: linear-gradient(180deg, #4a7fd4 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-color: #1a3366 !important;
+  box-shadow: inset 1px 1px 0 #7aa3e0 !important;
+}
+
+body.co-ora-body .si-btn--ghost {
+  background: linear-gradient(180deg, #f5f5f5 0%, #ddd 100%) !important;
+}
+
+body.co-ora-body .si-btn:hover:not(:disabled) {
+  filter: brightness(1.04);
+}
+
+body.co-ora-body .si-btn:disabled {
+  opacity: 0.55;
+}
+
+/* أسطح / لوحات */
+body.co-ora-body .si-surface,
+body.co-ora-body .panel {
+  background: #ece9e4 !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  box-shadow:
+    inset 1px 1px 0 #fff,
+    inset -1px -1px 0 #a0a0a0 !important;
+  margin-bottom: 8px !important;
+}
+
+body.co-ora-body .si-surface-head,
+body.co-ora-body .panel-head {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-bottom: 1px solid #1a3366 !important;
+  border-radius: 0 !important;
+  padding: 4px 8px !important;
+  min-height: 0 !important;
+}
+
+body.co-ora-body .si-surface-head h2,
+body.co-ora-body .panel-head h2 {
+  color: #fff !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  margin: 0 !important;
+}
+
+body.co-ora-body .si-count {
+  color: #dce8ff !important;
+  font-size: 11px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+/* جداول القوائم والتقارير */
+body.co-ora-body .si-table-wrap,
+body.co-ora-body .si-lines-wrap {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+}
+
+body.co-ora-body .si-table,
+body.co-ora-body table.si-table {
+  border-collapse: collapse !important;
+  font-size: 11px !important;
+}
+
+body.co-ora-body .si-table th,
+body.co-ora-body .si-table td {
+  border: 1px solid #a0a0a0 !important;
+  padding: 3px 6px !important;
+  background: #fff !important;
+}
+
+body.co-ora-body .si-table thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%) !important;
+  color: #111 !important;
+  font-weight: 800 !important;
+  white-space: nowrap;
+}
+
+body.co-ora-body .si-table tbody tr:nth-child(even) td {
+  background: #f7f7f0 !important;
+}
+
+body.co-ora-body .si-table tbody tr:hover td {
+  background: #ffffcc !important;
+}
+
+body.co-ora-body .si-table .empty,
+body.co-ora-body .si-table td.empty {
+  color: #666 !important;
+  text-align: center !important;
+  background: #f5f5f5 !important;
+}
+
+/* بحث / فلاتر */
+body.co-ora-body .si-rail {
+  background: #e4e1da !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  padding: 6px 8px !important;
+  margin-bottom: 8px !important;
+  box-shadow: inset 1px 1px 0 #fff !important;
+}
+
+body.co-ora-body .si-search input[type='search'],
+body.co-ora-body .si-search input[type='text'],
+body.co-ora-body .si-field,
+body.co-ora-body input.si-field,
+body.co-ora-body select.si-field,
+body.co-ora-body textarea.si-field {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: #fff !important;
+  box-shadow: inset 1px 1px 0 #ddd !important;
+  font-family: Arial, Tahoma, sans-serif !important;
+  font-size: 12px !important;
+  min-height: 22px !important;
+}
+
+body.co-ora-body .si-field:focus,
+body.co-ora-body .si-search input:focus {
+  outline: 1px solid #1a4480 !important;
+  outline-offset: 0 !important;
+  background: #ffffcc !important;
+}
+
+/* بلاطات القوائم (hub) */
+body.co-ora-body .si-tiles {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)) !important;
+  gap: 6px !important;
+  padding: 8px !important;
+  width: 100% !important;
+}
+
+body.co-ora-body .si-tile {
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  background: linear-gradient(180deg, #fff 0%, #ececec 100%) !important;
+  box-shadow: inset 1px 1px 0 #fff !important;
+  color: #111 !important;
+}
+
+body.co-ora-body .si-tile:hover {
+  background: #ffffcc !important;
+  border-color: #1a4480 !important;
+}
+
+body.co-ora-body .si-tile-label {
+  font-weight: 800 !important;
+  font-size: 12px !important;
+  color: #1a4480 !important;
+}
+
+body.co-ora-body .si-tile-kind {
+  font-size: 10px !important;
+  color: #555 !important;
+}
+
+body.co-ora-body .si-tile-ico {
+  filter: none !important;
+  opacity: 0.9;
+}
+
+/* شارات الحالة */
+body.co-ora-body .si-pill {
+  border-radius: 0 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  border: 1px solid #808080 !important;
+  padding: 1px 6px !important;
+}
+
+body.co-ora-body .si-pill--live,
+body.co-ora-body .si-pill--ok {
+  background: #c8e6c9 !important;
+  color: #1b5e20 !important;
+  border-color: #2d8a4e !important;
+}
+
+body.co-ora-body .si-pill--wait {
+  background: #fff3cd !important;
+  color: #7a5b00 !important;
+  border-color: #c9a227 !important;
+}
+
+body.co-ora-body .si-pill--lock {
+  background: #e0e0e0 !important;
+  color: #333 !important;
+}
+
+/* تقارير */
+body.co-ora-body .si-report-page .si-print-area,
+body.co-ora-body .si-print-area {
+  background: #fff !important;
+  border: 1px solid #808080 !important;
+  border-radius: 0 !important;
+  padding: 8px !important;
+}
+
+body.co-ora-body .si-print-meta {
+  font-size: 11px !important;
+  color: #333 !important;
+}
+
+/* شريط أدوات المستندات (إن لم يُلف بـ co-ora-skin) */
+body.co-ora-body .si-cmd.si-doc-toolbar {
+  direction: ltr;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 2px 3px !important;
+  margin: 0 0 6px !important;
+  background: linear-gradient(180deg, #f7f7f7 0%, #ebebeb 100%) !important;
+  border: 1px solid #b0b0b0 !important;
+  border-radius: 0 !important;
+  box-shadow: inset 0 1px 0 #fff !important;
+}
+
+body.co-ora-body .si-tb {
+  appearance: none;
+  border: 1px solid #9a9a9a !important;
+  border-radius: 0 !important;
+  background: linear-gradient(180deg, #ffffff 0%, #efefef 100%) !important;
+  color: #1a1a1a !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 1px 7px !important;
+  min-height: 22px !important;
+  box-shadow: inset 1px 1px 0 #fff !important;
+}
+
+body.co-ora-body .si-tb--save,
+body.co-ora-body .si-tb--post {
+  background: linear-gradient(180deg, #4a7fd4 0%, #1a4480 100%) !important;
+  color: #fff !important;
+  border-color: #1a3366 !important;
+}
+
+body.co-ora-body .si-tb--danger {
+  background: linear-gradient(180deg, #e57373 0%, #c62828 100%) !important;
+  color: #fff !important;
+  border-color: #8e0000 !important;
+}
+
+/* نماذج عامة (محاسبة / موارد بشرية / بطاقات) */
+body.co-ora-body form.si-form label,
+body.co-ora-body .si-form label,
+body.co-ora-body .form-grid label {
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #222 !important;
+}
+
+body.co-ora-body .form-grid,
+body.co-ora-body .si-meta {
+  gap: 6px !important;
+}
+
+/* روابط الجداول */
+body.co-ora-body .si-table a {
+  color: #1a4480 !important;
+  font-weight: 700 !important;
+  text-decoration: none !important;
+}
+
+body.co-ora-body .si-table a:hover {
+  text-decoration: underline !important;
+}
+
+/* طباعة: خلفية بيضاء */
+@media print {
+  body.co-ora-body .si-main,
+  body.co-ora-body .main.si-main {
+    background: #fff !important;
+  }
+  body.co-ora-body .si-surface-head,
+  body.co-ora-body .panel-head {
+    background: #eee !important;
+    color: #000 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

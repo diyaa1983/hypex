@@ -1,0 +1,400 @@
+" aria-label="إغلاق">×</button>
+" aria-label="تصغير" title="تصغير الشاشة">_</button>
+" class="btn btn-link btn-sm">القيد</a>
+" role="button" tabindex="0" title="عرض التفاصيل"
+" style="padding:0.35rem 0;border-bottom:1px solid #e2e8f0;direction:rtl;unicode-bidi:isolate;"><strong>المستودع:u200F</strong> <bdi>
+" style="padding:10px;text-align:center;color:#64748b;">لا توجد بنود</td></tr>
+" style="padding:1rem;text-align:center;color:#64748b;">لا توجد بنود</td></tr>
+" title="إشعار مفعّل">
+" title="اختيار العميل">
+" title="اختيار المادة">
+" title="اختيار المورد">
+" title="اختيار الموظف">
+" title="اختيار حساب">
+" title="العربية">ع</a>
+" title="ترتيب تصاعدي / تنازلي">
+" title="تسجيل خروج" aria-label="تسجيل خروج">
+" title="تعديل اسم الحساب الرئيسي">تعديل الاسم</a>
+" title="حذف">×</button>
+"><strong>التاريخ:u200F</strong> <bdi>
+"><strong>العميل:u200F</strong>
+"><strong>المورد:u200F</strong>
+"><strong>رقم المرتجع:u200F</strong> <bdi>
+"><strong>رقم المردود:u200F</strong> <bdi>
+"><strong>فاتورة البيع:u200F</strong> <bdi>
+"><strong>فاتورة الشراء:u200F</strong> <bdi>
+">أقسام</a>
+">اسم المستلم</span>
+">اضغط هنا لتعيين كلمة مرور جديدة</a></p>
+">التالي</a>
+">التوقيع</span>
+">السابق</a>
+">العودة</a></p></body></html>
+">المادة</th>
+">تحميل الملف</a>
+">تفاصيل الشيكات</div>
+">جنسيات</a>
+">حذف</button></td>
+">دفتر</a>
+">سجل الشيكات الصادرة</a>
+">لوحة التحكم</a>
+">مسميات</a>
+">نسب ضمان</a>
+%آجلة%
+%أصول متداولة%
+%أوراق دفع%
+%الالتزامات%
+%الشيكات الآجلة%
+%الصندوق%
+%المطلوبات%
+%بدلات%مكافئ%
+%بنوك%
+%خصومات%اقتطاع%موظ%
+%ذمم%مدين%
+%رئيسي%
+%سلف%ذمة%
+%شيك%
+%شيك:%
+%شيكات آجلة%
+%شيكات تحت%
+%شيكات%
+%صندوق الشيكات%
+%صندوق رئيسي%
+%صندوق%
+%ضريبة%دخل%
+%ضمان%شركة%مصروف%
+%ضمان%مستحق%
+%عميل%
+%مخزون%
+%مستحقات%موظ%
+%موجودات متداولة%
+%نقد%
+%نقدية%
+(-) مردودات المبيعات
+(-) مردودات المشتريات
+(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.name_ar SEPARATOR '، \
+(أغلق ZKT وتحقق من صلاحية الكتابة على الملف)
+(أقساط)
+(استبدال القيد السابق)
+(الحالة:
+(المتوقع:
+(بحث: «
+(بقية الإعدادات حُفظت.)
+(رقم:
+(عرض فقط)
+(عليه — للعميل)
+(عميل)
+(غير مربوط)
+(غير مرحّلة).
+(غير نشِط)
+(قيد عكسي)
+(له — على العميل)
+(له — علينا للمورد)
+(مثل C:\ZKTData) وحدّث مساره في ZKT وManager، أو امنح Apache صلاحية الكتابة على الملف.
+(محاسبة):
+(مدين — لنا على المورد)
+(مرحّل)
+(مرحّلة)
+(مستقيل مرحّل)
+(مستقيل)
+(مسودة)
+(من الشيكات الآجلة إلى البنك)
+(مورد)
+(نتائج البحث)
+(نسخة مؤقتة)
+) تحت النقدية والبنوك.
+) غير موجود — سيتم فتح السنة دون حذف قيد.
+) لا يتوافق مع الفترة من
+) لا يساوي مجموع الدائن (
+) لا يطابق السنة المختارة (
+) نهائياً من النظام؟
+) وربطه.
+) — سجلات حضور:
+) — قراءة فقط
+). الاعتمادات سليمة على الأرجح لكن الخدمة معطّلة مؤقتاً.
+). يُفك الترحيل من آخر شهر مرحّل فقط.
++ إضافة حساب
++ إضافة فرع
+- database.sql (قاعدة البيانات)
+- system_files.zip (ملفات النظام)
+- العميل:
+- المورد:
+.
+المادة:
+.
+لا يمكن إعادة الإرسال.
+. أزل الربط القديم أولاً أو اختر رقم موظف آخر.
+. إن كان الربط خاطئاً استخدم «فك الربط بالفاتورة» — لا حاجة لفك ترحيل الفاتورة ولا يتأثر إرسال الضريبة.
+. الرقم متاح لإعادة استخدامه في فاتورة جديدة.
+. الرقم متاح لإعادة استخدامه في مرتجع جديد.
+. الفواتير المرحّلة تحتفظ بعدد الخانات المثبت عند الترحيل.
+. انقل المواد أو احذف الحركات أولاً.
+. راجع رسالة الخادم في الأسفل.
+. يمكنك التعديل وإعادة الحفظ.
+/شيكات/u
+/(مبيع|مشتري|مدخل|مخرج|vat|أمانات)/ui
+/[%٪]$/u
+/[%٪]+$/u
+/[.,،]/u
+/^(?:شيك:|البنك:)/u
+/^[صم]s*/u
+/^بنوك/u
+/^صناديق/u
+/^مصارف/u
+/s*[صم]s*$/u
+/s+—s+شيك:.*$/us
+/s+—s+شيك:/u
+/أجور/u
+/بنك|bank|مصرف/u
+/رواتب/u
+/شريك|جاري|حصة/u
+/شيك/u
+/شيك:s*([^|—]+)/u
+/صندوقs*الشيكات|شيكاتs*تحت/u
+/صندوق|شيك/u
+/صندوق|نقد|cash|خزينة/u
+/ضريبة/u
+/ضريبةs*دخل/u
+/فاتورةs+([^—|]+)/u
+/مستحق/u
+0 – 30 يوم
+1001003001 — البنك العربي
+2009 — سلف موظفين مستحقة الصرف
+31 – 60 يوم
+61 – 90 يوم
+962 للأردن، 966 للسعودية
+: غير موجود.
+: ملغى ولا يمكن ترحيله.
+: وُجد صرف رواتب من المحاسبة لموظفين في هذا الشهر.
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>تقرير قيود الرواتب حسب الشهر</title><style>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>حركة مستودع</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند تسليم بضاعة</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند صرف</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند قبض</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>سند قيد</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>طباعة موظف</title></head>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة شراء</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة مبيعات</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>قسيمة الراتب</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>قسيمة الراتب</title></head>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>قسيمة راتب</title></head>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف الرواتب للأقسام</title><style>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>كشف حساب</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مرتجع مبيعات</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مردود مشتريات</title>
+<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>خطأ توافق</title>
+<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>خطأ داخلي</title>
+<!DOCTYPE html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>ممنوع</title>
+</span></div><div class="g"><span>الإجمالي</span><span>
+</span></div><div><span>مجموع الضريبة</span><span>
+</strong><span class="sales-inv-pick-item-meta">متبقي:
+</strong>،
+</tbody><tfoot><tr class="report-acc-total"><td><strong>المجموع</strong></td>
+</th><th>تاريخ الاستحقاق</th><th>المبلغ</th>
+<?= !empty($row['login_recaptcha_secret_key']) ? '•••••• محفوظ — اتركه فارغاً للإبقاء' : '6Lf... (مطلوب أول مرة)' ?>
+<?= !empty($row['smtp_password']) ? '•••••• محفوظة' : '' ?>
+<?= !empty($row['wa_access_token']) ? '•••••• محفوظ' : 'EAAJ...' ?>
+<?= $isActive ? 'إيقاف البند' : 'تفعيل البند' ?>
+<?= $isActive ? 'إيقاف البنك' : 'تفعيل البنك' ?>
+<?= $isActive ? 'إيقاف الجنسية' : 'تفعيل الجنسية' ?>
+<?= $isActive ? 'إيقاف الشفت' : 'تفعيل الشفت' ?>
+<?= $isActive ? 'إيقاف القسم' : 'تفعيل القسم' ?>
+<?= $isActive ? 'إيقاف المسمى' : 'تفعيل المسمى' ?>
+<?= $isActive ? 'إيقاف الموظف' : 'تفعيل الموظف' ?>
+<?= $isActive ? 'إيقاف النسبة' : 'تفعيل النسبة' ?>
+<?= $nextWeeklyUrl === $newWeeklyUrl ? 'فترة جديدة' : 'الفترة التالية' ?>
+<?= $openUrl ? 'فتح المستند الأصلي' : '' ?>
+<?= (int) $it['is_active'] ? 'تعطيل المادة؟ لن تظهر في القوائم المنسدلة.' : 'تفعيل المادة؟ ستظهر في القوائم المنسدلة.' ?>
+<?= esc($current ? hr_employee_departure_posted_label((int) ($current['is_posted'] ?? 0)) : 'مسودة') ?>
+<?= esc($current ? hr_employee_leave_posted_label((int) ($current['is_posted'] ?? 0)) : 'مسودة') ?>
+<?= esc($takeNo !== '' ? ('جرد_' . $takeNo) : 'سند_جرد') ?>
+<?= esc((string) ($clrChk['message'] ?? 'لا يمكن الحذف')) ?>
+<?= esc((string) ($item['label'] ?? 'شيكات قيد التحصيل')) ?>
+<?= esc((string) ($item['link_title'] ?? 'عرض كشف الحساب')) ?>
+<?= esc((string) ($kpi['label'] ?? 'شيكات قيد الاستحقاق')) ?>
+<?= esc((string) ($r['undo_label'] ?? 'إلغاء الصرف')) ?>
+<?= esc((string) ($row['company_name_ar'] ?? 'الشركة')) ?>
+<?= esc((string) ($row['unit_name'] ?? 'قطعة')) ?>
+<a class="fin-voucher-archive-ora-btn fin-voucher-archive-tool-download" href="#" download title="تحميل">تحميل</a>
+<a id="sal-gps-map-external" class="sal-gps-map-modal__btn sal-gps-map-modal__btn--ghost sal-gps-map-modal__external" href="#" target="_blank" rel="noopener noreferrer">فتح في Google Maps</a>
+<body style="font-family:system-ui;padding:2rem;">ليس لديك صلاحية لهذه الشاشة.</body></html>
+<body><p>الموظف غير موجود.</p></body></html>
+<body><p>قيد الراتب غير موجود.</p></body></html>
+<body><p>لا يوجد موظف محدد للطباعة.</p></body></html>
+<br><small class="muted">إلغاء
+<br><small class="muted">إلى:
+<button type="button" class="app-mdi-tool-btn app-mdi-close" title="إغلاق">×</button>
+<button type="button" class="app-mdi-tool-btn app-mdi-minimize" title="تصغير">_</button>
+<button type="button" class="app-pwa-install__dismiss" id="app-pwa-install-dismiss" aria-label="إخفاء">×</button>
+<button type="button" class="app-titlebar__btn app-titlebar__refresh-btn" id="app-titlebar-refresh" title="تحديث الصفحة" aria-label="تحديث الصفحة">
+<button type="button" class="btn btn-ghost btn-sm hr-dept-pending-remove" title="إزالة">✕</button>
+<button type="button" class="btn btn-ghost btn-sm hr-it-pending-remove" title="إزالة">✕</button></td>
+<button type="button" class="btn btn-ghost btn-sm hr-jt-pending-remove" title="إزالة">✕</button>
+<button type="button" class="btn btn-ghost btn-sm hr-nat-pending-remove" title="إزالة">✕</button>
+<button type="button" class="btn btn-secondary btn-sm" id="app-pwa-install-btn">تثبيت التطبيق</button>
+<button type="button" class="coa-ref-exp" aria-expanded="false" aria-label="طي/توسيع"><span class="coa-ref-exp-ico">+</span></button>
+<button type="button" class="date-dmy-popup__foot-btn" data-action="clear">مسح</button>
+<button type="button" class="date-dmy-popup__foot-btn" data-action="today">اليوم</button>
+<button type="button" class="date-dmy-popup__nav" data-nav="-1" aria-label="الشهر السابق">‹</button>
+<button type="button" class="date-dmy-popup__nav" data-nav="1" aria-label="الشهر التالي">›</button>
+<button type="button" class="fin-voucher-archive-close" data-archive-close aria-label="إغلاق">×</button>
+<button type="button" class="fin-voucher-archive-ora-btn fin-voucher-archive-foot-close" data-archive-close>إغلاق</button>
+<button type="button" class="fin-voucher-archive-ora-btn fin-voucher-archive-tool-print" title="طباعة">طباعة</button>
+<button type="button" class="fin-voucher-archive-ora-btn fin-voucher-archive-upload-btn">رفع ملف</button>
+<button type="button" class="fin-voucher-archive-size-toggle" aria-label="تكبير" title="تكبير">□</button>
+<button type="button" class="geo-map-pick-btn geo-map-pick-btn--gps" data-geo-map-my-loc>📍 موقعي الآن</button>
+<button type="button" class="geo-map-pick-btn geo-map-pick-btn--primary" data-geo-map-ok>تأكيد الموقع</button>
+<button type="button" class="geo-map-pick-btn" data-geo-map-cancel>إلغاء</button>
+<button type="button" class="geo-map-pick-close" data-geo-map-cancel aria-label="إغلاق">×</button>
+<button type="button" class="hr-it-row-delete" title="حذف الشريحة"
+<button type="button" class="sal-gps-map-modal__btn sal-gps-map-modal__btn--primary" data-sal-gps-map-close>إغلاق</button>
+<button type="button" class="sal-gps-map-modal__close" data-sal-gps-map-close aria-label="إغلاق">×</button>
+<div class="card"><p class="alert alert-error">تعذر إنشاء جداول القيود. نفّذ <code>database/migrations/026_acc_journal_tables.sql</code> من Workbench إن لزم، ثم حدّث الصفحة.</p></div>
+<div class="card"><p class="alert alert-error">تعذر إنشاء جدول السندات. نفّذ <code>database/migrations/027_fin_voucher.sql</code> ثم حدّث الصفحة.</p></div>
+<div class="card"><p class="alert alert-error">تعذر تحميل دليل الحسابات. نفّذ <code>database/migrations/026_acc_journal_tables.sql</code> ثم حدّث الصفحة.</p></div>
+<div class="card"><p class="alert alert-error">تعذر تحميل دليل الحسابات.</p></div>
+<div class="card"><p class="alert alert-error">تعذر تحميل نظام الربط. نفّذ <code>database/migrations/032_acc_gl_posting.sql</code>.</p></div>
+<div class="card"><p class="alert alert-error">تعذر تهيئة جداول السلف أو سندات الصرف.
+<div class="card"><p class="alert alert-error">جداول إشعارات الدائنة غير موجودة. تأكد من تنفيذ <code>database/schema.sql</code> أو الترحيلات ذات الصلة.</p></div>
+<div class="card"><p class="alert alert-error">جداول إشعارات المدينة غير موجودة. تأكد من تنفيذ <code>database/schema.sql</code> أو الترحيلات ذات الصلة.</p></div>
+<div class="card"><p class="alert alert-error">جداول القيود غير موجودة. نفّذ <code>database/migrations/026_acc_journal_tables.sql</code>.</p></div>
+<div class="card"><p class="alert alert-error">جدول سند التسليم غير موجود. حدّث الصفحة أو نفّذ <code>database/migrations/028_sal_delivery.sql</code>.</p></div>
+<div class="card"><p class="alert alert-error">جدول سندات الصرف غير موجود. نفّذ <code>database/migrations/027_fin_voucher.sql</code> و<code>029_fin_voucher_receipt_ext.sql</code>.</p></div>
+<div class="card"><p class="alert alert-error">جدول سندات القبض غير موجود. نفّذ <code>database/migrations/027_fin_voucher.sql</code> و<code>029_fin_voucher_receipt_ext.sql</code>.</p></div>
+<div class="card"><p class="alert alert-error">لا توجد حسابات صرف (صناديق، شيكات، أو بنوك). أضف حسابات تحت «الصناديق» أو «صندوق الشيكات» في شجرة الحسابات.</p></div>
+<div class="card"><p class="alert alert-error">لا توجد حسابات صندوق/بنك في دليل الحسابات. نفّذ ترحيل <code>026_acc_journal_tables.sql</code> أولاً.</p></div>
+<div class="card"><p class="alert alert-error">لا توجد حسابات صندوق/بنك. نفّذ ترحيل <code>026_acc_journal_tables.sql</code> أولاً.</p></div>
+<div class="card"><p class="alert alert-error">لا توجد حسابات نهائية في شجرة الحسابات. أضف حسابات فرعية قابلة للترحيل أولاً.</p></div>
+<div class="card"><p class="muted">لا توجد مجموعات.</p></div>
+<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">المجال غير موجود.</div></div></div>
+<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">المجلد غير موجود.</div></div></div>
+<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">ليس لديك صلاحية لأي شاشة في هذا المجلد.</div></div></div>
+<div class="dashboard-ora nav-hub-ora"><div class="dashboard-ora-workspace"><div class="alert alert-error">ليس لديك صلاحية لأي مجموعة في هذا المجال.</div></div></div>
+<div class="doc-print-signature-block" role="group" aria-label="توقيع المستلم">
+<div class="doc-print-user-footer-text">طبع بواسطة:
+<div class="fin-voucher-archive-sidebar-head">المرفقات</div>
+<div class="g"><span>الإجمالي</span><span>
+<div class="m-alert m-alert--error">جدول سندات القبض غير متوفر.</div>
+<div class="m-alert m-alert--error">لا توجد حسابات صندوق/بنك.</div>
+<div class="m-inv-pdf-title" role="heading" aria-level="1">رصيد عهدة مندوب</div>
+<div class="m-inv-pdf-title" role="heading" aria-level="1">فاتورة مبيعات</div></header>
+<div class="m-inv-pdf-title" role="heading" aria-level="1">مرتجع مبيعات</div></header>
+<div class="m-inv-sign-center-wrap" role="group" aria-label="توقيع المستلم">
+<div class="m-rc-pdf-amount-words"><strong>تفقيطاً:</strong>
+<div class="m-rc-pdf-check-hd">شيك
+<div class="m-rc-pdf-check-total">إجمالي الشيكات: <span dir="ltr" style="direction:ltr;">
+<div class="m-rc-pdf-meta-item"><span class="m-rc-pdf-meta-lbl">التاريخ</span>
+<div class="m-rc-pdf-meta-item"><span class="m-rc-pdf-meta-lbl">رقم السند</span>
+<div class="m-rc-pdf-section">تفاصيل الشيكات</div>
+<div class="m-rc-pdf-sign"><span class="m-rc-pdf-sign-lbl">اسم المستلم</span>
+<div class="m-rc-pdf-sign"><span class="m-rc-pdf-sign-lbl">التوقيع</span>
+<div class="master-toolbar no-print" id="master-toolbar" role="toolbar" aria-label="شريط الإجراءات"
+<div class="rcp-section-title">تفاصيل الشيكات</div>
+<div class="sales-inv-pick-empty sales-inv-pick-err">رابط البحث غير متاح</div>
+<div class="sales-inv-pick-empty">جاري البحث…</div>
+<div class="sales-inv-pick-empty">جاري التحميل…</div>
+<div class="sales-inv-pick-empty">لا توجد مواد متبقية للإرجاع</div>
+<div class="sales-inv-pick-item-body"><span class="sales-inv-pick-item-name">— غير مربوط —</span></div>
+<div class="sales-inv-print-tot"><div><span>المجموع بدون ضريبة</span><span>
+<div style="font-size:0.82rem;color:#64748b;">الحالة:
+<div style="font-size:0.85rem;">رقم الفوترة:
+<div style="font-weight:700;margin-bottom:0.35rem;">الفوترة الإلكترونية</div>
+<div><dt>البنك</dt><dd>
+<div><dt>المبلغ</dt><dd><strong>
+<div><dt>المندوب</dt><dd>
+<div><dt>تاريخ الاستحقاق</dt><dd>
+<div><dt>رقم الشيك</dt><dd>
+<div><dt>مبلغ السند</dt><dd>
+<div><dt>ملاحظات السند</dt><dd>
+<div><dt>ملاحظات الشيك</dt><dd>
+<div><span>المجموع بدون ضريبة</span><span>
+<div><span>مجموع الخصم</span><span>
+<div><span>مجموع الضريبة</span><span>
+<footer id="m-main-toolbar" class="m-action-dock m-main-toolbar" aria-label="أدوات الشاشة">
+<h1 class="m-rc-pdf-title">سند قبض</h1></header>
+<h2 class="hr-emp-print-group-title">البيانات الشخصية</h2>
+<h2 style="margin:0 0 .75rem">تعذر إكمال الطلب</h2>
+<h2 style="margin:0 0 .75rem">تعذر تشغيل النظام</h2>
+<h2 style="margin:0 0 .75rem">حدث خطأ داخلي</h2>
+<h3 class="dashboard-ora-panel__title" style="font-size:0.85rem;padding:0.4rem 0.75rem;">متابعة الشيك</h3>
+<h3 class="sal-gps-map-modal__title" id="sal-gps-map-title">موقع الفاتورة</h3>
+<h4 class="dashboard-check-detail-subtitle">كل شيكات هذا السند</h4>
+<iframe id="app-mdi-hub-frame" class="app-mdi-hub-frame" title="القائمة"></iframe>
+<iframe id="sal-gps-map-iframe" class="sal-gps-map-modal__frame" title="خريطة الموقع" loading="lazy"></iframe>
+<li>إعادة الأرصدة المخزنية للمواد (إلغاء حركات الصرف).</li>
+<li>إلغاء أثر حساب العميل (الذمم المدينة).</li>
+<li>إلغاء أثر ذمة المورد.</li>
+<li>إلغاء القيد المحاسبي تلقائياً (يَختفي من تقارير الأستاذ وميزان المراجعة).</li>
+<li>إلغاء القيد المحاسبي تلقائياً.</li>
+<li>إلغاء القيد المحاسبي.</li>
+<li>حذف حركات صرف المخزون (إن وُجدت).</li>
+<li>عكس حركات إدخال المخزون (إرجاع الكميات من المستودع).</li>
+<nav class="hr-att-screen-tabs no-print" aria-label="شاشات البصمة">
+<nav class="list-pager" aria-label="ترقيم الصفحات">
+<option value="">— اختر العميل أولًا —</option>
+<option value="">— اختر المورد أولًا —</option>
+<p class="app-pwa-install__text">ثبّت النظام كتطبيق على سطح المكتب — أيقونة مستقلة بدون متصفح.</p>
+<p class="dashboard-empty">لا توجد شيكات في هذه الفئة.</p>
+<p class="fin-py-advances-empty muted">لا توجد رواتب مرحّلة بانتظار الصرف لهذا الموظف.</p>
+<p class="fin-py-advances-empty muted">لا توجد سلف معتمدة من الشؤون بانتظار الصرف لهذا الموظف.</p>
+<p class="fin-voucher-archive-stage-fallback-note">لا يمكن معاينة هذا النوع داخل المتصفح.</p>
+<p class="fin-voucher-archive-upload-label">رفع مرفق جديد</p>
+<p class="m-pdf-notes"><strong>ملاحظات:</strong>
+<p class="muted" style="text-align:center;padding:1rem">جاري التحميل…</p>
+<p class="ui-dialog-question">متابعة؟</p>
+<p class="ui-dialog-warn">سيتم فك الترحيل تلقائياً ثم يمكنك تعديل التاريخ والبيانات، وبعدها احفظ وأعد الترحيل.</p>
+<p class="ui-dialog-warn">سيتم فك الترحيل تلقائياً ثم يمكنك تعديل التاريخ والحركات، وبعدها احفظ وأعد الترحيل.</p>
+<p style="color:#666;font-size:0.9em;">الرابط صالح لمدة ساعة واحدة. بعد تعيين كلمة المرور، سجّل الدخول باستخدام اسم المستخدم أعلاه.</p>
+<p style="margin:0 0 12px;">مرحباً،</p>
+<p style="margin:0">تحقق من إعدادات قاعدة البيانات في <code>config/database.local.php</code>،
+<p style="margin:0">حصل خطأ على الخادم. راجع ملف <code>error_log</code> في cPanel،
+<p style="margin:0">نسخة PHP الحالية هي <strong>
+<p style="margin:0.75rem 0 0;font-size:0.88rem;"><strong>ملاحظات:</strong>
+<p style="margin:0.75rem 0 0;font-size:0.88rem;direction:rtl;unicode-bidi:isolate;"><strong>ملاحظات:</strong> <bdi>
+<p style="margin:0.75rem 0 0;font-size:0.88rem;direction:rtl;unicode-bidi:isolate;"><strong>ملاحظات:u200F</strong> <bdi>
+<p><strong>اسم المستخدم:</strong>
+<p><strong>سيتم فك ترحيل الفاتورة:</strong></p>
+<p><strong>سيتم فك ترحيل المرتجع:</strong></p>
+<p><strong>سيتم فك ترحيل مردود المشتريات:</strong></p>
+<p>اختر مرفقاً من القائمة أو ارفع ملفاً جديداً.</p>
+<p>الحركة غير موجودة.</p>
+<p>الشيك غير موجود.</p>
+<p>بعد ذلك أعد الترحيل لإتمام الأثر المستودعي والمحاسبي.</p>
+<p>بعد فك الترحيل يمكنك تعديل الفاتورة وإعادة ترحيلها.</p>
+<p>بعد فك الترحيل يمكنك تعديل المرتجع وإعادة ترحيله.</p>
+<p>تلقّينا طلباً لإعادة تعيين كلمة المرور في <strong>
+<p>لتعديل السند «
+<p>ليس لديك صلاحية لهذه الشاشة على الهاتف.</p>
+<p>مرحباً
+<span class="acc-period-badge-current">الحالي</span>
+<span class="badge badge-warn">قيد</span>
+<span class="doc-print-signature-label">توقيع المستلم</span>
+<span class="list-pager-info">عرض
+<span class="m-inv-pdf-sign-lbl">توقيع المستلم</span>
+<span class="m-inv-sign-lbl">توقيع المستلم</span>
+<span class="m-rc-pdf-amount-lbl">مبلغ وقدره</span>
+<span class="m-rc-pdf-badge m-rc-pdf-badge--draft">غير مرحّل</span>
+<span class="m-rc-pdf-badge m-rc-pdf-badge--posted">مرحّل</span>
+<span class="m-rc-pdf-check-line"><b>الاستحقاق:</b> <span dir="ltr" style="direction:ltr;">
+<span class="m-rc-pdf-check-line"><b>البنك:</b>
+<span class="m-rc-pdf-check-line"><b>المبلغ:</b> <span dir="ltr" style="direction:ltr;">
+<span class="m-rc-pdf-check-line"><b>رقم الشيك:</b>
+<span class="muted sal-gps-place-pending">يُحدَّد عند فتح الخريطة</span>
+<span class="muted">(جديد)</span></td>
+<span class="muted">اضغط على أي سطر لعرض التفاصيل الكاملة للشيك</span>
+<span class="rcp-amount-lbl">مبلغ وقدره</span>
+<span class="rcp-amount-words-lbl" style="font-weight:800;color:#7c2d12;">تفقيطاً:</span>
+<span class="rcp-amount-words-lbl">تفقيطاً:</span>
+<span class="rcp-docinfo-lbl">التاريخ</span><span class="rcp-docinfo-val">
+<span class="rcp-docinfo-lbl">رقم السند</span><span class="rcp-docinfo-val">
+<span class="rcp-status rcp-status-posted">مرحَّل</span>
+<span class="rcp-status rcp-status-posted">مرحّل</span>
+<span class="rcp-status rcp-status-unposted">غير مرحَّل</span>
+<span class="rcp-status rcp-status-unposted">غير مرحّل</span>
+<span class="sal-gps-print-dates__label">إلى تاريخ</span>
+<span class="sal-gps-print-dates__label">من تاريخ</span>
+<span style="color:#b42318">يحتاج تحديث</span>
+<span>إلى تاريخ:
+<span>اسم البند</span><span dir="ltr">الرقم</span>
+<span>من تاريخ:

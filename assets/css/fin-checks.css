@@ -1,0 +1,443 @@
+/* شاشة الشيكات — أساس مشترك (سجل الصادرة + نافذة الترحيل) */
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-filters {
+    flex-wrap: wrap;
+    gap: 0.65rem 0.85rem;
+    align-items: flex-end;
+    padding: 0.75rem 1rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-filters .field {
+    margin: 0;
+    min-width: 8rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-filter-check .fin-checks-inline-check {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    white-space: nowrap;
+    min-height: 2rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-summary {
+    margin: 0;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border-color, #cbd5e1);
+    background: #f8fafc;
+    font-weight: 700;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-results .table-wrap {
+    overflow-x: auto;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table {
+    width: max-content;
+    min-width: 100%;
+    font-size: 0.68rem;
+    table-layout: auto;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table thead th,
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody td {
+    font-weight: 600;
+    white-space: nowrap;
+    padding: 0.16rem 0.28rem;
+    line-height: 1.25;
+    vertical-align: middle;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table thead th {
+    font-size: 0.64rem;
+    white-space: nowrap;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody td code {
+    font-size: 0.66rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-ellipsis {
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-party {
+    max-width: 11rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-date,
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-dates {
+    font-size: 0.66rem;
+    direction: ltr;
+    unicode-bidi: isolate;
+    text-align: right;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-dates {
+    max-width: 13rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-date-line {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-date-main {
+    font-weight: 600;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-date-sep {
+    color: #94a3b8;
+    font-weight: 400;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-date-note {
+    font-size: inherit;
+    font-weight: 500;
+    color: #64748b;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody td code,
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody td a {
+    font-weight: inherit;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody td .muted,
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody td small.muted {
+    font-weight: 600;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody tr.fin-chk-row-overdue {
+    background: rgba(220, 53, 69, 0.07);
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table .badge {
+    font-size: 0.62rem;
+    padding: 0.04rem 0.25rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-no code,
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-money {
+    direction: ltr;
+    unicode-bidi: isolate;
+    white-space: nowrap;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-col-money {
+    text-align: left;
+    font-weight: 700;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-badge {
+    display: inline-block;
+    padding: 0.04rem 0.28rem;
+    border-radius: 2px;
+    font-size: 0.62rem;
+    font-weight: 600;
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-badge--posted-clear {
+    background: #dcfce7;
+    color: #166534;
+    border: 1px solid #86efac;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-badge--posted-return {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-badge--posted-endorse {
+    background: #e0e7ff;
+    color: #3730a3;
+    border: 1px solid #a5b4fc;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-badge--undo {
+    background: #e5e7eb;
+    color: #1f2937;
+    border: 1px solid #9ca3af;
+    font-weight: 700;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-execute-undo {
+    font-size: 0.62rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-action-tag--undo {
+    color: #374151;
+    font-weight: 700;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table tbody tr.fin-chk-row-undone {
+    background: rgba(107, 114, 128, 0.08);
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-badge--pending {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #fcd34d;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-action-tag {
+    display: inline-block;
+    min-width: 0;
+    text-align: center;
+    font-weight: 700;
+    font-size: 0.66rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-action-tag--clear { color: #166534; }
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-action-tag--return { color: #991b1b; }
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-action-tag--endorse { color: #3730a3; }
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-action-tag--none { color: #94a3b8; }
+
+.fin-check-modal__party-pickers {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.fin-check-modal__party-pickers .customer-picker-slot,
+.fin-check-modal__party-pickers .supplier-picker-slot {
+    margin: 0;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-actions-cell {
+    white-space: nowrap;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-checks-table .row-actions {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.15rem;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-actions-cell .btn,
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-actions-cell .badge {
+    font-size: 0.62rem;
+    padding: 0.06rem 0.28rem;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.fin-checks-page:not(.fin-checks-ora12) .fin-chk-actions-cell .btn {
+    margin-inline-end: 0;
+}
+
+.fin-check-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.fin-check-modal[hidden] {
+    display: none !important;
+}
+
+.fin-check-modal__backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+}
+
+.fin-check-modal__panel {
+    position: relative;
+    z-index: 1;
+    width: min(100%, 560px);
+    margin: 0;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+    border: 1px solid #356091;
+}
+
+.fin-check-modal__panel > .dashboard-ora-panel__title {
+    margin: 0;
+    padding: 0.65rem 1rem;
+    background: linear-gradient(180deg, #4a7ebb 0%, #356091 100%);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+.fin-check-modal__panel > .dashboard-ora-panel__body {
+    padding: 0.85rem 1rem 1rem;
+    background: #eef2f7;
+}
+
+.fin-check-modal__summary-panel {
+    margin: 0 0 0.85rem;
+    border: 1px solid #b8c5d6;
+    box-shadow: none;
+}
+
+.fin-check-modal__summary-title {
+    padding: 0.4rem 0.75rem !important;
+    font-size: 0.82rem !important;
+    background: linear-gradient(180deg, #5a8fc4 0%, #4a7ebb 100%) !important;
+}
+
+.fin-check-modal__summary-body {
+    padding: 0 !important;
+    background: #fff;
+}
+
+.fin-check-modal__summary-table {
+    margin: 0;
+    font-size: 0.82rem;
+}
+
+.fin-check-modal__summary-table th[scope="row"] {
+    width: 22%;
+    background: #f1f5f9;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.fin-check-modal__summary-table td {
+    width: 28%;
+}
+
+.fin-check-modal__form {
+    background: #fff;
+    border: 1px solid #b8c5d6;
+    padding: 0.75rem;
+}
+
+.fin-check-modal__account-hint {
+    margin: 0.35rem 0 0;
+    font-size: 0.78rem;
+}
+
+.fin-check-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+/* ——— سجل الشيكات الصادرة: طباعة ——— */
+.fin-outgoing-checks-page .fin-outgoing-checks-print-only {
+    display: none;
+}
+
+.fin-outgoing-checks-page .fin-outgoing-checks-toolbar {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.55rem 1rem 0;
+}
+
+.fin-outgoing-checks-page .fin-outgoing-checks-col-print {
+    width: 4.5rem;
+    text-align: center;
+}
+
+.fin-outgoing-checks-page .fin-outgoing-checks-col-print .btn {
+    padding: 0.15rem 0.45rem;
+    font-size: 0.72rem;
+}
+
+@media print {
+    .fin-outgoing-checks-page .no-print,
+    .fin-outgoing-checks-page .sales-ora-info,
+    .fin-outgoing-checks-page .fin-checks-filters,
+    .fin-outgoing-checks-page .fin-outgoing-checks-toolbar,
+    .fin-outgoing-checks-page .dashboard-ora-screen-title,
+    .fin-outgoing-checks-page .sales-ora-flash,
+    .fin-outgoing-checks-page .alert {
+        display: none !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-print-only {
+        display: block !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-print-area {
+        font-size: 8pt;
+        width: 100%;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-print-area .doc-print-meta {
+        font-size: 8pt;
+        margin-bottom: 0.5rem;
+    }
+
+    .fin-outgoing-checks-page .fin-checks-results {
+        border: 0;
+        box-shadow: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    .fin-outgoing-checks-page .fin-checks-results .table-wrap {
+        overflow: visible !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table {
+        width: 100% !important;
+        table-layout: fixed;
+        font-size: 7pt !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table thead th,
+    .fin-outgoing-checks-page .fin-outgoing-checks-table tbody td {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        padding: 2px 3px !important;
+        line-height: 1.15 !important;
+        border: 1px solid #cbd5e1 !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table thead th {
+        background: #f1f5f9 !important;
+        font-size: 6.5pt !important;
+    }
+
+    .fin-outgoing-checks-page .fin-outgoing-checks-table a.no-print {
+        display: none !important;
+    }
+
+    .fin-outgoing-checks-page .fin-oc-print-overlay {
+        display: none !important;
+    }
+}
+
+/* معاينة طباعة الشيك داخل النظام */
+.fin-oc-print-overlay-panel {
+    max-width: min(96vw, 22cm);
+}
+
+.fin-oc-print-preview-body {
+    padding: 1rem;
+    background: #e8ecf1;
+    overflow: auto;
+    max-height: calc(100vh - 8rem);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.fin-oc-print-preview-body .bank-check-slip {
+    width: 17.8cm;
+    max-width: 100%;
+    margin: 0 auto;
+}

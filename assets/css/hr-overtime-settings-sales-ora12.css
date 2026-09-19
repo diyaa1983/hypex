@@ -1,0 +1,122 @@
+/* ── إعدادات العمل الإضافي — Oracle 12c ── */
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap {
+    width: 100%;
+    max-width: 100%;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-page {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-flash {
+    margin: 0 0 0.45rem;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-hint {
+    margin: 0;
+    padding: 0.32rem 0.55rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+    background: var(--ora12-blue-light);
+    border: 1px solid var(--ora12-border);
+    line-height: 1.45;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .dashboard-ora-panel {
+    margin: 0;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .dashboard-ora-panel__body {
+    padding: 0.55rem;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-fields .field-label,
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .field-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-muted);
+    margin-bottom: 0.15rem;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .input {
+    min-height: 1.65rem;
+    padding: 0.2rem 0.45rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: #fff;
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .input:focus {
+    outline: none;
+    border-color: #0572ce;
+    box-shadow: 0 0 0 2px rgba(5, 114, 206, 0.18);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-field-hint {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--ora12-muted);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-preview-panel .dashboard-ora-panel__body {
+    background: var(--ora12-stripe);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-example {
+    margin: 0;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--ora12-text);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-top-bar.dashboard-ora-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 0.35rem 0.55rem;
+    margin: 0;
+    padding: 0.4rem 0.55rem;
+    background: #f3f5f7;
+    border: 1px solid var(--ora12-border);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-top-bar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.22rem 0.6rem;
+    min-height: 1.6rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--ora12-text);
+    background: linear-gradient(180deg, #fafbfc 0%, #e8ecf0 100%);
+    border: 1px solid var(--ora12-border);
+    border-radius: 2px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+    cursor: pointer;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-top-bar .btn-primary {
+    color: #fff;
+    background: linear-gradient(180deg, #1a7fd4 0%, #0572ce 55%, #024d8f 100%);
+    border-color: #024d8f;
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-top-bar .btn-primary:hover {
+    color: #fff;
+    background: linear-gradient(180deg, #2b8fe0 0%, #0a7ad8 55%, #035fa8 100%);
+}
+
+.dashboard-ora.hr-ot-set-ora12-screen.hr-ot-set-wrap .hr-ot-set-actions {
+    display: none;
+}

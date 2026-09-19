@@ -1,0 +1,725 @@
+/**
+ * شاشة جولات المندوبين — ترتيب الحقول + قائمة العملاء
+ */
+.srr-page .srr-card {
+  margin-top: 0.35rem;
+  overflow: visible;
+}
+
+.srr-form {
+  display: grid;
+  grid-template-columns: minmax(20rem, 1fr) minmax(18rem, 0.95fr);
+  gap: 1rem 1.15rem;
+  padding: 1rem 1.1rem 1.2rem;
+  align-items: stretch;
+}
+
+.srr-form__fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.srr-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem 0.75rem;
+}
+
+/* صف التاريخين بعرض كامل — لا يختزن بجانب العنوان */
+.srr-form__row--dates {
+  grid-template-columns: minmax(10.5rem, 1fr) minmax(10.5rem, 1fr);
+  gap: 0.65rem 0.85rem;
+}
+
+.srr-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+.srr-field em {
+  color: #b42318;
+  font-style: normal;
+}
+
+.srr-field--full {
+  grid-column: 1 / -1;
+  flex: 1 1 auto;
+}
+
+.srr-field--date {
+  min-width: 0;
+}
+
+/* حقل type=date يحتاج عرضاً كافياً لعرض التاريخ + أيقونة التقويم */
+.srr-date,
+.srr-field--date input[type='date'] {
+  width: 100%;
+  min-width: 0;
+  min-height: 2.35rem;
+  box-sizing: border-box;
+  padding-inline: 0.55rem 0.35rem;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  direction: ltr;
+  text-align: start;
+}
+
+.srr-date::-webkit-calendar-picker-indicator {
+  margin-inline-start: 0.15rem;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.srr-notes {
+  min-height: 4.25rem;
+  resize: vertical;
+  font-weight: 500;
+}
+
+/* أيام الأسبوع تحت التواريخ */
+.srr-weekdays {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 0.65rem 0.65rem;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+}
+
+/* خطوات إنشاء الجولة: 1 المندوب والفترة · 2 الأيام · 3 فلترة العملاء */
+.srr-step {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: #fff;
+  padding: 0.6rem 0.7rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.srr-step__head {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.srr-step__head em {
+  color: #b42318;
+  font-style: normal;
+}
+
+.srr-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.srr-step[data-step='1'] .srr-form__row {
+  grid-template-columns: minmax(11rem, 1.4fr) minmax(9.5rem, 1fr) minmax(9.5rem, 1fr);
+}
+
+.srr-period {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 9px;
+  background: #f1f5f9;
+}
+
+.srr-period__txt {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.srr-period__quick {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.srr-step .srr-weekdays {
+  border: 0;
+  background: none;
+  padding: 0;
+  gap: 0.45rem;
+}
+
+.srr-weekdays__label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #5c6578;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.srr-weekdays__label em {
+  color: #b42318;
+  font-style: normal;
+}
+
+.srr-weekdays__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.srr-day-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.4rem 0.55rem 0.4rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 2.15rem;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.srr-day-chip__n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.3rem;
+  height: 1.3rem;
+  padding: 0 0.25rem;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-day-chip.has-cust {
+  border-color: rgba(21, 128, 61, 0.35);
+  background: #f0fdf4;
+}
+
+.srr-day-chip.has-cust .srr-day-chip__n {
+  background: #16a34a;
+  color: #fff;
+}
+
+.srr-day-chip.is-active .srr-day-chip__n {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+.srr-day-chip:hover:not(:disabled) {
+  border-color: rgba(37, 99, 235, 0.45);
+  color: #1d4ed8;
+}
+
+.srr-day-chip.is-active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.28);
+}
+
+.srr-day-chip:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+.srr-weekdays__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.srr-day-badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.18rem 0.5rem;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  white-space: nowrap;
+}
+
+/* معاينة الشهر: التواريخ التي ستُنشأ فيها زيارات */
+.srr-cal__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.2rem;
+  padding: 0.45rem;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.07);
+}
+
+.srr-cal__h {
+  text-align: center;
+  font-size: 0.66rem;
+  font-weight: 800;
+  color: #94a3b8;
+  padding-bottom: 0.15rem;
+}
+
+.srr-cal__d {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 1.55rem;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cal__d.is-void {
+  background: transparent;
+  border-color: transparent;
+}
+
+.srr-cal__d.is-on {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.srr-cal__d.is-on i {
+  position: absolute;
+  inset-block-end: 2px;
+  inset-inline-end: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #bbf7d0;
+}
+
+/* عملاء الخطة مجمّعين حسب اليوم */
+.srr-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 15rem;
+  overflow: auto;
+  padding: 0.5rem 0.6rem 0.6rem;
+}
+
+.srr-plan__empty {
+  margin: 0.9rem 0.5rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.srr-plan__day {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  padding: 0.4rem 0.5rem 0.5rem;
+}
+
+.srr-plan__day.is-active {
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.08);
+}
+
+.srr-plan__dayhead {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.35rem;
+}
+
+.srr-plan__daybtn {
+  appearance: none;
+  border: 0;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.18rem 0.55rem;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.srr-plan__daybtn:hover {
+  background: #dbeafe;
+}
+
+.srr-chip-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-plan__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.srr-cust-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+  padding: 0.2rem 0.3rem 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  font-size: 0.76rem;
+}
+
+.srr-cust-tag b {
+  font-weight: 700;
+  color: #1e293b;
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srr-cust-tag i {
+  font-style: normal;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cust-tag__x {
+  appearance: none;
+  border: 0;
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.srr-cust-tag__x:hover {
+  background: #b42318;
+  color: #fff;
+}
+
+.srr-plan__sum {
+  margin-inline-start: auto;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.srr-selected {
+  margin-inline-start: 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.srr-form__cust {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 20rem;
+  max-height: min(32rem, 62vh);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.srr-cust__toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.7rem 0.85rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, #f8fafc, #fff);
+  flex-shrink: 0;
+}
+
+.srr-cust__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.srr-cust__title strong {
+  font-size: 0.92rem;
+  color: #0f172a;
+}
+
+.srr-cust__title .muted {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cust__search {
+  min-height: 2.15rem;
+}
+
+.srr-cust__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.srr-check-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+  margin: 0;
+  cursor: pointer;
+}
+
+.srr-btn-sm {
+  min-height: 1.85rem !important;
+  padding: 0.2rem 0.65rem !important;
+  font-size: 0.78rem !important;
+}
+
+.srr-cust__list {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 0.35rem 0.45rem 0.55rem;
+}
+
+.srr-cust__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.45rem 0.55rem;
+  margin: 0;
+  padding: 0.42rem 0.5rem;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+}
+
+.srr-cust__row:hover {
+  background: rgba(3, 105, 161, 0.07);
+}
+
+.srr-cust__row.is-dim {
+  opacity: 0.52;
+}
+
+.srr-cust__row input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #0284c7;
+}
+
+.srr-cust__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.srr-cust__code {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+}
+
+.srr-cust__empty {
+  margin: 1.5rem 0.75rem;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+
+/* قائمة المحفوظ */
+.srr-list-card {
+  margin-top: 0.9rem;
+  overflow: visible;
+}
+
+.srr-list-filter {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fafbfc;
+}
+
+.srr-filter-form label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #5c6578;
+}
+
+.srr-filter-form .si-field {
+  min-height: 2.15rem;
+  width: auto;
+  min-width: 12rem;
+}
+
+.srr-table-wrap {
+  padding: 0;
+  overflow: auto;
+}
+
+.srr-table-actions {
+  white-space: nowrap;
+}
+
+.srr-table-actions .si-btn {
+  min-height: 1.7rem;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.si-btn--danger-text {
+  color: #b42318 !important;
+}
+
+.srr-form__row--inline {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.srr-form__row--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+
+.srr-tour-page .srr-form__fields .si-field {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.srr-selected-panel {
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 12px;
+  background: #fafbfc;
+  overflow: hidden;
+}
+
+.srr-selected-panel__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: #fff;
+  font-size: 0.86rem;
+}
+
+.srr-selected-table-wrap {
+  max-height: 14rem;
+  overflow: auto;
+}
+
+.srr-selected-table {
+  margin: 0;
+  font-size: 0.8rem;
+}
+
+.srr-selected-table .si-field {
+  min-height: 1.9rem;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.78rem;
+  min-width: 7.5rem;
+}
+
+.srr-cust__row.is-on {
+  background: rgba(3, 105, 161, 0.1);
+}
+
+.srr-print-meta th {
+  text-align: start;
+  background: #f8fafc;
+  font-weight: 700;
+  width: 9rem;
+}
+
+@media (max-width: 1100px) {
+  .srr-form {
+    grid-template-columns: 1fr;
+  }
+
+  .srr-form__cust {
+    max-height: min(22rem, 50vh);
+    min-height: 16rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .srr-form__row,
+  .srr-form__row--3,
+  .srr-form__row--dates,
+  .srr-step[data-step='1'] .srr-form__row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) {
+  .srr-step[data-step='1'] .srr-form__row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+

@@ -1,0 +1,35 @@
+-- إصلاح سريع: جداول ناقصة + التحقق (نفّذ على نفس قاعدة ODBC)
+SET NAMES utf8mb4;
+
+USE namma_erp;
+
+CREATE TABLE IF NOT EXISTS Machines (
+	ID INT NOT NULL AUTO_INCREMENT,
+	MachineAlias VARCHAR(20) NULL,
+	ConnectType INT NULL DEFAULT 1,
+	IP VARCHAR(20) NULL,
+	SerialPort INT NULL DEFAULT 1,
+	Port INT NULL DEFAULT 4370,
+	Baudrate INT NULL DEFAULT 115200,
+	MachineNumber INT NULL DEFAULT 1,
+	IsHost SMALLINT NULL DEFAULT 0,
+	Enabled SMALLINT NULL DEFAULT 1,
+	CommPassword VARCHAR(12) NULL,
+	UILanguage SMALLINT NULL DEFAULT 0,
+	DateFormat INT NULL DEFAULT 0,
+	InPort INT NULL DEFAULT 0,
+	OutPort INT NULL DEFAULT 0,
+	FirmwareVersion VARCHAR(30) NULL,
+	ProductType VARCHAR(20) NULL,
+	LockControl INT NULL DEFAULT 0,
+	Purpose INT NULL DEFAULT 0,
+	ProduceKind INT NULL DEFAULT 0,
+	sn VARCHAR(20) NULL,
+	PhotoStamp VARCHAR(20) NULL DEFAULT '0',
+	PRIMARY KEY (ID)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- تحقق (يجب أن ترى AttParam و USERINFO و Machines)
+-- SHOW TABLES;
+-- SELECT COUNT(*) FROM AttParam;
+-- SELECT COUNT(*) FROM USERINFO;
