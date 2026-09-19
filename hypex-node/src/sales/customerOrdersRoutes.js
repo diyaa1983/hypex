@@ -477,7 +477,7 @@ async function renderForm(req, res, orderId) {
           <div class="si-totals">
             <label>خصم مستوى الطلب
               <input class="si-field" id="co_discount" type="text" value="${esc(initial.invoice_discount)}"
-                     placeholder="10 أو 10% أو 1.000" ${locked ? 'readonly' : ''}>
+                     placeholder="" ${locked ? 'readonly' : ''}>
             </label>
             <div class="si-tot-row"><span>بدون ضريبة</span><strong id="sum_sub" dir="ltr">0.000</strong></div>
             <div class="si-tot-row"><span>الضريبة</span><strong id="sum_tax" dir="ltr">0.000</strong></div>
