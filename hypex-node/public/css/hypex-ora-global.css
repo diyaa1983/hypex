@@ -350,6 +350,89 @@ body.co-ora-body .si-table a:hover {
   text-decoration: underline !important;
 }
 
+/* شريط عنوان الشاشة — زر الخروج جزء من الإطار (مثل Oracle) */
+.hx-ora-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.hx-ora-screen-title.dashboard-ora-screen-title {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  min-height: 2.2rem;
+  padding: 0 0.45rem 0 0.45rem;
+  margin: 0 0 6px;
+  background: linear-gradient(180deg, #4a7fd4 0%, #1a4480 100%);
+  border: 1px solid #16366a;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.hx-ora-screen-title .dashboard-ora-screen-title__text {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.3;
+}
+
+.hx-ora-screen-title .ora12-title-bar__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-inline-start: auto;
+}
+
+.hx-ora-screen-title .ora12-title-bar__minimize,
+.dashboard-ora-screen-title .ora12-title-bar__minimize,
+.ora12-title-bar__btn.ora12-title-bar__minimize {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  visibility: visible !important;
+  width: 1.7rem !important;
+  height: 1.7rem !important;
+  min-width: 1.7rem;
+  padding: 0 !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+  color: #fff !important;
+  font-size: 14px !important;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.hx-ora-screen-title .ora12-title-bar__minimize:hover {
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%);
+}
+
+.hx-ora-screen-title > .ora12-title-bar__close.app-screen-exit-btn,
+.hx-ora-screen-title .ora12-title-bar__controls .ora12-title-bar__close.app-screen-exit-btn {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.hx-ora-screen-title > .ora12-title-bar__close.app-screen-exit-btn:hover {
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%);
+}
+
 /* طباعة: خلفية بيضاء */
 @media print {
   body.co-ora-body .si-main,
@@ -362,5 +445,8 @@ body.co-ora-body .si-table a:hover {
     color: #000 !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .hx-ora-screen-title {
+    display: none !important;
   }
 }

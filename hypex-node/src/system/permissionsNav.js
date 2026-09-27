@@ -228,7 +228,7 @@ function buildPermissionPanels(screens, opts = {}) {
   const nav = loadNavMenu();
   for (const block of nav.domains || []) {
     const domainId = String(block.id || '');
-    if (isMobile && domainId !== 'mobile') continue;
+    if (isMobile && domainId !== 'system' && domainId !== 'mobile') continue;
     walk(
       block.subgroups || [],
       domainId,

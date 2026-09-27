@@ -83,8 +83,15 @@ function report_ora12_render_title_bar(string $title, string $activeRoute): void
 
 function report_ora12_layout_open(string $pageTitle, string $routeTitle, string $activeRoute): void
 {
+    if ($activeRoute === 'dashboard' || $activeRoute === 'login' || $activeRoute === 'logout') {
+        return;
+    }
     if (!report_ora12_route_enabled($activeRoute)) {
-        render_app_screen_title($pageTitle, $activeRoute);
+        $barTitle = trim($pageTitle) !== '' ? trim($pageTitle) : trim($routeTitle);
+        if (function_exists('__') && $barTitle !== '') {
+            $barTitle = __($barTitle);
+        }
+        render_app_screen_title($barTitle, $activeRoute);
         return;
     }
     $barTitle = trim($pageTitle) !== '' ? trim($pageTitle) : trim($routeTitle);

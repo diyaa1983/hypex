@@ -75,6 +75,12 @@ body.app-body:not(.app-body--focus) .app-mdi-layer {
   --app-mdi-sidebar: 280px;
 }
 
+body.has-topnav .app-mdi-layer,
+body.app-body.has-topnav:not(.app-body--focus) .app-mdi-layer {
+  --app-mdi-sidebar: 0;
+  top: 0;
+}
+
 body.app-mdi-taskbar-open {
   --app-mdi-bottom: 2.15rem;
 }
@@ -267,6 +273,50 @@ body.app-mdi-window-dragging .app-mdi-frame {
   border-top: 1px solid #808080;
   box-shadow: 0 -1px 0 #fff inset;
   font-family: Arial, Helvetica, sans-serif;
+}
+
+body.has-topnav .hx-topnav .app-mdi-taskbar {
+  position: relative;
+  inset: auto;
+  bottom: auto;
+  z-index: 41;
+  width: 100%;
+  min-height: 2.15rem;
+  padding: 4px 10px 6px;
+  background: #111827;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+body.has-topnav .hx-topnav .app-mdi-task-item {
+  max-width: min(280px, 46vw);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #1f2937;
+}
+
+body.has-topnav .hx-topnav .app-mdi-task-btn {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-inline-end-color: rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  min-height: 28px;
+}
+
+body.has-topnav .hx-topnav .app-mdi-task-item.is-minimized .app-mdi-task-btn {
+  background: #1e3a5f;
+  color: #e0f2fe;
+}
+
+body.has-topnav .hx-topnav .app-mdi-task-btn:hover {
+  background: #334155;
+  color: #fff;
+}
+
+body.has-topnav .hx-topnav .app-mdi-task-close,
+body.has-topnav .hx-topnav .app-mdi-task-minimize {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-inline-end-color: rgba(255, 255, 255, 0.1);
 }
 
 .app-mdi-taskbar[hidden] {

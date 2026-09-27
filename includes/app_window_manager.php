@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
 
-/** MDI / تصغير الشاشات — معطّل */
+/** MDI / تصغير الشاشات — تبويبات الشاشات المفتوحة */
 function app_mdi_enabled(): bool
 {
-    return false;
+    return true;
 }
 
 function app_mdi_is_embed_request(): bool
@@ -163,7 +163,7 @@ function app_mdi_enqueue_styles(): void
 
 function app_mdi_render_layer(): void
 {
-    if (!app_mdi_enabled() || app_mdi_is_embed_request()) {
+    if (!app_mdi_enabled() || app_mdi_is_embed_request() || app_mdi_is_park_menu_embed()) {
         return;
     }
     echo '<div id="app-mdi-hub-overlay" class="app-mdi-hub-overlay no-print" hidden aria-hidden="true">' . "\n";
@@ -192,6 +192,9 @@ function app_mdi_render_title_bar_controls(string $activeRoute, ?string $overrid
     }
 
     echo '<div class="ora12-title-bar__controls no-print">';
+    echo '<button type="button" class="ora12-title-bar__btn ora12-title-bar__minimize" id="app-mdi-minimize-screen" title="تصغير" aria-label="تصغير">';
+    echo '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+    echo '</button>';
     echo '<a class="ora12-title-bar__btn ora12-title-bar__close app-screen-exit-btn" href="' . esc($url) . '"';
     echo ' title="' . esc($hint) . '" aria-label="' . esc($hint) . '">';
     echo '<svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">';
@@ -208,48 +211,13 @@ function app_mdi_render_screen_minimize_btn(string $activeRoute): void
 
 function app_mdi_render_embed_minimize_btn(): void
 {
-    // تصغير الشاشات معطّل
+    echo '<button type="button" class="ora12-title-bar__btn ora12-title-bar__minimize" id="app-mdi-minimize-screen" title="تصغير" aria-label="تصغير">';
+    echo '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+    echo '</button>';
 }
 
 function app_mdi_after_minimize_url(string $activeRoute): string
 {
-    require_once app_path('includes/nav_helpers.php');
-
-    $hubD = trim((string) ($_GET['hub_d'] ?? ''));
-    $hubS = trim((string) ($_GET['hub_s'] ?? ''));
-    $hubSs = trim((string) ($_GET['hub_ss'] ?? ''));
-    if ($hubD !== '' && $hubS !== '') {
-        return nav_hub_url($hubD, $hubS, $hubSs);
-    }
-    if ($hubD !== '') {
-        return nav_domain_hub_url($hubD);
-    }
-
-    $sessionHub = $_SESSION['nav_return_hub'] ?? null;
-    if (is_array($sessionHub)) {
-        $sd = trim((string) ($sessionHub['d'] ?? ''));
-        $ss = trim((string) ($sessionHub['s'] ?? ''));
-        $sns = trim((string) ($sessionHub['ss'] ?? ''));
-        if ($sd !== '' && $ss !== '') {
-            return nav_hub_url($sd, $ss, $sns);
-        }
-        if ($sd !== '') {
-            return nav_domain_hub_url($sd);
-        }
-    }
-
-    $hub = nav_resolve_active_hub($activeRoute);
-    if ($hub !== null && ($hub['domain_id'] ?? '') !== '') {
-        $domainId = (string) $hub['domain_id'];
-        $subId = (string) ($hub['sub_id'] ?? '');
-        $nestedSubId = (string) ($hub['nested_sub_id'] ?? '');
-        if ($subId !== '') {
-            return nav_hub_url($domainId, $subId, $nestedSubId);
-        }
-
-        return nav_domain_hub_url($domainId);
-    }
-
     return app_url('index.php?r=dashboard');
 }
 

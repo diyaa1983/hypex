@@ -35,6 +35,10 @@ body:has(.dashboard-ora) .main-content {
 }
 
 /* شريط عنوان الشاشة */
+.hx-ora-screen-title.dashboard-ora-screen-title {
+  margin-bottom: 6px;
+}
+
 .dashboard-ora-screen-title {
   display: flex;
   align-items: center;
@@ -107,9 +111,9 @@ body:has(.dashboard-ora) .main-content {
 .ora12-title-bar__btn.ora12-title-bar__close,
 .ora12-title-bar__close {
   color: #ffffff;
-  background: #dc2626;
-  border: 1px solid #b91c1c;
-  border-radius: 999px;
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
 }
 
 .ora12-title-bar__btn:hover {
@@ -119,9 +123,9 @@ body:has(.dashboard-ora) .main-content {
 
 .ora12-title-bar__btn.ora12-title-bar__close:hover,
 .ora12-title-bar__close:hover {
-  background: #b91c1c;
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%);
   color: #ffffff;
-  border-color: #991b1b;
+  border-color: rgba(255, 255, 255, 0.55);
 }
 
 .ora12-title-bar__btn:active {
@@ -130,6 +134,16 @@ body:has(.dashboard-ora) .main-content {
 
 .ora12-title-bar__minimize {
   font-size: 0.85rem;
+  line-height: 1;
+  color: #fff;
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ora12-title-bar__minimize:hover {
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%);
 }
 
 .ora12-title-bar__maximize {

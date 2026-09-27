@@ -95,6 +95,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
     $docHdrCssV = is_file(app_path('assets/css/document-header.css')) ? (string) filemtime(app_path('assets/css/document-header.css')) : '';
     $docHdrJsV = is_file(app_path('assets/js/document-header.js')) ? (string) filemtime(app_path('assets/js/document-header.js')) : '';
     $sidebarNavJsV = is_file(app_path('assets/js/sidebar-nav.js')) ? (string) filemtime(app_path('assets/js/sidebar-nav.js')) : '';
+    $shellJsV = is_file(app_path('assets/js/shell.js')) ? (string) filemtime(app_path('assets/js/shell.js')) : '';
     $datePickerCssV = is_file(app_path('assets/css/app-date-picker.css')) ? (string) filemtime(app_path('assets/css/app-date-picker.css')) : '';
     $datePickerJsV = is_file(app_path('assets/js/app-date-picker.js')) ? (string) filemtime(app_path('assets/js/app-date-picker.js')) : '';
     $listKeyboardJsV = is_file(app_path('assets/js/app-list-keyboard.js'))
@@ -214,9 +215,11 @@ if ($favRouteAllowed) {
     }
 }
 ?>
-<body class="app-body ui-theme-<?= esc($appUiTheme) ?><?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-error-log-api="<?= esc(app_url('api/sys_error_log_client.php')) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
+<body class="app-body has-topnav ui-theme-<?= esc($appUiTheme) ?><?= $layoutFocus ? ' app-body--focus' : '' ?><?= $hasDocWatermark ? ' has-doc-watermark' : '' ?><?= $hrOracleUi ? ' hr-ora-ui' : '' ?><?= $reportOracleUi ? ' report-ora12-ui' : '' ?><?= $ora12PickerUi ? ' ora12-picker-ui' : '' ?>" data-lang="<?= esc(app_lang()) ?>" data-dir="<?= esc(app_dir()) ?>" data-decimal-places="<?= (int) $appDecimalPlaces ?>" data-invoice-unit-price-decimals="<?= (int) $appInvoiceUnitPriceDecimals ?>"<?= $docWatermarkLogoUrl !== '' ? ' data-company-logo-url="' . esc($docWatermarkLogoUrl) . '"' : '' ?><?= $printUserLabel !== '' ? ' data-print-user="' . esc($printUserLabel) . '"' : '' ?> data-active-route="<?= esc($activeRoute) ?>" data-csrf="<?= esc(csrf_token()) ?>" data-error-log-api="<?= esc(app_url('api/sys_error_log_client.php')) ?>" data-fav-api="<?= esc(app_url('api/favorite_toggle.php')) ?>" data-fav-allowed="<?= $favRouteAllowed ? '1' : '0' ?>" data-is-favorite="<?= $favIsFavorite ? '1' : '0' ?>">
 <?php render_i18n_js(); ?>
+<?php if ($layoutFocus): ?>
 <?php render_app_titlebar($tabPageTitle, (string) $routeTitle, $activeRoute, (string) ($settingsRow['company_name_ar'] ?? '')); ?>
+<?php endif; ?>
 <div class="app-shell<?= $layoutFocus ? ' app-shell--focus' : '' ?>">
 <?php
     $screenHeadTitle = trim($tabPageTitle) !== '' ? trim($tabPageTitle) : trim((string) $routeTitle);
@@ -252,38 +255,27 @@ if ($favRouteAllowed) {
         <div class="app-screen-head-title" title="<?= esc($screenHeadTitle) ?>"><?= esc($screenHeadTitle) ?></div>
         <?php endif; ?>
         <div class="app-screen-head-main">
-            <?php render_header_check_notifications($headerCheckNotify); ?>
             <?php if ($showMasterToolbar): ?>
             <?php render_master_toolbar(); ?>
             <?php endif; ?>
         </div>
     </header>
-    <div class="app-shell-body">
-    <aside class="sidebar sidebar--compact-head">
-        <nav class="sidebar-nav">
-            <?php foreach ($navMenu['domains'] as $domain): ?>
-                <?php nav_render_sidebar_domain($domain, $activeRoute, $navActiveHub); ?>
-                <?php if ((string) ($domain['id'] ?? '') === 'favorites'): ?>
-                    <?php
-                    require_once app_path('includes/sys_backup.php');
-                    sys_backup_render_sidebar_link($activeRoute);
-                    ?>
-                <?php endif; ?>
-            <?php endforeach; ?>
-        </nav>
-        <div class="sidebar-foot">
-            <div class="user-chip">
-                <div>
-                    <div class="user-name"><?= esc($appUserLabel) ?></div>
-                    <div class="user-meta"><?= esc((string) ($user['username'] ?? '')) ?></div>
-                </div>
-            </div>
-            <div class="sidebar-session-actions">
-                <?php render_nav_exit_button($activeRoute); ?>
-                <a class="sidebar-logout-btn" href="<?= esc($logoutUrl) ?>">تسجيل خروج</a>
-            </div>
-        </div>
-    </aside>
+    <div class="app-shell-body app-shell-body--topnav">
+    <?php
+    ob_start();
+    render_header_check_notifications($headerCheckNotify);
+    $topnavToolsHtml = (string) ob_get_clean();
+    nav_render_top_domain_bar(
+        $navMenu,
+        $activeRoute,
+        $navActiveHub ?? null,
+        (string) ($settingsRow['company_name_ar'] ?? ''),
+        $screenHeadTitle,
+        (string) $appUserLabel,
+        $logoutUrl,
+        $topnavToolsHtml
+    );
+    ?>
     <div class="main-wrap<?= !empty($settingsRow['logo_path']) ? ' main-wrap--has-logo' : '' ?>">
         <?php if (!empty($settingsRow['logo_path'])): ?>
         <div class="main-bg-logo" aria-hidden="true">
@@ -308,7 +300,7 @@ nav_render_floating_screen_exit($activeRoute);
 require_once app_path('includes/app_busy.php');
 app_busy_render_overlay();
 ?>
-<script>try{sessionStorage.removeItem('manager:mdi-windows-v1');}catch(e){}</script>
+<?php app_mdi_render_layer(); ?>
 <script>
 (function () {
   var isElectron = !!(window.hypexDesktop && window.hypexDesktop.isElectron)
@@ -376,6 +368,7 @@ $fieldNavJsV = is_file(app_path('assets/js/hx-field-nav.js'))
 <script src="<?= esc(app_url('assets/js/nav-prefetch.js')) ?><?= $navPrefetchJsV !== '' ? '?v=' . esc($navPrefetchJsV) : '' ?>" defer></script>
 <?php if (!$layoutFocus): ?>
 <script src="<?= esc(app_url('assets/js/sidebar-nav.js')) ?><?= $sidebarNavJsV !== '' ? '?v=' . esc($sidebarNavJsV) : '' ?>" defer></script>
+<script src="<?= esc(app_url('assets/js/shell.js')) ?><?= $shellJsV !== '' ? '?v=' . esc($shellJsV) : '' ?>" defer></script>
 <?php endif; ?>
 <?php if ($headerCheckNotify['enabled'] ?? false): ?>
 <script type="application/json" id="app-checks-json"><?= $headerCheckNotifyJson ?></script>

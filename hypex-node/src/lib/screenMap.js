@@ -12,7 +12,6 @@ const { accountingCatalog } = require('../accounting/catalog');
 const { inventoryCatalog } = require('../inventory/catalog');
 const { hrCatalog } = require('../hr/catalog');
 const { systemCatalog } = require('../system/catalog');
-const { mobileCatalog } = require('../mobile/catalog');
 const { mainCatalog } = require('../main/catalog');
 
 const DOMAIN_CATALOGS = [
@@ -26,7 +25,6 @@ const DOMAIN_CATALOGS = [
   { id: 'accounting', title: 'المحاسبة', icon: '⚖', hub: '/hub/accounting', catalog: accountingCatalog },
   { id: 'hr', title: 'شؤون الموظفين', icon: '👥', hub: '/hub/hr', catalog: hrCatalog },
   { id: 'system', title: 'النظام', icon: '⚙', hub: '/hub/system', catalog: systemCatalog },
-  { id: 'mobile', title: 'تطبيق الهاتف', icon: '📱', hub: '/hub/mobile', catalog: mobileCatalog },
 ];
 
 /** @type {Map<string, {r:string,path:string,label:string,icon:string,kind:string,domain:string,groupTitle:string}>} */

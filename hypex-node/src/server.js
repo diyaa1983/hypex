@@ -8,7 +8,7 @@ const db = require('./db');
 const auth = require('./auth');
 const nav = require('./nav');
 const dashboard = require('./dashboard');
-const { renderApp, faviconLinksHtml } = require('./lib/layout');
+const { renderApp, faviconLinksHtml, setRequestPath } = require('./lib/layout');
 const { esc, fmtAmt, isoToDmy } = require('./lib/html');
 const { resolveNativeEmbedTarget } = require('./lib/nativeEmbed');
 const { resolveScreen } = require('./lib/screenMap');
@@ -67,6 +67,10 @@ app.set('trust proxy', 1);
 
 // توحيد المسار /hypex قبل كل شيء
 app.use(basePath.middleware());
+app.use((req, res, next) => {
+  setRequestPath(req.path || '', req.query && req.query.embed);
+  next();
+});
 
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
@@ -294,20 +298,6 @@ app.get('/app', auth.requireAuth, async (req, res) => {
     const recentOrderRows = (dash.recent_orders || []).map(orderRow).join('');
 
     const bodyHtml = `
-      <header class="topbar">
-        <div>
-          <h1>لوحة التحكم</h1>
-          <p class="muted">نظام Hypex — كل الشاشات والتقارير من القائمة الجانبية</p>
-        </div>
-        <div class="topbar-actions">
-          <a class="btn btn-primary" href="/sales/invoices/new">＋ فاتورة مبيعات</a>
-          <a class="btn" href="/sales/orders/new">＋ طلب شراء عميل</a>
-          <a class="btn" href="/hub/sales">المبيعات</a>
-          <a class="btn" href="/hub/purchases">المشتريات</a>
-          <a class="btn" href="/hub/customers">العملاء</a>
-          <a class="btn" href="/hub/accounting">المحاسبة</a>
-        </div>
-      </header>
       <section class="kpi-grid">${kpis}</section>
       <section class="panel">
         <div class="panel-head">
@@ -424,12 +414,7 @@ app.get('/embed/:code', auth.requireAuth, (req, res) => {
   }
 
   const sc = resolveScreen(code);
-  const back =
-    sc && sc.domain
-      ? sc.domain === 'main'
-        ? '/app'
-        : `/hub/${sc.domain}`
-      : '/app';
+  const back = '/app';
   const title = sc?.label || code;
   const bodyHtml = `
     <div class="si-stage">

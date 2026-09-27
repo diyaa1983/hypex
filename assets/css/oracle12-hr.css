@@ -24,15 +24,15 @@ body.hr-ora-ui .ora12-title-bar__close {
   font-weight: 700;
   color: #ffffff;
   text-decoration: none;
-  background: #dc2626;
-  border: 1px solid #b91c1c;
-  border-radius: 999px;
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
 }
 
 body.hr-ora-ui .ora12-title-bar__close:hover {
-  background: #b91c1c;
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%);
   color: #ffffff;
-  border-color: #991b1b;
+  border-color: rgba(255, 255, 255, 0.55);
 }
 
 body.hr-ora-ui [class*="-ora-screen"] .alert,

@@ -629,10 +629,10 @@ body:has(.dashboard-ora) .main-content {
 .nav-hub-head__actions .ora12-title-bar__close,
 body.hr-ora-ui .ora12-title-bar__close {
   color: #ffffff !important;
-  background: #dc2626 !important;
-  border: 1px solid #b91c1c !important;
-  border-radius: 999px !important;
-  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.35);
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
 }
 
 .dashboard-ora-screen-title .ora12-title-bar__btn:not(.ora12-title-bar__close):hover,
@@ -651,9 +651,9 @@ body.hr-ora-ui .ora12-title-bar__close {
 .hr-ora-title-bar__close:hover,
 .nav-hub-head__actions .ora12-title-bar__close:hover,
 body.hr-ora-ui .ora12-title-bar__close:hover {
-  background: #b91c1c !important;
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%) !important;
   color: #ffffff !important;
-  border-color: #991b1b !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
 }
 
 .dashboard-ora-workspace {

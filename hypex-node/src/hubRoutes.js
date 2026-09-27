@@ -70,23 +70,9 @@ function renderHub(req, res, hub) {
   res.send(ui.salesPage({ user: req.session.user, title: hub.title, bodyHtml: body }));
 }
 
-router.get('/hub/favorites', async (req, res) => {
-  const hub = await nav.favoritesHubContent(req.session.user);
-  renderHub(req, res, hub);
-});
+router.get('/hub/favorites', (_req, res) => res.redirect('/app'));
 
-router.get('/hub/:domainId', (req, res) => {
-  const domainId = String(req.params.domainId || '');
-  if (domainId === 'favorites') {
-    return res.redirect('/hub/favorites');
-  }
-  if (domainId === 'main') {
-    return res.redirect('/app');
-  }
-  // إعادة توجيه اللوحات القديمة /sales → /hub/sales متوافق عبر server redirects
-  const hub = nav.domainHubContent(req.session.user, domainId);
-  renderHub(req, res, hub);
-});
+router.get('/hub/:domainId', (_req, res) => res.redirect('/app'));
 
 // اختصار: إن طلب أحد /sales مباشرة وكان يريد اللوحة
 module.exports = router;

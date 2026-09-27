@@ -565,15 +565,9 @@ return [
                         ['r' => 'open_sessions', 'label' => 'الجلسات المفتوحة', 'icon' => '🔌'],
                     ],
                 ],
-            ],
-        ],
-        [
-            'id' => 'mobile',
-            'title' => 'تطبيق الهاتف',
-            'subgroups' => [
                 [
                     'id' => 'mobile_screens',
-                    'title' => 'شاشات الهاتف',
+                    'title' => 'تطبيق الهاتف',
                     'flat' => true,
                     'items' => [
                         ['r' => 'm_home', 'label' => 'الرئيسية', 'icon' => '📱'],

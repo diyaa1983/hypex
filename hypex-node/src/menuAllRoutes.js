@@ -15,7 +15,6 @@ const { accountingCatalog } = require('./accounting/catalog');
 const { inventoryCatalog } = require('./inventory/catalog');
 const { hrCatalog } = require('./hr/catalog');
 const { systemCatalog } = require('./system/catalog');
-const { mobileCatalog } = require('./mobile/catalog');
 const { mainCatalog } = require('./main/catalog');
 
 const router = express.Router();
@@ -31,7 +30,6 @@ const ALL = [
   { title: 'المحاسبة', catalog: accountingCatalog, hub: '/accounting' },
   { title: 'شؤون الموظفين', catalog: hrCatalog, hub: '/hr' },
   { title: 'النظام', catalog: systemCatalog, hub: '/system' },
-  { title: 'تطبيق الهاتف', catalog: mobileCatalog, hub: '/mobile' },
 ];
 
 function can(user, code) {

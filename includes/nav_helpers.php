@@ -655,26 +655,7 @@ function nav_exit_url(string $activeRoute): string
         return $ledgerExit;
     }
 
-    $cfg = require app_path('config/master_toolbar.php');
-    $exitRoute = (string) ($cfg['exit_route'] ?? 'dashboard');
-    $default = app_url('index.php?r=' . rawurlencode($exitRoute));
-
-    if ($activeRoute === 'menu_hub') {
-        return $default;
-    }
-
-    $stored = trim((string) ($_SESSION['nav_return_url'] ?? ''));
-    if ($stored !== '' && nav_is_safe_back_url($stored)) {
-        return $stored;
-    }
-
-    $hub = nav_resolve_active_hub($activeRoute);
-    $hubUrl = nav_hub_folder_url($hub);
-    if ($hubUrl !== null) {
-        return $hubUrl;
-    }
-
-    return $default;
+    return app_url('index.php?r=dashboard');
 }
 
 /**
@@ -876,11 +857,20 @@ function render_app_screen_title(string $pageTitle, string $activeRoute = ''): v
     require_once app_path('includes/app_window_manager.php');
     require_once app_path('includes/sys_favorites.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
-    if ($activeRoute === 'menu_hub' || $activeRoute === 'dashboard') {
+    if ($activeRoute === 'dashboard' || $activeRoute === 'login' || $activeRoute === 'logout') {
         return;
     }
-    echo '<header class="app-screen-title-bar app-screen-title-bar--actions">';
-    sys_favorites_render_toggle_button($activeRoute, ['icon_size' => 22]);
+    $title = trim($pageTitle);
+    echo '<header class="hx-ora-screen-title dashboard-ora-screen-title no-print" role="banner">';
+    if ($title !== '') {
+        echo '<h1 class="dashboard-ora-screen-title__text">' . esc($title) . '</h1>';
+    } else {
+        echo '<h1 class="dashboard-ora-screen-title__text">&nbsp;</h1>';
+    }
+    sys_favorites_render_toggle_button($activeRoute, [
+        'class' => 'app-screen-fav-btn--on-blue',
+        'icon_size' => 20,
+    ]);
     nav_render_screen_close($activeRoute);
     echo '</header>';
 }
@@ -931,6 +921,84 @@ function nav_sidebar_domain_is_active(string $domainId, string $activeRoute, ?ar
     return false;
 }
 
+function nav_topnav_chevron_html(): string
+{
+    return '<svg class="hx-nav-drop__chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+
+function nav_topnav_item_href(string $route, string $domainId, string $hubSubId, string $hubNested = ''): string
+{
+    require_once app_path('includes/app_window_manager.php');
+    $href = nav_screen_url($route, $domainId, $hubSubId, $hubNested);
+    if (app_mdi_is_park_menu_embed()) {
+        $href = app_mdi_park_menu_url($href);
+    }
+
+    return $href;
+}
+
+function nav_render_top_drop_link(string $href, string $label, bool $active = false): void
+{
+    echo '<a class="hx-nav-drop__item' . ($active ? ' is-active' : '') . '" href="' . esc($href) . '">' . esc($label) . '</a>';
+}
+
+function nav_render_top_drop_subgroup(array $domain, array $subgroup, string $hubSubId, string $hubNested, string $activeRoute): void
+{
+    $domainId = (string) ($domain['id'] ?? '');
+    $subId = $hubSubId !== '' ? $hubSubId : (string) ($subgroup['id'] ?? '');
+    $items = nav_subgroup_allowed_items($subgroup);
+    $nested = nav_subgroup_nested_folders($subgroup);
+
+    ob_start();
+    foreach ($nested as $child) {
+        nav_render_top_drop_subgroup($domain, $child, $subId, (string) ($child['id'] ?? ''), $activeRoute);
+    }
+    foreach ($items as $it) {
+        $route = (string) ($it['r'] ?? '');
+        if ($route === '') {
+            continue;
+        }
+        nav_render_top_drop_link(
+            nav_topnav_item_href($route, $domainId, $subId, $hubNested),
+            (string) ($it['label'] ?? $route),
+            $activeRoute === $route
+        );
+    }
+    $inner = (string) ob_get_clean();
+    if (trim($inner) === '') {
+        return;
+    }
+
+    if (count($nested) === 0 && count($items) === 1) {
+        echo $inner;
+        return;
+    }
+
+    echo '<div class="hx-nav-sub">';
+    echo '<button type="button" class="hx-nav-drop__item hx-nav-drop__item--has-sub">';
+    echo '<span>' . esc((string) ($subgroup['title'] ?? '')) . '</span>' . nav_topnav_chevron_html();
+    echo '</button>';
+    echo '<div class="hx-nav-fly">' . $inner . '</div></div>';
+}
+
+function nav_render_top_domain_trigger(array $block, string $activeRoute, ?array $activeHub): void
+{
+    $domainId = (string) ($block['id'] ?? '');
+    $title = (string) ($block['title'] ?? '');
+    require_once app_path('includes/app_window_manager.php');
+    $href = nav_sidebar_domain_href($block);
+    if (app_mdi_is_park_menu_embed()) {
+        $href = app_mdi_park_menu_url($href);
+    }
+    $isActive = nav_sidebar_domain_is_active($domainId, $activeRoute, $activeHub);
+
+    echo '<a class="nav-domain-link' . ($isActive ? ' is-active' : '') . '" href="' . esc($href) . '">';
+    require_once app_path('includes/hub_icons.php');
+    echo hub_icon_html($domainId !== '' ? $domainId : $title, $title, false, 20);
+    echo '<span class="nav-domain-link__label">' . esc($title) . '</span>';
+    echo '</a>';
+}
+
 /** مجال في الشريط — المجلدات والشاشات تُعرض في منطقة المحتوى الرئيسية. */
 function nav_render_sidebar_domain(array $block, string $activeRoute, ?array $activeHub): void
 {
@@ -940,32 +1008,74 @@ function nav_render_sidebar_domain(array $block, string $activeRoute, ?array $ac
 
     $domainId = (string) ($block['id'] ?? '');
     $title = (string) ($block['title'] ?? '');
-
-    require_once app_path('includes/app_window_manager.php');
-    $href = nav_sidebar_domain_href($block);
-    if (app_mdi_is_park_menu_embed()) {
-        $href = app_mdi_park_menu_url($href);
-    }
-    $isActive = nav_sidebar_domain_is_active($domainId, $activeRoute, $activeHub);
-
-    $useProIcons = true;
-    try {
-        if (function_exists('app_ui_theme') && app_ui_theme() === 'classic') {
-            $useProIcons = false;
+    $visible = [];
+    foreach ($block['subgroups'] ?? [] as $sg) {
+        if (is_array($sg) && nav_subgroup_visible($sg)) {
+            $visible[] = $sg;
         }
-    } catch (Throwable $e) {
-        // ignore
     }
 
-    echo '<a class="nav-domain-link' . ($isActive ? ' is-active' : '') . '" href="' . esc($href) . '">';
-    if ($useProIcons) {
-        require_once app_path('includes/hub_icons.php');
-        echo hub_icon_html($domainId !== '' ? $domainId : $title, $title, false, 18);
-        echo '<span class="nav-domain-link__label">' . esc($title) . '</span>';
-    } else {
-        echo esc($title);
+    $leafCount = 0;
+    foreach ($visible as $sg) {
+        $leafCount += count(nav_subgroup_allowed_items($sg));
+        $leafCount += count(nav_subgroup_nested_folders($sg));
     }
-    echo '</a>';
+
+    if ($domainId === 'main' && $leafCount <= 1) {
+        nav_render_top_domain_trigger($block, $activeRoute, $activeHub);
+        return;
+    }
+
+    if ($visible === []) {
+        nav_render_top_domain_trigger($block, $activeRoute, $activeHub);
+        return;
+    }
+
+    $isActive = nav_sidebar_domain_is_active($domainId, $activeRoute, $activeHub);
+    echo '<div class="hx-nav-item">';
+    echo '<button type="button" class="nav-domain-link' . ($isActive ? ' is-active' : '') . '" data-nav-menu="1" aria-expanded="false" aria-haspopup="true">';
+    require_once app_path('includes/hub_icons.php');
+    echo hub_icon_html($domainId !== '' ? $domainId : $title, $title, false, 20);
+    echo '<span class="nav-domain-link__label">' . esc($title) . '</span>';
+    echo '</button>';
+    echo '<div class="hx-nav-drop">';
+    foreach ($visible as $sg) {
+        nav_render_top_drop_subgroup($block, $sg, (string) ($sg['id'] ?? ''), '', $activeRoute);
+    }
+    echo '</div></div>';
+}
+
+/** شريط الأقسام العلوي — بدل القائمة الجانبية */
+function nav_render_top_domain_bar(
+    array $navMenu,
+    string $activeRoute,
+    ?array $navActiveHub,
+    string $companyName,
+    string $screenTitle,
+    string $userLabel,
+    string $logoutUrl,
+    string $toolsHtml = ''
+): void {
+    $company = trim($companyName);
+    $title = trim($screenTitle);
+    $head = $company !== '' ? ($title !== '' ? $company . ' — ' . $title : $company) : $title;
+
+    echo '<header class="hx-topnav no-print" role="navigation">';
+    if ($head !== '') {
+        echo '<div class="hx-topnav__title">' . esc($head) . '</div>';
+    }
+    echo '<div class="hx-topnav__menu">';
+    echo '<nav class="hx-topnav__nav" aria-label="الأقسام">';
+    foreach ($navMenu['domains'] as $domain) {
+        nav_render_sidebar_domain($domain, $activeRoute, $navActiveHub);
+    }
+    echo '</nav>';
+    echo '<div class="hx-topnav__tools">';
+    echo $toolsHtml;
+    echo '<a class="sidebar-logout-btn" href="' . esc($logoutUrl) . '">خروج</a>';
+    echo '</div>';
+    echo '</div>';
+    echo '</header>';
 }
 
 /** رابط شاشة مع تمرير مصدر الـ hub للعودة لاحقاً. */
@@ -1055,7 +1165,7 @@ function nav_render_screen_close(string $activeRoute = '', ?string $overrideUrl 
     require_once app_path('includes/app_window_manager.php');
     $activeRoute = app_mdi_resolve_route($activeRoute);
 
-    if (in_array($activeRoute, ['dashboard', 'menu_hub', 'login', 'logout', 'favorites_empty', ''], true)) {
+    if (in_array($activeRoute, ['dashboard', 'login', 'logout', ''], true)) {
         return;
     }
 

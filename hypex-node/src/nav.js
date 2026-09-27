@@ -32,20 +32,9 @@ function buildSidebar(user) {
     id: 'favorites',
     title: 'المفضلة',
     icon: '⭐',
-    path: '/hub/favorites',
+    path: '/app',
     isDomain: true,
   });
-  if (auth.userCan(user, 'system_backup') || user.is_admin) {
-    const backup = resolveScreen('system_backup');
-    items.push({
-      id: 'backup',
-      title: 'نسخة احتياطية',
-      icon: '💾',
-      path: backup?.path || '/system/backup',
-      isDomain: true,
-      r: 'system_backup',
-    });
-  }
   return items;
 }
 

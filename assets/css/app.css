@@ -552,7 +552,7 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close {
   height: 1.7rem !important;
   border-radius: 4px !important;
   border: 1px solid rgba(255, 255, 255, 0.42) !important;
-  background: linear-gradient(180deg, #f04343 0%, #dc2626 55%, #b91c1c 100%) !important;
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%) !important;
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.22) inset,
     0 1px 2px rgba(0, 0, 0, 0.18) !important;
@@ -567,7 +567,7 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close {
 .report-ora12-screen-title > .ora12-title-bar__close.app-screen-exit-btn:hover,
 .app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn:hover,
 header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
-  background: linear-gradient(180deg, #ef4444 0%, #b91c1c 55%, #991b1b 100%) !important;
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%) !important;
   border-color: rgba(255, 255, 255, 0.55) !important;
   transform: none;
   box-shadow:
@@ -582,7 +582,7 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
 }
 
 .app-screen-title-bar > .ora12-title-bar__close.app-screen-exit-btn {
-  border-radius: 999px !important;
+  border-radius: 4px !important;
 }
 
 /* لا زر عائم خارج الإطار */
@@ -590,7 +590,33 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
   display: none !important;
 }
 
-/* زر الخروج من الشاشة — أحمر في جميع الشاشات */
+.dashboard-ora-screen-title .ora12-title-bar__minimize,
+.report-ora12-screen-title .ora12-title-bar__minimize,
+.app-screen-title-bar .ora12-title-bar__minimize,
+.ora12-title-bar__btn.ora12-title-bar__minimize {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem !important;
+  height: 1.7rem !important;
+  padding: 0 !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+  color: #fff !important;
+  background: rgba(0, 0, 0, 0.22) !important;
+  border: 1px solid rgba(255, 255, 255, 0.55) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
+.dashboard-ora-screen-title .ora12-title-bar__minimize:hover,
+.ora12-title-bar__btn.ora12-title-bar__minimize:hover {
+  background: rgba(0, 0, 0, 0.36) !important;
+  color: #fff !important;
+}
+
+/* زر الخروج من الشاشة — بلون شريط العنوان */
 .app-screen-exit-btn,
 .ora12-title-bar__close,
 .ora12-title-bar__close.app-screen-exit-btn,
@@ -616,10 +642,10 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
   line-height: 0 !important;
   color: #ffffff !important;
   text-decoration: none !important;
-  background: #dc2626 !important;
-  border: 1px solid #b91c1c !important;
-  border-radius: 999px !important;
-  box-shadow: 0 1px 3px rgba(185, 28, 28, 0.35);
+  background: linear-gradient(180deg, #2b8fdc 0%, #0572ce 55%, #024d8f 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
   cursor: pointer;
 }
@@ -637,10 +663,10 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
 .hr-ora-title-bar__close:hover,
 .nav-hub-head__actions .ora12-title-bar__close:hover {
   color: #ffffff !important;
-  background: #b91c1c !important;
-  border-color: #991b1b !important;
-  box-shadow: 0 2px 8px rgba(185, 28, 28, 0.4);
-  transform: translateY(-1px);
+  background: linear-gradient(180deg, #4aa3e8 0%, #1a7fd4 55%, #0369a1 100%) !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  transform: none;
 }
 
 .app-screen-exit-btn:active,
@@ -688,6 +714,208 @@ header.dashboard-ora-screen-title > a.ora12-title-bar__close:hover {
   position: sticky;
   top: 0;
   z-index: 40;
+}
+
+body.has-topnav .app-shell:not(.app-shell--focus) {
+  flex-direction: column;
+}
+
+.app-shell-body--topnav {
+  flex-direction: column;
+}
+
+body.has-topnav .hx-topnav,
+body.has-topnav .hx-topnav.sidebar {
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: 0 0 auto !important;
+  min-height: 0;
+  height: auto !important;
+  max-height: none !important;
+  flex-direction: column;
+  background: #0b1220;
+  color: #e8ebf2;
+  border-inline-end: none !important;
+  border-inline-start: none !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: visible !important;
+}
+
+body.has-topnav .hx-topnav__title {
+  padding: 6px 16px 4px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+body.has-topnav .hx-topnav__menu {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 48px;
+  padding: 0 8px;
+  overflow: visible;
+}
+
+body.has-topnav .hx-topnav__tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: auto;
+  align-self: center;
+  flex-shrink: 0;
+  padding-inline: 6px 10px;
+}
+
+body.has-topnav .hx-topnav__tools .sidebar-logout-btn,
+body.has-topnav .hx-topnav__tools .sidebar-logout {
+  min-height: 28px;
+  padding: 4px 12px;
+  font-size: 13px;
+  color: #e8ebf2;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  text-decoration: none;
+}
+
+body.has-topnav .hx-topnav .sidebar-nav,
+body.has-topnav .hx-topnav__nav {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 0;
+  flex: 1 1 auto;
+  overflow: visible;
+  max-height: none;
+  padding: 0;
+  background: transparent;
+}
+
+body.has-topnav .hx-topnav .nav-domain-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  min-height: 48px;
+  color: #e8ebf2 !important;
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  border: none !important;
+  background: transparent;
+  border-radius: 0 !important;
+  cursor: pointer;
+}
+
+body.has-topnav .hx-topnav .nav-domain-link.is-active,
+body.has-topnav .hx-topnav .hx-nav-item:hover > .nav-domain-link {
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 -2px 0 #38bdf8;
+}
+
+body.has-topnav .hx-topnav__exit {
+  display: none !important;
+}
+
+body.has-topnav .hx-topnav__sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 16px 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+body.has-topnav .hx-topnav__home {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #e8ebf2;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+body.has-topnav .hx-nav-item {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+}
+
+body.has-topnav .hx-nav-drop,
+body.has-topnav .hx-nav-fly {
+  display: none;
+  position: absolute;
+  min-width: 260px;
+  padding: 6px 0;
+  background: #fff !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.18) !important;
+  z-index: 90;
+}
+
+body.has-topnav .hx-nav-item:hover > .hx-nav-drop,
+body.has-topnav .hx-nav-item.is-open > .hx-nav-drop,
+body.has-topnav .hx-nav-sub.is-open > .hx-nav-fly,
+body.has-topnav .hx-nav-sub:hover > .hx-nav-fly {
+  display: block;
+}
+
+body.has-topnav .hx-nav-drop {
+  top: 100%;
+  inset-inline-start: 0;
+}
+
+body.has-topnav .hx-nav-sub {
+  position: relative;
+}
+
+body.has-topnav .hx-nav-fly {
+  top: 0;
+  inset-inline-start: 100%;
+  margin-inline-start: -2px;
+}
+
+body.has-topnav .hx-nav-drop__item,
+body.has-topnav .hx-nav-drop a.hx-nav-drop__item,
+body.has-topnav .hx-nav-drop button.hx-nav-drop__item {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 20px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #111827 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  text-align: start;
+  text-decoration: none !important;
+  white-space: nowrap;
+  cursor: pointer;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+body.has-topnav .hx-nav-drop__item:hover,
+body.has-topnav .hx-nav-drop__item.is-active,
+body.has-topnav .hx-nav-drop a.hx-nav-drop__item:hover,
+body.has-topnav .hx-nav-drop button.hx-nav-drop__item:hover {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+body.has-topnav .hx-nav-drop__item--has-sub {
+  font-weight: 600 !important;
+}
+
+body.has-topnav .hx-nav-drop__chev {
+  flex-shrink: 0;
+  color: #6b7280 !important;
 }
 
 .app-shell-body {

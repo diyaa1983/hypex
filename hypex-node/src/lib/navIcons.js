@@ -30,8 +30,8 @@ const PATH_PREFIXES = {
   inventory: ['/hub/inventory', '/inventory'],
   accounting: ['/hub/accounting', '/accounting'],
   hr: ['/hub/hr', '/hr'],
-  system: ['/hub/system', '/system'],
-  mobile: ['/hub/mobile', '/mobile'],
+  system: ['/hub/system', '/system', '/mobile'],
+  mobile: ['/mobile'],
   favorites: ['/hub/favorites'],
   backup: ['/system/backup'],
 };

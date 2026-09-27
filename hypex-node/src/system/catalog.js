@@ -4,6 +4,8 @@
  * كتالوج قائمة النظام — مطابق nav_menu
  * open_sessions موجود مرتين في PHP؛ نعرضه مرة واحدة
  */
+const { mobileCatalog } = require('../mobile/catalog');
+
 const systemCatalog = [
   {
     group: 'users',
@@ -93,6 +95,7 @@ const systemCatalog = [
       },
     ],
   },
+  ...mobileCatalog,
 ];
 
 function flatSystemItems() {

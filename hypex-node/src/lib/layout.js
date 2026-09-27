@@ -49,59 +49,159 @@ function phpUrl(route, extra = '') {
   return `${base}${rel}`;
 }
 
-/** فتح شاشة داخل Node عبر /embed (بدون تبويب خارجي) */
+/** مسار الطلب الحالي — يُضبط من وسيط Express حتى يظهر شريط الخروج في كل الشاشات */
+let currentRequestPath = '';
+let currentRequestEmbed = '';
+
+function setRequestPath(p, embed) {
+  currentRequestPath = String(p || '').trim();
+  if (embed !== undefined) {
+    currentRequestEmbed = String(embed || '').trim();
+  }
+}
+
+function isMdiEmbedRequest() {
+  return currentRequestEmbed === '1' || currentRequestEmbed === 'menu';
+}
+
+function normalizeAppPath(p) {
+  let path = String(p || '').trim();
+  if (!path) return '';
+  if (!path.startsWith('/')) path = '/' + path;
+  if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
+  return path;
+}
+
+function isDashboardPath(path) {
+  return !path || path === '/' || path === '/app' || path === '/login';
+}
+
+function screenExitHref(activePath) {
+  const path = normalizeAppPath(currentRequestPath || activePath);
+  if (isDashboardPath(path)) return '';
+  return '/app';
+}
+
+function wrapScreenChrome(title, bodyHtml, activePath) {
+  const path = normalizeAppPath(currentRequestPath || activePath);
+  if (isDashboardPath(path)) return bodyHtml;
+  const href = screenExitHref(activePath) || '/app';
+  const minimizeBtn = isMdiEmbedRequest()
+    ? ''
+    : `<button type="button" class="ora12-title-bar__btn ora12-title-bar__minimize" id="app-mdi-minimize-screen" title="تصغير" aria-label="تصغير"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>`;
+  return `<div class="hx-ora-screen">
+      <header class="hx-ora-screen-title dashboard-ora-screen-title no-print" role="banner">
+        <h1 class="dashboard-ora-screen-title__text">${esc(title || '')}</h1>
+        <div class="ora12-title-bar__controls no-print">
+          ${minimizeBtn}
+          <a class="ora12-title-bar__close app-screen-exit-btn" href="${esc(href)}"
+             title="خروج من الشاشة" aria-label="خروج من الشاشة">
+            <svg class="app-screen-exit-btn__icon" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
+              <path d="M7 7l10 10M17 7L7 17" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round"/>
+            </svg>
+          </a>
+        </div>
+      </header>
+      <div class="hx-ora-screen-body">${bodyHtml}</div>
+    </div>`;
+}
+
+function renderMdiLayer() {
+  return `<div id="app-mdi-hub-overlay" class="app-mdi-hub-overlay no-print" hidden aria-hidden="true">
+    <iframe id="app-mdi-hub-frame" class="app-mdi-hub-frame" title="القائمة"></iframe>
+  </div>
+  <div id="app-mdi-layer" class="app-mdi-layer no-print" aria-hidden="true"></div>
+  <div id="app-mdi-taskbar" class="app-mdi-taskbar no-print" hidden>
+    <div class="app-mdi-taskbar-windows"></div>
+  </div>`;
+}
+
 function embedUrl(route, extra = '') {
   let e = String(extra || '');
   if (e.startsWith('&') || e.startsWith('?')) e = e.slice(1);
   return e ? `/embed/${encodeURIComponent(route)}?${e}` : `/embed/${encodeURIComponent(route)}`;
 }
 
-function renderSidebar(user, activePath = '', notifyBellHtml = '') {
-  const sidebarItems = nav.buildSidebar(user);
-  const itemsHtml = sidebarItems
-    .map((it) => {
-      const href = it.path || '#';
-      const id = it.id || '';
-      const active = isPathActive(id, href, activePath) ? ' is-active' : '';
-      return `<a class="nav-domain-link${active}" href="${esc(href)}" data-domain="${esc(id)}" data-nav-path="${esc(href)}">
-        <span class="nav-domain-link__icon" aria-hidden="true">${iconFor(id)}</span>
-        <span class="nav-domain-link__label">${esc(it.title)}</span>
-        <span class="nav-domain-link__rail" aria-hidden="true"></span>
-      </a>`;
-    })
-    .join('');
+function isTopNavScreen(it) {
+  const r = String((it && it.r) || '');
+  return r !== '' && !r.startsWith('dashboard_');
+}
 
-  const name = user.full_name_ar || user.username || '';
-  const initial = String(name).trim().charAt(0) || 'U';
+function topNavChevron() {
+  return `<svg class="hx-nav-drop__chev" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+}
+
+function renderTopNavDropLink(it, activePath) {
+  const href = it.path || '#';
+  const active =
+    href !== '#' && activePath && (activePath === href || activePath.startsWith(`${href}/`))
+      ? ' is-active'
+      : '';
+  return `<a class="hx-nav-drop__item${active}" href="${esc(href)}">${esc(it.label || '')}</a>`;
+}
+
+function renderTopNavDropGroup(group, activePath) {
+  const items = (group.items || []).filter(isTopNavScreen);
+  if (!items.length) return '';
+  if (items.length === 1) return renderTopNavDropLink(items[0], activePath);
+  const kids = items.map((it) => renderTopNavDropLink(it, activePath)).join('');
+  return `<div class="hx-nav-sub">
+    <button type="button" class="hx-nav-drop__item hx-nav-drop__item--has-sub">
+      <span>${esc(group.title || '')}</span>${topNavChevron()}
+    </button>
+    <div class="hx-nav-fly">${kids}</div>
+  </div>`;
+}
+
+function renderTopNavTrigger(id, title, href, activePath, dropHtml) {
+  const active = isPathActive(id, href, activePath) ? ' is-active' : '';
+  const icon = `<span class="nav-domain-link__icon" aria-hidden="true">${iconFor(id)}</span><span class="nav-domain-link__label">${esc(title)}</span>`;
+  if (!dropHtml) {
+    return `<a class="nav-domain-link${active}" href="${esc(href)}" data-domain="${esc(id)}" data-nav-path="${esc(href)}">${icon}</a>`;
+  }
+  return `<div class="hx-nav-item">
+    <button type="button" class="nav-domain-link${active}" data-nav-menu="1" aria-expanded="false" aria-haspopup="true" data-domain="${esc(id)}" data-nav-path="${esc(href)}">${icon}</button>
+    <div class="hx-nav-drop">${dropHtml}</div>
+  </div>`;
+}
+
+function renderSidebar(user, activePath = '', notifyBellHtml = '', pageTitle = '') {
+  const parts = [];
+  for (const domain of nav.DOMAIN_CATALOGS || []) {
+    const hub = nav.domainHubContent(user, domain.id);
+    if (!hub) continue;
+    const groups = (hub.groups || [])
+      .map((g) => ({ title: g.title, items: (g.items || []).filter(isTopNavScreen) }))
+      .filter((g) => g.items.length);
+    if (!groups.length) continue;
+    const leafCount = groups.reduce((n, g) => n + g.items.length, 0);
+    const dropHtml =
+      hub.id === 'main' && leafCount <= 1 ? '' : groups.map((g) => renderTopNavDropGroup(g, activePath)).join('');
+    parts.push(renderTopNavTrigger(hub.id, hub.title, hub.hub, activePath, dropHtml));
+  }
+  for (const it of nav.buildSidebar(user)) {
+    if (it.id === 'favorites') {
+      parts.push(renderTopNavTrigger(it.id, it.title, it.path, activePath, ''));
+    }
+  }
+  const itemsHtml = parts.join('');
+
   const brand = getPrintBrand();
   const companyName = brand.companyName || 'Hypex';
-  const markHtml = brand.logoUrl
-    ? `<span class="brand-mark brand-mark--logo" aria-hidden="true"><img src="${esc(brand.logoUrl)}" alt="" width="40" height="40"></span>`
-    : `<span class="brand-mark" aria-hidden="true">${esc(String(companyName).charAt(0) || 'H')}</span>`;
+  const screenTitle = String(pageTitle || '').trim() || 'لوحة التحكم';
 
-  return `<aside class="sidebar sidebar--2027 no-print" data-active-path="${esc(activePath || '')}">
-    <div class="sidebar-brand">
-      ${markHtml}
-      <div class="sidebar-brand__text">
-        <strong title="${esc(companyName)}">${esc(companyName)}</strong>
+  return `<header class="hx-topnav no-print" data-active-path="${esc(activePath || '')}">
+    <div class="hx-topnav__title">${esc(companyName)} — ${esc(screenTitle)}</div>
+    <div class="hx-topnav__menu">
+      <nav class="hx-topnav__nav" aria-label="القائمة الرئيسية">${itemsHtml}</nav>
+      <div class="hx-topnav__tools">
+        ${notifyBellHtml || ''}
+        <form method="post" action="/logout">
+          <button type="submit" class="sidebar-logout">خروج</button>
+        </form>
       </div>
-      ${notifyBellHtml || ''}
     </div>
-    <p class="sidebar-section-label">الأقسام</p>
-    <nav class="sidebar-nav sidebar-nav--domains" aria-label="القائمة الرئيسية">${itemsHtml}</nav>
-    <div class="sidebar-foot">
-      <div class="user-chip">
-        <span class="user-chip__avatar" aria-hidden="true">${esc(initial)}</span>
-        <div class="user-chip__meta">
-          <strong>${esc(name)}</strong>
-          <span dir="ltr">@${esc(user.username || '')}</span>
-        </div>
-      </div>
-      <form method="post" action="/logout">
-        <button type="submit" class="sidebar-logout">خروج</button>
-      </form>
-    </div>
-  </aside>`;
+  </header>`;
 }
 
 function renderApp({
@@ -166,6 +266,12 @@ function renderApp({
     if (!hasOraCss) allCss.push('/assets/css/customer-order-ora.css');
     const hasOraGlobal = allCss.some((c) => String(c).indexOf('hypex-ora-global.css') !== -1);
     if (!hasOraGlobal) allCss.push('/assets/css/hypex-ora-global.css');
+    if (!isMdiEmbedRequest()) {
+      const hasMdiCss = allCss.some((c) => String(c).indexOf('app-window-manager.css') !== -1);
+      if (!hasMdiCss) allCss.push('/assets/css/app-window-manager.css');
+      const hasMdiJs = allJs.some((j) => String(j).indexOf('app-window-manager.js') !== -1);
+      if (!hasMdiJs) allJs.push('/assets/js/app-window-manager.js');
+    }
 
     const hasDec = allJs.some((j) => String(j).indexOf('hx-decimals.js') !== -1);
     if (!hasDec) allJs.unshift(`/assets/js/hx-decimals.js?v=${decVer}`);
@@ -233,11 +339,12 @@ function renderApp({
     })
     .join('\n');
 
-  const bodyCls = ['app-body', bodyClass, printChrome && user ? 'has-print-chrome' : '']
+  const bodyCls = ['app-body', bodyClass, user ? 'has-topnav' : '', printChrome && user ? 'has-print-chrome' : '']
     .filter(Boolean)
     .join(' ');
   const mainCls = mainClass || 'main main--wide';
-  const mainBody = printChrome && user ? wrapPrintShell(bodyHtml) : bodyHtml;
+  const printed = printChrome && user ? wrapPrintShell(bodyHtml) : bodyHtml;
+  const mainBody = user ? wrapScreenChrome(title, printed, activePath) : printed;
   const printAttrs =
     printChrome && user
       ? bodyPrintDataHtml({ user, documentTitle: printTitle || title })
@@ -268,13 +375,13 @@ function renderApp({
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
   ${decimalsScript}
   <script src="/assets/js/base-path.js"></script>
-  <link rel="stylesheet" href="/assets/css/shell.css">
+  <link rel="stylesheet" href="/assets/css/shell.css?v=${assetVersion('css/shell.css')}">
   ${cssLinks}
   ${extraHead}
 </head>
 <body class="${esc(bodyCls)}"${printAttrs}>
   <div class="app-shell">
-    ${user ? renderSidebar(user, activePath, bellHtml) : ''}
+    ${user ? renderSidebar(user, activePath, bellHtml, title) : ''}
     <main class="${esc(mainCls)}">
       ${mainBody}
     </main>
@@ -286,7 +393,20 @@ function renderApp({
     if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches){document.body.classList.add('app-body--standalone');}
   })();
   </script>
-  <script src="/assets/js/shell.js" defer></script>
+  ${
+    user && !isMdiEmbedRequest()
+      ? `<script>window.AppMdiConfig=${JSON.stringify({
+          baseUrl: '/app',
+          afterMinimizeUrl: '/app',
+          currentRoute: normalizeAppPath(currentRequestPath || activePath) || '/app',
+          currentTitle: title || '',
+          routes: {},
+          excludeRoutes: ['dashboard', 'menu_hub'],
+        })};</script>
+  ${renderMdiLayer()}`
+      : ''
+  }
+  <script src="/assets/js/shell.js?v=${assetVersion('js/shell.js')}" defer></script>
   ${jsLinks}
 </body>
 </html>`;
@@ -315,4 +435,6 @@ module.exports = {
   phpEmbedPage,
   renderSidebar,
   faviconLinksHtml,
+  setRequestPath,
+  screenExitHref,
 };

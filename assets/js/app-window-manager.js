@@ -210,6 +210,40 @@
     taskbarWindowsEl = taskbarEl.querySelector('.app-mdi-taskbar-windows');
     layerEl.setAttribute('aria-hidden', 'false');
     bindTaskbarEventsOnce();
+    placeTaskbar();
+  }
+
+  function placeTaskbar() {
+    if (!taskbarEl) {
+      return;
+    }
+    var nav = document.querySelector('.hx-topnav');
+    if (nav && taskbarEl.parentNode !== nav) {
+      nav.appendChild(taskbarEl);
+    }
+  }
+
+  function stripBasePath(pathname) {
+    var base = typeof global.__HYPEX_BASE__ === 'string' ? global.__HYPEX_BASE__ : '';
+    if (base && base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
+    var path = String(pathname || '');
+    if (base && (path === base || path.indexOf(base + '/') === 0)) {
+      path = path.slice(base.length) || '/';
+    }
+    if (path.length > 1 && path.charAt(path.length - 1) === '/') path = path.slice(0, -1);
+    return path || '/';
+  }
+
+  function isMenuLikeLocation(url) {
+    try {
+      var u = typeof url === 'string' ? new URL(url, global.location.origin) : url;
+      var route = u.searchParams.get('r') || '';
+      if (route === 'dashboard' || route === 'menu_hub') return true;
+      var path = stripBasePath(u.pathname);
+      return path === '/' || path === '/app' || path === '/login' || path === '/menu' || path.indexOf('/hub/') === 0;
+    } catch (e) {
+      return false;
+    }
   }
 
   function buildHubEmbedUrl(href) {
@@ -224,7 +258,15 @@
   }
 
   function defaultHubUrl() {
-    return config.afterMinimizeUrl || (config.baseUrl || 'index.php') + '?r=dashboard';
+    var url = config.afterMinimizeUrl || (config.baseUrl || 'index.php') + '?r=dashboard';
+    if (url.charAt(0) === '/') {
+      var base = typeof global.__HYPEX_BASE__ === 'string' ? global.__HYPEX_BASE__ : '';
+      if (base && base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
+      if (base && url.indexOf(base + '/') !== 0 && url !== base) {
+        url = base + url;
+      }
+    }
+    return url;
   }
 
   function showHubOverlay(url) {
@@ -432,7 +474,7 @@
     document.body.classList.remove('app-mdi-page-parked');
 
     var route = parseRouteFromHref(global.location.href);
-    if (route === 'menu_hub' || route === 'dashboard') {
+    if (route === 'menu_hub' || route === 'dashboard' || isMenuLikeLocation(global.location.href)) {
       syncTaskbar();
       return;
     }
@@ -491,7 +533,7 @@
         return;
       }
       var route = u.searchParams.get('r') || '';
-      if (route !== '' && route !== 'menu_hub' && route !== 'dashboard') {
+      if ((route !== '' && route !== 'menu_hub' && route !== 'dashboard') || !isMenuLikeLocation(u)) {
         navigateFromHubParent(cw.location.href);
         return;
       }
@@ -614,6 +656,7 @@
       return !w.minimized && w.maximized && w.el;
     });
     document.body.classList.toggle('app-mdi-taskbar-open', hasTaskbarItems());
+    placeTaskbar();
     if (taskbarEl) {
       taskbarEl.hidden = !hasTaskbarItems();
     }
@@ -1008,9 +1051,16 @@
       var win = findWindow(id);
       if (win) {
         win.unsaved = !!minimizeDetail.dirty;
-        parkLivePage(win, defaultHubUrl());
+        win.minimized = true;
+        win.fullPage = true;
+        win.parkedLive = false;
       }
       persistWindowsNow();
+      syncTaskbar();
+      if (!isMenuLikeLocation(global.location.href)) {
+        global.__managerAllowUnload = true;
+        global.location.href = defaultHubUrl();
+      }
       return id;
     }
     persistWindows();
@@ -1432,13 +1482,53 @@
     syncTaskbar();
   }
 
+  function ensureMinimizeButton() {
+    var btn = document.getElementById('app-mdi-minimize-screen');
+    if (btn) {
+      return btn;
+    }
+    var close = document.querySelector(
+      '.hx-ora-screen-title .ora12-title-bar__close, .hx-ora-screen-title .app-screen-exit-btn, header.dashboard-ora-screen-title .ora12-title-bar__close, .report-ora12-screen-title .ora12-title-bar__close, .app-screen-title-bar .ora12-title-bar__close, .app-screen-exit-btn'
+    );
+    var bar =
+      document.querySelector(
+        '.hx-ora-screen-title, header.dashboard-ora-screen-title, .report-ora12-screen-title, .app-screen-title-bar'
+      ) || (close && close.closest('header, .hx-ora-screen-title, .dashboard-ora-screen-title'));
+    if (!bar) {
+      bar = close && close.parentNode;
+    }
+    if (!bar || isMenuLikeLocation(global.location.href)) {
+      return null;
+    }
+    btn = document.createElement('button');
+    btn.type = 'button';
+    btn.id = 'app-mdi-minimize-screen';
+    btn.className = 'ora12-title-bar__btn ora12-title-bar__minimize';
+    btn.title = 'تصغير';
+    btn.setAttribute('aria-label', 'تصغير');
+    btn.innerHTML =
+      '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
+    var closeEl = close || bar.querySelector('.ora12-title-bar__close, .app-screen-exit-btn');
+    var controls = bar.querySelector && bar.querySelector('.ora12-title-bar__controls');
+    if (controls && closeEl && controls.contains(closeEl)) {
+      controls.insertBefore(btn, closeEl);
+    } else if (closeEl && closeEl.parentNode) {
+      closeEl.parentNode.insertBefore(btn, closeEl);
+    } else if (controls) {
+      controls.insertBefore(btn, controls.firstChild);
+    } else {
+      bar.appendChild(btn);
+    }
+    return btn;
+  }
+
   function initMdiUi() {
     ensureShell();
     restorePersistedWindows();
     convertLegacyIframeWindows();
     reconcileParkStateOnLoad();
     global.addEventListener('message', handleHubParentMessage);
-    var btn = document.getElementById('app-mdi-minimize-screen');
+    var btn = ensureMinimizeButton();
     if (btn) {
       btn.addEventListener('click', function () {
         minimizeThisPage(true);
