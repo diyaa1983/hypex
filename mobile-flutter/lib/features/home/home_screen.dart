@@ -732,7 +732,8 @@ class _OfflineHomeBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final off = context.watch<OfflineController>();
     final pending = off.info.pendingOutbox;
-    final connected = off.serverConnected || off.online;
+    // نعتمد وصول السيرفر — وجود واي فاي وحده لا يعني مزامنة.
+    final connected = off.serverConnected;
     if (connected && off.catalogReady && pending < 1) {
       return const SizedBox.shrink();
     }
@@ -767,7 +768,7 @@ class _OfflineHomeBanner extends StatelessWidget {
           child: Row(
             children: [
               Icon(
-                off.online ? Icons.cloud_sync_rounded : Icons.cloud_off_rounded,
+                connected ? Icons.cloud_sync_rounded : Icons.cloud_off_rounded,
                 color: fg,
                 size: 18,
               ),

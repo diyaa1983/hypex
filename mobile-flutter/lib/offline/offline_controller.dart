@@ -21,6 +21,8 @@ class OfflineController extends ChangeNotifier {
 
   Future<String> Function()? csrfProvider;
   Future<String> Function()? csrfRefresh;
+  /// إعادة تسجيل الدخول عند عودة الشبكة (جلسة محلية → أونلاين).
+  Future<bool> Function()? sessionReauth;
 
   StreamSubscription<List<ConnectivityResult>>? _sub;
   Timer? _reconnectFlushTimer;
@@ -161,6 +163,9 @@ class OfflineController extends ChangeNotifier {
         if (ok) {
           if (!was || initial) {
             await refreshInfo();
+            if (sessionReauth != null) {
+              await sessionReauth!();
+            }
             // عند عودة الاتصال: ترحيل المعلّق فقط — بدون تحميل كتالوج.
             if (info.flushableOutbox > 0 ||
                 (await store.autoSendOrdersEnabled() && info.ordersPending > 0)) {
@@ -170,6 +175,9 @@ class OfflineController extends ChangeNotifier {
               await refreshInfo();
             }
           } else if (info.flushableOutbox > 0) {
+            if (sessionReauth != null) {
+              await sessionReauth!();
+            }
             await flushAndAutoPost();
           }
           return;
@@ -373,6 +381,10 @@ class OfflineController extends ChangeNotifier {
     if (busy && phase == OfflinePhase.pulling) return 0;
 
     var csrf = csrfProvider == null ? '' : await csrfProvider!();
+    if (csrf.isEmpty && sessionReauth != null) {
+      await sessionReauth!();
+      csrf = csrfProvider == null ? '' : await csrfProvider!();
+    }
     if (csrf.isEmpty) {
       lastError = 'تعذر الترحيل: لا توجد جلسة صالحة. أعد تسجيل الدخول.';
       statusMessage = lastError;

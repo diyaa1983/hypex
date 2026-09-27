@@ -10,11 +10,17 @@ import 'config.dart';
 
 /// استثناء موحّد لأخطاء الـ API (رسالة عربية جاهزة للعرض).
 class ApiException implements Exception {
-  ApiException(this.message, {this.statusCode, this.code});
+  ApiException(
+    this.message, {
+    this.statusCode,
+    this.code,
+    this.isNetwork = false,
+  });
 
   final String message;
   final int? statusCode;
   final String? code;
+  final bool isNetwork;
 
   bool get isUnauthorized =>
       statusCode == 401 || code == 'unauthorized' || code == 'forbidden';
@@ -202,10 +208,14 @@ class ApiClient {
       rethrow;
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.connectionError ||
           e.error is SocketException) {
-        throw ApiException('تعذر الاتصال بالسيرفر. تحقق من الإنترنت والعنوان.');
+        throw ApiException(
+          'تعذر الاتصال بالسيرفر. تحقق من الإنترنت والعنوان.',
+          isNetwork: true,
+        );
       }
       final code = e.response?.statusCode;
       throw ApiException(
@@ -279,17 +289,24 @@ class ApiClient {
       rethrow;
     } on DioException catch (e) {
       if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.sendTimeout ||
           e.type == DioExceptionType.receiveTimeout ||
           e.type == DioExceptionType.connectionError ||
           e.error is SocketException) {
-        throw ApiException('تعذر الاتصال بالسيرفر. تحقق من الإنترنت والعنوان.');
+        throw ApiException(
+          'تعذر الاتصال بالسيرفر. تحقق من الإنترنت والعنوان.',
+          isNetwork: true,
+        );
       }
       // ردّ وصل لكن Dio اعتبره خطأ (مثلاً 500 HTML).
       if (e.response != null) {
         onHttpSuccess?.call();
         throw _asJsonMapError(e.response!.data, e.response!.statusCode);
       }
-      throw ApiException('خطأ في الاتصال: ${e.message ?? e.type.name}');
+      throw ApiException(
+        'خطأ في الاتصال: ${e.message ?? e.type.name}',
+        isNetwork: true,
+      );
     }
   }
 

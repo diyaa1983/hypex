@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../offline/offline_store.dart';
 import '../services/location_presence_service.dart';
 import '../services/location_tracking_service.dart';
 import 'api_client.dart';
@@ -18,10 +20,14 @@ class SessionController extends ChangeNotifier {
   final ApiClient api;
   static const _kServer = 'server_base';
   static const _kRemember = 'remember_login';
+  static const _kOfflineProfile = 'offline_profile_v1';
+  static const _kOfflineResume = 'offline_resume_ok';
   static const _secure = FlutterSecureStorage();
 
   bool booting = true;
   bool authenticated = false;
+  /// جلسة محلية دون كوكي سيرفر (بعد دخول أونلاين سابق + كتالوج).
+  bool offlineSession = false;
   bool busy = false;
   bool isSystemAdmin = false;
   String? userName;
@@ -30,6 +36,8 @@ class SessionController extends ChangeNotifier {
   String csrf = '';
   Set<String> permissions = <String>{};
   String? lastError;
+  /// تنبيه غير حرج (مثل العمل دون اتصال) — لا يُعرض كخطأ أحمر.
+  String? lastInfo;
   GpsTrackingConfig gpsConfig = GpsTrackingConfig.defaults;
 
   /// عدد أسطر الصفحة من إعدادات النظام (10 / 15 / 20).
@@ -104,12 +112,17 @@ class SessionController extends ChangeNotifier {
     if (saved.isNotEmpty) {
       try {
         await refreshMe();
+      } on ApiException catch (e) {
+        authenticated = false;
+        if (e.isNetwork) {
+          await _tryResumeOfflineSession();
+        }
       } catch (_) {
         authenticated = false;
       }
     }
     LocationPresenceService.bind(api, csrf: csrf);
-    if (authenticated) {
+    if (authenticated && !offlineSession) {
       await _syncGpsTracking();
     }
     booting = false;
@@ -187,6 +200,9 @@ class SessionController extends ChangeNotifier {
     _apply(res);
     LocationPresenceService.setCsrf(csrf);
     if (authenticated) {
+      offlineSession = false;
+      await _persistOfflineProfile();
+      await _setOfflineResume(true);
       await _syncGpsTracking();
     }
   }
@@ -210,12 +226,33 @@ class SessionController extends ChangeNotifier {
         },
       );
       if (res['authenticated'] != true) return false;
+      offlineSession = false;
       _apply(res);
       LocationPresenceService.setCsrf(csrf);
+      await _persistOfflineProfile();
+      await _setOfflineResume(true);
       return true;
     } catch (_) {
       return false;
     }
+  }
+
+  /// إعادة مصادقة عند عودة الشبكة قبل ترحيل الطابور المحلي.
+  Future<bool> reauthIfNeeded() async {
+    if (authenticated && !offlineSession && csrf.isNotEmpty) {
+      try {
+        await refreshMe();
+        if (authenticated && !offlineSession) return true;
+      } catch (_) {}
+    }
+    final ok = await _silentRelogin();
+    if (ok) {
+      offlineSession = false;
+      lastInfo = null;
+      await _syncGpsTracking();
+      notifyListeners();
+    }
+    return ok;
   }
 
   Future<bool> login(
@@ -225,6 +262,7 @@ class SessionController extends ChangeNotifier {
   }) async {
     busy = true;
     lastError = null;
+    lastInfo = null;
     notifyListeners();
     try {
       final device = await _deviceFields();
@@ -238,6 +276,7 @@ class SessionController extends ChangeNotifier {
           ...device,
         },
       );
+      offlineSession = false;
       _apply(res);
       if (authenticated) {
         await LocationTrackingService.saveDeviceId(
@@ -261,17 +300,143 @@ class SessionController extends ChangeNotifier {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setBool(_kRemember, false);
         }
+        await _persistOfflineProfile();
+        await _setOfflineResume(true);
         await _syncGpsTracking();
       }
       return authenticated;
     } on ApiException catch (e) {
+      if (e.isNetwork) {
+        final ok = await _tryOfflineLogin(username, password, remember: remember);
+        if (ok) return true;
+        return false;
+      }
       lastError = e.message;
       authenticated = false;
+      offlineSession = false;
       return false;
     } finally {
       busy = false;
       notifyListeners();
     }
+  }
+
+  Future<void> _setOfflineResume(bool ok) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kOfflineResume, ok);
+  }
+
+  Future<void> _persistOfflineProfile() async {
+    if (!authenticated || userId <= 0) return;
+    final prefs = await SharedPreferences.getInstance();
+    final payload = <String, dynamic>{
+      'authenticated': true,
+      'is_system_admin': isSystemAdmin,
+      'rows_per_page': rowsPerPage,
+      'permissions': permissions.toList(),
+      'gps_tracking': gpsConfig.toJson(),
+      'user': {
+        'id': userId,
+        'name': userName,
+        'username': userUsername,
+      },
+    };
+    await prefs.setString(_kOfflineProfile, jsonEncode(payload));
+  }
+
+  Future<Map<String, dynamic>?> _loadOfflineProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kOfflineProfile);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return decoded.map((k, v) => MapEntry(k.toString(), v));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<bool> _tryResumeOfflineSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_kOfflineResume) != true) return false;
+    if (!await OfflineStore.instance.hasCatalog) return false;
+    final profile = await _loadOfflineProfile();
+    if (profile == null) return false;
+    offlineSession = true;
+    csrf = '';
+    _apply(profile);
+    if (!authenticated) return false;
+    lastInfo = 'تعمل دون اتصال — ستُرحَّل البيانات عند عودة الشبكة';
+    return true;
+  }
+
+  Future<bool> _tryOfflineLogin(
+    String username,
+    String password, {
+    required bool remember,
+  }) async {
+    if (!await OfflineStore.instance.hasCatalog) {
+      lastError =
+          'لا يوجد اتصال ولا بيانات محلية. اتصل بالإنترنت وافتح «تحديث البيانات» مرة أولاً.';
+      authenticated = false;
+      offlineSession = false;
+      return false;
+    }
+
+    final saved = await savedCredentials();
+    final savedU = (saved.u ?? '').trim();
+    final savedP = saved.p ?? '';
+    final profile = await _loadOfflineProfile();
+
+    if (savedU.isEmpty || savedP.isEmpty || profile == null) {
+      lastError =
+          'للعمل دون اتصال: ادخل أونلاين مرة مع تفعيل «تذكّرني» وحدّث البيانات.';
+      authenticated = false;
+      offlineSession = false;
+      return false;
+    }
+
+    if (username.trim().toLowerCase() != savedU.toLowerCase() ||
+        password != savedP) {
+      lastError = 'اسم المستخدم أو كلمة السر غير صحيحة (وضع دون اتصال).';
+      authenticated = false;
+      offlineSession = false;
+      return false;
+    }
+
+    final profileUser = profile['user'];
+    final profileUsername = profileUser is Map
+        ? (profileUser['username'] as String? ?? '')
+        : '';
+    if (profileUsername.isNotEmpty &&
+        profileUsername.toLowerCase() != username.trim().toLowerCase()) {
+      lastError =
+          'البيانات المحلية لمستخدم آخر. ادخل أونلاين بهذا الحساب وحدّث البيانات.';
+      authenticated = false;
+      offlineSession = false;
+      return false;
+    }
+
+    offlineSession = true;
+    csrf = '';
+    _apply(profile);
+    if (!authenticated) {
+      lastError = 'تعذر فتح جلسة محلية. حدّث البيانات عند توفر الإنترنت.';
+      offlineSession = false;
+      return false;
+    }
+
+    if (remember) {
+      await _secure.write(key: 'u', value: username.trim());
+      await _secure.write(key: 'p', value: password);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kRemember, true);
+    }
+    await _setOfflineResume(true);
+    lastError = null;
+    lastInfo = 'تعمل دون اتصال — ستُرحَّل البيانات عند عودة الشبكة';
+    return true;
   }
 
   Future<({String? u, String? p})> savedCredentials() async {
@@ -325,12 +490,16 @@ class SessionController extends ChangeNotifier {
       await _secure.delete(key: 'u');
       await _secure.delete(key: 'p');
     }
+    await prefs.setBool(_kOfflineResume, false);
     authenticated = false;
+    offlineSession = false;
+    lastInfo = null;
     isSystemAdmin = false;
     permissions = <String>{};
     userName = null;
     userUsername = null;
     userId = 0;
+    csrf = '';
     gpsConfig = GpsTrackingConfig.defaults;
     rowsPerPage = 10;
     settingsUnlocked = false;

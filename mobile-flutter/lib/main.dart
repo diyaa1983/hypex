@@ -44,6 +44,7 @@ Future<void> main() async {
     } catch (_) {}
     return session.csrf;
   };
+  offline.sessionReauth = () => session.reauthIfNeeded();
   LocationPresenceService.onSessionConflict = (msg) {
     session.handleDeviceConflict(msg);
   };

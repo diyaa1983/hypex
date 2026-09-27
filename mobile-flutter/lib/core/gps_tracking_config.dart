@@ -32,6 +32,15 @@ class GpsTrackingConfig {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+        'enabled': enabled,
+        'auto_enable': autoEnable,
+        'interval_sec': intervalSec,
+        'min_distance_m': minDistanceM,
+        'user_can_disable': userCanDisable,
+        'rep_visit_geofence': repVisitGeofence,
+      };
+
   static int _clampInt(dynamic v, int min, int max, int fallback) {
     final n = (v is num) ? v.toInt() : int.tryParse('$v');
     if (n == null) return fallback;

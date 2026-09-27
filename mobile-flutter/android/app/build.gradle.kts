@@ -29,11 +29,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("hypexDebug") {
+            storeFile = file("../keystore/debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // TODO: Add your own release keystore for Play Store.
+            // Uses a project-local debug keystore (avoids broken %USERPROFILE%\.android).
+            signingConfig = signingConfigs.getByName("hypexDebug")
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("hypexDebug")
         }
     }
 }

@@ -89,8 +89,15 @@ class _LoginScreenState extends State<LoginScreen> {
     );
     if (!mounted) return;
     if (ok) {
-      await context.read<OfflineController>().flushAndAutoPost();
-      if (!mounted) return;
+      if (s.offlineSession) {
+        showSnack(
+          context,
+          s.lastInfo ?? 'تعمل دون اتصال — ستُرحَّل البيانات عند عودة الشبكة',
+        );
+      } else {
+        await context.read<OfflineController>().flushAndAutoPost();
+        if (!mounted) return;
+      }
       context.go('/home');
     } else {
       showSnack(context, s.lastError ?? 'تعذر تسجيل الدخول', error: true);
