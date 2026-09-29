@@ -1,0 +1,216 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * صافي فواتير مبيعات المندوب من Oracle (INVREP050)
+ * مصدر البيانات: MAS.DAILY (TYPE=9) + ACCINV.CUSTOMER.CUS_SALESMAN + EMP_INFO
+ * قراءة فقط.
+ */
+
+require_once app_path('includes/oracle_pdo.php');
+require_once app_path('includes/oracle_sales_invoice.php');
+
+/**
+ * @return array{
+ *   owner:string, table:string, customer_owner:string, customer_table:string,
+ *   emp_owner:string, emp_table:string, sale_type:int, comp_num:int, default_store:int
+ * }
+ */
+function oracle_rep_net_sales_cfg(): array
+{
+    $cfg = oracle_config();
+    $s = is_array($cfg['rep_net_sales'] ?? null) ? $cfg['rep_net_sales'] : [];
+    $inv = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+
+    $owner = strtoupper(trim((string) ($s['owner'] ?? ($inv['owner'] ?? 'MAS'))));
+    $table = strtoupper(trim((string) ($s['table'] ?? ($inv['table'] ?? 'DAILY'))));
+
+    return [
+        'owner' => $owner !== '' ? $owner : 'MAS',
+        'table' => $table !== '' ? $table : 'DAILY',
+        'customer_owner' => strtoupper(trim((string) ($s['customer_owner'] ?? 'ACCINV'))) ?: 'ACCINV',
+        'customer_table' => strtoupper(trim((string) ($s['customer_table'] ?? 'CUSTOMER'))) ?: 'CUSTOMER',
+        'emp_owner' => strtoupper(trim((string) ($s['emp_owner'] ?? 'ACCINV'))) ?: 'ACCINV',
+        'emp_table' => strtoupper(trim((string) ($s['emp_table'] ?? 'EMP_INFO'))) ?: 'EMP_INFO',
+        'sale_type' => (int) ($s['sale_type'] ?? ($inv['sale_type'] ?? 9)),
+        'comp_num' => (int) ($s['comp_num'] ?? ($inv['comp_num'] ?? 1)),
+        'default_store' => (int) ($s['default_store'] ?? ($inv['default_store'] ?? 4)),
+    ];
+}
+
+/**
+ * ملخص صافي مبيعات المندوبين من Oracle.
+ *
+ * @return array{
+ *   ok:bool, message:string, rows:list<array<string,mixed>>,
+ *   totals:array{inv_cnt:int, net:float, cost:float, profit:float},
+ *   filters:array<string,mixed>
+ * }
+ */
+function oracle_fetch_rep_net_sales(
+    string $fromIso,
+    string $toIso,
+    ?int $store = null,
+    ?int $repFrom = null,
+    ?int $repTo = null
+): array {
+    $empty = [
+        'ok' => false,
+        'message' => '',
+        'rows' => [],
+        'totals' => ['inv_cnt' => 0, 'net' => 0.0, 'cost' => 0.0, 'profit' => 0.0],
+        'filters' => [],
+    ];
+
+    if (!oracle_is_enabled()) {
+        $empty['message'] = 'تكامل Oracle غير مفعّل. راجع إعدادات الاتصال.';
+
+        return $empty;
+    }
+
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromIso) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $toIso)) {
+        $empty['message'] = 'تواريخ غير صالحة.';
+
+        return $empty;
+    }
+    if ($fromIso > $toIso) {
+        $empty['message'] = 'تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.';
+
+        return $empty;
+    }
+
+    $c = oracle_rep_net_sales_cfg();
+    $storeNum = $store !== null && $store > 0 ? $store : (int) $c['default_store'];
+    $saleType = (int) $c['sale_type'];
+    $compNum = (int) $c['comp_num'];
+
+    $fromQ = oracle_stmt_q($c['owner']) . '.' . oracle_stmt_q($c['table']);
+    $cusQ = oracle_stmt_q($c['customer_owner']) . '.' . oracle_stmt_q($c['customer_table']);
+    $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
+
+    $sql = "
+WITH inv AS (
+  SELECT d.VYEAR,
+         d.V_NUM,
+         c.CUS_SALESMAN AS REP_NO,
+         SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS,
+         MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
+         SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT
+  FROM {$fromQ} d
+  JOIN {$cusQ} c
+    ON TO_CHAR(c.CUS_NUM) = TO_CHAR(d.CUST_ACC)
+  WHERE d.COMP_NUM = :comp_num
+    AND d.TYPE = :sale_type
+    AND d.STORE = :store_num
+    AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+    AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+";
+
+    $binds = [
+        'comp_num' => $compNum,
+        'sale_type' => $saleType,
+        'store_num' => $storeNum,
+        'd_from' => $fromIso,
+        'd_to' => $toIso,
+    ];
+
+    if ($repFrom !== null && $repFrom > 0) {
+        $sql .= "    AND c.CUS_SALESMAN >= :rep_from\n";
+        $binds['rep_from'] = $repFrom;
+    }
+    if ($repTo !== null && $repTo > 0) {
+        $sql .= "    AND c.CUS_SALESMAN <= :rep_to\n";
+        $binds['rep_to'] = $repTo;
+    }
+
+    $sql .= "
+  GROUP BY d.VYEAR, d.V_NUM, c.CUS_SALESMAN
+)
+SELECT i.REP_NO,
+       e.EMP_NAME,
+       COUNT(*) AS INV_CNT,
+       ROUND(SUM(i.GROSS - i.VOU_DISC), 3) AS NET_AMT,
+       ROUND(SUM(i.COST_AMT), 3) AS COST_AMT,
+       ROUND(SUM(i.GROSS - i.VOU_DISC) - SUM(i.COST_AMT), 3) AS PROFIT_AMT,
+       CASE
+         WHEN SUM(i.GROSS - i.VOU_DISC) = 0 THEN 0
+         ELSE ROUND(
+           100 * (SUM(i.GROSS - i.VOU_DISC) - SUM(i.COST_AMT))
+               / SUM(i.GROSS - i.VOU_DISC), 3)
+       END AS PROFIT_PCT
+FROM inv i
+LEFT JOIN {$empQ} e
+  ON e.EMP_NO = i.REP_NO
+GROUP BY i.REP_NO, e.EMP_NAME
+ORDER BY i.REP_NO
+";
+
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        $empty['message'] = (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.');
+
+        return $empty;
+    }
+
+    try {
+        $raw = oracle_query_all($conn, $sql, $binds);
+    } catch (Throwable $e) {
+        $empty['message'] = 'تعذر تنفيذ الاستعلام: ' . $e->getMessage();
+
+        return $empty;
+    }
+
+    $rows = [];
+    $totInv = 0;
+    $totNet = 0.0;
+    $totCost = 0.0;
+    $totProfit = 0.0;
+
+    foreach ($raw as $r) {
+        $net = (float) oracle_statement_row_val($r, 'NET_AMT');
+        $cost = (float) oracle_statement_row_val($r, 'COST_AMT');
+        $profit = (float) oracle_statement_row_val($r, 'PROFIT_AMT');
+        $pct = (float) oracle_statement_row_val($r, 'PROFIT_PCT');
+        $invCnt = (int) oracle_statement_row_val($r, 'INV_CNT');
+        $repNo = (int) oracle_statement_row_val($r, 'REP_NO');
+        $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
+
+        $rows[] = [
+            'rep_no' => $repNo,
+            'rep_name' => $name !== '' ? $name : ('مندوب ' . $repNo),
+            'inv_cnt' => $invCnt,
+            'net' => $net,
+            'cost' => $cost,
+            'profit' => $profit,
+            'profit_pct' => $pct,
+        ];
+        $totInv += $invCnt;
+        $totNet += $net;
+        $totCost += $cost;
+        $totProfit += $profit;
+    }
+
+    $totPct = $totNet != 0.0 ? round(100.0 * $totProfit / $totNet, 3) : 0.0;
+
+    return [
+        'ok' => true,
+        'message' => $rows === [] ? 'لا توجد حركات مبيعات في الفترة المحددة.' : '',
+        'rows' => $rows,
+        'totals' => [
+            'inv_cnt' => $totInv,
+            'net' => round($totNet, 3),
+            'cost' => round($totCost, 3),
+            'profit' => round($totProfit, 3),
+            'profit_pct' => $totPct,
+        ],
+        'filters' => [
+            'from' => $fromIso,
+            'to' => $toIso,
+            'store' => $storeNum,
+            'rep_from' => $repFrom,
+            'rep_to' => $repTo,
+            'sale_type' => $saleType,
+            'comp_num' => $compNum,
+        ],
+    ];
+}

@@ -80,6 +80,22 @@ return [
     ],
 
     /**
+     * صافي فواتير مبيعات المندوب (INVREP050) — ملخص من MAS.DAILY
+     * المندوب من CUSTOMER.CUS_SALESMAN ، الاسم من EMP_INFO
+     */
+    'rep_net_sales' => [
+        'owner' => 'MAS',
+        'table' => 'DAILY',
+        'customer_owner' => 'ACCINV',
+        'customer_table' => 'CUSTOMER',
+        'emp_owner' => 'ACCINV',
+        'emp_table' => 'EMP_INFO',
+        'sale_type' => 9,
+        'comp_num' => 1,
+        'default_store' => 4,
+    ],
+
+    /**
      * فاتورة بيع Oracle (شاشة INV00024) — بنود من MAS.DAILY
      * TYPE = 9 مبيعات
      */

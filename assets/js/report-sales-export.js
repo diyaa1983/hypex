@@ -23,6 +23,7 @@
     report_party_statement: true,
     report_oracle_customer_statement: true,
     report_oracle_sales_invoice: true,
+    report_oracle_rep_net_sales: true,
     report_customer_statement: true,
     report_supplier_statement: true,
     report_receivables: true,

@@ -1368,6 +1368,121 @@ router.get('/sales/reports/returns-totals', guard('report_sales_returns_totals')
   })
 );
 
+/* ═══════════════ صافي مبيعات المندوب Oracle ═══════════════ */
+router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_sales'), async (req, res) => {
+  const BASE = '/sales/reports/oracle-rep-net-sales';
+  const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
+  const store = Number(req.query.store || 4) || 4;
+  const repFromRaw = String(req.query.rep_from || '').trim();
+  const repToRaw = String(req.query.rep_to || '').trim();
+  const repFrom = repFromRaw !== '' ? Number(repFromRaw) || null : null;
+  const repTo = repToRaw !== '' ? Number(repToRaw) || null : null;
+  const run = String(req.query.run || '') === '1';
+  const uid = Number(req.session.user?.id || 0) || 0;
+
+  let err = '';
+  let rows = [];
+  let totals = { inv_cnt: 0, net: 0, cost: 0, profit: 0, profit_pct: 0 };
+
+  if (run) {
+    const data = await accNative.run('oracle_rep_net_sales', uid, {
+      from: range.from,
+      to: range.to,
+      store,
+      rep_from: repFrom,
+      rep_to: repTo,
+    });
+    if (!data || data.ok === false) {
+      err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+    } else {
+      rows = Array.isArray(data.rows) ? data.rows : [];
+      totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
+      if (!rows.length && data.message) err = String(data.message);
+    }
+  }
+
+  const rowsHtml =
+    rows
+      .map(
+        (r) => `<tr>
+      <td class="si-num" dir="ltr">${esc(r.rep_no)}</td>
+      <td>${esc(r.rep_name || '')}</td>
+      <td class="si-num" dir="ltr">${esc(r.inv_cnt)}</td>
+      <td class="si-num" dir="ltr">${esc(fmtAmt(r.net))}</td>
+      <td class="si-num" dir="ltr">${esc(fmtAmt(r.cost))}</td>
+      <td class="si-num" dir="ltr">${esc(fmtAmt(r.profit))}</td>
+      <td class="si-num" dir="ltr">${esc(fmtAmt(r.profit_pct))}</td>
+    </tr>`
+      )
+      .join('') || (run && !err ? ui.emptyRow(7, 'لا توجد بيانات') : '');
+
+  const foot =
+    rows.length > 0
+      ? `<tr>
+          <td colspan="2" style="font-weight:800">الإجمالي</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${esc(totals.inv_cnt)}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.net))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.cost))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.profit))}</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.profit_pct))}</td>
+        </tr>`
+      : '';
+
+  let tableBlock = '';
+  if (err) {
+    tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
+  } else if (run) {
+    tableBlock = ui.tableSurface(
+      'ملخص المندوبين — Oracle',
+      `${rows.length} مندوب`,
+      ['رقم المندوب', 'اسم المندوب', 'فواتير', 'الصافي', 'التكلفة', 'الربح', 'الربح %'],
+      rowsHtml + foot
+    );
+  }
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '📊',
+        kicker: 'Hypex Sales · Oracle',
+        title: 'صافي فواتير مبيعات المندوب',
+        subtitle: `من ${range.from} إلى ${range.to} · مستودع ${store}`,
+        actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
+      })}
+      <div class="si-rail no-print">
+        <form method="get" action="${esc(BASE)}" class="si-search" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end">
+          <input type="hidden" name="run" value="1" />
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من
+            <input class="si-field" type="date" name="from" value="${esc(range.from)}">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى
+            <input class="si-field" type="date" name="to" value="${esc(range.to)}">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع
+            <input class="si-field" type="number" name="store" value="${store}" dir="ltr" min="1" style="width:5rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">مندوب من
+            <input class="si-field" type="number" name="rep_from" value="${repFrom != null ? repFrom : ''}" placeholder="الكل" dir="ltr" style="width:5rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">مندوب إلى
+            <input class="si-field" type="number" name="rep_to" value="${repTo != null ? repTo : ''}" placeholder="الكل" dir="ltr" style="width:5rem">
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+        </form>
+      </div>
+      <div class="si-print-area">${tableBlock}</div>
+    </div>`;
+
+  return res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'صافي مبيعات المندوب Oracle',
+      bodyHtml: body,
+      js: ['/assets/js/sales-print.js'],
+    })
+  );
+});
+
 /* صورة QR المحفوظة من Oracle Forms — لا نكشف مسار القرص للمتصفح */
 router.get(
   '/sales/reports/oracle-sales-invoice/qr',

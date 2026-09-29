@@ -47,6 +47,7 @@ return [
                     'items' => [
                         ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
                         ['r' => 'report_oracle_sales_invoice', 'label' => 'فاتورة بيع Oracle', 'icon' => '🧾'],
+                        ['r' => 'report_oracle_rep_net_sales', 'label' => 'صافي مبيعات المندوب Oracle', 'icon' => '📊'],
                         ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
                         ['r' => 'sales_unpaid_invoices', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
                         ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],

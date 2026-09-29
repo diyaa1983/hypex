@@ -197,6 +197,7 @@ $appBootMigrations = [
     'database/migrations/271_report_sales_rep_visits.sql',
     'database/migrations/273_report_customer_orders_by_item.sql',
     'database/migrations/274_report_oracle_sales_invoice.sql',
+    'database/migrations/288_report_oracle_rep_net_sales.sql',
     'database/migrations/275_sal_rep_visit_in_plan.sql',
     'database/migrations/276_rep_visit_no_order_reasons.sql',
     'database/migrations/277_crm_customer_gps_change.sql',

@@ -11,6 +11,7 @@ const salesCatalog = [
     items: [
       { r: 'sales_invoices', label: 'فاتورة مبيعات', icon: '🧾', path: '/sales/invoices/new', kind: 'doc' },
       { r: 'report_oracle_sales_invoice', label: 'فاتورة بيع Oracle', icon: '🧾', path: '/sales/reports/oracle-sales-invoice', kind: 'report' },
+      { r: 'report_oracle_rep_net_sales', label: 'صافي مبيعات المندوب Oracle', icon: '📊', path: '/sales/reports/oracle-rep-net-sales', kind: 'report' },
       { r: 'sales_documents_list', label: 'قائمة فواتير المبيعات', icon: '📑', path: '/sales/documents', kind: 'list' },
       { r: 'sales_unpaid_invoices', label: 'فواتير البيع غير المسددة', icon: '🔴', path: '/sales/unpaid', kind: 'list' },
       { r: 'sales_invoices_list', label: 'ترحيل فواتير المبيعات', icon: '📋', path: '/sales/posting', kind: 'list' },

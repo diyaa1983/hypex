@@ -132,5 +132,6 @@ function node_desktop_screen_path_map(): array
         'report_party_statement' => '/accounting/reports/party-statement',
         'report_oracle_customer_statement' => '/accounting/reports/oracle-statement',
         'report_oracle_sales_invoice' => '/sales/reports/oracle-sales-invoice',
+        'report_oracle_rep_net_sales' => '/sales/reports/oracle-rep-net-sales',
     ];
 }

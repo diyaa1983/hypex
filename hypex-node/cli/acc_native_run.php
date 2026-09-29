@@ -404,6 +404,24 @@ try {
         }
     }
 
+    /* ─── oracle rep net sales (INVREP050 summary) ─── */
+    if ($action === 'oracle_rep_net_sales') {
+        require_once app_path('includes/oracle_rep_net_sales.php');
+        $store = (int) ($payload['store'] ?? 0);
+        $repFrom = isset($payload['rep_from']) && $payload['rep_from'] !== '' && $payload['rep_from'] !== null
+            ? (int) $payload['rep_from']
+            : null;
+        $repTo = isset($payload['rep_to']) && $payload['rep_to'] !== '' && $payload['rep_to'] !== null
+            ? (int) $payload['rep_to']
+            : null;
+        try {
+            $result = oracle_fetch_rep_net_sales($from, $to, $store > 0 ? $store : null, $repFrom, $repTo);
+            cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
+        } catch (Throwable $e) {
+            cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'تعذر الاتصال بـ Oracle.'], 1);
+        }
+    }
+
     /* ─── period close ─── */
     if ($action === 'periods_get' || $action === 'periods_save') {
         require_once app_path('includes/acc_period_lock.php');
