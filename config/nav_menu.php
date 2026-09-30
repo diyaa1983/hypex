@@ -47,7 +47,6 @@ return [
                     'items' => [
                         ['r' => 'sales_invoices', 'label' => 'فاتورة مبيعات', 'icon' => '🧾'],
                         ['r' => 'report_oracle_sales_invoice', 'label' => 'فاتورة بيع Oracle', 'icon' => '🧾'],
-                        ['r' => 'report_oracle_rep_net_sales', 'label' => 'صافي مبيعات المندوب Oracle', 'icon' => '📊'],
                         ['r' => 'sales_documents_list', 'label' => 'قائمة فواتير المبيعات', 'icon' => '📑'],
                         ['r' => 'sales_unpaid_invoices', 'label' => 'فواتير البيع غير المسددة', 'icon' => '🔴'],
                         ['r' => 'sales_invoices_list', 'label' => 'ترحيل فواتير المبيعات', 'icon' => '📋'],
@@ -129,6 +128,7 @@ return [
                         ['r' => 'report_sales_by_item', 'label' => 'تقرير المبيعات حسب المادة', 'icon' => '📦'],
                         ['r' => 'report_sales_by_region', 'label' => 'تقرير المبيعات حسب المنطقة', 'icon' => '🗺️'],
                         ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
+                        ['r' => 'report_oracle_rep_net_sales', 'label' => 'صافي مبيعات المندوب Oracle', 'icon' => '📊'],
                         ['r' => 'report_sales_detailed', 'label' => 'تقرير المبيعات التفصيلي', 'icon' => '📋'],
                         ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
                         ['r' => 'report_sales_invoice_discount', 'label' => 'الخصم على الفواتير', 'icon' => '🏷️'],

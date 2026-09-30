@@ -1373,33 +1373,71 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   const BASE = '/sales/reports/oracle-rep-net-sales';
   const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const store = Number(req.query.store || 4) || 4;
-  const repFromRaw = String(req.query.rep_from || '').trim();
-  const repToRaw = String(req.query.rep_to || '').trim();
-  const repFrom = repFromRaw !== '' ? Number(repFromRaw) || null : null;
-  const repTo = repToRaw !== '' ? Number(repToRaw) || null : null;
-  const run = String(req.query.run || '') === '1';
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const run = String(req.query.run || '') === '1' || salesRepId > 0;
   const uid = Number(req.session.user?.id || 0) || 0;
+  const reps = await q.listRepsSimple();
+
+  function parseOracleRepNo(code) {
+    const s = String(code || '').trim();
+    if (/^[1-9]\d*$/.test(s)) return Number(s);
+    const m = s.match(/(\d+)/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > 0 && n < 100000) return n;
+    }
+    return 0;
+  }
 
   let err = '';
   let rows = [];
   let totals = { inv_cnt: 0, net: 0, cost: 0, profit: 0, profit_pct: 0 };
+  let repName = '';
 
   if (run) {
-    const data = await accNative.run('oracle_rep_net_sales', uid, {
-      from: range.from,
-      to: range.to,
-      store,
-      rep_from: repFrom,
-      rep_to: repTo,
-    });
-    if (!data || data.ok === false) {
-      err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
-    } else {
-      rows = Array.isArray(data.rows) ? data.rows : [];
-      totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
-      if (!rows.length && data.message) err = String(data.message);
+    let repFrom = null;
+    let repTo = null;
+    if (salesRepId > 0) {
+      const rep = reps.find((r) => Number(r.id) === salesRepId);
+      if (!rep) {
+        err = 'المندوب غير موجود.';
+      } else {
+        repName = rep.name_ar || '';
+        const oracleNo = parseOracleRepNo(rep.code || '');
+        if (oracleNo < 1) {
+          err = 'رمز المندوب في النظام لا يطابق رقم مندوب Oracle. راجع رمز المندوب.';
+        } else {
+          repFrom = oracleNo;
+          repTo = oracleNo;
+        }
+      }
+    }
+
+    if (!err) {
+      const data = await accNative.run('oracle_rep_net_sales', uid, {
+        from: range.from,
+        to: range.to,
+        store,
+        rep_from: repFrom,
+        rep_to: repTo,
+      });
+      if (!data || data.ok === false) {
+        err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+      } else {
+        rows = Array.isArray(data.rows) ? data.rows : [];
+        totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
+        if (!rows.length && data.message) err = String(data.message);
+      }
     }
   }
+
+  const repsJson = JSON.stringify(
+    reps.map((r) => ({
+      id: Number(r.id) || 0,
+      code: String(r.code || ''),
+      name_ar: String(r.name_ar || ''),
+    }))
+  ).replace(/</g, '\\u003c');
 
   const rowsHtml =
     rows
@@ -1433,7 +1471,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
   } else if (run) {
     tableBlock = ui.tableSurface(
-      'ملخص المندوبين — Oracle',
+      repName ? `مندوب: ${esc(repName)}` : 'ملخص المندوبين — Oracle',
       `${rows.length} مندوب`,
       ['رقم المندوب', 'اسم المندوب', 'فواتير', 'الصافي', 'التكلفة', 'الربح', 'الربح %'],
       rowsHtml + foot
@@ -1441,36 +1479,62 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   }
 
   const body = `
-    <div class="si-stage si-report-page">
+    <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_net_sales">
       ${ui.hero({
         mark: '📊',
-        kicker: 'Hypex Sales · Oracle',
-        title: 'صافي فواتير مبيعات المندوب',
-        subtitle: `من ${range.from} إلى ${range.to} · مستودع ${store}`,
+        kicker: 'تقارير المبيعات',
+        title: 'صافي فواتير مبيعات المندوب (Oracle)',
+        subtitle: '',
         actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
       })}
-      <div class="si-rail no-print">
-        <form method="get" action="${esc(BASE)}" class="si-search" style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end">
+      <div class="card report-sales-page" style="margin:.75rem 1rem 1.25rem;padding:1rem 1.1rem;">
+        <form method="get" action="${esc(BASE)}" class="report-sales-filters no-print">
           <input type="hidden" name="run" value="1" />
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من
-            <input class="si-field" type="date" name="from" value="${esc(range.from)}">
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى
-            <input class="si-field" type="date" name="to" value="${esc(range.to)}">
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع
-            <input class="si-field" type="number" name="store" value="${store}" dir="ltr" min="1" style="width:5rem">
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">مندوب من
-            <input class="si-field" type="number" name="rep_from" value="${repFrom != null ? repFrom : ''}" placeholder="الكل" dir="ltr" style="width:5rem">
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">مندوب إلى
-            <input class="si-field" type="number" name="rep_to" value="${repTo != null ? repTo : ''}" placeholder="الكل" dir="ltr" style="width:5rem">
-          </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+          <div class="form-row">
+            <label class="field" style="flex:1 1 16rem;">
+              <span class="field-label">المندوب</span>
+              <div class="report-cust-pick" id="report-sales-rep-pick">
+                <input type="hidden" name="sales_rep_id" data-rep-id value="${salesRepId > 0 ? salesRepId : ''}">
+                <input type="text" class="input report-cust-pick-inp" data-rep-search
+                       placeholder="ابحث باسم المندوب أو الرمز… (فارغ = الكل)" autocomplete="off" spellcheck="false"
+                       aria-label="بحث عن مندوب">
+                <div class="report-cust-pick-list" data-rep-list hidden></div>
+              </div>
+            </label>
+            <label class="field">
+              <span class="field-label">من تاريخ *</span>
+              <input class="input js-date-dmy" type="text" name="from" value="${esc(isoToDmy(range.from))}"
+                     placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
+            </label>
+            <label class="field">
+              <span class="field-label">إلى تاريخ *</span>
+              <input class="input js-date-dmy" type="text" name="to" value="${esc(isoToDmy(range.to))}"
+                     placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
+            </label>
+            <label class="field">
+              <span class="field-label">المستودع</span>
+              <input class="input" type="number" name="store" value="${store}" min="1" dir="ltr">
+            </label>
+          </div>
+          <div style="margin-top:0.5rem;">
+            <button class="btn btn-primary" type="submit">عرض التقرير</button>
+          </div>
         </form>
+        <div class="si-print-area report-sales-result" style="margin-top:1rem;">${tableBlock}</div>
       </div>
-      <div class="si-print-area">${tableBlock}</div>
+      <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
+      <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('report-sales-reps-json');
+        var root = document.getElementById('report-sales-rep-pick');
+        if (!el || !root || !window.ReportRepPicker) return;
+        var reps = [];
+        try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
+        var hidden = root.querySelector('[data-rep-id]');
+        var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
+        window.ReportRepPicker.init(root, reps, { initialId: initialId });
+      });
+      </script>
     </div>`;
 
   return res.send(
@@ -1478,7 +1542,12 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
       user: req.session.user,
       title: 'صافي مبيعات المندوب Oracle',
       bodyHtml: body,
-      js: ['/assets/js/sales-print.js'],
+      css: [
+        '/assets/css/app.css',
+        '/assets/css/report-sales.css',
+        '/assets/css/sales-invoice.css',
+      ],
+      js: ['/assets/js/report-rep-picker.js', '/assets/js/sales-print.js'],
     })
   );
 });

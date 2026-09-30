@@ -11,7 +11,6 @@ const salesCatalog = [
     items: [
       { r: 'sales_invoices', label: 'فاتورة مبيعات', icon: '🧾', path: '/sales/invoices/new', kind: 'doc' },
       { r: 'report_oracle_sales_invoice', label: 'فاتورة بيع Oracle', icon: '🧾', path: '/sales/reports/oracle-sales-invoice', kind: 'report' },
-      { r: 'report_oracle_rep_net_sales', label: 'صافي مبيعات المندوب Oracle', icon: '📊', path: '/sales/reports/oracle-rep-net-sales', kind: 'report' },
       { r: 'sales_documents_list', label: 'قائمة فواتير المبيعات', icon: '📑', path: '/sales/documents', kind: 'list' },
       { r: 'sales_unpaid_invoices', label: 'فواتير البيع غير المسددة', icon: '🔴', path: '/sales/unpaid', kind: 'list' },
       { r: 'sales_invoices_list', label: 'ترحيل فواتير المبيعات', icon: '📋', path: '/sales/posting', kind: 'list' },
@@ -67,6 +66,7 @@ const salesCatalog = [
       { r: 'report_sales_by_item', label: 'تقرير المبيعات حسب المادة', icon: '📦', path: '/sales/reports/by-item', kind: 'report' },
       { r: 'report_sales_by_region', label: 'تقرير المبيعات حسب المنطقة', icon: '🗺️', path: '/sales/reports/by-region', kind: 'report' },
       { r: 'report_sales_by_rep', label: 'تقرير المبيعات حسب المندوب', icon: '📊', path: '/sales/reports/by-rep', kind: 'report' },
+      { r: 'report_oracle_rep_net_sales', label: 'صافي مبيعات المندوب Oracle', icon: '📊', path: '/sales/reports/oracle-rep-net-sales', kind: 'report' },
       { r: 'report_sales_detailed', label: 'تقرير المبيعات وطلبات الشراء', icon: '📋', path: '/sales/reports/detailed', kind: 'report' },
       { r: 'report_sales_qty_extra', label: 'تقرير الكميات الإضافية', icon: '➕', path: '/sales/reports/qty-extra', kind: 'report' },
       { r: 'report_sales_invoice_discount', label: 'الخصم على الفواتير', icon: '🏷', path: '/sales/reports/discount', kind: 'report' },
