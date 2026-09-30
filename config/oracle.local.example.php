@@ -81,7 +81,8 @@ return [
 
     /**
      * صافي فواتير مبيعات المندوب (INVREP050) — ملخص من MAS.DAILY
-     * المندوب من CUSTOMER.CUS_SALESMAN ، الاسم من EMP_INFO
+     * المندوب من DAILY.MAN_NUM (مندوب الفاتورة، مثل Forms) — أو cus_salesman لمندوب بطاقة العميل
+     * الصافي: Σ(QTY×SELL×(1−DISC)) − VOU_DISC مرة/فاتورة — الاسم من EMP_INFO
      */
     'rep_net_sales' => [
         'owner' => 'MAS',
@@ -90,6 +91,7 @@ return [
         'customer_table' => 'CUSTOMER',
         'emp_owner' => 'ACCINV',
         'emp_table' => 'EMP_INFO',
+        'rep_key' => 'man_num', // man_num | cus_salesman
         'sale_type' => 9,
         'comp_num' => 1,
         'default_store' => 4,

@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * صافي فواتير مبيعات المندوب من Oracle (INVREP050)
- * مصدر البيانات: MAS.DAILY (TYPE=9) + ACCINV.CUSTOMER.CUS_SALESMAN + EMP_INFO
+ * مصدر البيانات: MAS.DAILY (TYPE=9) حسب MAN_NUM (مندوب الفاتورة) + EMP_INFO
+ * الصافي = Σ(QTY×SELL×(1−DISC)) − VOU_DISC مرة واحدة لكل فاتورة
  * قراءة فقط.
  */
 
@@ -13,7 +14,8 @@ require_once app_path('includes/oracle_sales_invoice.php');
 /**
  * @return array{
  *   owner:string, table:string, customer_owner:string, customer_table:string,
- *   emp_owner:string, emp_table:string, sale_type:int, comp_num:int, default_store:int
+ *   emp_owner:string, emp_table:string, sale_type:int, comp_num:int, default_store:int,
+ *   rep_key:string
  * }
  */
 function oracle_rep_net_sales_cfg(): array
@@ -24,6 +26,10 @@ function oracle_rep_net_sales_cfg(): array
 
     $owner = strtoupper(trim((string) ($s['owner'] ?? ($inv['owner'] ?? 'MAS'))));
     $table = strtoupper(trim((string) ($s['table'] ?? ($inv['table'] ?? 'DAILY'))));
+    $repKey = strtolower(trim((string) ($s['rep_key'] ?? 'man_num')));
+    if ($repKey !== 'cus_salesman' && $repKey !== 'man_num') {
+        $repKey = 'man_num';
+    }
 
     return [
         'owner' => $owner !== '' ? $owner : 'MAS',
@@ -35,6 +41,7 @@ function oracle_rep_net_sales_cfg(): array
         'sale_type' => (int) ($s['sale_type'] ?? ($inv['sale_type'] ?? 9)),
         'comp_num' => (int) ($s['comp_num'] ?? ($inv['comp_num'] ?? 1)),
         'default_store' => (int) ($s['default_store'] ?? ($inv['default_store'] ?? 4)),
+        'rep_key' => $repKey,
     ];
 }
 
@@ -83,17 +90,39 @@ function oracle_fetch_rep_net_sales(
     $storeNum = $store !== null && $store > 0 ? $store : (int) $c['default_store'];
     $saleType = (int) $c['sale_type'];
     $compNum = (int) $c['comp_num'];
+    $useManNum = ($c['rep_key'] ?? 'man_num') === 'man_num';
 
     $fromQ = oracle_stmt_q($c['owner']) . '.' . oracle_stmt_q($c['table']);
     $cusQ = oracle_stmt_q($c['customer_owner']) . '.' . oracle_stmt_q($c['customer_table']);
     $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
 
-    $sql = "
+    // DISC كسر سطر (مثل الترحيل) — لا نطرح PER_DISC مع VOU_DISC معاً (نفس خصم الرأس)
+    $lineNetExpr = 'NVL(d.QTY, 0) * NVL(d.SELL, 0) * (1 - NVL(d.DISC, 0))';
+
+    if ($useManNum) {
+        $sql = "
+WITH inv AS (
+  SELECT d.VYEAR,
+         d.V_NUM,
+         d.MAN_NUM AS REP_NO,
+         SUM({$lineNetExpr}) AS GROSS,
+         MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
+         SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT
+  FROM {$fromQ} d
+  WHERE d.COMP_NUM = :comp_num
+    AND d.TYPE = :sale_type
+    AND d.STORE = :store_num
+    AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+    AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+    AND d.MAN_NUM IS NOT NULL
+";
+    } else {
+        $sql = "
 WITH inv AS (
   SELECT d.VYEAR,
          d.V_NUM,
          c.CUS_SALESMAN AS REP_NO,
-         SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS,
+         SUM({$lineNetExpr}) AS GROSS,
          MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
          SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT
   FROM {$fromQ} d
@@ -105,6 +134,7 @@ WITH inv AS (
     AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
     AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
 ";
+    }
 
     $binds = [
         'comp_num' => $compNum,
@@ -115,17 +145,29 @@ WITH inv AS (
     ];
 
     if ($repFrom !== null && $repFrom > 0) {
-        $sql .= "    AND c.CUS_SALESMAN >= :rep_from\n";
+        if ($useManNum) {
+            $sql .= "    AND d.MAN_NUM >= :rep_from\n";
+        } else {
+            $sql .= "    AND c.CUS_SALESMAN >= :rep_from\n";
+        }
         $binds['rep_from'] = $repFrom;
     }
     if ($repTo !== null && $repTo > 0) {
-        $sql .= "    AND c.CUS_SALESMAN <= :rep_to\n";
+        if ($useManNum) {
+            $sql .= "    AND d.MAN_NUM <= :rep_to\n";
+        } else {
+            $sql .= "    AND c.CUS_SALESMAN <= :rep_to\n";
+        }
         $binds['rep_to'] = $repTo;
     }
 
-    $sql .= "
-  GROUP BY d.VYEAR, d.V_NUM, c.CUS_SALESMAN
-)
+    if ($useManNum) {
+        $sql .= "  GROUP BY d.VYEAR, d.V_NUM, d.MAN_NUM\n";
+    } else {
+        $sql .= "  GROUP BY d.VYEAR, d.V_NUM, c.CUS_SALESMAN\n";
+    }
+
+    $sql .= ")
 SELECT i.REP_NO,
        e.EMP_NAME,
        COUNT(*) AS INV_CNT,
@@ -211,6 +253,7 @@ ORDER BY i.REP_NO
             'rep_to' => $repTo,
             'sale_type' => $saleType,
             'comp_num' => $compNum,
+            'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
         ],
     ];
 }
