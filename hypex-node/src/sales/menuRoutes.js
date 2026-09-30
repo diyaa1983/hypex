@@ -1481,8 +1481,9 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
             · إجمالي قبل الخصم: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
             · خصم فاتورة: <span dir="ltr">${esc(fmtAmt(f.vou_disc || 0))}</span>
             · مجموع DISC: <span dir="ltr">${esc(fmtAmt(f.disc_sum || 0))}</span>
+            · بونص×سعر: <span dir="ltr">${esc(fmtAmt(f.bonus_sell || 0))}</span>
+            · بونص×تكلفة: <span dir="ltr">${esc(fmtAmt(f.bonus_cost || 0))}</span>
             · ضريبة: <span dir="ltr">${esc(fmtAmt(f.tax_sum || 0))}</span>
-            · صافي−ضريبة: <span dir="ltr">${esc(fmtAmt(f.net_minus_tax || 0))}</span>
           </p>`
         : '';
     tableBlock =
