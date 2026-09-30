@@ -1483,22 +1483,15 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
       f.formula
         ? `<p class="muted no-print" style="margin:0 0 .35rem;font-size:.8rem;line-height:1.6">
             معادلة: <code>${esc(String(f.formula))}</code>
-            · مفتاح: <code>${esc(String(f.rep_key || ''))}</code>
             · رقم Oracle: <span dir="ltr">${esc(String(f.rep_from ?? 'الكل'))}</span>
-            · قبل الخصم: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
+            · SELL: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
+            · SELL_BTAX: <span dir="ltr">${esc(fmtAmt(f.gross_btax || 0))}</span>
+            · فرق ضريبة السعر: <span dir="ltr">${esc(fmtAmt(f.sell_tax_gap || 0))}</span>
             · خصم فاتورة: <span dir="ltr">${esc(fmtAmt(f.vou_disc || 0))}</span>
-            · بونص×سعر: <span dir="ltr">${esc(fmtAmt(f.bonus_sell || 0))}</span>
-            · بونص صافي (كمية0): <span dir="ltr">${esc(fmtAmt(f.pure_bonus_sell || 0))}</span>
-            · بونص تكلفة (كمية0): <span dir="ltr">${esc(fmtAmt(f.pure_bonus_cost || 0))}</span>
-            · مرتجع صافي: <span dir="ltr">${esc(fmtAmt(f.returns_net || 0))}</span>
-            · مرتجع تكلفة: <span dir="ltr">${esc(fmtAmt(f.returns_cost || 0))}</span>
           </p>
           <p class="muted no-print" style="margin:0 0 .75rem;font-size:.78rem;line-height:1.55">
-            مرشّحات Forms —
-            ${candLine('base', 'أساس')}
-            ${cand.minus_pure_bonus ? ' · ' + candLine('minus_pure_bonus', 'بونص كمية0') : ''}
-            ${cand.minus_all_bonus ? ' · ' + candLine('minus_all_bonus', 'كل البونص') : ''}
-            ${cand.with_returns ? ' · ' + candLine('with_returns', 'مع مرتجع') : ''}
+            ${candLine('base', 'المعتمد')}
+            ${cand.sell_not_btax ? ' · ' + candLine('sell_not_btax', 'لو SELL') : ''}
           </p>`
         : '';
     tableBlock =
