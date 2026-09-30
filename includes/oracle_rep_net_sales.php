@@ -96,8 +96,13 @@ function oracle_fetch_rep_net_sales(
     $cusQ = oracle_stmt_q($c['customer_owner']) . '.' . oracle_stmt_q($c['customer_table']);
     $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
 
-    // DISC كسر سطر (مثل الترحيل) — لا نطرح PER_DISC مع VOU_DISC معاً (نفس خصم الرأس)
-    $lineNetExpr = 'NVL(d.QTY, 0) * NVL(d.SELL, 0) * (1 - NVL(d.DISC, 0))';
+    // DISC: كسر إن كان ≤1، وإلا مبلغ (بيانات Forms القديمة قد تختلف)
+    $lineNetExpr = 'NVL(d.QTY, 0) * NVL(d.SELL, 0)
+         - CASE
+             WHEN NVL(d.DISC, 0) <= 1
+             THEN NVL(d.QTY, 0) * NVL(d.SELL, 0) * NVL(d.DISC, 0)
+             ELSE NVL(d.DISC, 0)
+           END';
 
     if ($useManNum) {
         $sql = "
@@ -107,7 +112,10 @@ WITH inv AS (
          d.MAN_NUM AS REP_NO,
          SUM({$lineNetExpr}) AS GROSS,
          MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
-         SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT
+         SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT,
+         SUM(NVL(d.DISC, 0)) AS DISC_SUM,
+         SUM(NVL(d.VOU_TAX, 0)) AS TAX_SUM,
+         SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS_RAW
   FROM {$fromQ} d
   WHERE d.COMP_NUM = :comp_num
     AND d.TYPE = :sale_type
@@ -124,7 +132,10 @@ WITH inv AS (
          c.CUS_SALESMAN AS REP_NO,
          SUM({$lineNetExpr}) AS GROSS,
          MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
-         SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT
+         SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)) AS COST_AMT,
+         SUM(NVL(d.DISC, 0)) AS DISC_SUM,
+         SUM(NVL(d.VOU_TAX, 0)) AS TAX_SUM,
+         SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS_RAW
   FROM {$fromQ} d
   JOIN {$cusQ} c
     ON TO_CHAR(c.CUS_NUM) = TO_CHAR(d.CUST_ACC)
@@ -179,7 +190,11 @@ SELECT i.REP_NO,
          ELSE ROUND(
            100 * (SUM(i.GROSS - i.VOU_DISC) - SUM(i.COST_AMT))
                / SUM(i.GROSS - i.VOU_DISC), 3)
-       END AS PROFIT_PCT
+       END AS PROFIT_PCT,
+       ROUND(SUM(i.GROSS_RAW), 3) AS GROSS_RAW,
+       ROUND(SUM(i.VOU_DISC), 3) AS VOU_DISC_SUM,
+       ROUND(SUM(i.DISC_SUM), 6) AS DISC_SUM,
+       ROUND(SUM(i.TAX_SUM), 3) AS TAX_SUM
 FROM inv i
 LEFT JOIN {$empQ} e
   ON e.EMP_NO = i.REP_NO
@@ -207,6 +222,10 @@ ORDER BY i.REP_NO
     $totNet = 0.0;
     $totCost = 0.0;
     $totProfit = 0.0;
+    $diagGrossRaw = 0.0;
+    $diagVouDisc = 0.0;
+    $diagDisc = 0.0;
+    $diagTax = 0.0;
 
     foreach ($raw as $r) {
         $net = (float) oracle_statement_row_val($r, 'NET_AMT');
@@ -216,6 +235,10 @@ ORDER BY i.REP_NO
         $invCnt = (int) oracle_statement_row_val($r, 'INV_CNT');
         $repNo = (int) oracle_statement_row_val($r, 'REP_NO');
         $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
+        $diagGrossRaw += (float) oracle_statement_row_val($r, 'GROSS_RAW');
+        $diagVouDisc += (float) oracle_statement_row_val($r, 'VOU_DISC_SUM');
+        $diagDisc += (float) oracle_statement_row_val($r, 'DISC_SUM');
+        $diagTax += (float) oracle_statement_row_val($r, 'TAX_SUM');
 
         $rows[] = [
             'rep_no' => $repNo,
@@ -254,6 +277,12 @@ ORDER BY i.REP_NO
             'sale_type' => $saleType,
             'comp_num' => $compNum,
             'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
+            'formula' => 'man_num+disc_hybrid_v3',
+            'gross_raw' => round($diagGrossRaw, 3),
+            'vou_disc' => round($diagVouDisc, 3),
+            'disc_sum' => round($diagDisc, 6),
+            'tax_sum' => round($diagTax, 3),
+            'net_minus_tax' => round($totNet - $diagTax, 3),
         ],
     ];
 }

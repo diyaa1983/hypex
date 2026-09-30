@@ -1393,6 +1393,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   let rows = [];
   let totals = { inv_cnt: 0, net: 0, cost: 0, profit: 0, profit_pct: 0 };
   let repName = '';
+  let oraFilters = null;
 
   if (run) {
     let repFrom = null;
@@ -1426,6 +1427,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
       } else {
         rows = Array.isArray(data.rows) ? data.rows : [];
         totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
+        oraFilters = data.filters && typeof data.filters === 'object' ? data.filters : null;
         if (!rows.length && data.message) err = String(data.message);
       }
     }
@@ -1470,12 +1472,27 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   if (err) {
     tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
   } else if (run) {
-    tableBlock = ui.tableSurface(
-      repName ? `مندوب: ${esc(repName)}` : 'ملخص المندوبين — Oracle',
-      `${rows.length} مندوب`,
-      ['رقم المندوب', 'اسم المندوب', 'فواتير', 'الصافي', 'التكلفة', 'الربح', 'الربح %'],
-      rowsHtml + foot
-    );
+    const f = oraFilters || {};
+    const diag =
+      f.formula
+        ? `<p class="muted no-print" style="margin:0 0 .75rem;font-size:.8rem;line-height:1.6">
+            معادلة: <code>${esc(String(f.formula))}</code>
+            · مفتاح المندوب: <code>${esc(String(f.rep_key || ''))}</code>
+            · إجمالي قبل الخصم: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
+            · خصم فاتورة: <span dir="ltr">${esc(fmtAmt(f.vou_disc || 0))}</span>
+            · مجموع DISC: <span dir="ltr">${esc(fmtAmt(f.disc_sum || 0))}</span>
+            · ضريبة: <span dir="ltr">${esc(fmtAmt(f.tax_sum || 0))}</span>
+            · صافي−ضريبة: <span dir="ltr">${esc(fmtAmt(f.net_minus_tax || 0))}</span>
+          </p>`
+        : '';
+    tableBlock =
+      diag +
+      ui.tableSurface(
+        repName ? `مندوب: ${esc(repName)}` : 'ملخص المندوبين — Oracle',
+        `${rows.length} مندوب`,
+        ['رقم المندوب', 'اسم المندوب', 'فواتير', 'الصافي', 'التكلفة', 'الربح', 'الربح %'],
+        rowsHtml + foot
+      );
   }
 
   const body = `
