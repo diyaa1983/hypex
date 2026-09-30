@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 /**
  * صافي فواتير مبيعات المندوب من Oracle (INVREP050)
- * مصدر البيانات: MAS.DAILY (TYPE=9) حسب MAN_NUM (مندوب الفاتورة) + EMP_INFO
- * الصافي = Σ(QTY×SELL×(1−DISC)) − VOU_DISC مرة واحدة لكل فاتورة
+ * مصدر البيانات: MAS.DAILY (TYPE=9) حسب MAN_NUM + EMP_INFO
+ * الصافي = Σ(QTY×SELL بعد DISC) − VOU_DISC مرة/فاتورة
+ * التكلفة = Σ(QTY×JD_COST)
  * قراءة فقط.
  */
 
@@ -96,16 +97,14 @@ function oracle_fetch_rep_net_sales(
     $cusQ = oracle_stmt_q($c['customer_owner']) . '.' . oracle_stmt_q($c['customer_table']);
     $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
 
-    // صافي البند: كمية البيع بعد خصم السطر − قيمة البونص (مثل INVREP050 غالباً)
-    // DISC: كسر إن ≤1 وإلا مبلغ. التكلفة على (QTY+BONUS).
+    // أساس INVREP: كمية البيع فقط (بدون طرح/إضافة بونص كامل — جُرّب وبعُد عن Forms)
     $lineNetExpr = 'NVL(d.QTY, 0) * NVL(d.SELL, 0)
          - CASE
              WHEN NVL(d.DISC, 0) <= 1
              THEN NVL(d.QTY, 0) * NVL(d.SELL, 0) * NVL(d.DISC, 0)
              ELSE NVL(d.DISC, 0)
-           END
-         - NVL(d.BONUS, 0) * NVL(d.SELL, 0)';
-    $lineCostExpr = '(NVL(d.QTY, 0) + NVL(d.BONUS, 0)) * NVL(d.JD_COST, 0)';
+           END';
+    $lineCostExpr = 'NVL(d.QTY, 0) * NVL(d.JD_COST, 0)';
 
     if ($useManNum) {
         $sql = "
@@ -120,7 +119,11 @@ WITH inv AS (
          SUM(NVL(d.VOU_TAX, 0)) AS TAX_SUM,
          SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS_RAW,
          SUM(NVL(d.BONUS, 0) * NVL(d.SELL, 0)) AS BONUS_SELL,
-         SUM(NVL(d.BONUS, 0) * NVL(d.JD_COST, 0)) AS BONUS_COST
+         SUM(NVL(d.BONUS, 0) * NVL(d.JD_COST, 0)) AS BONUS_COST,
+         SUM(CASE WHEN NVL(d.QTY, 0) = 0 AND NVL(d.BONUS, 0) > 0
+                  THEN NVL(d.BONUS, 0) * NVL(d.SELL, 0) ELSE 0 END) AS PURE_BONUS_SELL,
+         SUM(CASE WHEN NVL(d.QTY, 0) = 0 AND NVL(d.BONUS, 0) > 0
+                  THEN NVL(d.BONUS, 0) * NVL(d.JD_COST, 0) ELSE 0 END) AS PURE_BONUS_COST
   FROM {$fromQ} d
   WHERE d.COMP_NUM = :comp_num
     AND d.TYPE = :sale_type
@@ -142,7 +145,11 @@ WITH inv AS (
          SUM(NVL(d.VOU_TAX, 0)) AS TAX_SUM,
          SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS_RAW,
          SUM(NVL(d.BONUS, 0) * NVL(d.SELL, 0)) AS BONUS_SELL,
-         SUM(NVL(d.BONUS, 0) * NVL(d.JD_COST, 0)) AS BONUS_COST
+         SUM(NVL(d.BONUS, 0) * NVL(d.JD_COST, 0)) AS BONUS_COST,
+         SUM(CASE WHEN NVL(d.QTY, 0) = 0 AND NVL(d.BONUS, 0) > 0
+                  THEN NVL(d.BONUS, 0) * NVL(d.SELL, 0) ELSE 0 END) AS PURE_BONUS_SELL,
+         SUM(CASE WHEN NVL(d.QTY, 0) = 0 AND NVL(d.BONUS, 0) > 0
+                  THEN NVL(d.BONUS, 0) * NVL(d.JD_COST, 0) ELSE 0 END) AS PURE_BONUS_COST
   FROM {$fromQ} d
   JOIN {$cusQ} c
     ON TO_CHAR(c.CUS_NUM) = TO_CHAR(d.CUST_ACC)
@@ -203,7 +210,9 @@ SELECT i.REP_NO,
        ROUND(SUM(i.DISC_SUM), 6) AS DISC_SUM,
        ROUND(SUM(i.TAX_SUM), 3) AS TAX_SUM,
        ROUND(SUM(i.BONUS_SELL), 3) AS BONUS_SELL,
-       ROUND(SUM(i.BONUS_COST), 3) AS BONUS_COST
+       ROUND(SUM(i.BONUS_COST), 3) AS BONUS_COST,
+       ROUND(SUM(i.PURE_BONUS_SELL), 3) AS PURE_BONUS_SELL,
+       ROUND(SUM(i.PURE_BONUS_COST), 3) AS PURE_BONUS_COST
 FROM inv i
 LEFT JOIN {$empQ} e
   ON e.EMP_NO = i.REP_NO
@@ -226,6 +235,40 @@ ORDER BY i.REP_NO
         return $empty;
     }
 
+    // مرتجعات TYPE 10/11 — لتشخيص الفرق مع Forms
+    $retNet = 0.0;
+    $retCost = 0.0;
+    try {
+        $retSql = "
+SELECT ROUND(SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)), 3) AS RET_GROSS,
+       ROUND(SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)), 3) AS RET_COST
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num
+  AND d.TYPE IN (10, 11)
+  AND d.STORE = :store_num
+  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+";
+        $retBinds = [
+            'comp_num' => $compNum,
+            'store_num' => $storeNum,
+            'd_from' => $fromIso,
+            'd_to' => $toIso,
+        ];
+        if ($useManNum && $repFrom !== null && $repFrom > 0) {
+            $retSql .= "  AND d.MAN_NUM >= :rep_from AND d.MAN_NUM <= :rep_to\n";
+            $retBinds['rep_from'] = $repFrom;
+            $retBinds['rep_to'] = $repTo !== null && $repTo > 0 ? $repTo : $repFrom;
+        }
+        $retRaw = oracle_query_all($conn, $retSql, $retBinds);
+        if ($retRaw !== []) {
+            $retNet = (float) oracle_statement_row_val($retRaw[0], 'RET_GROSS');
+            $retCost = (float) oracle_statement_row_val($retRaw[0], 'RET_COST');
+        }
+    } catch (Throwable $e) {
+        // تشخيص اختياري
+    }
+
     $rows = [];
     $totInv = 0;
     $totNet = 0.0;
@@ -237,6 +280,8 @@ ORDER BY i.REP_NO
     $diagTax = 0.0;
     $diagBonusSell = 0.0;
     $diagBonusCost = 0.0;
+    $diagPureBonusSell = 0.0;
+    $diagPureBonusCost = 0.0;
 
     foreach ($raw as $r) {
         $net = (float) oracle_statement_row_val($r, 'NET_AMT');
@@ -252,6 +297,8 @@ ORDER BY i.REP_NO
         $diagTax += (float) oracle_statement_row_val($r, 'TAX_SUM');
         $diagBonusSell += (float) oracle_statement_row_val($r, 'BONUS_SELL');
         $diagBonusCost += (float) oracle_statement_row_val($r, 'BONUS_COST');
+        $diagPureBonusSell += (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL');
+        $diagPureBonusCost += (float) oracle_statement_row_val($r, 'PURE_BONUS_COST');
 
         $rows[] = [
             'rep_no' => $repNo,
@@ -269,6 +316,23 @@ ORDER BY i.REP_NO
     }
 
     $totPct = $totNet != 0.0 ? round(100.0 * $totProfit / $totNet, 3) : 0.0;
+
+    // مرشّحات تقارب Forms (10213.988 / 4801.379) للتشخيص فقط
+    $cand = [
+        'base' => ['net' => round($totNet, 3), 'cost' => round($totCost, 3)],
+        'minus_all_bonus' => [
+            'net' => round($totNet - $diagBonusSell, 3),
+            'cost' => round($totCost + $diagBonusCost, 3),
+        ],
+        'minus_pure_bonus' => [
+            'net' => round($totNet - $diagPureBonusSell, 3),
+            'cost' => round($totCost + $diagPureBonusCost, 3),
+        ],
+        'with_returns' => [
+            'net' => round($totNet + $retNet, 3),
+            'cost' => round($totCost + $retCost, 3),
+        ],
+    ];
 
     return [
         'ok' => true,
@@ -290,14 +354,18 @@ ORDER BY i.REP_NO
             'sale_type' => $saleType,
             'comp_num' => $compNum,
             'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
-            'formula' => 'man_num+bonus_v4',
+            'formula' => 'man_num+base_v5',
             'gross_raw' => round($diagGrossRaw, 3),
             'vou_disc' => round($diagVouDisc, 3),
             'disc_sum' => round($diagDisc, 6),
             'tax_sum' => round($diagTax, 3),
             'bonus_sell' => round($diagBonusSell, 3),
             'bonus_cost' => round($diagBonusCost, 3),
-            'net_minus_tax' => round($totNet - $diagTax, 3),
+            'pure_bonus_sell' => round($diagPureBonusSell, 3),
+            'pure_bonus_cost' => round($diagPureBonusCost, 3),
+            'returns_net' => round($retNet, 3),
+            'returns_cost' => round($retCost, 3),
+            'candidates' => $cand,
         ],
     ];
 }

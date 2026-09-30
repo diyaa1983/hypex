@@ -1473,17 +1473,32 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
   } else if (run) {
     const f = oraFilters || {};
+    const cand = f.candidates && typeof f.candidates === 'object' ? f.candidates : {};
+    const candLine = (key, label) => {
+      const c = cand[key];
+      if (!c) return '';
+      return `${label}: صافي <span dir="ltr">${esc(fmtAmt(c.net))}</span> / تكلفة <span dir="ltr">${esc(fmtAmt(c.cost))}</span>`;
+    };
     const diag =
       f.formula
-        ? `<p class="muted no-print" style="margin:0 0 .75rem;font-size:.8rem;line-height:1.6">
+        ? `<p class="muted no-print" style="margin:0 0 .35rem;font-size:.8rem;line-height:1.6">
             معادلة: <code>${esc(String(f.formula))}</code>
-            · مفتاح المندوب: <code>${esc(String(f.rep_key || ''))}</code>
-            · إجمالي قبل الخصم: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
+            · مفتاح: <code>${esc(String(f.rep_key || ''))}</code>
+            · رقم Oracle: <span dir="ltr">${esc(String(f.rep_from ?? 'الكل'))}</span>
+            · قبل الخصم: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
             · خصم فاتورة: <span dir="ltr">${esc(fmtAmt(f.vou_disc || 0))}</span>
-            · مجموع DISC: <span dir="ltr">${esc(fmtAmt(f.disc_sum || 0))}</span>
             · بونص×سعر: <span dir="ltr">${esc(fmtAmt(f.bonus_sell || 0))}</span>
-            · بونص×تكلفة: <span dir="ltr">${esc(fmtAmt(f.bonus_cost || 0))}</span>
-            · ضريبة: <span dir="ltr">${esc(fmtAmt(f.tax_sum || 0))}</span>
+            · بونص صافي (كمية0): <span dir="ltr">${esc(fmtAmt(f.pure_bonus_sell || 0))}</span>
+            · بونص تكلفة (كمية0): <span dir="ltr">${esc(fmtAmt(f.pure_bonus_cost || 0))}</span>
+            · مرتجع صافي: <span dir="ltr">${esc(fmtAmt(f.returns_net || 0))}</span>
+            · مرتجع تكلفة: <span dir="ltr">${esc(fmtAmt(f.returns_cost || 0))}</span>
+          </p>
+          <p class="muted no-print" style="margin:0 0 .75rem;font-size:.78rem;line-height:1.55">
+            مرشّحات Forms —
+            ${candLine('base', 'أساس')}
+            ${cand.minus_pure_bonus ? ' · ' + candLine('minus_pure_bonus', 'بونص كمية0') : ''}
+            ${cand.minus_all_bonus ? ' · ' + candLine('minus_all_bonus', 'كل البونص') : ''}
+            ${cand.with_returns ? ' · ' + candLine('with_returns', 'مع مرتجع') : ''}
           </p>`
         : '';
     tableBlock =
