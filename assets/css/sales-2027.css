@@ -451,6 +451,16 @@ body.si-2027 .si-main::before {
   border: 1px solid var(--si-line);
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 30px rgba(11, 18, 32, 0.04);
+  overflow: visible;
+}
+
+/* قائمة اختيار المندوب/العميل داخل شريط الفلاتر */
+.si-rail .report-cust-pick,
+.si-rail .si-search,
+.report-sales-filters.si-search {
+  overflow: visible;
+  position: relative;
+  z-index: 5;
 }
 
 .si-seg {
