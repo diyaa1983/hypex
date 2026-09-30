@@ -1487,41 +1487,36 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
         subtitle: '',
         actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
       })}
-      <div class="card report-sales-page" style="margin:.75rem 1rem 1.25rem;padding:1rem 1.1rem;">
-        <form method="get" action="${esc(BASE)}" class="report-sales-filters no-print">
+      <div class="si-rail no-print">
+        <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
           <input type="hidden" name="run" value="1" />
-          <div class="form-row">
-            <label class="field" style="flex:1 1 16rem;">
-              <span class="field-label">المندوب</span>
-              <div class="report-cust-pick" id="report-sales-rep-pick">
-                <input type="hidden" name="sales_rep_id" data-rep-id value="${salesRepId > 0 ? salesRepId : ''}">
-                <input type="text" class="input report-cust-pick-inp" data-rep-search
-                       placeholder="ابحث باسم المندوب أو الرمز… (فارغ = الكل)" autocomplete="off" spellcheck="false"
-                       aria-label="بحث عن مندوب">
-                <div class="report-cust-pick-list" data-rep-list hidden></div>
-              </div>
-            </label>
-            <label class="field">
-              <span class="field-label">من تاريخ *</span>
-              <input class="input js-date-dmy" type="text" name="from" value="${esc(isoToDmy(range.from))}"
-                     placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
-            </label>
-            <label class="field">
-              <span class="field-label">إلى تاريخ *</span>
-              <input class="input js-date-dmy" type="text" name="to" value="${esc(isoToDmy(range.to))}"
-                     placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
-            </label>
-            <label class="field">
-              <span class="field-label">المستودع</span>
-              <input class="input" type="number" name="store" value="${store}" min="1" dir="ltr">
-            </label>
-          </div>
-          <div style="margin-top:0.5rem;">
-            <button class="btn btn-primary" type="submit">عرض التقرير</button>
-          </div>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب
+            <div class="report-cust-pick" id="report-sales-rep-pick" style="margin-top:.25rem">
+              <input type="hidden" name="sales_rep_id" data-rep-id value="${salesRepId > 0 ? salesRepId : ''}">
+              <input type="text" class="si-field report-cust-pick-inp" data-rep-search
+                     placeholder="ابحث بالاسم أو الرمز… (فارغ = الكل)" autocomplete="off" spellcheck="false"
+                     aria-label="بحث عن مندوب" style="min-width:100%;width:100%">
+              <div class="report-cust-pick-list" data-rep-list hidden></div>
+            </div>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
+            <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(range.from))}"
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
+                   style="margin-top:.25rem;min-width:9.5rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
+            <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(range.to))}"
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
+                   style="margin-top:.25rem;min-width:9.5rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع
+            <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr"
+                   style="margin-top:.25rem;width:5.5rem">
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
         </form>
-        <div class="si-print-area report-sales-result" style="margin-top:1rem;">${tableBlock}</div>
       </div>
+      <div class="si-print-area report-sales-result">${tableBlock}</div>
       <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
       <script>
       document.addEventListener('DOMContentLoaded', function () {
@@ -1542,11 +1537,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
       user: req.session.user,
       title: 'صافي مبيعات المندوب Oracle',
       bodyHtml: body,
-      css: [
-        '/assets/css/app.css',
-        '/assets/css/report-sales.css',
-        '/assets/css/sales-invoice.css',
-      ],
+      css: ['/assets/css/report-sales.css'],
       js: ['/assets/js/report-rep-picker.js', '/assets/js/sales-print.js'],
     })
   );
