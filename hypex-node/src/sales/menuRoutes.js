@@ -1373,61 +1373,70 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   const BASE = '/sales/reports/oracle-rep-net-sales';
   const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const store = Number(req.query.store || 4) || 4;
-  // sales_rep_id = رقم مندوب Oracle (MAN_NUM) مباشرة — ليس id بطاقة هايبكس
+  // sales_rep_id = رقم مندوب Oracle (MAN_NUM) = رمز بطاقة هايبكس — ليس id الداخلي
   const oracleRepNo = Number(req.query.sales_rep_id || 0) || 0;
   const run = String(req.query.run || '') === '1' || oracleRepNo > 0;
   const uid = Number(req.session.user?.id || 0) || 0;
 
-  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
-  let repsSource = 'oracle';
-  let reps = Array.isArray(repsPayload?.rows)
-    ? repsPayload.rows.map((r) => ({
-        id: Number(r.id) || 0,
-        code: String(r.code || r.id || ''),
-        name_ar: String(r.name_ar || ''),
-      }))
-    : [];
-
-  // احتياطي: بطاقات هايبكس لكن بالقيمة = رمز المندوب (MAN_NUM) وليس id الداخلي
-  if (!reps.length) {
-    repsSource = 'hypex_code';
-    const hypexReps = await q.listRepsSimple();
-    const seen = new Set();
-    reps = [];
-    for (const r of hypexReps || []) {
-      const code = String(r.code || '').trim();
-      let manNo = 0;
-      if (/^[1-9]\d*$/.test(code)) manNo = Number(code);
-      else {
-        const m = code.match(/(\d+)/);
-        if (m) {
-          const n = Number(m[1]);
-          if (n > 0 && n < 100000) manNo = n;
-        }
-      }
-      if (manNo < 1 || seen.has(manNo)) continue;
-      seen.add(manNo);
-      reps.push({
-        id: manNo,
-        code: String(manNo),
-        name_ar: String(r.name_ar || '') || `مندوب ${manNo}`,
-      });
+  const parseManNo = (code) => {
+    const c = String(code || '').trim();
+    if (/^[1-9]\d*$/.test(c)) return Number(c);
+    const m = c.match(/(\d+)/);
+    if (m) {
+      const n = Number(m[1]);
+      if (n > 0 && n < 100000) return n;
     }
+    return 0;
+  };
+
+  // أسماء المناديب المعتمدة عندكم: بطاقة هايبكس (الرمز = MAN_NUM Forms)
+  // EMP_INFO غالباً موظفون وليسوا مناديب الفواتير → لا نعتمد اسمه للعرض
+  const hypexReps = await q.listRepsSimple();
+  const hypexNameByMan = new Map();
+  for (const r of hypexReps || []) {
+    const manNo = parseManNo(r.code);
+    if (manNo < 1 || hypexNameByMan.has(manNo)) continue;
+    const nm = String(r.name_ar || '').trim();
+    if (nm) hypexNameByMan.set(manNo, nm);
   }
+
+  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
+  const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+  const seen = new Set();
+  let reps = [];
+
+  // أرقام لها حركات في Oracle + اسم هايبكس إن وُجد
+  for (const r of oraRows) {
+    const manNo = Number(r.id) || parseManNo(r.code);
+    if (manNo < 1 || seen.has(manNo)) continue;
+    seen.add(manNo);
+    reps.push({
+      id: manNo,
+      code: String(manNo),
+      name_ar: hypexNameByMan.get(manNo) || String(r.name_ar || '').trim() || `مندوب ${manNo}`,
+    });
+  }
+  // أضف بطاقات هايبكس حتى لو لم تظهر بعد في حركات الفترة
+  for (const [manNo, nm] of hypexNameByMan.entries()) {
+    if (seen.has(manNo)) continue;
+    seen.add(manNo);
+    reps.push({ id: manNo, code: String(manNo), name_ar: nm });
+  }
+  reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
 
   let err = '';
   let rows = [];
   let totals = { inv_cnt: 0, net: 0, cost: 0, profit: 0, profit_pct: 0 };
   let repName = '';
   let oraFilters = null;
-  let nameMismatch = '';
 
   if (run) {
     let repFrom = null;
     let repTo = null;
     if (oracleRepNo > 0) {
-      const rep = reps.find((r) => Number(r.id) === oracleRepNo);
-      repName = rep ? String(rep.name_ar || '') : `مندوب ${oracleRepNo}`;
+      repName = hypexNameByMan.get(oracleRepNo) ||
+        (reps.find((r) => Number(r.id) === oracleRepNo)?.name_ar) ||
+        `مندوب ${oracleRepNo}`;
       repFrom = oracleRepNo;
       repTo = oracleRepNo;
     }
@@ -1442,32 +1451,27 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
     } else {
-      rows = Array.isArray(data.rows) ? data.rows : [];
+      rows = (Array.isArray(data.rows) ? data.rows : []).map((r) => {
+        const no = Number(r.rep_no) || 0;
+        const hx = no > 0 ? hypexNameByMan.get(no) : '';
+        return hx ? { ...r, rep_name: hx } : r;
+      });
       totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
       oraFilters = data.filters && typeof data.filters === 'object' ? data.filters : null;
       if (!rows.length && data.message) err = String(data.message);
-      if (rows.length === 1 && rows[0].rep_name) {
-        const oraName = String(rows[0].rep_name || '').trim();
-        const oraNo = Number(rows[0].rep_no) || oracleRepNo;
-        if (repName && oraName && repName !== oraName) {
-          nameMismatch = `تحذير ربط: الفلتر «${repName}» بينما رقم المندوب ${oraNo} في Oracle اسمه «${oraName}». تأكد أن رمز المندوب = MAN_NUM.`;
-        }
-        repName = oraName;
+      if (oracleRepNo > 0) {
+        const hx = hypexNameByMan.get(oracleRepNo);
+        if (hx) repName = hx;
+        else if (rows.length === 1 && rows[0].rep_name) repName = String(rows[0].rep_name);
+      } else if (rows.length === 1 && rows[0].rep_name) {
+        repName = String(rows[0].rep_name);
       }
     }
   }
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
-  const mapWarn =
-    repsPayload && repsPayload.ok === false && repsSource === 'hypex_code'
-      ? `<p class="si-pill si-pill--lock no-print" style="display:inline-block;margin:0 1rem .5rem">${esc(
-          String(repsPayload.error || repsPayload.message || 'تعذر تحميل قائمة مناديب Oracle') +
-            ' — تم العرض برمز المندوب من هايبكس (ليس id).'
-        )}</p>`
-      : `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">الفلتر برقم مندوب Oracle (MAN_NUM) والاسم من EMP_INFO — ليس id بطاقة هايبكس</p>`;
-  const mismatchWarn = nameMismatch
-    ? `<p class="si-pill si-pill--lock no-print" style="display:inline-block;margin:0 1rem .5rem">${esc(nameMismatch)}</p>`
-    : '';
+  const mapWarn = `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">الفلتر برقم المندوب (MAN_NUM / رمز البطاقة) — الاسم من بطاقة المناديب في هايبكس (مثل Forms). المبالغ من Oracle.</p>`;
+  const mismatchWarn = '';
 
   const rowsHtml =
     rows

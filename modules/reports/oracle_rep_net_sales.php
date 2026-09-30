@@ -33,42 +33,54 @@ $parseOracleRepNo = static function (string $code): int {
     return 0;
 };
 
-// قائمة الفلتر = رقم MAN_NUM من Oracle + الاسم من EMP_INFO
+// أسماء هايبكس (الرمز = MAN_NUM Forms) — EMP_INFO غالباً غير مطابق للمناديب
+$hypex = $pdo->query(
+    'SELECT code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$hypexNameByMan = [];
+foreach ($hypex as $r) {
+    $manNo = $parseOracleRepNo((string) ($r['code'] ?? ''));
+    if ($manNo < 1 || isset($hypexNameByMan[$manNo])) {
+        continue;
+    }
+    $nm = trim((string) ($r['name_ar'] ?? ''));
+    if ($nm !== '') {
+        $hypexNameByMan[$manNo] = $nm;
+    }
+}
+
 $oraReps = oracle_list_rep_net_sales_reps();
 $reps = [];
-$repsSource = 'oracle';
-if (!empty($oraReps['ok']) && is_array($oraReps['rows'] ?? null) && $oraReps['rows'] !== []) {
+$seen = [];
+if (!empty($oraReps['ok']) && is_array($oraReps['rows'] ?? null)) {
     foreach ($oraReps['rows'] as $r) {
         $no = (int) ($r['id'] ?? 0);
-        if ($no < 1) {
+        if ($no < 1 || isset($seen[$no])) {
             continue;
         }
+        $seen[$no] = true;
         $reps[] = [
             'id' => $no,
-            'code' => (string) ($r['code'] ?? $no),
-            'name_ar' => (string) ($r['name_ar'] ?? ('مندوب ' . $no)),
-        ];
-    }
-} else {
-    // احتياطي: رمز بطاقة هايبكس = MAN_NUM (وليس id الداخلي)
-    $repsSource = 'hypex_code';
-    $hypex = $pdo->query(
-        'SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
-    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    $seen = [];
-    foreach ($hypex as $r) {
-        $manNo = $parseOracleRepNo((string) ($r['code'] ?? ''));
-        if ($manNo < 1 || isset($seen[$manNo])) {
-            continue;
-        }
-        $seen[$manNo] = true;
-        $reps[] = [
-            'id' => $manNo,
-            'code' => (string) $manNo,
-            'name_ar' => (string) ($r['name_ar'] ?? '') !== '' ? (string) $r['name_ar'] : ('مندوب ' . $manNo),
+            'code' => (string) $no,
+            'name_ar' => $hypexNameByMan[$no] ?? (string) ($r['name_ar'] ?? ('مندوب ' . $no)),
         ];
     }
 }
+foreach ($hypexNameByMan as $manNo => $nm) {
+    if (isset($seen[$manNo])) {
+        continue;
+    }
+    $seen[$manNo] = true;
+    $reps[] = [
+        'id' => (int) $manNo,
+        'code' => (string) $manNo,
+        'name_ar' => $nm,
+    ];
+}
+usort(
+    $reps,
+    static fn (array $a, array $b): int => strcmp((string) $a['name_ar'], (string) $b['name_ar'])
+);
 
 // sales_rep_id في النموذج = رقم مندوب Oracle (MAN_NUM)
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
@@ -97,9 +109,7 @@ $rows = [];
 $totals = ['inv_cnt' => 0, 'net' => 0.0, 'cost' => 0.0, 'profit' => 0.0, 'profit_pct' => 0.0];
 $repName = '';
 $repOracleNo = null;
-$mapNote = $repsSource === 'oracle'
-    ? 'الفلتر برقم مندوب Oracle (MAN_NUM) والاسم من EMP_INFO.'
-    : 'تعذر تحميل مناديب Oracle — العرض برمز المندوب من هايبكس (ليس id).';
+$mapNote = 'الفلتر برقم المندوب (MAN_NUM / رمز البطاقة) — الاسم من بطاقة المناديب في هايبكس (مثل Forms). المبالغ من Oracle.';
 
 $submitted = isset($_GET['run']) || isset($_GET['sales_rep_id']) || isset($_GET['from']) || isset($_GET['to']);
 
@@ -129,10 +139,13 @@ if ($submitted) {
 
         if ($salesRepId > 0) {
             $repOracleNo = $salesRepId;
-            foreach ($reps as $r) {
-                if ((int) ($r['id'] ?? 0) === $salesRepId) {
-                    $repName = (string) ($r['name_ar'] ?? '');
-                    break;
+            $repName = $hypexNameByMan[$salesRepId] ?? '';
+            if ($repName === '') {
+                foreach ($reps as $r) {
+                    if ((int) ($r['id'] ?? 0) === $salesRepId) {
+                        $repName = (string) ($r['name_ar'] ?? '');
+                        break;
+                    }
                 }
             }
             if ($repName === '') {
@@ -149,11 +162,20 @@ if ($submitted) {
             } else {
                 $showResult = true;
                 $rows = is_array($result['rows'] ?? null) ? $result['rows'] : [];
+                foreach ($rows as &$row) {
+                    $no = (int) ($row['rep_no'] ?? 0);
+                    if ($no > 0 && isset($hypexNameByMan[$no])) {
+                        $row['rep_name'] = $hypexNameByMan[$no];
+                    }
+                }
+                unset($row);
                 $totals = is_array($result['totals'] ?? null) ? $result['totals'] : $totals;
                 if ($rows === [] && ($result['message'] ?? '') !== '') {
                     $err = (string) $result['message'];
                 }
-                if (count($rows) === 1 && trim((string) ($rows[0]['rep_name'] ?? '')) !== '') {
+                if ($salesRepId > 0 && isset($hypexNameByMan[$salesRepId])) {
+                    $repName = $hypexNameByMan[$salesRepId];
+                } elseif (count($rows) === 1 && trim((string) ($rows[0]['rep_name'] ?? '')) !== '') {
                     $repName = (string) $rows[0]['rep_name'];
                 }
             }
