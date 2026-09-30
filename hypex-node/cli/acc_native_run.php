@@ -405,6 +405,16 @@ try {
     }
 
     /* ─── oracle rep net sales (INVREP050 summary) ─── */
+    if ($action === 'oracle_list_rep_net_sales_reps') {
+        require_once app_path('includes/oracle_rep_net_sales.php');
+        try {
+            $result = oracle_list_rep_net_sales_reps();
+            cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
+        } catch (Throwable $e) {
+            cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'تعذر قراءة المناديب.'], 1);
+        }
+    }
+
     if ($action === 'oracle_rep_net_sales') {
         require_once app_path('includes/oracle_rep_net_sales.php');
         $store = (int) ($payload['store'] ?? 0);

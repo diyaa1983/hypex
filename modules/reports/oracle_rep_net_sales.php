@@ -33,10 +33,44 @@ $parseOracleRepNo = static function (string $code): int {
     return 0;
 };
 
-$reps = $pdo->query(
-    'SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+// قائمة الفلتر = رقم MAN_NUM من Oracle + الاسم من EMP_INFO
+$oraReps = oracle_list_rep_net_sales_reps();
+$reps = [];
+$repsSource = 'oracle';
+if (!empty($oraReps['ok']) && is_array($oraReps['rows'] ?? null) && $oraReps['rows'] !== []) {
+    foreach ($oraReps['rows'] as $r) {
+        $no = (int) ($r['id'] ?? 0);
+        if ($no < 1) {
+            continue;
+        }
+        $reps[] = [
+            'id' => $no,
+            'code' => (string) ($r['code'] ?? $no),
+            'name_ar' => (string) ($r['name_ar'] ?? ('مندوب ' . $no)),
+        ];
+    }
+} else {
+    // احتياطي: رمز بطاقة هايبكس = MAN_NUM (وليس id الداخلي)
+    $repsSource = 'hypex_code';
+    $hypex = $pdo->query(
+        'SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $seen = [];
+    foreach ($hypex as $r) {
+        $manNo = $parseOracleRepNo((string) ($r['code'] ?? ''));
+        if ($manNo < 1 || isset($seen[$manNo])) {
+            continue;
+        }
+        $seen[$manNo] = true;
+        $reps[] = [
+            'id' => $manNo,
+            'code' => (string) $manNo,
+            'name_ar' => (string) ($r['name_ar'] ?? '') !== '' ? (string) $r['name_ar'] : ('مندوب ' . $manNo),
+        ];
+    }
+}
 
+// sales_rep_id في النموذج = رقم مندوب Oracle (MAN_NUM)
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
 $from = trim((string) ($_GET['from'] ?? ''));
 $to = trim((string) ($_GET['to'] ?? ''));
@@ -63,6 +97,9 @@ $rows = [];
 $totals = ['inv_cnt' => 0, 'net' => 0.0, 'cost' => 0.0, 'profit' => 0.0, 'profit_pct' => 0.0];
 $repName = '';
 $repOracleNo = null;
+$mapNote = $repsSource === 'oracle'
+    ? 'الفلتر برقم مندوب Oracle (MAN_NUM) والاسم من EMP_INFO.'
+    : 'تعذر تحميل مناديب Oracle — العرض برمز المندوب من هايبكس (ليس id).';
 
 $submitted = isset($_GET['run']) || isset($_GET['sales_rep_id']) || isset($_GET['from']) || isset($_GET['to']);
 
@@ -91,19 +128,15 @@ if ($submitted) {
         $to = $toIso;
 
         if ($salesRepId > 0) {
-            $st = $pdo->prepare(
-                'SELECT id, code, name_ar FROM crm_sales_rep WHERE id = ? AND is_active = 1 LIMIT 1'
-            );
-            $st->execute([$salesRepId]);
-            $rep = $st->fetch(PDO::FETCH_ASSOC) ?: null;
-            if (!$rep) {
-                $err = 'المندوب غير موجود.';
-            } else {
-                $repName = (string) ($rep['name_ar'] ?? '');
-                $repOracleNo = $parseOracleRepNo((string) ($rep['code'] ?? ''));
-                if ($repOracleNo < 1) {
-                    $err = 'رمز المندوب في النظام لا يطابق رقم مندوب Oracle. راجع رمز المندوب.';
+            $repOracleNo = $salesRepId;
+            foreach ($reps as $r) {
+                if ((int) ($r['id'] ?? 0) === $salesRepId) {
+                    $repName = (string) ($r['name_ar'] ?? '');
+                    break;
                 }
+            }
+            if ($repName === '') {
+                $repName = 'مندوب ' . $salesRepId;
             }
         }
 
@@ -119,6 +152,9 @@ if ($submitted) {
                 $totals = is_array($result['totals'] ?? null) ? $result['totals'] : $totals;
                 if ($rows === [] && ($result['message'] ?? '') !== '') {
                     $err = (string) $result['message'];
+                }
+                if (count($rows) === 1 && trim((string) ($rows[0]['rep_name'] ?? '')) !== '') {
+                    $repName = (string) $rows[0]['rep_name'];
                 }
             }
         }
@@ -157,16 +193,18 @@ if ($showResult) {
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
 
+    <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;"><?= esc($mapNote) ?></p>
+
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
         <div class="form-row">
             <label class="field" style="flex:1 1 16rem;">
-                <span class="field-label">المندوب</span>
+                <span class="field-label">المندوب (Oracle)</span>
                 <div class="report-cust-pick" id="report-sales-rep-pick">
                     <input type="hidden" name="sales_rep_id" data-rep-id value="<?= $salesRepId > 0 ? (int) $salesRepId : '' ?>">
                     <input type="text" class="input report-cust-pick-inp" data-rep-search
-                           placeholder="ابحث باسم المندوب أو الرمز… (فارغ = الكل)" autocomplete="off" spellcheck="false"
+                           placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
                            aria-label="بحث عن مندوب">
                     <div class="report-cust-pick-list" data-rep-list hidden></div>
                 </div>

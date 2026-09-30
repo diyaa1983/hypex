@@ -83,10 +83,18 @@
       }
     }
 
+    function labelOf(rep) {
+      if (!rep) return '';
+      var name = String(rep.name_ar || '').trim();
+      var code = String(rep.code || '').trim();
+      if (name && code) return name + ' (' + code + ')';
+      return name || code;
+    }
+
     function setSelection(rep) {
       if (rep) {
         hidden.value = String(rep.id);
-        input.value = rep.name_ar;
+        input.value = labelOf(rep);
       } else {
         hidden.value = '';
       }

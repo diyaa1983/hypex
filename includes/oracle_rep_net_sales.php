@@ -13,6 +13,89 @@ require_once app_path('includes/oracle_pdo.php');
 require_once app_path('includes/oracle_sales_invoice.php');
 
 /**
+ * قائمة مندوبي Oracle للفلتر (رقم MAN_NUM / EMP_NO + الاسم من EMP_INFO).
+ * لا تعتمد على crm_sales_rep في هايبكس حتى لا يختلط الرمز بالاسم.
+ *
+ * @return array{ok:bool, message:string, rows:list<array{id:int,code:string,name_ar:string}>}
+ */
+function oracle_list_rep_net_sales_reps(): array
+{
+    $empty = ['ok' => false, 'message' => '', 'rows' => []];
+    if (!oracle_is_enabled()) {
+        $empty['message'] = 'تكامل Oracle غير مفعّل.';
+
+        return $empty;
+    }
+    $c = oracle_rep_net_sales_cfg();
+    $fromQ = oracle_stmt_q($c['owner']) . '.' . oracle_stmt_q($c['table']);
+    $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
+    $saleType = (int) $c['sale_type'];
+    $compNum = (int) $c['comp_num'];
+
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        $empty['message'] = (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.');
+
+        return $empty;
+    }
+
+    // أسماء المناديب من EMP_INFO عبر EMP_NO = DAILY.MAN_NUM (رقم المندوب في الفاتورة)
+    $sql = "
+SELECT DISTINCT
+       d.MAN_NUM AS EMP_NO,
+       NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(d.MAN_NUM)) AS EMP_NAME
+FROM {$fromQ} d
+LEFT JOIN {$empQ} e
+  ON e.EMP_NO = d.MAN_NUM
+WHERE d.COMP_NUM = :comp_num
+  AND d.TYPE = :sale_type
+  AND d.MAN_NUM IS NOT NULL
+  AND d.MAN_NUM > 0
+ORDER BY d.MAN_NUM
+";
+
+    try {
+        $raw = oracle_query_all($conn, $sql, [
+            'comp_num' => $compNum,
+            'sale_type' => $saleType,
+        ]);
+    } catch (Throwable $e) {
+        // احتياطي: كل EMP_INFO
+        try {
+            $raw = oracle_query_all(
+                $conn,
+                "SELECT EMP_NO, EMP_NAME FROM {$empQ}
+                 WHERE EMP_NO IS NOT NULL
+                 ORDER BY EMP_NO",
+                []
+            );
+        } catch (Throwable $e2) {
+            $empty['message'] = 'تعذر قراءة المناديب: ' . $e->getMessage();
+
+            return $empty;
+        }
+    }
+
+    $rows = [];
+    $seen = [];
+    foreach ($raw as $r) {
+        $no = (int) oracle_statement_row_val($r, 'EMP_NO');
+        if ($no < 1 || isset($seen[$no])) {
+            continue;
+        }
+        $seen[$no] = true;
+        $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
+        $rows[] = [
+            'id' => $no,
+            'code' => (string) $no,
+            'name_ar' => $name !== '' ? $name : ('مندوب ' . $no),
+        ];
+    }
+
+    return ['ok' => true, 'message' => '', 'rows' => $rows];
+}
+
+/**
  * @return array{
  *   owner:string, table:string, customer_owner:string, customer_table:string,
  *   emp_owner:string, emp_table:string, sale_type:int, comp_num:int, default_store:int,

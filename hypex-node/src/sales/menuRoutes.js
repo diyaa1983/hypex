@@ -1373,20 +1373,46 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   const BASE = '/sales/reports/oracle-rep-net-sales';
   const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const store = Number(req.query.store || 4) || 4;
-  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
-  const run = String(req.query.run || '') === '1' || salesRepId > 0;
+  // sales_rep_id = رقم مندوب Oracle (MAN_NUM) مباشرة — ليس id بطاقة هايبكس
+  const oracleRepNo = Number(req.query.sales_rep_id || 0) || 0;
+  const run = String(req.query.run || '') === '1' || oracleRepNo > 0;
   const uid = Number(req.session.user?.id || 0) || 0;
-  const reps = await q.listRepsSimple();
 
-  function parseOracleRepNo(code) {
-    const s = String(code || '').trim();
-    if (/^[1-9]\d*$/.test(s)) return Number(s);
-    const m = s.match(/(\d+)/);
-    if (m) {
-      const n = Number(m[1]);
-      if (n > 0 && n < 100000) return n;
+  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
+  let repsSource = 'oracle';
+  let reps = Array.isArray(repsPayload?.rows)
+    ? repsPayload.rows.map((r) => ({
+        id: Number(r.id) || 0,
+        code: String(r.code || r.id || ''),
+        name_ar: String(r.name_ar || ''),
+      }))
+    : [];
+
+  // احتياطي: بطاقات هايبكس لكن بالقيمة = رمز المندوب (MAN_NUM) وليس id الداخلي
+  if (!reps.length) {
+    repsSource = 'hypex_code';
+    const hypexReps = await q.listRepsSimple();
+    const seen = new Set();
+    reps = [];
+    for (const r of hypexReps || []) {
+      const code = String(r.code || '').trim();
+      let manNo = 0;
+      if (/^[1-9]\d*$/.test(code)) manNo = Number(code);
+      else {
+        const m = code.match(/(\d+)/);
+        if (m) {
+          const n = Number(m[1]);
+          if (n > 0 && n < 100000) manNo = n;
+        }
+      }
+      if (manNo < 1 || seen.has(manNo)) continue;
+      seen.add(manNo);
+      reps.push({
+        id: manNo,
+        code: String(manNo),
+        name_ar: String(r.name_ar || '') || `مندوب ${manNo}`,
+      });
     }
-    return 0;
   }
 
   let err = '';
@@ -1394,52 +1420,54 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   let totals = { inv_cnt: 0, net: 0, cost: 0, profit: 0, profit_pct: 0 };
   let repName = '';
   let oraFilters = null;
+  let nameMismatch = '';
 
   if (run) {
     let repFrom = null;
     let repTo = null;
-    if (salesRepId > 0) {
-      const rep = reps.find((r) => Number(r.id) === salesRepId);
-      if (!rep) {
-        err = 'المندوب غير موجود.';
-      } else {
-        repName = rep.name_ar || '';
-        const oracleNo = parseOracleRepNo(rep.code || '');
-        if (oracleNo < 1) {
-          err = 'رمز المندوب في النظام لا يطابق رقم مندوب Oracle. راجع رمز المندوب.';
-        } else {
-          repFrom = oracleNo;
-          repTo = oracleNo;
-        }
-      }
+    if (oracleRepNo > 0) {
+      const rep = reps.find((r) => Number(r.id) === oracleRepNo);
+      repName = rep ? String(rep.name_ar || '') : `مندوب ${oracleRepNo}`;
+      repFrom = oracleRepNo;
+      repTo = oracleRepNo;
     }
 
-    if (!err) {
-      const data = await accNative.run('oracle_rep_net_sales', uid, {
-        from: range.from,
-        to: range.to,
-        store,
-        rep_from: repFrom,
-        rep_to: repTo,
-      });
-      if (!data || data.ok === false) {
-        err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
-      } else {
-        rows = Array.isArray(data.rows) ? data.rows : [];
-        totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
-        oraFilters = data.filters && typeof data.filters === 'object' ? data.filters : null;
-        if (!rows.length && data.message) err = String(data.message);
+    const data = await accNative.run('oracle_rep_net_sales', uid, {
+      from: range.from,
+      to: range.to,
+      store,
+      rep_from: repFrom,
+      rep_to: repTo,
+    });
+    if (!data || data.ok === false) {
+      err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+    } else {
+      rows = Array.isArray(data.rows) ? data.rows : [];
+      totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
+      oraFilters = data.filters && typeof data.filters === 'object' ? data.filters : null;
+      if (!rows.length && data.message) err = String(data.message);
+      if (rows.length === 1 && rows[0].rep_name) {
+        const oraName = String(rows[0].rep_name || '').trim();
+        const oraNo = Number(rows[0].rep_no) || oracleRepNo;
+        if (repName && oraName && repName !== oraName) {
+          nameMismatch = `تحذير ربط: الفلتر «${repName}» بينما رقم المندوب ${oraNo} في Oracle اسمه «${oraName}». تأكد أن رمز المندوب = MAN_NUM.`;
+        }
+        repName = oraName;
       }
     }
   }
 
-  const repsJson = JSON.stringify(
-    reps.map((r) => ({
-      id: Number(r.id) || 0,
-      code: String(r.code || ''),
-      name_ar: String(r.name_ar || ''),
-    }))
-  ).replace(/</g, '\\u003c');
+  const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
+  const mapWarn =
+    repsPayload && repsPayload.ok === false && repsSource === 'hypex_code'
+      ? `<p class="si-pill si-pill--lock no-print" style="display:inline-block;margin:0 1rem .5rem">${esc(
+          String(repsPayload.error || repsPayload.message || 'تعذر تحميل قائمة مناديب Oracle') +
+            ' — تم العرض برمز المندوب من هايبكس (ليس id).'
+        )}</p>`
+      : `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">الفلتر برقم مندوب Oracle (MAN_NUM) والاسم من EMP_INFO — ليس id بطاقة هايبكس</p>`;
+  const mismatchWarn = nameMismatch
+    ? `<p class="si-pill si-pill--lock no-print" style="display:inline-block;margin:0 1rem .5rem">${esc(nameMismatch)}</p>`
+    : '';
 
   const rowsHtml =
     rows
@@ -1497,7 +1525,9 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     tableBlock =
       diag +
       ui.tableSurface(
-        repName ? `مندوب: ${esc(repName)}` : 'ملخص المندوبين — Oracle',
+        repName
+          ? `مندوب: ${esc(repName)}${oracleRepNo > 0 ? ` (#${oracleRepNo})` : ''}`
+          : 'ملخص المندوبين — Oracle',
         `${rows.length} مندوب`,
         ['رقم المندوب', 'اسم المندوب', 'فواتير', 'الصافي', 'التكلفة', 'الربح', 'الربح %'],
         rowsHtml + foot
@@ -1513,14 +1543,16 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
         subtitle: '',
         actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
       })}
+      ${mapWarn}
+      ${mismatchWarn}
       <div class="si-rail no-print">
         <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
           <input type="hidden" name="run" value="1" />
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب (Oracle)
             <div class="report-cust-pick" id="report-sales-rep-pick" style="margin-top:.25rem">
-              <input type="hidden" name="sales_rep_id" data-rep-id value="${salesRepId > 0 ? salesRepId : ''}">
+              <input type="hidden" name="sales_rep_id" data-rep-id value="${oracleRepNo > 0 ? oracleRepNo : ''}">
               <input type="text" class="si-field report-cust-pick-inp" data-rep-search
-                     placeholder="ابحث بالاسم أو الرمز… (فارغ = الكل)" autocomplete="off" spellcheck="false"
+                     placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
                      aria-label="بحث عن مندوب" style="min-width:100%;width:100%">
               <div class="report-cust-pick-list" data-rep-list hidden></div>
             </div>
