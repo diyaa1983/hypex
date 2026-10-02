@@ -1506,27 +1506,52 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   } else if (run) {
     const f = oraFilters || {};
     const cand = f.candidates && typeof f.candidates === 'object' ? f.candidates : {};
-    const candLine = (key, label) => {
-      const c = cand[key];
-      if (!c) return '';
-      return `${label}: صافي <span dir="ltr">${esc(fmtAmt(c.net))}</span> / تكلفة <span dir="ltr">${esc(fmtAmt(c.cost))}</span>`;
-    };
+    const candRows = Object.keys(cand)
+      .filter((k) => k !== 'base')
+      .map((k) => ({ key: k, ...(cand[k] || {}) }))
+      .sort((a, b) => (Number(a.d_sum) || 999) - (Number(b.d_sum) || 999));
+    const candTable =
+      candRows.length > 0
+        ? `<div class="no-print" style="margin:0 0 .75rem;overflow:auto;max-width:100%">
+            <table class="si-table" style="font-size:.75rem;min-width:36rem">
+              <thead><tr>
+                <th>المعادلة</th><th>الصافي</th><th>التكلفة</th>
+                <th>Δ صافي عن Forms</th><th>Δ تكلفة عن Forms</th><th>المجموع</th>
+              </tr></thead>
+              <tbody>
+                ${candRows
+                  .slice(0, 12)
+                  .map(
+                    (c) => `<tr${c.key === f.formula ? ' style="font-weight:800;background:#eef6ff"' : ''}>
+                  <td><code>${esc(c.key)}</code>${c.key === f.formula ? ' ← المعتمد' : ''}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(c.net || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(c.cost || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(c.d_net || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(c.d_cost || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(c.d_sum || 0))}</td>
+                </tr>`
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+            <p class="muted" style="margin:.35rem 0 0;font-size:.72rem">هدف Forms: صافي <span dir="ltr">${esc(
+              fmtAmt(f.forms_target_net || 10213.988)
+            )}</span> / تكلفة <span dir="ltr">${esc(fmtAmt(f.forms_target_cost || 4801.379))}</span>
+            — إن ظهر صف بـ Δ≈0 فهو المطابق. صَوّر هذا الجدول إن بقي فرق.</p>
+          </div>`
+        : '';
     const diag =
       f.formula
         ? `<p class="muted no-print" style="margin:0 0 .35rem;font-size:.8rem;line-height:1.6">
             معادلة: <code>${esc(String(f.formula))}</code>
-            · رقم Oracle: <span dir="ltr">${esc(String(f.rep_from ?? 'الكل'))}</span>
+            · Δ عن Forms: <span dir="ltr">${esc(fmtAmt(f.formula_delta || 0))}</span>
             · SELL: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
-            · SELL_BTAX: <span dir="ltr">${esc(fmtAmt(f.gross_btax || 0))}</span>
+            · بعد خصم%: <span dir="ltr">${esc(fmtAmt(f.gross_disc_pct || 0))}</span>
             · خصم فاتورة: <span dir="ltr">${esc(fmtAmt(f.vou_disc || 0))}</span>
-            · ضريبة فاتورة: <span dir="ltr">${esc(fmtAmt(f.tax_max || 0))}</span>
+            · مبلغ خصم البنود: <span dir="ltr">${esc(fmtAmt(f.disc_amt || 0))}</span>
+            · ضريبة MAX: <span dir="ltr">${esc(fmtAmt(f.tax_max || 0))}</span>
             · تكلفة بونص: <span dir="ltr">${esc(fmtAmt(f.bonus_cost || 0))}</span>
-          </p>
-          <p class="muted no-print" style="margin:0 0 .75rem;font-size:.78rem;line-height:1.55">
-            ${candLine('base', 'المعتمد')}
-            ${cand.old_v6 ? ' · ' + candLine('old_v6', 'السابق') : ''}
-            ${cand.no_tax ? ' · ' + candLine('no_tax', 'بدون خصم ضريبة') : ''}
-          </p>`
+          </p>${candTable}`
         : '';
     tableBlock =
       diag +

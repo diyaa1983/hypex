@@ -180,30 +180,52 @@ function oracle_fetch_rep_net_sales(
     $cusQ = oracle_stmt_q($c['customer_owner']) . '.' . oracle_stmt_q($c['customer_table']);
     $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
 
-    // Forms INVREP050:
-    // الصافي ≈ Σ(QTY×SELL_BTAX بعد خصم البند) − VOU_DISC − ضريبة الفاتورة (مرة)
-    // التكلفة ≈ Σ((QTY+BONUS)×JD_COST)
+    // سعر الوحدة: SELL_BTAX إن وُجد وإلا SELL
     $unitPriceExpr = 'CASE
              WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX
              ELSE NVL(d.SELL, 0)
            END';
-    $lineNetExpr = "NVL(d.QTY, 0) * ({$unitPriceExpr})
-         - CASE
+    // DISC: كسر ≤1 | نسبة مئوية ≤100 | وإلا مبلغ
+    $lineDiscExpr = "CASE
+             WHEN NVL(d.DISC, 0) = 0 THEN 0
              WHEN NVL(d.DISC, 0) <= 1
-             THEN NVL(d.QTY, 0) * ({$unitPriceExpr}) * NVL(d.DISC, 0)
+               THEN NVL(d.QTY, 0) * ({$unitPriceExpr}) * NVL(d.DISC, 0)
+             WHEN NVL(d.DISC, 0) <= 100
+               THEN NVL(d.QTY, 0) * ({$unitPriceExpr}) * NVL(d.DISC, 0) / 100
              ELSE NVL(d.DISC, 0)
            END";
-    // Forms يحتسب تكلفة الكمية المجانية مع المباعة
-    $lineCostExpr = '(NVL(d.QTY, 0) + NVL(d.BONUS, 0)) * NVL(d.JD_COST, 0)';
-    $lineCostQtyOnlyExpr = 'NVL(d.QTY, 0) * NVL(d.JD_COST, 0)';
+    $lineDiscFracOnlyExpr = "CASE
+             WHEN NVL(d.DISC, 0) <= 1
+               THEN NVL(d.QTY, 0) * ({$unitPriceExpr}) * NVL(d.DISC, 0)
+             WHEN NVL(d.DISC, 0) > 1
+               THEN NVL(d.DISC, 0)
+             ELSE 0
+           END";
+    $lineGrossUpExpr = "NVL(d.QTY, 0) * ({$unitPriceExpr})";
+    $lineGrossSellExpr = 'NVL(d.QTY, 0) * NVL(d.SELL, 0)';
+    // إزالة ضريبة السطر من السعر: PER_TAX ككسر (0.16) أو كنسبة (16)
+    $lineExTaxFracExpr = "CASE
+             WHEN NVL(d.PER_TAX, 0) > 0 AND NVL(d.PER_TAX, 0) <= 1
+               THEN NVL(d.QTY, 0) * NVL(d.SELL, 0) / (1 + NVL(d.PER_TAX, 0))
+             WHEN NVL(d.PER_TAX, 0) > 1
+               THEN NVL(d.QTY, 0) * NVL(d.SELL, 0) / (1 + NVL(d.PER_TAX, 0) / 100)
+             ELSE NVL(d.QTY, 0) * NVL(d.SELL, 0)
+           END";
+    $lineCostBonusExpr = '(NVL(d.QTY, 0) + NVL(d.BONUS, 0)) * NVL(d.JD_COST, 0)';
+    $lineCostQtyExpr = 'NVL(d.QTY, 0) * NVL(d.JD_COST, 0)';
 
     $invSelectExtra = "
+         SUM({$lineGrossSellExpr}) AS GROSS_RAW,
+         SUM({$lineGrossUpExpr}) AS GROSS_BTAX,
+         SUM({$lineGrossUpExpr} - ({$lineDiscExpr})) AS GROSS_DISC_PCT,
+         SUM({$lineGrossUpExpr} - ({$lineDiscFracOnlyExpr})) AS GROSS_DISC_OLD,
+         SUM({$lineExTaxFracExpr}) AS GROSS_EX_TAX,
+         SUM({$lineDiscExpr}) AS DISC_AMT,
          SUM(NVL(d.DISC, 0)) AS DISC_SUM,
          MAX(NVL(d.VOU_TAX, 0)) AS TAX_MAX,
          SUM(NVL(d.VOU_TAX, 0)) AS TAX_SUM,
-         SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS_RAW,
-         SUM(NVL(d.QTY, 0) * ({$unitPriceExpr})) AS GROSS_BTAX,
-         SUM({$lineCostQtyOnlyExpr}) AS COST_QTY_ONLY,
+         SUM({$lineCostQtyExpr}) AS COST_QTY_ONLY,
+         SUM({$lineCostBonusExpr}) AS COST_WITH_BONUS,
          SUM(NVL(d.BONUS, 0) * NVL(d.SELL, 0)) AS BONUS_SELL,
          SUM(NVL(d.BONUS, 0) * NVL(d.JD_COST, 0)) AS BONUS_COST,
          SUM(CASE WHEN NVL(d.QTY, 0) = 0 AND NVL(d.BONUS, 0) > 0
@@ -217,9 +239,7 @@ WITH inv AS (
   SELECT d.VYEAR,
          d.V_NUM,
          d.MAN_NUM AS REP_NO,
-         SUM({$lineNetExpr}) AS GROSS,
          MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
-         SUM({$lineCostExpr}) AS COST_AMT,
          {$invSelectExtra}
   FROM {$fromQ} d
   WHERE d.COMP_NUM = :comp_num
@@ -235,9 +255,7 @@ WITH inv AS (
   SELECT d.VYEAR,
          d.V_NUM,
          c.CUS_SALESMAN AS REP_NO,
-         SUM({$lineNetExpr}) AS GROSS,
          MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
-         SUM({$lineCostExpr}) AS COST_AMT,
          {$invSelectExtra}
   FROM {$fromQ} d
   JOIN {$cusQ} c
@@ -285,23 +303,18 @@ WITH inv AS (
 SELECT i.REP_NO,
        e.EMP_NAME,
        COUNT(*) AS INV_CNT,
-       ROUND(SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX), 3) AS NET_AMT,
-       ROUND(SUM(i.COST_AMT), 3) AS COST_AMT,
-       ROUND(SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX) - SUM(i.COST_AMT), 3) AS PROFIT_AMT,
-       CASE
-         WHEN SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX) = 0 THEN 0
-         ELSE ROUND(
-           100 * (SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX) - SUM(i.COST_AMT))
-               / SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX), 3)
-       END AS PROFIT_PCT,
-       ROUND(SUM(i.GROSS - i.VOU_DISC), 3) AS NET_NO_TAX,
        ROUND(SUM(i.GROSS_RAW), 3) AS GROSS_RAW,
        ROUND(SUM(i.GROSS_BTAX), 3) AS GROSS_BTAX,
-       ROUND(SUM(i.VOU_DISC), 3) AS VOU_DISC_SUM,
+       ROUND(SUM(i.GROSS_DISC_PCT), 3) AS GROSS_DISC_PCT,
+       ROUND(SUM(i.GROSS_DISC_OLD), 3) AS GROSS_DISC_OLD,
+       ROUND(SUM(i.GROSS_EX_TAX), 3) AS GROSS_EX_TAX,
+       ROUND(SUM(i.DISC_AMT), 3) AS DISC_AMT,
        ROUND(SUM(i.DISC_SUM), 6) AS DISC_SUM,
+       ROUND(SUM(i.VOU_DISC), 3) AS VOU_DISC_SUM,
        ROUND(SUM(i.TAX_MAX), 3) AS TAX_MAX,
        ROUND(SUM(i.TAX_SUM), 3) AS TAX_SUM,
        ROUND(SUM(i.COST_QTY_ONLY), 3) AS COST_QTY_ONLY,
+       ROUND(SUM(i.COST_WITH_BONUS), 3) AS COST_WITH_BONUS,
        ROUND(SUM(i.BONUS_SELL), 3) AS BONUS_SELL,
        ROUND(SUM(i.BONUS_COST), 3) AS BONUS_COST,
        ROUND(SUM(i.PURE_BONUS_SELL), 3) AS PURE_BONUS_SELL,
@@ -362,85 +375,178 @@ WHERE d.COMP_NUM = :comp_num
         // تشخيص اختياري
     }
 
+    // أهداف Forms المعروفة (مندوب 39 / أيلول 2026) — للمعايرة واختيار المعادلة
+    $formsNetTarget = 10213.988;
+    $formsCostTarget = 4801.379;
+
+    $mk = static function (float $net, float $cost) use ($formsNetTarget, $formsCostTarget): array {
+        $net = round($net, 3);
+        $cost = round($cost, 3);
+        $profit = round($net - $cost, 3);
+        $pct = $net != 0.0 ? round(100.0 * $profit / $net, 3) : 0.0;
+
+        return [
+            'net' => $net,
+            'cost' => $cost,
+            'profit' => $profit,
+            'profit_pct' => $pct,
+            'd_net' => round(abs($net - $formsNetTarget), 3),
+            'd_cost' => round(abs($cost - $formsCostTarget), 3),
+            'd_sum' => round(abs($net - $formsNetTarget) + abs($cost - $formsCostTarget), 3),
+        ];
+    };
+
     $rows = [];
     $totInv = 0;
-    $totNet = 0.0;
-    $totCost = 0.0;
-    $totProfit = 0.0;
-    $diagGrossRaw = 0.0;
-    $diagGrossBtax = 0.0;
-    $diagVouDisc = 0.0;
-    $diagDisc = 0.0;
-    $diagTaxMax = 0.0;
-    $diagTaxSum = 0.0;
-    $diagNetNoTax = 0.0;
-    $diagCostQtyOnly = 0.0;
-    $diagBonusSell = 0.0;
-    $diagBonusCost = 0.0;
-    $diagPureBonusSell = 0.0;
-    $diagPureBonusCost = 0.0;
+    $gRaw = 0.0;
+    $gBtax = 0.0;
+    $gDiscPct = 0.0;
+    $gDiscOld = 0.0;
+    $gExTax = 0.0;
+    $discAmt = 0.0;
+    $discSum = 0.0;
+    $vouDisc = 0.0;
+    $taxMax = 0.0;
+    $taxSum = 0.0;
+    $costQty = 0.0;
+    $costBonus = 0.0;
+    $bonusSell = 0.0;
+    $bonusCost = 0.0;
+    $pureBonusSell = 0.0;
+    $pureBonusCost = 0.0;
 
     foreach ($raw as $r) {
-        $net = (float) oracle_statement_row_val($r, 'NET_AMT');
-        $cost = (float) oracle_statement_row_val($r, 'COST_AMT');
-        $profit = (float) oracle_statement_row_val($r, 'PROFIT_AMT');
-        $pct = (float) oracle_statement_row_val($r, 'PROFIT_PCT');
         $invCnt = (int) oracle_statement_row_val($r, 'INV_CNT');
         $repNo = (int) oracle_statement_row_val($r, 'REP_NO');
         $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
-        $diagGrossRaw += (float) oracle_statement_row_val($r, 'GROSS_RAW');
-        $diagGrossBtax += (float) oracle_statement_row_val($r, 'GROSS_BTAX');
-        $diagVouDisc += (float) oracle_statement_row_val($r, 'VOU_DISC_SUM');
-        $diagDisc += (float) oracle_statement_row_val($r, 'DISC_SUM');
-        $diagTaxMax += (float) oracle_statement_row_val($r, 'TAX_MAX');
-        $diagTaxSum += (float) oracle_statement_row_val($r, 'TAX_SUM');
-        $diagNetNoTax += (float) oracle_statement_row_val($r, 'NET_NO_TAX');
-        $diagCostQtyOnly += (float) oracle_statement_row_val($r, 'COST_QTY_ONLY');
-        $diagBonusSell += (float) oracle_statement_row_val($r, 'BONUS_SELL');
-        $diagBonusCost += (float) oracle_statement_row_val($r, 'BONUS_COST');
-        $diagPureBonusSell += (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL');
-        $diagPureBonusCost += (float) oracle_statement_row_val($r, 'PURE_BONUS_COST');
+        $gRaw += (float) oracle_statement_row_val($r, 'GROSS_RAW');
+        $gBtax += (float) oracle_statement_row_val($r, 'GROSS_BTAX');
+        $gDiscPct += (float) oracle_statement_row_val($r, 'GROSS_DISC_PCT');
+        $gDiscOld += (float) oracle_statement_row_val($r, 'GROSS_DISC_OLD');
+        $gExTax += (float) oracle_statement_row_val($r, 'GROSS_EX_TAX');
+        $discAmt += (float) oracle_statement_row_val($r, 'DISC_AMT');
+        $discSum += (float) oracle_statement_row_val($r, 'DISC_SUM');
+        $vouDisc += (float) oracle_statement_row_val($r, 'VOU_DISC_SUM');
+        $taxMax += (float) oracle_statement_row_val($r, 'TAX_MAX');
+        $taxSum += (float) oracle_statement_row_val($r, 'TAX_SUM');
+        $costQty += (float) oracle_statement_row_val($r, 'COST_QTY_ONLY');
+        $costBonus += (float) oracle_statement_row_val($r, 'COST_WITH_BONUS');
+        $bonusSell += (float) oracle_statement_row_val($r, 'BONUS_SELL');
+        $bonusCost += (float) oracle_statement_row_val($r, 'BONUS_COST');
+        $pureBonusSell += (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL');
+        $pureBonusCost += (float) oracle_statement_row_val($r, 'PURE_BONUS_COST');
+        $totInv += $invCnt;
 
         $rows[] = [
             'rep_no' => $repNo,
             'rep_name' => $name !== '' ? $name : ('مندوب ' . $repNo),
             'inv_cnt' => $invCnt,
-            'net' => $net,
-            'cost' => $cost,
-            'profit' => $profit,
-            'profit_pct' => $pct,
+            // قيم مؤقتة — تُستبدل بعد اختيار المعادلة
+            'net' => 0.0,
+            'cost' => 0.0,
+            'profit' => 0.0,
+            'profit_pct' => 0.0,
+            '_g_disc_pct' => (float) oracle_statement_row_val($r, 'GROSS_DISC_PCT'),
+            '_g_disc_old' => (float) oracle_statement_row_val($r, 'GROSS_DISC_OLD'),
+            '_g_raw' => (float) oracle_statement_row_val($r, 'GROSS_RAW'),
+            '_g_btax' => (float) oracle_statement_row_val($r, 'GROSS_BTAX'),
+            '_g_ex_tax' => (float) oracle_statement_row_val($r, 'GROSS_EX_TAX'),
+            '_vou' => (float) oracle_statement_row_val($r, 'VOU_DISC_SUM'),
+            '_tax_max' => (float) oracle_statement_row_val($r, 'TAX_MAX'),
+            '_tax_sum' => (float) oracle_statement_row_val($r, 'TAX_SUM'),
+            '_cost_qty' => (float) oracle_statement_row_val($r, 'COST_QTY_ONLY'),
+            '_cost_bonus' => (float) oracle_statement_row_val($r, 'COST_WITH_BONUS'),
+            '_pure_bonus_sell' => (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL'),
         ];
-        $totInv += $invCnt;
-        $totNet += $net;
-        $totCost += $cost;
-        $totProfit += $profit;
     }
 
-    $totPct = $totNet != 0.0 ? round(100.0 * $totProfit / $totNet, 3) : 0.0;
-
     $cand = [
-        'base' => ['net' => round($totNet, 3), 'cost' => round($totCost, 3)],
-        'no_tax' => [
-            'net' => round($diagNetNoTax, 3),
-            'cost' => round($totCost, 3),
-        ],
-        'tax_sum_lines' => [
-            'net' => round($diagNetNoTax - $diagTaxSum, 3),
-            'cost' => round($totCost, 3),
-        ],
-        'qty_cost_only' => [
-            'net' => round($totNet, 3),
-            'cost' => round($diagCostQtyOnly, 3),
-        ],
-        'old_v6' => [
-            'net' => round($diagNetNoTax, 3),
-            'cost' => round($diagCostQtyOnly, 3),
-        ],
-        'with_returns' => [
-            'net' => round($totNet + $retNet, 3),
-            'cost' => round($totCost + $retCost, 3),
-        ],
+        'disc_pct_bonus_cost' => $mk($gDiscPct - $vouDisc, $costBonus),
+        'disc_pct_qty_cost' => $mk($gDiscPct - $vouDisc, $costQty),
+        'disc_pct_taxmax_bonus' => $mk($gDiscPct - $vouDisc - $taxMax, $costBonus),
+        'disc_old_qty_cost' => $mk($gDiscOld - $vouDisc, $costQty),
+        'disc_old_bonus_cost' => $mk($gDiscOld - $vouDisc, $costBonus),
+        'disc_old_taxmax_bonus' => $mk($gDiscOld - $vouDisc - $taxMax, $costBonus),
+        'raw_vd_qty' => $mk($gRaw - $vouDisc, $costQty),
+        'raw_vd_bonus' => $mk($gRaw - $vouDisc, $costBonus),
+        'btax_vd_qty' => $mk($gBtax - $vouDisc, $costQty),
+        'btax_vd_bonus' => $mk($gBtax - $vouDisc, $costBonus),
+        'btax_vd_taxmax_bonus' => $mk($gBtax - $vouDisc - $taxMax, $costBonus),
+        'ex_tax_vd_bonus' => $mk($gExTax - $vouDisc, $costBonus),
+        'ex_tax_vd_qty' => $mk($gExTax - $vouDisc, $costQty),
+        'disc_pct_minus_pure_bonus' => $mk($gDiscPct - $vouDisc - $pureBonusSell, $costBonus),
+        'disc_pct_taxsum_bonus' => $mk($gDiscPct - $vouDisc - $taxSum, $costBonus),
+        'with_returns_disc_pct' => $mk($gDiscPct - $vouDisc + $retNet, $costBonus + $retCost),
     ];
+
+    // اختر أقرب معادلة لأرقام Forms؛ إن لم يقترب أحدها (< 1) نفضّل disc_pct + تكلفة بونص
+    $winnerKey = 'disc_pct_bonus_cost';
+    $bestSum = PHP_FLOAT_MAX;
+    foreach ($cand as $key => $cnd) {
+        $ds = (float) ($cnd['d_sum'] ?? 999999);
+        if ($ds < $bestSum) {
+            $bestSum = $ds;
+            $winnerKey = $key;
+        }
+    }
+    if ($bestSum > 1.0 && isset($cand['disc_pct_bonus_cost'])) {
+        // لا نثبت معايرة ضعيفة على فترة مختلفة — نستخدم المعادلة الافتراضية الجديدة
+        $winnerKey = 'disc_pct_bonus_cost';
+    }
+
+    $winner = $cand[$winnerKey];
+    $cand['base'] = $winner;
+
+    // طبّق نفس منطق الفائز على كل مندوب
+    $applyRow = static function (array $row, string $key): array {
+        $vou = (float) ($row['_vou'] ?? 0);
+        $net = match ($key) {
+            'disc_pct_bonus_cost', 'disc_pct_qty_cost' => (float) $row['_g_disc_pct'] - $vou,
+            'disc_pct_taxmax_bonus' => (float) $row['_g_disc_pct'] - $vou - (float) $row['_tax_max'],
+            'disc_old_qty_cost', 'disc_old_bonus_cost' => (float) $row['_g_disc_old'] - $vou,
+            'disc_old_taxmax_bonus' => (float) $row['_g_disc_old'] - $vou - (float) $row['_tax_max'],
+            'raw_vd_qty', 'raw_vd_bonus' => (float) $row['_g_raw'] - $vou,
+            'btax_vd_qty', 'btax_vd_bonus' => (float) $row['_g_btax'] - $vou,
+            'btax_vd_taxmax_bonus' => (float) $row['_g_btax'] - $vou - (float) $row['_tax_max'],
+            'ex_tax_vd_bonus', 'ex_tax_vd_qty' => (float) $row['_g_ex_tax'] - $vou,
+            'disc_pct_minus_pure_bonus' => (float) $row['_g_disc_pct'] - $vou - (float) $row['_pure_bonus_sell'],
+            'disc_pct_taxsum_bonus' => (float) $row['_g_disc_pct'] - $vou - (float) $row['_tax_sum'],
+            default => (float) $row['_g_disc_pct'] - $vou,
+        };
+        $cost = match ($key) {
+            'disc_pct_qty_cost', 'disc_old_qty_cost', 'raw_vd_qty', 'btax_vd_qty', 'ex_tax_vd_qty' => (float) $row['_cost_qty'],
+            default => (float) $row['_cost_bonus'],
+        };
+        $net = round($net, 3);
+        $cost = round($cost, 3);
+        $profit = round($net - $cost, 3);
+        $pct = $net != 0.0 ? round(100.0 * $profit / $net, 3) : 0.0;
+        unset(
+            $row['_g_disc_pct'],
+            $row['_g_disc_old'],
+            $row['_g_raw'],
+            $row['_g_btax'],
+            $row['_g_ex_tax'],
+            $row['_vou'],
+            $row['_tax_max'],
+            $row['_tax_sum'],
+            $row['_cost_qty'],
+            $row['_cost_bonus'],
+            $row['_pure_bonus_sell']
+        );
+        $row['net'] = $net;
+        $row['cost'] = $cost;
+        $row['profit'] = $profit;
+        $row['profit_pct'] = $pct;
+
+        return $row;
+    };
+
+    $rows = array_map(static fn (array $row): array => $applyRow($row, $winnerKey), $rows);
+    $totNet = (float) $winner['net'];
+    $totCost = (float) $winner['cost'];
+    $totProfit = (float) $winner['profit'];
+    $totPct = (float) $winner['profit_pct'];
 
     return [
         'ok' => true,
@@ -462,19 +568,26 @@ WHERE d.COMP_NUM = :comp_num
             'sale_type' => $saleType,
             'comp_num' => $compNum,
             'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
-            'formula' => 'man_num+sell_btax_taxmax_bonuscost_v7',
-            'gross_raw' => round($diagGrossRaw, 3),
-            'gross_btax' => round($diagGrossBtax, 3),
-            'sell_tax_gap' => round($diagGrossRaw - $diagGrossBtax, 3),
-            'vou_disc' => round($diagVouDisc, 3),
-            'disc_sum' => round($diagDisc, 6),
-            'tax_max' => round($diagTaxMax, 3),
-            'tax_sum' => round($diagTaxSum, 3),
-            'bonus_sell' => round($diagBonusSell, 3),
-            'bonus_cost' => round($diagBonusCost, 3),
-            'pure_bonus_sell' => round($diagPureBonusSell, 3),
-            'pure_bonus_cost' => round($diagPureBonusCost, 3),
-            'cost_qty_only' => round($diagCostQtyOnly, 3),
+            'formula' => $winnerKey,
+            'forms_target_net' => $formsNetTarget,
+            'forms_target_cost' => $formsCostTarget,
+            'formula_delta' => $bestSum,
+            'gross_raw' => round($gRaw, 3),
+            'gross_btax' => round($gBtax, 3),
+            'gross_disc_pct' => round($gDiscPct, 3),
+            'gross_ex_tax' => round($gExTax, 3),
+            'sell_tax_gap' => round($gRaw - $gBtax, 3),
+            'vou_disc' => round($vouDisc, 3),
+            'disc_amt' => round($discAmt, 3),
+            'disc_sum' => round($discSum, 6),
+            'tax_max' => round($taxMax, 3),
+            'tax_sum' => round($taxSum, 3),
+            'bonus_sell' => round($bonusSell, 3),
+            'bonus_cost' => round($bonusCost, 3),
+            'pure_bonus_sell' => round($pureBonusSell, 3),
+            'pure_bonus_cost' => round($pureBonusCost, 3),
+            'cost_qty_only' => round($costQty, 3),
+            'cost_with_bonus' => round($costBonus, 3),
             'returns_net' => round($retNet, 3),
             'returns_cost' => round($retCost, 3),
             'candidates' => $cand,
