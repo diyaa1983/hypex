@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 /**
  * صافي فواتير مبيعات المندوب من Oracle (INVREP050)
- * مصدر البيانات: MAS.DAILY (TYPE=9) حسب MAN_NUM + EMP_INFO
- * الصافي = Σ(QTY×SELL بعد DISC) − VOU_DISC مرة/فاتورة
- * التكلفة = Σ(QTY×JD_COST)
+ * مصدر البيانات: MAS.DAILY (TYPE=9) حسب MAN_NUM
+ * الصافي = Σ(QTY×SELL_BTAX بعد DISC) − VOU_DISC − MAX(VOU_TAX) مرة/فاتورة
+ * التكلفة = Σ((QTY+BONUS)×JD_COST)
  * قراءة فقط.
  */
 
@@ -180,8 +180,9 @@ function oracle_fetch_rep_net_sales(
     $cusQ = oracle_stmt_q($c['customer_owner']) . '.' . oracle_stmt_q($c['customer_table']);
     $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
 
-    // Forms INVREP050: الصافي من SELL_BTAX (قبل الضريبة) وليس SELL
-    // إن كان SELL_BTAX فارغاً/صفراً نرجع لـ SELL
+    // Forms INVREP050:
+    // الصافي ≈ Σ(QTY×SELL_BTAX بعد خصم البند) − VOU_DISC − ضريبة الفاتورة (مرة)
+    // التكلفة ≈ Σ((QTY+BONUS)×JD_COST)
     $unitPriceExpr = 'CASE
              WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX
              ELSE NVL(d.SELL, 0)
@@ -192,13 +193,17 @@ function oracle_fetch_rep_net_sales(
              THEN NVL(d.QTY, 0) * ({$unitPriceExpr}) * NVL(d.DISC, 0)
              ELSE NVL(d.DISC, 0)
            END";
-    $lineCostExpr = 'NVL(d.QTY, 0) * NVL(d.JD_COST, 0)';
+    // Forms يحتسب تكلفة الكمية المجانية مع المباعة
+    $lineCostExpr = '(NVL(d.QTY, 0) + NVL(d.BONUS, 0)) * NVL(d.JD_COST, 0)';
+    $lineCostQtyOnlyExpr = 'NVL(d.QTY, 0) * NVL(d.JD_COST, 0)';
 
     $invSelectExtra = "
          SUM(NVL(d.DISC, 0)) AS DISC_SUM,
+         MAX(NVL(d.VOU_TAX, 0)) AS TAX_MAX,
          SUM(NVL(d.VOU_TAX, 0)) AS TAX_SUM,
          SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)) AS GROSS_RAW,
          SUM(NVL(d.QTY, 0) * ({$unitPriceExpr})) AS GROSS_BTAX,
+         SUM({$lineCostQtyOnlyExpr}) AS COST_QTY_ONLY,
          SUM(NVL(d.BONUS, 0) * NVL(d.SELL, 0)) AS BONUS_SELL,
          SUM(NVL(d.BONUS, 0) * NVL(d.JD_COST, 0)) AS BONUS_COST,
          SUM(CASE WHEN NVL(d.QTY, 0) = 0 AND NVL(d.BONUS, 0) > 0
@@ -280,20 +285,23 @@ WITH inv AS (
 SELECT i.REP_NO,
        e.EMP_NAME,
        COUNT(*) AS INV_CNT,
-       ROUND(SUM(i.GROSS - i.VOU_DISC), 3) AS NET_AMT,
+       ROUND(SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX), 3) AS NET_AMT,
        ROUND(SUM(i.COST_AMT), 3) AS COST_AMT,
-       ROUND(SUM(i.GROSS - i.VOU_DISC) - SUM(i.COST_AMT), 3) AS PROFIT_AMT,
+       ROUND(SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX) - SUM(i.COST_AMT), 3) AS PROFIT_AMT,
        CASE
-         WHEN SUM(i.GROSS - i.VOU_DISC) = 0 THEN 0
+         WHEN SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX) = 0 THEN 0
          ELSE ROUND(
-           100 * (SUM(i.GROSS - i.VOU_DISC) - SUM(i.COST_AMT))
-               / SUM(i.GROSS - i.VOU_DISC), 3)
+           100 * (SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX) - SUM(i.COST_AMT))
+               / SUM(i.GROSS - i.VOU_DISC - i.TAX_MAX), 3)
        END AS PROFIT_PCT,
+       ROUND(SUM(i.GROSS - i.VOU_DISC), 3) AS NET_NO_TAX,
        ROUND(SUM(i.GROSS_RAW), 3) AS GROSS_RAW,
        ROUND(SUM(i.GROSS_BTAX), 3) AS GROSS_BTAX,
        ROUND(SUM(i.VOU_DISC), 3) AS VOU_DISC_SUM,
        ROUND(SUM(i.DISC_SUM), 6) AS DISC_SUM,
+       ROUND(SUM(i.TAX_MAX), 3) AS TAX_MAX,
        ROUND(SUM(i.TAX_SUM), 3) AS TAX_SUM,
+       ROUND(SUM(i.COST_QTY_ONLY), 3) AS COST_QTY_ONLY,
        ROUND(SUM(i.BONUS_SELL), 3) AS BONUS_SELL,
        ROUND(SUM(i.BONUS_COST), 3) AS BONUS_COST,
        ROUND(SUM(i.PURE_BONUS_SELL), 3) AS PURE_BONUS_SELL,
@@ -363,7 +371,10 @@ WHERE d.COMP_NUM = :comp_num
     $diagGrossBtax = 0.0;
     $diagVouDisc = 0.0;
     $diagDisc = 0.0;
-    $diagTax = 0.0;
+    $diagTaxMax = 0.0;
+    $diagTaxSum = 0.0;
+    $diagNetNoTax = 0.0;
+    $diagCostQtyOnly = 0.0;
     $diagBonusSell = 0.0;
     $diagBonusCost = 0.0;
     $diagPureBonusSell = 0.0;
@@ -381,7 +392,10 @@ WHERE d.COMP_NUM = :comp_num
         $diagGrossBtax += (float) oracle_statement_row_val($r, 'GROSS_BTAX');
         $diagVouDisc += (float) oracle_statement_row_val($r, 'VOU_DISC_SUM');
         $diagDisc += (float) oracle_statement_row_val($r, 'DISC_SUM');
-        $diagTax += (float) oracle_statement_row_val($r, 'TAX_SUM');
+        $diagTaxMax += (float) oracle_statement_row_val($r, 'TAX_MAX');
+        $diagTaxSum += (float) oracle_statement_row_val($r, 'TAX_SUM');
+        $diagNetNoTax += (float) oracle_statement_row_val($r, 'NET_NO_TAX');
+        $diagCostQtyOnly += (float) oracle_statement_row_val($r, 'COST_QTY_ONLY');
         $diagBonusSell += (float) oracle_statement_row_val($r, 'BONUS_SELL');
         $diagBonusCost += (float) oracle_statement_row_val($r, 'BONUS_COST');
         $diagPureBonusSell += (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL');
@@ -406,13 +420,21 @@ WHERE d.COMP_NUM = :comp_num
 
     $cand = [
         'base' => ['net' => round($totNet, 3), 'cost' => round($totCost, 3)],
-        'sell_not_btax' => [
-            'net' => round($diagGrossRaw - $diagVouDisc, 3),
+        'no_tax' => [
+            'net' => round($diagNetNoTax, 3),
             'cost' => round($totCost, 3),
         ],
-        'minus_all_bonus' => [
-            'net' => round($totNet - $diagBonusSell, 3),
-            'cost' => round($totCost + $diagBonusCost, 3),
+        'tax_sum_lines' => [
+            'net' => round($diagNetNoTax - $diagTaxSum, 3),
+            'cost' => round($totCost, 3),
+        ],
+        'qty_cost_only' => [
+            'net' => round($totNet, 3),
+            'cost' => round($diagCostQtyOnly, 3),
+        ],
+        'old_v6' => [
+            'net' => round($diagNetNoTax, 3),
+            'cost' => round($diagCostQtyOnly, 3),
         ],
         'with_returns' => [
             'net' => round($totNet + $retNet, 3),
@@ -440,17 +462,19 @@ WHERE d.COMP_NUM = :comp_num
             'sale_type' => $saleType,
             'comp_num' => $compNum,
             'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
-            'formula' => 'man_num+sell_btax_v6',
+            'formula' => 'man_num+sell_btax_taxmax_bonuscost_v7',
             'gross_raw' => round($diagGrossRaw, 3),
             'gross_btax' => round($diagGrossBtax, 3),
             'sell_tax_gap' => round($diagGrossRaw - $diagGrossBtax, 3),
             'vou_disc' => round($diagVouDisc, 3),
             'disc_sum' => round($diagDisc, 6),
-            'tax_sum' => round($diagTax, 3),
+            'tax_max' => round($diagTaxMax, 3),
+            'tax_sum' => round($diagTaxSum, 3),
             'bonus_sell' => round($diagBonusSell, 3),
             'bonus_cost' => round($diagBonusCost, 3),
             'pure_bonus_sell' => round($diagPureBonusSell, 3),
             'pure_bonus_cost' => round($diagPureBonusCost, 3),
+            'cost_qty_only' => round($diagCostQtyOnly, 3),
             'returns_net' => round($retNet, 3),
             'returns_cost' => round($retCost, 3),
             'candidates' => $cand,
