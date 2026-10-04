@@ -1540,9 +1540,53 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
             — إن ظهر صف بـ Δ≈0 فهو المطابق. صَوّر هذا الجدول إن بقي فرق.</p>
           </div>`
         : '';
+    const alt20 = f.alt_to_20 && typeof f.alt_to_20 === 'object' ? f.alt_to_20 : null;
+    const altTot = alt20 && alt20.totals ? alt20.totals : null;
+    const formsHint = String(f.forms_period_hint || '');
+    const altBanner =
+      altTot
+        ? `<p class="si-pill no-print" style="display:inline-block;margin:0 0 .5rem;background:#fff8e6;border:1px solid #f0d78c">
+            مقارنة Forms: لو «إلى تاريخ» = <strong>20-09-2026</strong> ← صافي
+            <span dir="ltr">${esc(fmtAmt(altTot.net || 0))}</span>
+            / تكلفة <span dir="ltr">${esc(fmtAmt(altTot.cost || 0))}</span>
+            · Δ <span dir="ltr">${esc(fmtAmt(alt20.formula_delta || 0))}</span>
+            ${formsHint
+              ? ' — <strong style="color:#0a7a2f">يطابق Forms — غيّر تاريخ النهاية إلى 20-09-2026</strong>'
+              : Number(alt20.formula_delta || 99) < Number(f.formula_delta || 99)
+                ? ' — أقرب من الفترة حتى 30'
+                : ''}
+          </p>`
+        : '';
+    const invs = Array.isArray(f.invoices) ? f.invoices : [];
+    const invTable =
+      invs.length > 0
+        ? `<div class="no-print" style="margin:0 0 .75rem;overflow:auto;max-width:100%">
+            <p class="muted" style="margin:0 0 .25rem;font-size:.78rem">تفصيل الفواتير (${invs.length}) — لمطابقة صفوف Forms</p>
+            <table class="si-table" style="font-size:.75rem;min-width:32rem">
+              <thead><tr>
+                <th>الرقم</th><th>التاريخ</th><th>الصافي</th><th>التكلفة</th><th>الربح</th><th>خصم فاتورة</th><th>ضريبة</th>
+              </tr></thead>
+              <tbody>
+                ${invs
+                  .map(
+                    (iv) => `<tr>
+                  <td class="si-num" dir="ltr">${esc(iv.v_num)}/${esc(iv.vyear)}</td>
+                  <td class="si-num" dir="ltr">${esc(iv.vdate || '')}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(iv.net || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(iv.cost || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(iv.profit || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(iv.vou_disc || 0))}</td>
+                  <td class="si-num" dir="ltr">${esc(fmtAmt(iv.tax_max || 0))}</td>
+                </tr>`
+                  )
+                  .join('')}
+              </tbody>
+            </table>
+          </div>`
+        : '';
     const diag =
       f.formula
-        ? `<p class="muted no-print" style="margin:0 0 .35rem;font-size:.8rem;line-height:1.6">
+        ? `${altBanner}<p class="muted no-print" style="margin:0 0 .35rem;font-size:.8rem;line-height:1.6">
             معادلة: <code>${esc(String(f.formula))}</code>
             · Δ عن Forms: <span dir="ltr">${esc(fmtAmt(f.formula_delta || 0))}</span>
             · SELL: <span dir="ltr">${esc(fmtAmt(f.gross_raw || 0))}</span>
@@ -1551,7 +1595,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
             · مبلغ خصم البنود: <span dir="ltr">${esc(fmtAmt(f.disc_amt || 0))}</span>
             · ضريبة MAX: <span dir="ltr">${esc(fmtAmt(f.tax_max || 0))}</span>
             · تكلفة بونص: <span dir="ltr">${esc(fmtAmt(f.bonus_cost || 0))}</span>
-          </p>${candTable}`
+          </p>${candTable}${invTable}`
         : '';
     tableBlock =
       diag +

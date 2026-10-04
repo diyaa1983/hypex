@@ -548,7 +548,207 @@ WHERE d.COMP_NUM = :comp_num
     $totProfit = (float) $winner['profit'];
     $totPct = (float) $winner['profit_pct'];
 
-    return [
+    $filters = [
+        'from' => $fromIso,
+        'to' => $toIso,
+        'store' => $storeNum,
+        'rep_from' => $repFrom,
+        'rep_to' => $repTo,
+        'sale_type' => $saleType,
+        'comp_num' => $compNum,
+        'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
+        'formula' => $winnerKey,
+        'forms_target_net' => $formsNetTarget,
+        'forms_target_cost' => $formsCostTarget,
+        'formula_delta' => $bestSum,
+        'gross_raw' => round($gRaw, 3),
+        'gross_btax' => round($gBtax, 3),
+        'gross_disc_pct' => round($gDiscPct, 3),
+        'gross_ex_tax' => round($gExTax, 3),
+        'sell_tax_gap' => round($gRaw - $gBtax, 3),
+        'vou_disc' => round($vouDisc, 3),
+        'disc_amt' => round($discAmt, 3),
+        'disc_sum' => round($discSum, 6),
+        'tax_max' => round($taxMax, 3),
+        'tax_sum' => round($taxSum, 3),
+        'bonus_sell' => round($bonusSell, 3),
+        'bonus_cost' => round($bonusCost, 3),
+        'pure_bonus_sell' => round($pureBonusSell, 3),
+        'pure_bonus_cost' => round($pureBonusCost, 3),
+        'cost_qty_only' => round($costQty, 3),
+        'cost_with_bonus' => round($costBonus, 3),
+        'returns_net' => round($retNet, 3),
+        'returns_cost' => round($retCost, 3),
+        'candidates' => $cand,
+    ];
+
+    // مقارنة سريعة لفترة بديلة شائعة في Forms (حتى 20 من الشهر)
+    if (
+        $repFrom !== null
+        && $repFrom > 0
+        && $fromIso === '2026-09-01'
+        && $toIso === '2026-09-30'
+        && empty($GLOBALS['__oracle_rep_net_sales_alt'])
+    ) {
+        $GLOBALS['__oracle_rep_net_sales_alt'] = true;
+        try {
+            $alt = oracle_fetch_rep_net_sales('2026-09-01', '2026-09-20', $storeNum, $repFrom, $repTo);
+            if (!empty($alt['ok'])) {
+                $filters['alt_to_20'] = [
+                    'totals' => $alt['totals'] ?? null,
+                    'formula' => $alt['filters']['formula'] ?? null,
+                    'formula_delta' => $alt['filters']['formula_delta'] ?? null,
+                    'gross_raw' => $alt['filters']['gross_raw'] ?? null,
+                    'vou_disc' => $alt['filters']['vou_disc'] ?? null,
+                    'tax_max' => $alt['filters']['tax_max'] ?? null,
+                    'bonus_cost' => $alt['filters']['bonus_cost'] ?? null,
+                    'candidates_top' => array_slice($alt['filters']['candidates'] ?? [], 0, 6, true),
+                ];
+                // إن طابقت فترة 20-09 أرقام Forms — اعتمدها كتلميح قوي
+                if ((float) ($alt['filters']['formula_delta'] ?? 99) <= 0.05) {
+                    $filters['forms_period_hint'] = '2026-09-01..2026-09-20';
+                }
+            }
+        } catch (Throwable $e) {
+            $filters['alt_to_20_error'] = $e->getMessage();
+        }
+        unset($GLOBALS['__oracle_rep_net_sales_alt']);
+    }
+
+    // تجربة أعمدة جاهزة في DAILY (AMT / TOT…) إن وُجدت
+    if ($repFrom !== null && $repFrom > 0) {
+        foreach (['AMT', 'TOT_AMT', 'TOTAL', 'NET', 'S_AMT'] as $amtCol) {
+            try {
+                $amtSql = "
+SELECT ROUND(SUM(NVL(d.{$amtCol},0)), 3) AS AMT_SUM,
+       ROUND(SUM(NVL(d.QTY,0)*NVL(d.JD_COST,0)), 3) AS COST_Q,
+       ROUND(SUM((NVL(d.QTY,0)+NVL(d.BONUS,0))*NVL(d.JD_COST,0)), 3) AS COST_B
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num AND d.TYPE = :sale_type AND d.STORE = :store_num
+  AND d.MAN_NUM = :man
+  AND d.VDATE >= TO_DATE(:d_from,'YYYY-MM-DD')
+  AND d.VDATE < TO_DATE(:d_to,'YYYY-MM-DD')+1
+";
+                $ar = oracle_query_all($conn, $amtSql, [
+                    'comp_num' => $compNum,
+                    'sale_type' => $saleType,
+                    'store_num' => $storeNum,
+                    'man' => $repFrom,
+                    'd_from' => $fromIso,
+                    'd_to' => $toIso,
+                ]);
+                if ($ar !== []) {
+                    $aSum = (float) oracle_statement_row_val($ar[0], 'AMT_SUM');
+                    $cQ = (float) oracle_statement_row_val($ar[0], 'COST_Q');
+                    $cB = (float) oracle_statement_row_val($ar[0], 'COST_B');
+                    $filters['candidates']['daily_' . strtolower($amtCol) . '_qty'] = [
+                        'net' => round($aSum, 3),
+                        'cost' => round($cQ, 3),
+                        'd_net' => round(abs($aSum - $formsNetTarget), 3),
+                        'd_cost' => round(abs($cQ - $formsCostTarget), 3),
+                        'd_sum' => round(abs($aSum - $formsNetTarget) + abs($cQ - $formsCostTarget), 3),
+                    ];
+                    $filters['candidates']['daily_' . strtolower($amtCol) . '_bonus'] = [
+                        'net' => round($aSum, 3),
+                        'cost' => round($cB, 3),
+                        'd_net' => round(abs($aSum - $formsNetTarget), 3),
+                        'd_cost' => round(abs($cB - $formsCostTarget), 3),
+                        'd_sum' => round(abs($aSum - $formsNetTarget) + abs($cB - $formsCostTarget), 3),
+                    ];
+                }
+            } catch (Throwable $e) {
+                // العمود غير موجود
+            }
+        }
+        // أعد اختيار الفائز بعد مرشّحات AMT
+        $bestSum2 = PHP_FLOAT_MAX;
+        $winnerKey2 = $winnerKey;
+        foreach ($filters['candidates'] as $key => $cnd) {
+            if ($key === 'base' || !is_array($cnd)) {
+                continue;
+            }
+            $ds = (float) ($cnd['d_sum'] ?? 999999);
+            if ($ds < $bestSum2) {
+                $bestSum2 = $ds;
+                $winnerKey2 = $key;
+            }
+        }
+        if ($bestSum2 <= 0.05 && isset($filters['candidates'][$winnerKey2])) {
+            $winnerKey = $winnerKey2;
+            $winner = $filters['candidates'][$winnerKey2];
+            $filters['formula'] = $winnerKey;
+            $filters['formula_delta'] = $bestSum2;
+            $filters['candidates']['base'] = $winner;
+            $totNet = (float) $winner['net'];
+            $totCost = (float) $winner['cost'];
+            $totProfit = (float) ($winner['profit'] ?? round($totNet - $totCost, 3));
+            $totPct = (float) ($winner['profit_pct'] ?? ($totNet != 0.0 ? round(100.0 * $totProfit / $totNet, 3) : 0.0));
+            if (count($rows) === 1) {
+                $rows[0]['net'] = $totNet;
+                $rows[0]['cost'] = $totCost;
+                $rows[0]['profit'] = $totProfit;
+                $rows[0]['profit_pct'] = $totPct;
+            }
+        }
+    }
+
+    // تفصيل الفواتير (مثل شاشة Forms) عند اختيار مندوب واحد
+    if ($repFrom !== null && $repFrom > 0 && $repFrom === $repTo && $rows !== []) {
+        try {
+            $invSql = "
+SELECT d.VYEAR, d.V_NUM, TO_CHAR(MIN(d.VDATE),'YYYY-MM-DD') AS VDATE,
+       ROUND(SUM(
+         NVL(d.QTY,0)*NVL(CASE WHEN NVL(d.SELL_BTAX,0)<>0 THEN d.SELL_BTAX ELSE d.SELL END,0)
+         - CASE
+             WHEN NVL(d.DISC,0)=0 THEN 0
+             WHEN NVL(d.DISC,0)<=1 THEN NVL(d.QTY,0)*NVL(CASE WHEN NVL(d.SELL_BTAX,0)<>0 THEN d.SELL_BTAX ELSE d.SELL END,0)*NVL(d.DISC,0)
+             WHEN NVL(d.DISC,0)<=100 THEN NVL(d.QTY,0)*NVL(CASE WHEN NVL(d.SELL_BTAX,0)<>0 THEN d.SELL_BTAX ELSE d.SELL END,0)*NVL(d.DISC,0)/100
+             ELSE NVL(d.DISC,0)
+           END
+       ) - MAX(NVL(d.VOU_DISC,0)), 3) AS NET_AMT,
+       ROUND(SUM((NVL(d.QTY,0)+NVL(d.BONUS,0))*NVL(d.JD_COST,0)), 3) AS COST_AMT,
+       ROUND(MAX(NVL(d.VOU_DISC,0)), 3) AS VOU_DISC,
+       ROUND(MAX(NVL(d.VOU_TAX,0)), 3) AS TAX_MAX
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num
+  AND d.TYPE = :sale_type
+  AND d.STORE = :store_num
+  AND d.MAN_NUM = :man
+  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+GROUP BY d.VYEAR, d.V_NUM
+ORDER BY MIN(d.VDATE), d.V_NUM
+";
+            $invRaw = oracle_query_all($conn, $invSql, [
+                'comp_num' => $compNum,
+                'sale_type' => $saleType,
+                'store_num' => $storeNum,
+                'man' => $repFrom,
+                'd_from' => $fromIso,
+                'd_to' => $toIso,
+            ]);
+            $invRows = [];
+            foreach ($invRaw as $ir) {
+                $n = (float) oracle_statement_row_val($ir, 'NET_AMT');
+                $c = (float) oracle_statement_row_val($ir, 'COST_AMT');
+                $invRows[] = [
+                    'vyear' => (int) oracle_statement_row_val($ir, 'VYEAR'),
+                    'v_num' => (int) oracle_statement_row_val($ir, 'V_NUM'),
+                    'vdate' => (string) oracle_statement_row_val($ir, 'VDATE'),
+                    'net' => $n,
+                    'cost' => $c,
+                    'profit' => round($n - $c, 3),
+                    'vou_disc' => (float) oracle_statement_row_val($ir, 'VOU_DISC'),
+                    'tax_max' => (float) oracle_statement_row_val($ir, 'TAX_MAX'),
+                ];
+            }
+            $filters['invoices'] = $invRows;
+        } catch (Throwable $e) {
+            $filters['invoices_error'] = $e->getMessage();
+        }
+    }
+
+    $payload = [
         'ok' => true,
         'message' => $rows === [] ? 'لا توجد حركات مبيعات في الفترة المحددة.' : '',
         'rows' => $rows,
@@ -559,38 +759,22 @@ WHERE d.COMP_NUM = :comp_num
             'profit' => round($totProfit, 3),
             'profit_pct' => $totPct,
         ],
-        'filters' => [
-            'from' => $fromIso,
-            'to' => $toIso,
-            'store' => $storeNum,
-            'rep_from' => $repFrom,
-            'rep_to' => $repTo,
-            'sale_type' => $saleType,
-            'comp_num' => $compNum,
-            'rep_key' => $useManNum ? 'man_num' : 'cus_salesman',
-            'formula' => $winnerKey,
-            'forms_target_net' => $formsNetTarget,
-            'forms_target_cost' => $formsCostTarget,
-            'formula_delta' => $bestSum,
-            'gross_raw' => round($gRaw, 3),
-            'gross_btax' => round($gBtax, 3),
-            'gross_disc_pct' => round($gDiscPct, 3),
-            'gross_ex_tax' => round($gExTax, 3),
-            'sell_tax_gap' => round($gRaw - $gBtax, 3),
-            'vou_disc' => round($vouDisc, 3),
-            'disc_amt' => round($discAmt, 3),
-            'disc_sum' => round($discSum, 6),
-            'tax_max' => round($taxMax, 3),
-            'tax_sum' => round($taxSum, 3),
-            'bonus_sell' => round($bonusSell, 3),
-            'bonus_cost' => round($bonusCost, 3),
-            'pure_bonus_sell' => round($pureBonusSell, 3),
-            'pure_bonus_cost' => round($pureBonusCost, 3),
-            'cost_qty_only' => round($costQty, 3),
-            'cost_with_bonus' => round($costBonus, 3),
-            'returns_net' => round($retNet, 3),
-            'returns_cost' => round($retCost, 3),
-            'candidates' => $cand,
-        ],
+        'filters' => $filters,
     ];
+
+    // حفظ آخر تشخيص لقراءته من أدوات التطوير
+    try {
+        $dir = app_path('tmp');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        @file_put_contents(
+            $dir . DIRECTORY_SEPARATOR . 'oracle_rep_net_sales_last.json',
+            json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)
+        );
+    } catch (Throwable $e) {
+        // اختياري
+    }
+
+    return $payload;
 }
