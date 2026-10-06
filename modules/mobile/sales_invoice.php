@@ -154,7 +154,7 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
             <h2 class="m-inv-app-section__title">بنود الفاتورة</h2>
             <span class="m-inv-app-section__badge" id="m-lines-count">0 سطر</span>
         </div>
-        <p class="m-inv-app-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «إضافة مواد»، اختر المادة، أدخل الكمية والسعر.</p>
+        <p class="m-inv-app-empty muted" id="m-lines-empty">لا توجد بنود — اضغط «إضافة مواد»، اختر المادة، وأدخل الكمية (السعر من بطاقة المادة).</p>
         <p class="m-lines-swipe-hint muted" id="m-lines-swipe-hint" hidden>اضغط مطوّلاً على البند ثم اسحب لليمين للحذف</p>
         <div class="m-lines-list" id="m-lines-list" hidden aria-live="polite"></div>
     </section>
@@ -213,7 +213,7 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
         <p class="m-picker-loading muted" id="m-picker-loading">جاري التحميل...</p>
     </div>
     <footer class="m-picker-foot">
-        <p class="m-picker-hint muted">اضغط على المادة لإدخال الكمية والسعر — مادة مادة</p>
+        <p class="m-picker-hint muted">اضغط على المادة لإدخال الكمية — السعر من بطاقة المادة</p>
         <button type="button" class="m-btn m-btn--primary m-btn--block" id="m-picker-done">تم</button>
     </footer>
     <div id="m-item-quick" class="m-item-quick" hidden aria-hidden="true">
@@ -232,12 +232,12 @@ $siJsV = is_file(app_path('assets/mobile/sales-invoice.js'))
                     <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-qty" inputmode="decimal" autocomplete="off" placeholder="">
                 </label>
                 <label class="m-inv-mini">
-                    <span>السعر الإفرادي</span>
-                    <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-unit" inputmode="decimal" autocomplete="off" placeholder="">
+                    <span>السعر الإفرادي (من البطاقة)</span>
+                    <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-unit" inputmode="decimal" autocomplete="off" placeholder="" readonly tabindex="-1" title="من بطاقة المادة — التعديل عبر شاشة تعديل الأسعار">
                 </label>
                 <label class="m-inv-mini m-inv-mini--full">
                     <span>السعر الإجمالي (قبل الضريبة)</span>
-                    <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-total" inputmode="decimal" autocomplete="off" placeholder="">
+                    <input type="text" class="m-input m-input--sm m-input--num" id="m-item-quick-total" inputmode="decimal" autocomplete="off" placeholder="" readonly tabindex="-1" title="يُحسب تلقائياً من سعر البطاقة × الكمية">
                 </label>
             </div>
             <div class="m-item-quick-actions">

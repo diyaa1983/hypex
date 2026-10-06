@@ -436,9 +436,16 @@
         if (priceEl) priceEl.value = inputDisplayAmount(ln.unit_price);
       }
     }
-    ln.unit_price = parseNum(priceEl ? priceEl.value : 0);
-    if (ln.unit_price <= 0 && priceEl && String(priceEl.placeholder || '').trim() !== '') {
-      ln.unit_price = parseNum(priceEl.placeholder);
+    // السعر من بطاقة المادة فقط (base_price × العامل) — لا يُؤخذ من إدخال المستخدم
+    if (parseNum(ln.base_price) > 0) {
+      var fSync = parseNum(ln.unit_factor) > 0 ? parseNum(ln.unit_factor) : 1;
+      ln.unit_price = roundN(parseNum(ln.base_price) * fSync);
+      if (priceEl) priceEl.value = inputDisplayAmount(ln.unit_price);
+    } else {
+      ln.unit_price = parseNum(priceEl ? priceEl.value : 0);
+      if (ln.unit_price <= 0 && priceEl && String(priceEl.placeholder || '').trim() !== '') {
+        ln.unit_price = parseNum(priceEl.placeholder);
+      }
     }
     ln.line_discount_input = discEl ? String(discEl.value || '').trim() : '';
     if (taxEl) {
@@ -556,7 +563,7 @@
         '<input type="text" class="m-input m-input--xs m-input--num m-inp-qty-extra" inputmode="decimal" autocomplete="off" aria-label="الكمية الإضافية" value="' +
         escapeHtml(inputDisplayQty(ln.qty_extra)) + '" title="للمخزون"></label>' +
         '<label class="m-inv-mini"><span>سعر</span>' +
-        '<input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" aria-label="السعر" placeholder="' +
+        '<input type="text" class="m-input m-input--xs m-input--num m-inp-price" inputmode="decimal" autocomplete="off" aria-label="السعر" readonly tabindex="-1" title="من بطاقة المادة — التعديل عبر شاشة تعديل الأسعار" placeholder="' +
         escapeHtml(pricePh) + '" value="' + escapeHtml(priceVal) + '"></label>' +
         '<label class="m-inv-mini"><span>خصم</span>' +
         '<input type="text" class="m-input m-input--xs m-inp-disc" inputmode="decimal" autocomplete="off" aria-label="الخصم" placeholder="%" value="' +
@@ -854,18 +861,14 @@
       applyQuickUnitPriceFromBase();
     });
   }
+  // السعر/الإجمالي من بطاقة المادة فقط — لا تعديل يدوي
   if (itemQuickUnit) {
-    itemQuickUnit.addEventListener('input', function () {
-      var factor = currentQuickFactor();
-      var price = parseNum(itemQuickUnit.value);
-      if (factor > 0 && price > 0) {
-        quickBasePrice = price / factor;
-      }
-      recalcItemQuick('unit');
-    });
+    itemQuickUnit.readOnly = true;
+    itemQuickUnit.tabIndex = -1;
   }
   if (itemQuickTotal) {
-    itemQuickTotal.addEventListener('input', function () { recalcItemQuick('total'); });
+    itemQuickTotal.readOnly = true;
+    itemQuickTotal.tabIndex = -1;
   }
   if (itemQuickCancel) itemQuickCancel.addEventListener('click', closeItemQuick);
   if (itemQuickBackdrop) itemQuickBackdrop.addEventListener('click', closeItemQuick);
@@ -1602,7 +1605,7 @@
         }
         if (unitPrice <= 0 && !isBonusLine) {
           if (window.AppDialog && AppDialog.alert) {
-            AppDialog.alert('أدخل السعر للمادة: ' + ln.item_name, { type: 'warning' });
+            AppDialog.alert('لا يوجد سعر في بطاقة المادة: ' + ln.item_name + '\nعدّل السعر من شاشة تعديل الأسعار.', { type: 'warning' });
           }
           return;
         }

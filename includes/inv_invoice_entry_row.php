@@ -41,7 +41,7 @@ $amountStep = $amountStep ?? '0.01';
     </td>
     <td class="sales-inv-col-qty"><input type="number" class="input input-num js-qty" min="0" step="1" inputmode="decimal" value="" placeholder=""></td>
     <td class="sales-inv-col-qty-extra"><input type="number" class="input input-num js-qty-extra" min="0" step="1" inputmode="decimal" value="" title="كمية إضافية تُحسب في المخزون فقط"></td>
-    <td class="sales-inv-col-price"><input type="text" class="input input-num js-price" min="0" step="<?= esc((string) $unitPriceStep) ?>" inputmode="decimal" value="" title="السعر الافرادي غير شامل الضريبة"></td>
+    <td class="sales-inv-col-price"><input type="text" class="input input-num js-price" min="0" step="<?= esc((string) $unitPriceStep) ?>" inputmode="decimal" value="" readonly tabindex="-1" title="من بطاقة المادة — التعديل عبر شاشة تعديل الأسعار"></td>
     <?php if ($showUnitPriceIncl): ?>
         <td class="sales-inv-col-price-incl"><input type="text" class="input input-num js-price-incl" min="0" step="<?= esc((string) $amountStep) ?>" inputmode="decimal" value="" title="السعر الافرادي شامل الضريبة"></td>
     <?php endif; ?>

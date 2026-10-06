@@ -2110,7 +2110,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           DataColumn(label: _tableHead('الوحدة', m.unit, m.heading)),
           DataColumn(label: _tableHead('الكمية', m.qty, m.heading)),
           DataColumn(label: _tableHead('إضافية', m.extra, m.heading)),
-          DataColumn(label: _tableHead('السعر غ ش', m.price, m.heading)),
+          DataColumn(label: _tableHead('السعر غ ش*', m.price, m.heading)),
           DataColumn(label: _tableHead('السعر ش', m.priceInc, m.heading)),
           DataColumn(label: _tableHead('الضريبة', m.tax, m.heading)),
           DataColumn(label: _tableHead('خصم %', m.disc, m.heading)),
@@ -2230,25 +2230,18 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               DataCell(
                 SizedBox(
                   width: m.price,
-                          child: TextFormField(
-                    key: ValueKey(
-                        'price-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                    initialValue: Fmt.trimNum(_lines[i].unitPrice),
-                              enabled: _editable,
-                    style: cellStyle.copyWith(fontWeight: FontWeight.w800),
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
+                  child: Text(
+                    Fmt.trimNum(_lines[i].unitPrice),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
+                    style: cellStyle.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: const Color(0xFF334155),
                     ),
-                    decoration: _lineFieldDecoration(m),
-                              onChanged: (v) => setState(() {
-                      final p = double.tryParse(v.replaceAll(',', '')) ?? 0;
-                      _lines[i].unitPrice = p;
-                      if (_lines[i].unitFactor > 0) {
-                        _lines[i].basePrice = p / _lines[i].unitFactor;
-                      }
-                                  }),
-                          ),
-                        ),
+                  ),
+                ),
               ),
               DataCell(
                 SizedBox(

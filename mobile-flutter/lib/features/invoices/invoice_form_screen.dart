@@ -1254,15 +1254,10 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                 const SizedBox(width: 6),
                 Expanded(
                   child: _numBox(
-                    'السعر',
+                    'السعر (بطاقة)',
                     l.unitPrice,
-                    enabled: _canEdit,
-                    onChanged: (v) => setState(() {
-                      l.unitPrice = v;
-                      if (l.unitFactor > 0) {
-                        l.basePrice = v / l.unitFactor;
-                      }
-                    }),
+                    enabled: false,
+                    onChanged: (_) {},
                   ),
                 ),
                 const SizedBox(width: 6),

@@ -17,6 +17,20 @@
       return null;
     }
 
+    function lockCardPrice(tr) {
+      var pEl = tr && tr.querySelector ? tr.querySelector('.js-price') : null;
+      if (!pEl) return;
+      pEl.readOnly = true;
+      pEl.tabIndex = -1;
+      pEl.title = 'من بطاقة المادة — التعديل عبر شاشة تعديل الأسعار';
+      var pi = tr.querySelector('.js-price-incl');
+      if (pi) {
+        pi.readOnly = true;
+        pi.tabIndex = -1;
+        pi.title = 'محسوب من سعر البطاقة والضريبة';
+      }
+    }
+
     var decimals = parseInt(form.getAttribute('data-decimals') || '2', 10) || 2;
     var unitPriceDp = parseInt(form.getAttribute('data-unit-price-decimals') || String(decimals), 10) || decimals;
     var defaultTax = parseNum(form.getAttribute('data-default-tax-rate') || '15');
@@ -339,7 +353,8 @@
       fillUnits(tr, it.units || [], parseInt(it.unit_id, 10) || 0);
       var price = parseNum(it.default_sale != null ? it.default_sale : it.sale_price);
       var pEl = tr.querySelector('.js-price');
-      if (pEl && !(parseNum(pEl.value) > 0)) pEl.value = formatAmountValue(roundUnit(price * unitFactor(tr)), '0');
+      if (pEl) pEl.value = formatAmountValue(roundUnit(price * unitFactor(tr)), '0');
+      lockCardPrice(tr);
       var qEl2 = tr.querySelector('.js-qty');
       if (qEl2 && !(parseInt(qEl2.value, 10) > 0)) qEl2.value = String(qty || 1);
       selectTaxByRate(tr, defaultTax);
@@ -354,6 +369,7 @@
     }
 
     function bindRow(tr) {
+      lockCardPrice(tr);
       if (tr.dataset.bound === '1') return;
       tr.dataset.bound = '1';
 

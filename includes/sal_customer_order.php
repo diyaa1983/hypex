@@ -609,15 +609,21 @@ function sal_customer_order_user_can_delete_managed(): bool
 
 /**
  * تطبيع بنود الطلب مع الأسعار/الخصم/الضريبة.
+ * السعر دائماً من بطاقة المادة (لا يُقبل سعر يدوي).
  *
  * @param list<array<string,mixed>> $lines
  * @return array{lines:list<array<string,mixed>>,subtotal:float,discount_amount:float,tax_amount:float,total:float,invoice_discount_input:?string}
  */
-function sal_customer_order_normalize_priced_lines(PDO $pdo, array $lines, ?string $headerDiscountInput): array
-{
+function sal_customer_order_normalize_priced_lines(
+    PDO $pdo,
+    array $lines,
+    ?string $headerDiscountInput,
+    bool $useWholesale = false
+): array {
     require_once app_path('includes/company_settings.php');
     require_once app_path('includes/inv_invoice_discount.php');
     require_once app_path('includes/inv_item_units.php');
+    require_once app_path('includes/inv_item_doc_pricing.php');
     inv_item_units_ensure_schema($pdo);
 
     $dp = company_decimal_places($pdo);
@@ -632,38 +638,31 @@ function sal_customer_order_normalize_priced_lines(PDO $pdo, array $lines, ?stri
             continue;
         }
         $itemName = trim((string) ($line['item_name'] ?? ''));
-        $defaultSale = 0.0;
-        if ($itemName === '' || !isset($line['unit_price'])) {
-            $q = $pdo->prepare('SELECT name_ar, default_sale FROM inv_item WHERE id = ?');
+        if ($itemName === '') {
+            $q = $pdo->prepare('SELECT name_ar FROM inv_item WHERE id = ?');
             $q->execute([$itemId]);
-            $row = $q->fetch(PDO::FETCH_ASSOC);
-            if (!$row) {
-                throw new RuntimeException('صنف غير صالح.');
-            }
-            if ($itemName === '') {
-                $itemName = (string) ($row['name_ar'] ?? '');
-            }
-            $defaultSale = (float) ($row['default_sale'] ?? 0);
-        } else {
-            $q = $pdo->prepare('SELECT default_sale FROM inv_item WHERE id = ?');
-            $q->execute([$itemId]);
-            $defaultSale = (float) $q->fetchColumn();
+            $itemName = trim((string) $q->fetchColumn());
         }
         if ($itemName === '') {
             throw new RuntimeException('صنف غير صالح.');
         }
 
         $unitId = (int) ($line['unit_id'] ?? 0);
-        $resolved = inv_item_unit_resolve($pdo, $itemId, $unitId > 0 ? $unitId : null);
-        $unitId = $resolved ? (int) $resolved['unit_id'] : ($unitId ?: null);
-        $unitName = $resolved ? (string) $resolved['unit_name'] : (trim((string) ($line['unit_name'] ?? '')) ?: null);
-        $factor = $resolved ? (float) $resolved['unit_factor'] : max(0.000001, (float) ($line['unit_factor'] ?? 1));
+        $priced = inv_item_resolve_doc_unit_price(
+            $pdo,
+            $itemId,
+            $unitId > 0 ? $unitId : null,
+            $useWholesale
+        );
+        $unitId = $priced['unit_id'];
+        $unitName = $priced['unit_name'] ?? (trim((string) ($line['unit_name'] ?? '')) ?: null);
+        $factor = (float) $priced['unit_factor'];
+        $unitPrice = (float) $priced['unit_price'];
+        if ($unitPrice <= 0) {
+            throw new RuntimeException('مادة «' . $itemName . '» بدون سعر في البطاقة. عدّل السعر من شاشة تعديل الأسعار.');
+        }
 
         $qtyExtra = max(0.0, (float) (int) round((float) ($line['qty_extra'] ?? 0)));
-        $unitPrice = company_round_unit_price((float) ($line['unit_price'] ?? 0), $pdo);
-        if ($unitPrice <= 0 && $defaultSale > 0) {
-            $unitPrice = company_round_unit_price($defaultSale * $factor, $pdo);
-        }
         $taxRate = (float) ($line['tax_rate_percent'] ?? $defaultTax);
         if ($taxRate < 0) {
             $taxRate = 0.0;
@@ -769,7 +768,9 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
     $hasPay = sal_customer_order_has_column($pdo, 'sal_customer_order', 'payment_type');
 
     if ($hasPricing) {
-        $norm = sal_customer_order_normalize_priced_lines($pdo, $lines, $headerDisc);
+        require_once app_path('includes/inv_item_doc_pricing.php');
+        $useWholesale = inv_customer_uses_wholesale($pdo, $customerId);
+        $norm = sal_customer_order_normalize_priced_lines($pdo, $lines, $headerDisc, $useWholesale);
         $valid = $norm['lines'];
     } else {
         $valid = [];

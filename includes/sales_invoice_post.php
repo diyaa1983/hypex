@@ -127,6 +127,19 @@ function handle_sales_invoice_post(): void
         $pdo->beginTransaction();
 
         $headerDiscount = trim((string) ($_POST['invoice_discount'] ?? ''));
+        // السعر من بطاقة المادة فقط — لا يُقبل تعديل يدوي من الموبايل/PHP
+        require_once app_path('includes/inv_item_doc_pricing.php');
+        $useWholesale = inv_customer_uses_wholesale($pdo, $customerId);
+        $lines = inv_doc_lines_force_card_prices($pdo, is_array($lines) ? $lines : [], $useWholesale);
+        foreach ($lines as $lnCheck) {
+            $nm = trim((string) ($lnCheck['item_name'] ?? $lnCheck['name'] ?? ''));
+            if ((int) ($lnCheck['item_id'] ?? 0) > 0 && (float) ($lnCheck['unit_price'] ?? 0) <= 0) {
+                throw new RuntimeException(
+                    'مادة' . ($nm !== '' ? ' «' . $nm . '»' : '') .
+                    ' بدون سعر في البطاقة. عدّل السعر من شاشة تعديل الأسعار.'
+                );
+            }
+        }
         if ($headerDiscount !== '') {
             $lines = inv_invoice_apply_header_discount($lines, $headerDiscount, $amountDecimals);
         }
