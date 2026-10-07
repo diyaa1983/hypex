@@ -415,22 +415,23 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
 
   Color? _visitRowColor(int customerId) {
     final s = _effectiveVisitStatus(customerId);
-    if (s == 'checked_in' || s == 'pending_manual_checkout') {
+    // زيارة (دخول/خروج اليوم) = أخضر · لم تُزر = أحمر
+    if (s == 'checked_in' ||
+        s == 'pending_manual_checkout' ||
+        s == 'checked_out') {
       return AppTheme.success.withValues(alpha: 0.14);
     }
-    if (s == 'checked_out') {
-      return AppTheme.danger.withValues(alpha: 0.14);
-    }
-    return null;
+    return AppTheme.danger.withValues(alpha: 0.12);
   }
 
   Color _visitAccent(int customerId) {
     final s = _effectiveVisitStatus(customerId);
-    if (s == 'checked_in' || s == 'pending_manual_checkout') {
+    if (s == 'checked_in' ||
+        s == 'pending_manual_checkout' ||
+        s == 'checked_out') {
       return AppTheme.success;
     }
-    if (s == 'checked_out') return AppTheme.danger;
-    return AppTheme.primary;
+    return AppTheme.danger;
   }
 
   bool get _selectedIsOpen =>

@@ -541,7 +541,7 @@
         }
         var qty = parseInt(tr.querySelector('.js-qty') ? tr.querySelector('.js-qty').value : 0, 10) || 0;
         var qtyExtra = parseInt(tr.querySelector('.js-qty-extra') ? tr.querySelector('.js-qty-extra').value : 0, 10) || 0;
-        if (qty < 1) return;
+        if (qty < 1 && qtyExtra < 1) return;
         var discEl = tr.querySelector('.js-discount');
         lines.push({
           item_id: itemId,

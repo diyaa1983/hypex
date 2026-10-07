@@ -19,12 +19,15 @@ class SessionController extends ChangeNotifier {
 
   final ApiClient api;
   static const _kServer = 'server_base';
+  static const _kServerConfigured = 'server_configured_v1';
   static const _kRemember = 'remember_login';
   static const _kOfflineProfile = 'offline_profile_v1';
   static const _kOfflineResume = 'offline_resume_ok';
   static const _secure = FlutterSecureStorage();
 
   bool booting = true;
+  /// أول تثبيت / لم يُحفظ عنوان سيرفر بعد — اعرض شاشة إعداد السيرفر.
+  bool needsServerSetup = false;
   bool authenticated = false;
   /// جلسة محلية دون كوكي سيرفر (بعد دخول أونلاين سابق + كتالوج).
   bool offlineSession = false;
@@ -97,10 +100,40 @@ class SessionController extends ChangeNotifier {
   Future<void> boot() async {
     final prefs = await SharedPreferences.getInstance();
     var saved = (prefs.getString(_kServer) ?? '').trim();
+    var configured = prefs.getBool(_kServerConfigured) ?? false;
+
+    // أجهزة قديمة لديها عنوان محفوظ → اعتبر الإعداد مكتملاً
+    if (!configured &&
+        saved.isNotEmpty &&
+        !AppConfig.isLegacyDefaultServer(saved)) {
+      configured = true;
+      await prefs.setBool(_kServerConfigured, true);
+    }
+
+    if (!configured) {
+      // أول تثبيت: لا تفرض اتصالاً — اعرض شاشة إدخال عنوان السيرفر/IP
+      needsServerSetup = true;
+      final hint = (saved.isEmpty || AppConfig.isLegacyDefaultServer(saved))
+          ? AppConfig.defaultServerBase
+          : saved;
+      api.setBase(hint);
+      final device = await _deviceFields();
+      api.setDevice(device['device_id']!, label: device['device_label']!);
+      await LocationTrackingService.saveDeviceId(
+        device['device_id']!,
+        label: device['device_label']!,
+      );
+      LocationPresenceService.bind(api, csrf: csrf);
+      booting = false;
+      notifyListeners();
+      return;
+    }
+
     if (saved.isEmpty || AppConfig.isLegacyDefaultServer(saved)) {
       saved = AppConfig.defaultServerBase;
       await prefs.setString(_kServer, saved);
     }
+    needsServerSetup = false;
     api.setBase(saved);
     final device = await _deviceFields();
     api.setDevice(device['device_id']!, label: device['device_label']!);
@@ -149,6 +182,8 @@ class SessionController extends ChangeNotifier {
     api.setBase(raw);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kServer, api.base);
+    await prefs.setBool(_kServerConfigured, true);
+    needsServerSetup = false;
     await LocationTrackingService.saveCredentials(base: api.base);
     notifyListeners();
   }

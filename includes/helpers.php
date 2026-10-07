@@ -92,6 +92,24 @@ function format_date_dmY(string $isoDate): string
     return $ts !== false ? date('d-m-Y', $ts) : $isoDate;
 }
 
+/** تاريخ/وقت MySQL أو ISO → عرض يوم-شهر-سنة ساعة:دقيقة. */
+function format_datetime_dmY_Hi(string $value): string
+{
+    $value = trim($value);
+    if ($value === '') {
+        return '—';
+    }
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/', $value, $m)) {
+        return $m[3] . '-' . $m[2] . '-' . $m[1] . ' ' . $m[4] . ':' . $m[5];
+    }
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+        return format_date_dmY($value);
+    }
+    $ts = strtotime($value);
+
+    return $ts !== false ? date('d-m-Y H:i', $ts) : $value;
+}
+
 /** قبول Y-m-d أو d-m-Y أو d/m/Y → Y-m-d صالح أو null. */
 function parse_date_to_iso(string $date): ?string
 {

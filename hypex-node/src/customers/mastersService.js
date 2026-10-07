@@ -157,6 +157,10 @@ async function saveCustomer(payload) {
   } else if (payload.sales_rep_id) {
     repIds = [Number(payload.sales_rep_id)].filter((n) => n > 0);
   }
+  // كل عميل يجب أن يُربط بمندوب — يظهر فقط لهذا المندوب على الهاتف (عملاء + جولات)
+  if (!repIds.length) {
+    return { ok: false, error: 'اختر المندوب المسؤول عن هذا العميل.' };
+  }
 
   if (id > 0) {
     const cur = await getCustomer(id);

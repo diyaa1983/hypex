@@ -30,7 +30,12 @@ try {
     $pdo = db();
     $uid = (int) (current_user()['id'] ?? 0);
     $repId = crm_sales_rep_id_for_user($pdo, $uid);
-    if ($repId && $repId > 0 && !user_is_system_admin()) {
+    if (!user_is_system_admin()) {
+        if ($repId === null || $repId < 1) {
+            http_response_code(422);
+            echo json_encode(['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         if (!crm_customer_is_linked_to_sales_rep($pdo, $id, $repId)) {
             http_response_code(403);
             echo json_encode(['ok' => false, 'message' => 'هذا العميل غير مربوط بمندوبك.'], JSON_UNESCAPED_UNICODE);

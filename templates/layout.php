@@ -81,7 +81,7 @@ $browserTabTitle = app_browser_tab_title($tabPageTitle, $activeRoute, (string) (
 <html lang="<?= esc(app_lang()) ?>" dir="<?= esc(app_dir()) ?>">
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
     <title><?= esc($browserTabTitle) ?></title>
     <?php render_app_favicon_links($settingsRow); ?>
     <?php

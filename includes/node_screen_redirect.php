@@ -81,6 +81,7 @@ function node_desktop_screen_path_map(): array
         'sales_customer_order_returns' => '/sales/order-returns',
         'report_customer_order_returns' => '/sales/reports/order-returns',
         'report_customer_orders' => '/sales/reports/customer-orders',
+        'report_customer_orders_detailed' => '/sales/reports/customer-orders-detailed',
         'report_customer_orders_by_item' => '/sales/reports/customer-orders-by-item',
         'sales_delivery' => '/sales/delivery/new',
         'sales_offers' => '/sales/offers/new',

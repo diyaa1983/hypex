@@ -273,7 +273,7 @@ router.get('/sales/orders', async (req, res) => {
       .map(
         (r) => `<tr>
       <td class="si-num" dir="ltr">${ui.esc(r.order_no)}</td>
-      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmyHm(r.created_at || r.order_date))}</td>
       <td>${ui.esc(r.customer_name || '—')}</td>
       <td>${ui.statusPill(r.status === 'approved' ? 'ok' : 'wait', r.status === 'approved' ? 'معتمد' : 'مسودة')}</td>
       <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
@@ -286,7 +286,7 @@ router.get('/sales/orders', async (req, res) => {
     tableTitle: 'سجل الطلبات',
     mark: 'PO',
     subtitle: 'قائمة الطلبات — فتح وتعديل',
-    headers: ['الرقم', 'التاريخ', 'العميل', 'الحالة', 'الإجمالي', ''],
+    headers: ['الرقم', 'التاريخ والوقت', 'العميل', 'الحالة', 'الإجمالي', ''],
     rowsHtml,
     count: rows.length,
     searchPath: '/sales/orders',
@@ -307,7 +307,7 @@ router.get('/sales/orders/approve', guard('sales_customer_orders_approve'), asyn
       .map(
         (r) => `<tr>
       <td class="si-num" dir="ltr">${ui.esc(r.order_no)}</td>
-      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmyHm(r.created_at || r.order_date))}</td>
       <td>${ui.esc(r.customer_name || '—')}</td>
       <td>${ui.statusPill('wait', r.status || 'draft')}</td>
       <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
@@ -319,7 +319,7 @@ router.get('/sales/orders/approve', guard('sales_customer_orders_approve'), asyn
     title: 'اعتماد طلبات الشراء',
     mark: 'OK',
     subtitle: 'مسودات / قيد الاعتماد',
-    headers: ['الرقم', 'التاريخ', 'العميل', 'الحالة', 'الإجمالي', ''],
+    headers: ['الرقم', 'التاريخ والوقت', 'العميل', 'الحالة', 'الإجمالي', ''],
     rowsHtml,
     count: all.length,
     phpRoute: 'sales_customer_orders_approve',
@@ -334,7 +334,7 @@ router.get('/sales/orders/approved', guard('sales_customer_orders_approved'), as
       .map(
         (r) => `<tr>
       <td class="si-num" dir="ltr">${ui.esc(r.order_no)}</td>
-      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+      <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmyHm(r.created_at || r.order_date))}</td>
       <td>${ui.esc(r.customer_name || '—')}</td>
       <td>${ui.statusPill('ok', 'معتمد')}</td>
       <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.total))}</td>
@@ -346,7 +346,7 @@ router.get('/sales/orders/approved', guard('sales_customer_orders_approved'), as
     title: 'الطلبات المعتمدة',
     mark: 'Pk',
     subtitle: 'طلبات شراء بحالة معتمدة',
-    headers: ['الرقم', 'التاريخ', 'العميل', 'الحالة', 'الإجمالي', ''],
+    headers: ['الرقم', 'التاريخ والوقت', 'العميل', 'الحالة', 'الإجمالي', ''],
     rowsHtml,
     count: rows.length,
     phpRoute: 'sales_customer_orders_approved',
@@ -1288,6 +1288,264 @@ router.get('/sales/reports/customer-orders-by-item', guard('report_customer_orde
         title: 'طلبات الشراء حسب المادة',
         bodyHtml: body,
         js: ['/assets/js/sales-print.js'],
+      })
+    );
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(String(e.message || e));
+  }
+});
+
+router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
+  const u = req.session.user;
+  if (
+    !can(u, 'report_customer_orders_detailed') &&
+    !can(u, 'report_customer_orders') &&
+    !u.is_admin
+  ) {
+    return res.status(403).send(
+      ui.salesPage({
+        user: u,
+        title: 'ممنوع',
+        bodyHtml: `<div class="si-stage">${ui.hero({
+          title: 'ممنوع',
+          subtitle: 'لا صلاحية لهذه الشاشة',
+        })}</div>`,
+      })
+    );
+  }
+
+  try {
+    const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
+    const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+    const categoryId = Number(req.query.category_id || 0) || 0;
+    const customerId = Number(req.query.customer_id || 0) || 0;
+    const status = String(req.query.status || 'all').toLowerCase();
+    const run = String(req.query.run || '') === '1';
+    let err = '';
+    let data = { groups: [], details: [], totals: { qty: 0, line_gross: 0, line_count: 0, order_count: 0 } };
+
+    if (run) {
+      try {
+        data = await q.reportCustomerOrdersByRepCategory({
+          from: range.from,
+          to: range.to,
+          sales_rep_id: salesRepId,
+          category_id: categoryId,
+          customer_id: customerId,
+          status,
+        });
+      } catch (e) {
+        err = e.message || 'تعذر تحميل التقرير';
+        console.error('customer-orders-detailed', e);
+      }
+    }
+
+    const [reps, categories, customers] = await Promise.all([
+      q.listRepsSimple(),
+      q.listCategoriesSimple(),
+      q.listCustomersSimple(),
+    ]);
+
+    const repOpts = reps
+      .map(
+        (r) =>
+          `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(
+            r.name_ar || ''
+          )}${r.code ? ' (' + ui.esc(r.code) + ')' : ''}</option>`
+      )
+      .join('');
+    const catOpts = categories
+      .map(
+        (c) =>
+          `<option value="${c.id}" ${categoryId === Number(c.id) ? 'selected' : ''}>${ui.esc(
+            c.name_ar || ''
+          )}</option>`
+      )
+      .join('');
+    const custOpts = customers
+      .map(
+        (c) =>
+          `<option value="${c.id}" ${customerId === Number(c.id) ? 'selected' : ''}>${ui.esc(
+            c.name_ar || ''
+          )}${c.code ? ' (' + ui.esc(c.code) + ')' : ''}</option>`
+      )
+      .join('');
+
+    const colCount = 11;
+    function totalsTr(label, t, cls) {
+      return `<tr class="${cls || 'co-det-totals'}">
+        <td colspan="6"><strong>${ui.esc(label)}</strong></td>
+        <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(t.qty || 0))}</strong></td>
+        <td colspan="2"></td>
+        <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(t.line_gross || 0))}</strong></td>
+        <td></td>
+      </tr>`;
+    }
+
+    let rowsHtml = '';
+    if (!run) {
+      rowsHtml = ui.emptyRow(colCount, 'حدّد الفترة ثم اعرض التقرير');
+    } else if (err) {
+      rowsHtml = ui.emptyRow(colCount, err);
+    } else if (!(data.groups || []).length) {
+      rowsHtml = ui.emptyRow(colCount, 'لا توجد بنود طلبات شراء في الفترة المحددة');
+    } else {
+      let seq = 0;
+      for (const g of data.groups) {
+        const repTitle =
+          (g.sales_rep_code ? g.sales_rep_code + ' — ' : '') + (g.sales_rep_name || 'مندوب');
+        rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>المندوب: ${ui.esc(
+          repTitle
+        )}</strong> · ${Number(g.totals.order_count || 0)} طلب · إجمالي ${ui.esc(
+          ui.fmtAmt(g.totals.line_gross || 0)
+        )}</td></tr>`;
+        for (const cat of g.categories || []) {
+          rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">فئة المادة: <strong>${ui.esc(
+            cat.category_name || '—'
+          )}</strong> · ${Number((cat.rows || []).length)} بند</td></tr>`;
+          for (const r of cat.rows || []) {
+            seq += 1;
+            rowsHtml += `<tr>
+              <td class="si-num" dir="ltr">${seq}</td>
+              <td class="si-num" dir="ltr">${ui.esc(r.order_no || '')}</td>
+              <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+              <td class="si-num" dir="ltr">${
+                r.delivery_date ? ui.esc(ui.isoToDmy(r.delivery_date)) : '—'
+              }</td>
+              <td>${ui.esc(r.customer_name || '—')}</td>
+              <td>${ui.esc(r.item_name || '')}${
+                r.item_sku
+                  ? ` <span class="muted" dir="ltr">(${ui.esc(r.item_sku)})</span>`
+                  : ''
+              }</td>
+              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty_total != null ? r.qty_total : r.qty))}</td>
+              <td>${ui.esc(r.unit_name || '—')}</td>
+              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
+              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
+              <td>${ui.esc(r.status_label || '—')}</td>
+            </tr>`;
+          }
+          rowsHtml += totalsTr('مجموع الفئة · ' + (cat.category_name || ''), cat.totals, 'co-det-cat-tot');
+        }
+        rowsHtml += totalsTr('مجموع المندوب · ' + (g.sales_rep_name || ''), g.totals, 'co-det-rep-tot');
+      }
+      rowsHtml += totalsTr('الإجمالي النهائي', data.totals, 'co-det-grand');
+    }
+
+    const body = `
+      <div class="si-stage si-report-page" data-hx-print-landscape="1">
+        ${ui.hero({
+          mark: '📑',
+          kicker: 'Hypex Sales · Node',
+          title: 'تقرير تفصيلي لطلبات الشراء',
+          subtitle: run
+            ? `من ${ui.esc(ui.isoToDmy(range.from))} إلى ${ui.esc(ui.isoToDmy(range.to))} · ${
+                data.details.length
+              } بند · ${Number(data.totals.order_count || 0)} طلب · مجمّع حسب المندوب وفئة المادة`
+            : 'تفصيل بنود الطلبات مجمّعة حسب كل مندوب ثم كل فئة مادة',
+          actions: [
+            ui.printAction(),
+            { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
+            { label: 'لوحة المبيعات', href: '/sales' },
+          ],
+        })}
+        ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
+        <div class="si-rail no-print">
+          <form method="get" action="/sales/reports/customer-orders-detailed" class="si-search"
+                style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+            <input type="hidden" name="run" value="1">
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
+              <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required dir="ltr">
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
+              <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required dir="ltr">
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">المندوب
+              <select class="si-field" name="sales_rep_id">
+                <option value="0">— كل المندوبين —</option>
+                ${repOpts}
+              </select>
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">فئة المادة
+              <select class="si-field" name="category_id">
+                <option value="0">— كل الفئات —</option>
+                ${catOpts}
+              </select>
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">العميل
+              <select class="si-field" name="customer_id">
+                <option value="0">— كل العملاء —</option>
+                ${custOpts}
+              </select>
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">الحالة
+              <select class="si-field" name="status">
+                <option value="all" ${status === 'all' ? 'selected' : ''}>الكل</option>
+                <option value="draft" ${status === 'draft' ? 'selected' : ''}>مسودة</option>
+                <option value="approved" ${status === 'approved' ? 'selected' : ''}>معتمد</option>
+              </select>
+            </label>
+            <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+          </form>
+        </div>
+        ${
+          run && !err
+            ? `<div class="sd-kpi-row no-print" style="display:flex;flex-wrap:wrap;gap:.65rem;margin:.75rem 0">
+          <div class="sd-kpi"><span>البنود</span><strong dir="ltr">${Number(
+            data.totals.line_count || 0
+          )}</strong></div>
+          <div class="sd-kpi"><span>الطلبات</span><strong dir="ltr">${Number(
+            data.totals.order_count || 0
+          )}</strong></div>
+          <div class="sd-kpi"><span>الكمية</span><strong dir="ltr">${ui.esc(
+            ui.fmtAmt(data.totals.qty || 0)
+          )}</strong></div>
+          <div class="sd-kpi sd-kpi--accent"><span>الإجمالي</span><strong dir="ltr">${ui.esc(
+            ui.fmtAmt(data.totals.line_gross || 0)
+          )}</strong></div>
+        </div>`
+            : ''
+        }
+        <div class="si-print-area">
+          <style>
+            .co-det-rep td{background:#1e3a5f;color:#fff;font-weight:800;padding:.55rem .65rem !important}
+            .co-det-cat td{background:#e8eef7;color:#1e3a5f;font-weight:700;padding:.4rem .65rem !important}
+            .co-det-cat-tot td{background:#f8fafc;border-top:1px dashed #cbd5e1}
+            .co-det-rep-tot td{background:#dbeafe;font-weight:800}
+            .co-det-grand td{background:#1e3a5f;color:#fff;font-weight:800}
+            .co-det-grand td strong{color:#fff}
+          </style>
+          ${ui.tableSurface(
+            'تفصيل الطلبات حسب المندوب وفئة المادة',
+            run ? `${data.details.length} سطر` : '—',
+            [
+              '#',
+              'رقم الطلب',
+              'التاريخ',
+              'تاريخ التسليم',
+              'العميل',
+              'المادة',
+              'الكمية',
+              'الوحدة',
+              'السعر',
+              'الإجمالي',
+              'الحالة',
+            ],
+            rowsHtml
+          )}
+        </div>
+      </div>`;
+
+    res.send(
+      ui.salesPage({
+        user: req.session.user,
+        title: 'تقرير تفصيلي لطلبات الشراء',
+        bodyHtml: body,
+        css: ['/assets/css/report-sales-detailed.css'],
+        js: ['/assets/js/sales-print.js'],
+        printTitle: 'تقرير تفصيلي لطلبات الشراء',
+        activePath: '/sales/reports/customer-orders-detailed',
       })
     );
   } catch (e) {

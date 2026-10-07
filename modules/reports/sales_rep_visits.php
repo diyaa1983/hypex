@@ -311,7 +311,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                 <th>الموقع</th>
                 <th>وقت الدخول</th>
                 <th>وقت الخروج</th>
-                <th>مجموع الساعات</th>
+                <th>الوقت الفعال</th>
                 <th>نوع الدخول</th>
                 <th>نوع الخروج</th>
                 <th>المبيعات</th>

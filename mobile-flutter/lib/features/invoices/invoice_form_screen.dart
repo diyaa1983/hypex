@@ -518,6 +518,15 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       showSnack(context, 'أضف بنداً واحداً على الأقل', error: true);
       return 0;
     }
+    final emptyQty = _lines.where((l) => l.qty <= 0 && l.qtyExtra <= 0).toList();
+    if (emptyQty.isNotEmpty) {
+      showSnack(
+        context,
+        'أدخل الكمية أو الكمية الإضافية للمادة: ${emptyQty.first.name}',
+        error: true,
+      );
+      return 0;
+    }
     final zeroPrice =
         _lines.where((l) => l.unitPrice <= 0 && l.qty > 0).toList();
     if (zeroPrice.isNotEmpty) {

@@ -164,6 +164,8 @@ class CustomerOrderBluetoothReceipt {
                   : Fmt.str(order['order_no']),
             ),
             kv('التاريخ', Fmt.dmy(Fmt.str(order['order_date']))),
+            if (Fmt.str(order['delivery_date']).trim().isNotEmpty)
+              kv('تاريخ التسليم', Fmt.dmy(Fmt.str(order['delivery_date']))),
             kvPlain('العميل', Fmt.str(order['customer_name'])),
             if (salesRep.isNotEmpty) kvPlain('المندوب', salesRep),
             kvPlain(
@@ -351,6 +353,7 @@ class CustomerOrderBluetoothReceipt {
           pw.Text(
             'رقم الطلب: ${Fmt.str(order['order_no']).isEmpty ? '—' : Fmt.str(order['order_no'])}'
             '   التاريخ: ${Fmt.dmy(Fmt.str(order['order_date']))}'
+            '${Fmt.str(order['delivery_date']).trim().isEmpty ? '' : '   تاريخ التسليم: ${Fmt.dmy(Fmt.str(order['delivery_date']))}'}'
             '   العميل: ${Fmt.str(order['customer_name'])}'
             '${salesRep.isEmpty ? '' : '   المندوب: $salesRep'}'
             '   النوع: ${Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم'}',

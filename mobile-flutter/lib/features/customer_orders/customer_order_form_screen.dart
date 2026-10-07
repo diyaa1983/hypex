@@ -249,6 +249,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String? _error, _orderNo, _salesRepName;
   String _paymentType = 'credit';
   String _orderDate = '';
+  String _deliveryDate = '';
   int _id = 0, _warehouseId = 0, _visitRouteLineId = 0;
   List<Map<String, dynamic>> _warehouses = [];
   List<_TaxRate> _taxRates = [];
@@ -274,7 +275,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         .map((l) =>
             '${l.item.id}:${l.qty}:${l.qtyExtra}:${l.unitId}:${l.unitPrice}:${l.discountPct}:${l.taxRateId}')
         .join('|');
-    return '${_customer?.id}|$_warehouseId|$_paymentType|${_notesCtrl.text.trim()}|$lines';
+    return '${_customer?.id}|$_warehouseId|$_paymentType|$_deliveryDate|${_notesCtrl.text.trim()}|$lines';
   }
 
   int get orderId => _id;
@@ -461,7 +462,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           taxRateId: lineTaxId,
           taxRatePercent: lineTax,
         )
-          ..qty = Fmt.toDouble(m['qty']).round().clamp(1, 999999999)
+          ..qty = Fmt.toDouble(m['qty']).round().clamp(0, 999999999)
           ..qtyExtra = Fmt.toDouble(m['qty_extra']).round().clamp(0, 999999999)
           ..unitId = Fmt.toInt(m['unit_id'])
           ..unitName = Fmt.str(m['unit_name'] ?? m['unit'])
@@ -524,6 +525,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             Fmt.str(order['status']) == 'approved';
         _orderNo = Fmt.str(order['order_no']);
         _orderDate = Fmt.str(order['order_date']);
+        _deliveryDate = Fmt.str(order['delivery_date']).length >= 10
+            ? Fmt.str(order['delivery_date']).substring(0, 10)
+            : '';
         _isSent = order['is_sent'] == true ||
             order['is_sent'] == 1 ||
             '${order['is_sent']}' == '1';
@@ -657,6 +661,25 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           error: true);
       return 0;
     }
+    for (var i = 0; i < _lines.length; i++) {
+      final ln = _lines[i];
+      if (ln.qty <= 0 && ln.qtyExtra <= 0) {
+        showSnack(
+          context,
+          'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
+          error: true,
+        );
+        return 0;
+      }
+      if (ln.qty > 0 && ln.unitPrice <= 0) {
+        showSnack(
+          context,
+          'سعر المادة في البطاقة صفر. عدّله من شاشة تعديل الأسعار.',
+          error: true,
+        );
+        return 0;
+      }
+    }
     setState(() => _busy = true);
     try {
       final session = context.read<SessionController>();
@@ -665,6 +688,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'customer_id': _customer!.id,
         'warehouse_id': _warehouseId,
         'payment_type': _paymentType,
+        'delivery_date': _deliveryDate,
         'notes': _notesCtrl.text.trim(),
         'lines': _lines.map((l) => l.toJson()).toList(),
       };
@@ -734,6 +758,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             'line_count': lines.length,
             'lines': lines,
             'payment_type': _paymentType,
+            'delivery_date': _deliveryDate,
             'notes': _notesCtrl.text.trim(),
           },
           clientUuid: uuid,
@@ -817,6 +842,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               'status': 'draft',
               'is_sent': 0,
               'lines': _lines.map((l) => l.toJson()).toList(),
+              'delivery_date': _deliveryDate,
               'notes': _notesCtrl.text.trim(),
             },
             clientUuid: uuid,
@@ -866,6 +892,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'discount_total': disc,
         'tax_total': tax,
         'grand_total': gross,
+        'delivery_date': _deliveryDate,
         'notes': _notesCtrl.text.trim(),
         'lines': _lines
             .map((l) => {
@@ -907,6 +934,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       _id = 0;
       _orderNo = null;
       _orderDate = Fmt.todayIso();
+      _deliveryDate = '';
       _orderNoCtrl.clear();
       _notesCtrl.clear();
       _lines.clear();
@@ -1004,6 +1032,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _lines.clear();
         _orderNo = '';
         _orderNoCtrl.clear();
+        _deliveryDate = '';
         _notesCtrl.clear();
       });
       _markClean();
@@ -1024,6 +1053,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _id = 0;
         _orderNo = '';
         _orderNoCtrl.clear();
+        _deliveryDate = '';
         _notesCtrl.clear();
         _lines.clear();
         _isSent = false;
@@ -1412,6 +1442,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ],
               ),
               SizedBox(height: gap),
+              _deliveryDateField(
+                fieldHeight: fieldH,
+                labelSize: labelSize,
+              ),
+              SizedBox(height: gap),
               _wideNotesField(
                 fieldHeight: fieldH,
                 labelSize: labelSize,
@@ -1481,6 +1516,102 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           );
         },
       ),
+    );
+  }
+
+  Future<void> _pickDeliveryDate() async {
+    if (!_editable || _busy) return;
+    final now = DateTime.now();
+    DateTime initial = now;
+    if (_deliveryDate.length >= 10) {
+      final p = DateTime.tryParse(_deliveryDate);
+      if (p != null) initial = p;
+    }
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 3),
+      helpText: 'تاريخ التسليم',
+      cancelText: 'إلغاء',
+      confirmText: 'موافق',
+    );
+    if (picked == null || !mounted) return;
+    setState(() {
+      _deliveryDate =
+          '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
+    });
+  }
+
+  Widget _deliveryDateField({
+    double fieldHeight = 32,
+    double labelSize = 11,
+  }) {
+    final label = _deliveryDate.isEmpty ? 'اختر التاريخ…' : Fmt.dmy(_deliveryDate);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'تاريخ التسليم',
+          style: TextStyle(
+            fontSize: labelSize,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textSoft,
+          ),
+        ),
+        const SizedBox(height: 2),
+        SizedBox(
+          height: fieldHeight,
+          child: Material(
+            color: Colors.white,
+            child: InkWell(
+              onTap: _busy || !_editable ? null : _pickDeliveryDate,
+              borderRadius: BorderRadius.circular(8),
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  hintText: 'اختر التاريخ…',
+                  hintStyle: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  isDense: true,
+                  contentPadding: const EdgeInsetsDirectional.only(
+                    start: 8,
+                    end: 4,
+                    top: 4,
+                    bottom: 4,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  suffixIcon: Icon(
+                    Icons.event_rounded,
+                    size: 18,
+                    color: AppTheme.textSoft,
+                  ),
+                  suffixIconConstraints: const BoxConstraints(
+                    minWidth: 28,
+                    minHeight: 28,
+                  ),
+                ),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: _deliveryDate.isEmpty
+                        ? AppTheme.textSoft
+                        : AppTheme.textMain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2203,7 +2334,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                             decimal: false,
                             apply: (v) {
                               _lines[i].qty =
-                                  int.tryParse(v)?.clamp(1, 999999999) ?? 1;
+                                  int.tryParse(v)?.clamp(0, 999999999) ?? 0;
                             },
                           ),
                 ),
@@ -2462,6 +2593,38 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  const Text(
+                    'تاريخ التسليم',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textSoft,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: _busy || !_editable ? null : _pickDeliveryDate,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        hintText: 'اختر تاريخ التسليم…',
+                        isDense: true,
+                        suffixIcon: Icon(Icons.event_rounded),
+                      ),
+                      child: Text(
+                        _deliveryDate.isEmpty
+                            ? 'اختر تاريخ التسليم…'
+                            : Fmt.dmy(_deliveryDate),
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: _deliveryDate.isEmpty
+                              ? AppTheme.textSoft
+                              : AppTheme.textMain,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   const Text(
                     'ملاحظات',
                     style: TextStyle(

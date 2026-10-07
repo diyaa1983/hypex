@@ -387,7 +387,21 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
     }
 
     // خطة الجولة = جولة مرحّلة فقط. بقايا sal_rep_route لا تُعدّ جولة.
+    // استبعاد أي عميل غير مربوط بهذا المندوب (حتى لو وُجد خطأً في خط السير)
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    $data['customers'] = array_values(array_filter(
+        $data['customers'],
+        static function (array $c) use ($pdo, $salesRepId): bool {
+            $cid = (int) ($c['id'] ?? 0);
+            return $cid > 0 && crm_customer_is_linked_to_sales_rep($pdo, $cid, $salesRepId);
+        }
+    ));
     $plannedIds = sal_rep_tour_planned_customer_ids($pdo, $salesRepId, $date);
+    foreach (array_keys($plannedIds) as $pid) {
+        if (!crm_customer_is_linked_to_sales_rep($pdo, (int) $pid, $salesRepId)) {
+            unset($plannedIds[$pid]);
+        }
+    }
     $seen = [];
     foreach ($data['customers'] as $c) {
         $cid = (int) ($c['id'] ?? 0);

@@ -44,6 +44,16 @@ function isoToDmy(iso) {
   return `${m[3]}-${m[2]}-${m[1]}`;
 }
 
+/** datetime ISO/MySQL → DD-MM-YYYY HH:MM */
+function isoToDmyHm(v) {
+  const s = String(v || '').trim();
+  if (!s) return '—';
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]} ${m[4]}:${m[5]}`;
+  const d = isoToDmy(s);
+  return d || '—';
+}
+
 /**
  * DD-MM-YYYY أو YYYY-MM-DD → YYYY-MM-DD.
  * إن فشل التحليل: إن وُجد fallback يُعاد، وإلا تاريخ اليوم (توافق مع حفظ المستندات).
@@ -76,4 +86,4 @@ function dateRange(from, to) {
   };
 }
 
-module.exports = { esc, fmtAmt, fmtUnitPrice, todayIso, isoToDmy, parseDateToIso, dateRange };
+module.exports = { esc, fmtAmt, fmtUnitPrice, todayIso, isoToDmy, isoToDmyHm, parseDateToIso, dateRange };

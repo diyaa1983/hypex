@@ -91,6 +91,10 @@ $salesRepSel = $order ? (int) ($order['sales_rep_id'] ?? 0) : 0;
 $paymentTypeSel = ($order && strtolower((string) ($order['payment_type'] ?? '')) === 'cash') ? 'cash' : 'credit';
 $orderNo = $order ? (string) ($order['order_no'] ?? '') : '';
 $notes = $order ? (string) ($order['notes'] ?? '') : '';
+$deliveryDate = $order ? substr((string) ($order['delivery_date'] ?? ''), 0, 10) : '';
+if ($deliveryDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryDate)) {
+    $deliveryDate = '';
+}
 $headerDisc = $order ? (string) ($order['invoice_discount_input'] ?? '') : '';
 
 $canApprove = sal_customer_order_user_can_approve();
@@ -271,7 +275,10 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
 
                 <div class="sales-inv-footer-grid co-doc-footer oracle-rec-fields oracle-rec-fields-second">
                     <div class="sales-inv-notes sales-inv-field no-print">
-                        <label for="inv_notes">ملاحظات</label>
+                        <label for="inv_delivery_date">تاريخ التسليم</label>
+                        <input type="date" class="oracle-rec-input input input-compact" name="delivery_date" id="inv_delivery_date"
+                               value="<?= esc($deliveryDate) ?>" dir="ltr">
+                        <label for="inv_notes" style="margin-top:0.55rem;display:block">ملاحظات</label>
                         <textarea class="oracle-rec-input oracle-rec-textarea input" name="notes" id="inv_notes" rows="3" placeholder="اختياري"><?= esc($notes) ?></textarea>
                         <p id="co-message" class="co-doc-msg muted"></p>
                     </div>
@@ -600,6 +607,7 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
       warehouse_id: parseInt((document.getElementById('warehouse-id') || {}).value || '0', 10) || 0,
       sales_rep_id: parseInt((document.getElementById('co_sales_rep') || {}).value || '0', 10) || 0,
       payment_type: (document.getElementById('co_payment_type') || {}).value || 'credit',
+      delivery_date: (document.getElementById('inv_delivery_date') || {}).value || '',
       notes: (document.getElementById('inv_notes') || {}).value || '',
       invoice_discount: linesApi ? linesApi.getHeaderDiscount() : '',
       lines: lines

@@ -89,13 +89,31 @@ class ApiClient {
   }
 
   /// ضبط عنوان السيرفر (يُطبَّع بإزالة السلاش الأخير و/m أو login).
+  /// يقبل IP فقط مثل `192.168.1.10` أو عنواناً كاملاً.
   void setBase(String raw) {
     var s = raw.trim();
     s = s.replaceAll(RegExp(r'/+$'), '');
     s = s.replaceAll(RegExp(r'/m/login\.php$', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'/login\.php$', caseSensitive: false), '');
     s = s.replaceAll(RegExp(r'/m$', caseSensitive: false), '');
-    if (!RegExp(r'^https?://', caseSensitive: false).hasMatch(s)) {
-      s = 'https://$s';
+    final hasScheme = RegExp(r'^https?://', caseSensitive: false).hasMatch(s);
+    final hostPart = hasScheme ? s.replaceFirst(RegExp(r'^https?://'), '') : s;
+    final isLocal = RegExp(
+      r'^(localhost|127\.0\.0\.1|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)',
+      caseSensitive: false,
+    ).hasMatch(hostPart);
+    if (!hasScheme) {
+      s = '${isLocal ? 'http' : 'https'}://$s';
+    }
+    s = s.replaceAll(RegExp(r'/+$'), '');
+    // إن أدخل المستخدم IP/مضيف فقط بدون مسار التطبيق → أضف /hypex
+    try {
+      final u = Uri.parse(s);
+      if (u.host.isNotEmpty && (u.path.isEmpty || u.path == '/')) {
+        s = u.replace(path: '/hypex').toString().replaceAll(RegExp(r'/+$'), '');
+      }
+    } catch (_) {
+      /* ignore */
     }
     _base = s.replaceAll(RegExp(r'/+$'), '');
   }

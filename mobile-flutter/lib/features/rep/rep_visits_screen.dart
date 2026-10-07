@@ -518,13 +518,11 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   Color _statusColor(String s) {
     switch (s) {
       case 'checked_in':
-        return AppTheme.success;
       case 'checked_out':
-        return AppTheme.danger;
       case 'pending_manual_checkout':
-        return AppTheme.success;
+        return AppTheme.success; // تمت الزيارة / داخلها
       default:
-        return AppTheme.primary;
+        return AppTheme.danger; // لم تُزر بعد
     }
   }
 
@@ -2089,17 +2087,16 @@ class _PlanCustomerTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final visited = status == 'checked_in' ||
+        status == 'pending_manual_checkout' ||
+        status == 'checked_out';
     final inVisit =
         status == 'checked_in' || status == 'pending_manual_checkout';
-    final bg = inVisit
-        ? AppTheme.success.withValues(alpha: selected ? 0.32 : 0.22)
-        : (selected
-            ? AppTheme.primary.withValues(alpha: 0.12)
-            : (status == 'checked_out'
-                ? AppTheme.danger.withValues(alpha: 0.12)
-                : null));
+    final bg = visited
+        ? AppTheme.success.withValues(alpha: selected ? 0.32 : 0.18)
+        : AppTheme.danger.withValues(alpha: selected ? 0.22 : 0.12);
     return Material(
-      color: bg ?? Colors.transparent,
+      color: bg,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         decoration: inVisit
@@ -2109,7 +2106,14 @@ class _PlanCustomerTile extends StatelessWidget {
                 ),
                 borderRadius: BorderRadius.circular(12),
               )
-            : null,
+            : (!visited
+                ? BoxDecoration(
+                    border: Border.all(
+                      color: AppTheme.danger.withValues(alpha: 0.35),
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  )
+                : null),
         child: Semantics(
           label: '$index $name',
           child: ListTile(
@@ -2152,7 +2156,7 @@ class _PlanCustomerTile extends StatelessWidget {
           trailing: inVisit
               ? const StatusPill(text: 'مفتوحة', color: AppTheme.success)
               : (status == 'checked_out'
-                  ? const StatusPill(text: 'منتهية', color: AppTheme.danger)
+                  ? const StatusPill(text: 'منتهية', color: AppTheme.success)
                   : Icon(statusIcon, color: statusColor, size: 18)),
           ),
         ),
@@ -2616,10 +2620,11 @@ class _CustomerPickSheetState extends State<_CustomerPickSheet> {
                       referenceDate: widget.routeDate,
                     );
                     final color = switch (status) {
-                      'checked_in' => AppTheme.success,
-                      'checked_out' => AppTheme.danger,
-                      'pending_manual_checkout' => AppTheme.success,
-                      _ => AppTheme.primary,
+                      'checked_in' ||
+                      'checked_out' ||
+                      'pending_manual_checkout' =>
+                        AppTheme.success,
+                      _ => AppTheme.danger,
                     };
                     return Material(
                       color: AppTheme.surfaceAlt,

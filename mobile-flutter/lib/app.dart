@@ -78,6 +78,10 @@ class NammaApp extends StatelessWidget {
         final loc = state.matchedLocation;
         final onLogin = loc == '/login';
         final onServer = loc == '/server';
+        // أول تثبيت: إجبار إدخال عنوان السيرفر قبل شاشة الدخول
+        if (session.needsServerSetup) {
+          return onServer ? null : '/server';
+        }
         if (!session.authenticated) {
           return (onLogin || onServer) ? null : '/login';
         }

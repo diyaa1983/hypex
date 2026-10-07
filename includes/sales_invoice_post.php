@@ -133,7 +133,14 @@ function handle_sales_invoice_post(): void
         $lines = inv_doc_lines_force_card_prices($pdo, is_array($lines) ? $lines : [], $useWholesale);
         foreach ($lines as $lnCheck) {
             $nm = trim((string) ($lnCheck['item_name'] ?? $lnCheck['name'] ?? ''));
-            if ((int) ($lnCheck['item_id'] ?? 0) > 0 && (float) ($lnCheck['unit_price'] ?? 0) <= 0) {
+            $qChk = (float) ($lnCheck['qty'] ?? 0);
+            $qeChk = (float) ($lnCheck['qty_extra'] ?? 0);
+            $isBonusOnly = $qChk <= 0.000001 && $qeChk > 0.000001;
+            if (
+                (int) ($lnCheck['item_id'] ?? 0) > 0
+                && (float) ($lnCheck['unit_price'] ?? 0) <= 0
+                && !$isBonusOnly
+            ) {
                 throw new RuntimeException(
                     'مادة' . ($nm !== '' ? ' «' . $nm . '»' : '') .
                     ' بدون سعر في البطاقة. عدّل السعر من شاشة تعديل الأسعار.'

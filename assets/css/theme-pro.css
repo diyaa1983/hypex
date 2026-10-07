@@ -219,6 +219,13 @@ html[dir="ltr"] .sidebar {
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
+.sidebar-nav a,
+.sidebar-nav .nav-domain-link,
+.sidebar-nav .nav-subgroup-link,
+.sidebar-nav .nav-item-link {
+  color: #000 !important;
+}
+
 .sidebar-nav .nav-domain-link {
   display: flex !important;
   align-items: center;

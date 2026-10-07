@@ -33,6 +33,33 @@ async function ensurePaymentTypeColumn() {
   }
 }
 
+let deliveryDateReady = false;
+async function ensureDeliveryDateColumn() {
+  if (deliveryDateReady) return true;
+  try {
+    await db.query(`SELECT delivery_date FROM sal_customer_order LIMIT 1`);
+    deliveryDateReady = true;
+    return true;
+  } catch {
+    try {
+      await db.query(
+        `ALTER TABLE sal_customer_order ADD COLUMN delivery_date DATE NULL DEFAULT NULL AFTER notes`
+      );
+      deliveryDateReady = true;
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function normalizeDeliveryDate(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s) return null;
+  const iso = parseDateToIso(s, '');
+  return iso || null;
+}
+
 function normalizePaymentType(v) {
   return String(v || '').toLowerCase() === 'cash' ? 'cash' : 'credit';
 }
@@ -69,6 +96,7 @@ async function nextOrderNo(orderDate) {
 
 async function getOrder(id) {
   await ensurePaymentTypeColumn();
+  await ensureDeliveryDateColumn();
   const orderId = Number(id);
   if (!orderId) return null;
   const headers = await db.query(
@@ -176,6 +204,7 @@ async function getOrder(id) {
     warehouse_name: h.warehouse_name || '',
     payment_type: normalizePaymentType(h.payment_type),
     notes: h.notes || '',
+    delivery_date: h.delivery_date ? String(h.delivery_date).slice(0, 10) : '',
     status,
     is_approved: status === 'approved',
     status_label: status === 'approved' ? 'معتمد' : 'مسودة',
@@ -296,6 +325,7 @@ function applyHeaderDiscount(lines, discountInput) {
 
 async function saveOrder(payload, userId) {
   await ensurePaymentTypeColumn();
+  const hasDelivery = await ensureDeliveryDateColumn();
   const customerId = Number(payload.customer_id || 0);
   const warehouseId = Number(payload.warehouse_id || 0);
   if (customerId < 1 || warehouseId < 1) {
@@ -306,6 +336,14 @@ async function saveOrder(payload, userId) {
   const salesRepId = payload.sales_rep_id ? Number(payload.sales_rep_id) : null;
   const paymentType = normalizePaymentType(payload.payment_type);
   const notes = String(payload.notes || '').trim() || null;
+  const deliveryRaw = String(payload.delivery_date || '').trim();
+  let deliveryDate = null;
+  if (deliveryRaw) {
+    deliveryDate = normalizeDeliveryDate(deliveryRaw);
+    if (!deliveryDate) {
+      return { ok: false, error: 'تاريخ التسليم غير صالح.' };
+    }
+  }
   const discountInput = String(payload.invoice_discount || payload.invoice_discount_input || '').trim();
   const orderId = Number(payload.id || 0);
   const useWholesale = await itemPricing.customerUsesWholesale(customerId);
@@ -326,11 +364,18 @@ async function saveOrder(payload, userId) {
   const normalized = [];
   for (const ln of offered.lines) {
     if (!ln || !Number(ln.item_id)) continue;
-    if (!(Number(ln.qty) > 0)) {
-      return { ok: false, error: 'أدخل الكمية لكل بند قبل الحفظ.' };
+    const qty = Number(ln.qty) || 0;
+    const qtyExtra = Number(ln.qty_extra) || 0;
+    // كمية صفر مسموحة فقط مع كمية إضافية (مادة مجانية / بونص)
+    if (qty <= 0 && qtyExtra <= 0) {
+      return {
+        ok: false,
+        error: 'أدخل الكمية أو الكمية الإضافية لكل بند قبل الحفظ.',
+      };
     }
+    const isBonusOnly = qty <= 0 && qtyExtra > 0;
     const priced = await itemPricing.resolveDocLinePricing(ln, { useWholesale });
-    if (!(priced.unit_price > 0)) {
+    if (!(priced.unit_price > 0) && !isBonusOnly) {
       return {
         ok: false,
         error: `لا يمكن حفظ الطلب: ${priceLabel} للمادة صفر في البطاقة. عدّل السعر من بطاقة المادة.`,
@@ -343,7 +388,9 @@ async function saveOrder(payload, userId) {
     const computed = computeLine(
       {
         ...ln,
-        unit_price: priced.unit_price,
+        qty: Math.max(0, qty),
+        qty_extra: Math.max(0, qtyExtra),
+        unit_price: priced.unit_price > 0 ? priced.unit_price : 0,
         unit_factor: priced.unit_factor,
         unit_id: priced.unit_id,
         unit_name: priced.unit_name,
@@ -361,7 +408,7 @@ async function saveOrder(payload, userId) {
     normalized.push(computed);
   }
   if (!normalized.length) {
-    return { ok: false, error: 'أدخل بنداً واحداً بكمية موجبة على الأقل.' };
+    return { ok: false, error: 'أدخل بنداً واحداً بكمية أو كمية إضافية على الأقل.' };
   }
 
   const totals = applyHeaderDiscount(normalized, discountInput);
@@ -387,34 +434,68 @@ async function saveOrder(payload, userId) {
       }
       const repToStore = salesRepId > 0 ? salesRepId : old.sales_rep_id || null;
       try {
-        await conn.execute(
-          `UPDATE sal_customer_order
-           SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, payment_type=?, notes=?,
-               subtotal=?, discount_amount=?, tax_amount=?, total=?, invoice_discount_input=?, updated_by=?
-           WHERE id=?`,
-          [
-            orderDate,
-            customerId,
-            repToStore,
-            warehouseId,
-            paymentType,
-            notes,
-            totals.subtotal,
-            totals.discount_amount,
-            totals.tax_amount,
-            totals.total,
-            discountInput || null,
-            userId || null,
-            orderId,
-          ]
-        );
+        if (hasDelivery) {
+          await conn.execute(
+            `UPDATE sal_customer_order
+             SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, payment_type=?, notes=?, delivery_date=?,
+                 subtotal=?, discount_amount=?, tax_amount=?, total=?, invoice_discount_input=?, updated_by=?
+             WHERE id=?`,
+            [
+              orderDate,
+              customerId,
+              repToStore,
+              warehouseId,
+              paymentType,
+              notes,
+              deliveryDate,
+              totals.subtotal,
+              totals.discount_amount,
+              totals.tax_amount,
+              totals.total,
+              discountInput || null,
+              userId || null,
+              orderId,
+            ]
+          );
+        } else {
+          await conn.execute(
+            `UPDATE sal_customer_order
+             SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, payment_type=?, notes=?,
+                 subtotal=?, discount_amount=?, tax_amount=?, total=?, invoice_discount_input=?, updated_by=?
+             WHERE id=?`,
+            [
+              orderDate,
+              customerId,
+              repToStore,
+              warehouseId,
+              paymentType,
+              notes,
+              totals.subtotal,
+              totals.discount_amount,
+              totals.tax_amount,
+              totals.total,
+              discountInput || null,
+              userId || null,
+              orderId,
+            ]
+          );
+        }
       } catch {
-        await conn.execute(
-          `UPDATE sal_customer_order
-           SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, notes=?, updated_by=?
-           WHERE id=?`,
-          [orderDate, customerId, repToStore, warehouseId, notes, userId || null, orderId]
-        );
+        if (hasDelivery) {
+          await conn.execute(
+            `UPDATE sal_customer_order
+             SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, notes=?, delivery_date=?, updated_by=?
+             WHERE id=?`,
+            [orderDate, customerId, repToStore, warehouseId, notes, deliveryDate, userId || null, orderId]
+          );
+        } else {
+          await conn.execute(
+            `UPDATE sal_customer_order
+             SET order_date=?, customer_id=?, sales_rep_id=?, warehouse_id=?, notes=?, updated_by=?
+             WHERE id=?`,
+            [orderDate, customerId, repToStore, warehouseId, notes, userId || null, orderId]
+          );
+        }
       }
       await conn.execute(`DELETE FROM sal_customer_order_line WHERE order_id = ?`, [orderId]);
       await insertLines(conn, orderId, totals.lines);
@@ -443,46 +524,93 @@ async function saveOrder(payload, userId) {
     const orderNo = await nextOrderNo(orderDate);
     let newId;
     try {
-      const [result] = await conn.execute(
-        `INSERT INTO sal_customer_order
-         (order_no, order_date, customer_id, sales_rep_id, warehouse_id, payment_type, notes,
-          subtotal, discount_amount, tax_amount, total, invoice_discount_input, created_by, updated_by)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          orderNo,
-          orderDate,
-          customerId,
-          salesRepId > 0 ? salesRepId : null,
-          warehouseId,
-          paymentType,
-          notes,
-          totals.subtotal,
-          totals.discount_amount,
-          totals.tax_amount,
-          totals.total,
-          discountInput || null,
-          userId || null,
-          userId || null,
-        ]
-      );
-      newId = Number(result.insertId);
+      if (hasDelivery) {
+        const [result] = await conn.execute(
+          `INSERT INTO sal_customer_order
+           (order_no, order_date, customer_id, sales_rep_id, warehouse_id, payment_type, notes, delivery_date,
+            subtotal, discount_amount, tax_amount, total, invoice_discount_input, created_by, updated_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            orderNo,
+            orderDate,
+            customerId,
+            salesRepId > 0 ? salesRepId : null,
+            warehouseId,
+            paymentType,
+            notes,
+            deliveryDate,
+            totals.subtotal,
+            totals.discount_amount,
+            totals.tax_amount,
+            totals.total,
+            discountInput || null,
+            userId || null,
+            userId || null,
+          ]
+        );
+        newId = Number(result.insertId);
+      } else {
+        const [result] = await conn.execute(
+          `INSERT INTO sal_customer_order
+           (order_no, order_date, customer_id, sales_rep_id, warehouse_id, payment_type, notes,
+            subtotal, discount_amount, tax_amount, total, invoice_discount_input, created_by, updated_by)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            orderNo,
+            orderDate,
+            customerId,
+            salesRepId > 0 ? salesRepId : null,
+            warehouseId,
+            paymentType,
+            notes,
+            totals.subtotal,
+            totals.discount_amount,
+            totals.tax_amount,
+            totals.total,
+            discountInput || null,
+            userId || null,
+            userId || null,
+          ]
+        );
+        newId = Number(result.insertId);
+      }
     } catch {
-      const [result] = await conn.execute(
-        `INSERT INTO sal_customer_order
-         (order_no, order_date, customer_id, sales_rep_id, warehouse_id, notes, created_by, updated_by)
-         VALUES (?,?,?,?,?,?,?,?)`,
-        [
-          orderNo,
-          orderDate,
-          customerId,
-          salesRepId > 0 ? salesRepId : null,
-          warehouseId,
-          notes,
-          userId || null,
-          userId || null,
-        ]
-      );
-      newId = Number(result.insertId);
+      if (hasDelivery) {
+        const [result] = await conn.execute(
+          `INSERT INTO sal_customer_order
+           (order_no, order_date, customer_id, sales_rep_id, warehouse_id, notes, delivery_date, created_by, updated_by)
+           VALUES (?,?,?,?,?,?,?,?,?)`,
+          [
+            orderNo,
+            orderDate,
+            customerId,
+            salesRepId > 0 ? salesRepId : null,
+            warehouseId,
+            notes,
+            deliveryDate,
+            userId || null,
+            userId || null,
+          ]
+        );
+        newId = Number(result.insertId);
+      } else {
+        const [result] = await conn.execute(
+          `INSERT INTO sal_customer_order
+           (order_no, order_date, customer_id, sales_rep_id, warehouse_id, notes, created_by, updated_by)
+           VALUES (?,?,?,?,?,?,?,?)`,
+          [
+            orderNo,
+            orderDate,
+            customerId,
+            salesRepId > 0 ? salesRepId : null,
+            warehouseId,
+            notes,
+            userId || null,
+            userId || null,
+          ]
+        );
+        newId = Number(result.insertId);
+      }
     }
     await insertLines(conn, newId, totals.lines);
     await conn.commit();

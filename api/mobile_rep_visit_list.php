@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/sal_rep_visit.php');
+require_once app_path('includes/sal_rep_tour.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -21,6 +22,7 @@ if (!user_can('m_rep_visits') && !user_can('m_rep_route_today') && !user_can('m_
 }
 
 $pdo = db();
+sal_rep_tour_ensure_monthly_rollover($pdo);
 $uid = (int) (current_user()['id'] ?? 0);
 $repId = crm_sales_rep_id_for_user($pdo, $uid);
 if ($repId === null || $repId < 1) {

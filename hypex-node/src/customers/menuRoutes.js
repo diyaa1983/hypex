@@ -1530,9 +1530,9 @@ async function customerForm(req, res, id) {
                 <span>مندوب المبيعات المسؤول عن العميل</span>
               </div>
               <div class="cf-sec-b">
-                <label class="cf-span-2">المندوب
-                  <select class="si-field" name="sales_rep_id" id="cust-sales-rep">
-                    <option value="0">— بدون مندوب —</option>
+                <label class="cf-span-2">المندوب *
+                  <select class="si-field" name="sales_rep_id" id="cust-sales-rep" required>
+                    <option value="">— اختر المندوب —</option>
                     ${repOpts}
                   </select>
                 </label>
@@ -1540,7 +1540,7 @@ async function customerForm(req, res, id) {
                   <span style="visibility:hidden">.</span>
                   <a class="si-btn" href="/sales-reps/list" style="justify-content:center;width:100%">إدارة المندوبين</a>
                 </label>
-                <p class="cf-field-note cf-span-3">يُحفظ المندوب المختار مع العميل ويظهر في القوائم والتقارير.</p>
+                <p class="cf-field-note cf-span-3">المندوب المربوط هو الوحيد الذي يرى هذا العميل ويزوره من شاشتي العملاء والجولات على الهاتف.</p>
               </div>
             </div>
 

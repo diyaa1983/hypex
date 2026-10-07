@@ -186,12 +186,20 @@ function sal_rep_route_save(
         throw new RuntimeException('حدّد عميلاً واحداً على الأقل لخط السير.');
     }
 
+    require_once app_path('includes/crm_sales_rep_schema.php');
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
-    $chk = $pdo->prepare('SELECT id FROM crm_customer WHERE id IN (' . $placeholders . ') AND is_active = 1');
-    $chk->execute($ids);
+    [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $salesRepId);
+    $chk = $pdo->prepare(
+        'SELECT c.id FROM crm_customer c
+         WHERE c.id IN (' . $placeholders . ') AND c.is_active = 1 AND ' . $linkSql
+    );
+    $chk->execute(array_merge($ids, $linkParams));
     $valid = array_map('intval', $chk->fetchAll(PDO::FETCH_COLUMN) ?: []);
     if ($valid === []) {
-        throw new RuntimeException('لا يوجد عملاء صالحون في القائمة.');
+        throw new RuntimeException('لا يوجد عملاء مربوطون بهذا المندوب في القائمة.');
+    }
+    if (count($valid) < count($ids)) {
+        throw new RuntimeException('بعض العملاء غير مربوطين بهذا المندوب. اربطهم من شاشة العملاء أولاً.');
     }
 
     $pdo->beginTransaction();
@@ -303,11 +311,15 @@ function sal_rep_route_customers_for_date(PDO $pdo, int $salesRepId, ?string $ro
         return $empty;
     }
 
+    require_once app_path('includes/crm_sales_rep_schema.php');
     $customers = [];
     $seenCust = [];
     foreach ($route['lines'] as $ln) {
         $cid = (int) ($ln['customer_id'] ?? 0);
         if ($cid < 1 || isset($seenCust[$cid])) {
+            continue;
+        }
+        if (!crm_customer_is_linked_to_sales_rep($pdo, $cid, $salesRepId)) {
             continue;
         }
         $seenCust[$cid] = true;
@@ -349,6 +361,10 @@ function sal_rep_route_add_customer_today(
     ?int $userId = null
 ): void {
     if ($salesRepId < 1 || $customerId < 1 || !sal_rep_route_ensure_schema($pdo)) {
+        return;
+    }
+    require_once app_path('includes/crm_sales_rep_schema.php');
+    if (!crm_customer_is_linked_to_sales_rep($pdo, $customerId, $salesRepId)) {
         return;
     }
     $routeDate = date('Y-m-d');

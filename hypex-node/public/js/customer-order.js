@@ -1528,7 +1528,7 @@
       }
       if (!lineHasQty(curLn)) {
         focusLineField(idx, '.js-qty', true);
-        hxAlert('أدخل الكمية قبل الانتقال لسطر جديد.', {
+        hxAlert('أدخل الكمية أو الكمية الإضافية قبل الانتقال لسطر جديد.', {
           title: 'الكمية مطلوبة',
           kind: 'warning',
         });
@@ -1647,9 +1647,9 @@
           return;
         }
         if (!lineHasQty(state.lines[idx])) {
-          setMsg('أدخل الكمية أولاً قبل إضافة سطر جديد.', 'error');
+          setMsg('أدخل الكمية أو الكمية الإضافية أولاً قبل إضافة سطر جديد.', 'error');
           focusLineField(idx, '.js-qty', true);
-          hxAlert('أدخل الكمية قبل إضافة سطر جديد.', {
+          hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
             kind: 'warning',
           });
@@ -2018,8 +2018,14 @@
     return Number.isFinite(q) ? q : 0;
   }
 
+  function lineQtyExtraValue(ln) {
+    if (!ln) return 0;
+    var q = Number(ln.qty_extra);
+    return Number.isFinite(q) ? q : 0;
+  }
+
   function lineHasQty(ln) {
-    return lineQtyValue(ln) > 0;
+    return lineQtyValue(ln) > 0 || lineQtyExtraValue(ln) > 0;
   }
 
   var qtyLeaveGuard = false;
@@ -2039,9 +2045,9 @@
     }
     var ln = state.lines[idx];
     if (!lineHasItem(ln)) return true;
-    if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0) return true;
+    if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0 || lineQtyExtraValue(ln) > 0) return true;
 
-    var msg = 'أدخل الكمية للبند قبل مغادرة الحقل.';
+    var msg = 'أدخل الكمية أو الكمية الإضافية للبند قبل مغادرة الحقل.';
     setMsg(msg, 'error');
     qtyLeaveGuard = true;
     window.setTimeout(function () {
@@ -2101,8 +2107,8 @@
       if (!lineHasQty(lines[i])) {
         if (!opts.silent) {
           focusLineField(i, '.js-qty', true);
-          setMsg('أدخل الكمية في السطر الحالي قبل إضافة سطر جديد.', 'error');
-          hxAlert('أدخل الكمية قبل إضافة سطر جديد.', {
+          setMsg('أدخل الكمية أو الكمية الإضافية في السطر الحالي قبل إضافة سطر جديد.', 'error');
+          hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
             kind: 'warning',
           });
@@ -2452,6 +2458,7 @@
       sales_rep_id: Number((document.getElementById('co_rep') || {}).value || 0) || null,
       warehouse_id: Number((document.getElementById('co_wh') || {}).value || 0) || null,
       payment_type: (document.getElementById('co_pay') || {}).value || 'credit',
+      delivery_date: (document.getElementById('co_delivery_date') || {}).value || '',
       notes: (document.getElementById('co_notes') || {}).value || '',
       invoice_discount: (document.getElementById('co_discount') || {}).value || '',
       lines: (state.lines || []).filter(function (ln) {
@@ -2477,20 +2484,26 @@
     }
     var missingQtyIdx = findFirstLineMissingQty();
     if (missingQtyIdx >= 0) {
-      hxAlert('أدخل الكمية لكل بند قبل الحفظ.', { title: 'الكمية مطلوبة', kind: 'warning' });
+      hxAlert('أدخل الكمية أو الكمية الإضافية لكل بند قبل الحفظ.', {
+        title: 'الكمية مطلوبة',
+        kind: 'warning',
+      });
       focusLineField(missingQtyIdx, '.js-qty', true);
       return Promise.resolve(null);
     }
     for (var pi = 0; pi < payload.lines.length; pi++) {
-      if (!(Number(payload.lines[pi].qty) > 0)) {
-        hxAlert('أدخل الكمية للبند رقم ' + (pi + 1) + ' قبل الحفظ.', {
+      var pq = Number(payload.lines[pi].qty) || 0;
+      var pqe = Number(payload.lines[pi].qty_extra) || 0;
+      if (!(pq > 0) && !(pqe > 0)) {
+        hxAlert('أدخل الكمية أو الكمية الإضافية للبند رقم ' + (pi + 1) + ' قبل الحفظ.', {
           title: 'الكمية مطلوبة',
           kind: 'warning',
         });
         focusLineField(pi, '.js-qty', true);
         return Promise.resolve(null);
       }
-      if (!(Number(payload.lines[pi].unit_price) > 0)) {
+      var bonusOnly = !(pq > 0) && pqe > 0;
+      if (!(Number(payload.lines[pi].unit_price) > 0) && !bonusOnly) {
         hxAlert('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', {
           title: 'تنبيه',
           kind: 'warning',

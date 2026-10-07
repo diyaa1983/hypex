@@ -80,7 +80,7 @@ async function listOrders({ q = '', status = '', limit = 80 } = {}) {
     params.push(`%${q}%`, `%${q}%`);
   }
   return safeQuery(
-    `SELECT o.id, o.order_no, o.order_date, o.status, o.total, c.name_ar AS customer_name
+    `SELECT o.id, o.order_no, o.order_date, o.created_at, o.status, o.total, c.name_ar AS customer_name
      FROM sal_customer_order o
      LEFT JOIN crm_customer c ON c.id = o.customer_id
      WHERE ${where.join(' AND ')}
@@ -838,6 +838,215 @@ function tagSalesDetails(details) {
   return details.map((d) => ({ ...d, doc_type: 'sales', doc_label: 'فاتورة' }));
 }
 
+/**
+ * تقرير تفصيلي لطلبات الشراء — مجمّع حسب المندوب ثم فئة المادة.
+ */
+async function reportCustomerOrdersByRepCategory(filters = {}) {
+  const r = dateRange(filters.from, filters.to);
+  const empty = {
+    groups: [],
+    details: [],
+    totals: computeDetailedTotals([]),
+    from: r.from,
+    to: r.to,
+  };
+  if (!r.from || !r.to) return empty;
+
+  const customerId = Number(filters.customer_id || 0) || 0;
+  const salesRepId = Number(filters.sales_rep_id || 0) || 0;
+  const categoryId = Number(filters.category_id || 0) || 0;
+  const status = String(filters.status || 'all').toLowerCase();
+  const approvedOnly = String(filters.posted_only || '') === '1' || filters.posted_only === true;
+
+  const where = ['o.order_date BETWEEN ? AND ?', 'IFNULL(o.is_sent, 1) = 1'];
+  const params = [r.from, r.to];
+  if (customerId > 0) {
+    where.push('o.customer_id = ?');
+    params.push(customerId);
+  }
+  if (salesRepId > 0) {
+    where.push('COALESCE(o.sales_rep_id, c.sales_rep_id) = ?');
+    params.push(salesRepId);
+  }
+  if (categoryId > 0) {
+    where.push('it.category_id = ?');
+    params.push(categoryId);
+  }
+  if (status === 'draft' || status === 'approved') {
+    where.push('o.status = ?');
+    params.push(status);
+  } else if (approvedOnly) {
+    where.push(`o.status IN ('approved','posted')`);
+  }
+
+  const limit = Math.min(8000, Math.max(100, Number(filters.limit || 5000)));
+  let rows = [];
+  try {
+    rows = await safeQuery(
+      `SELECT o.id AS order_id, o.order_no, o.order_date, o.status,
+              o.delivery_date,
+              c.id AS customer_id, c.code AS customer_code, c.name_ar AS customer_name,
+              COALESCE(sr.id, 0) AS sales_rep_id,
+              COALESCE(NULLIF(TRIM(sr.name_ar), ''), '— بدون مندوب —') AS sales_rep_name,
+              COALESCE(sr.code, '') AS sales_rep_code,
+              it.id AS item_id,
+              COALESCE(NULLIF(TRIM(it.sku), ''), it.barcode, '') AS item_sku,
+              COALESCE(NULLIF(TRIM(it.name_ar), ''), NULLIF(TRIM(l.item_name), ''), '') AS item_name,
+              COALESCE(cat.id, 0) AS category_id,
+              COALESCE(NULLIF(TRIM(cat.name_ar), ''), '— بدون فئة —') AS category_name,
+              COALESCE(NULLIF(TRIM(l.unit_name), ''), NULLIF(TRIM(it.unit_name), ''), 'قطعة') AS unit_name,
+              COALESCE(l.qty, 0) AS qty,
+              COALESCE(l.qty_extra, 0) AS qty_extra,
+              COALESCE(l.unit_price, 0) AS unit_price,
+              COALESCE(l.discount_pct, 0) AS discount_pct,
+              COALESCE(l.line_total, 0) AS line_total,
+              COALESCE(l.tax_amount, 0) AS tax_amount,
+              COALESCE(l.line_gross, l.line_total, 0) AS line_gross
+       FROM sal_customer_order_line l
+       INNER JOIN sal_customer_order o ON o.id = l.order_id
+       INNER JOIN crm_customer c ON c.id = o.customer_id
+       LEFT JOIN crm_sales_rep sr ON sr.id = COALESCE(o.sales_rep_id, c.sales_rep_id)
+       INNER JOIN inv_item it ON it.id = l.item_id
+       LEFT JOIN inv_item_category cat ON cat.id = it.category_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY sales_rep_name ASC, sales_rep_id ASC,
+                category_name ASC, category_id ASC,
+                o.order_date ASC, o.id ASC, l.line_no ASC
+       LIMIT ${limit}`,
+      params
+    );
+  } catch (e) {
+    // qty_extra / delivery_date قد لا تكون جاهزة
+    try {
+      rows = await safeQuery(
+        `SELECT o.id AS order_id, o.order_no, o.order_date, o.status,
+                NULL AS delivery_date,
+                c.id AS customer_id, c.code AS customer_code, c.name_ar AS customer_name,
+                COALESCE(sr.id, 0) AS sales_rep_id,
+                COALESCE(NULLIF(TRIM(sr.name_ar), ''), '— بدون مندوب —') AS sales_rep_name,
+                COALESCE(sr.code, '') AS sales_rep_code,
+                it.id AS item_id,
+                COALESCE(NULLIF(TRIM(it.sku), ''), it.barcode, '') AS item_sku,
+                COALESCE(NULLIF(TRIM(it.name_ar), ''), NULLIF(TRIM(l.item_name), ''), '') AS item_name,
+                COALESCE(cat.id, 0) AS category_id,
+                COALESCE(NULLIF(TRIM(cat.name_ar), ''), '— بدون فئة —') AS category_name,
+                COALESCE(NULLIF(TRIM(l.unit_name), ''), 'قطعة') AS unit_name,
+                COALESCE(l.qty, 0) AS qty,
+                0 AS qty_extra,
+                COALESCE(l.unit_price, 0) AS unit_price,
+                COALESCE(l.discount_pct, 0) AS discount_pct,
+                COALESCE(l.line_total, 0) AS line_total,
+                COALESCE(l.tax_amount, 0) AS tax_amount,
+                COALESCE(l.line_gross, l.line_total, 0) AS line_gross
+         FROM sal_customer_order_line l
+         INNER JOIN sal_customer_order o ON o.id = l.order_id
+         INNER JOIN crm_customer c ON c.id = o.customer_id
+         LEFT JOIN crm_sales_rep sr ON sr.id = COALESCE(o.sales_rep_id, c.sales_rep_id)
+         INNER JOIN inv_item it ON it.id = l.item_id
+         LEFT JOIN inv_item_category cat ON cat.id = it.category_id
+         WHERE ${where.join(' AND ')}
+         ORDER BY sales_rep_name ASC, sales_rep_id ASC,
+                  category_name ASC, category_id ASC,
+                  o.order_date ASC, o.id ASC, l.line_no ASC
+         LIMIT ${limit}`,
+        params
+      );
+    } catch (e2) {
+      console.error('reportCustomerOrdersByRepCategory', e2.message || e2);
+      throw e2;
+    }
+  }
+
+  const details = (rows || []).map((row) => {
+    const qty = Number(row.qty || 0);
+    const qtyExtra = Number(row.qty_extra || 0);
+    return {
+      doc_type: 'order',
+      order_id: Number(row.order_id || 0),
+      invoice_id: Number(row.order_id || 0),
+      order_no: row.order_no || '',
+      invoice_no: row.order_no || '',
+      order_date: row.order_date || '',
+      invoice_date: row.order_date || '',
+      delivery_date: row.delivery_date ? String(row.delivery_date).slice(0, 10) : '',
+      status: String(row.status || ''),
+      status_label: orderStatusLabel(row.status),
+      payment_type: orderStatusLabel(row.status),
+      customer_id: Number(row.customer_id || 0),
+      customer_code: row.customer_code || '',
+      customer_name: row.customer_name || '',
+      sales_rep_id: Number(row.sales_rep_id || 0),
+      sales_rep_name: row.sales_rep_name || '— بدون مندوب —',
+      sales_rep_code: row.sales_rep_code || '',
+      item_id: Number(row.item_id || 0),
+      item_sku: row.item_sku || '',
+      item_name: row.item_name || '',
+      category_id: Number(row.category_id || 0),
+      category_name: row.category_name || '— بدون فئة —',
+      unit_name: row.unit_name || 'قطعة',
+      qty,
+      qty_extra: qtyExtra,
+      qty_total: qty + qtyExtra,
+      unit_price: Number(row.unit_price || 0),
+      discount_pct: Number(row.discount_pct || 0),
+      line_total: Number(row.line_total || 0),
+      tax_amount: Number(row.tax_amount || 0),
+      line_gross: Number(row.line_gross || 0),
+    };
+  });
+
+  const repMap = new Map();
+  for (const row of details) {
+    const rk = String(row.sales_rep_id);
+    if (!repMap.has(rk)) {
+      repMap.set(rk, {
+        sales_rep_id: row.sales_rep_id,
+        sales_rep_name: row.sales_rep_name,
+        sales_rep_code: row.sales_rep_code,
+        categories: new Map(),
+        rows: [],
+      });
+    }
+    const rep = repMap.get(rk);
+    rep.rows.push(row);
+    const ck = String(row.category_id);
+    if (!rep.categories.has(ck)) {
+      rep.categories.set(ck, {
+        category_id: row.category_id,
+        category_name: row.category_name,
+        rows: [],
+      });
+    }
+    rep.categories.get(ck).rows.push(row);
+  }
+
+  const groups = [];
+  for (const rep of repMap.values()) {
+    const categories = [];
+    for (const cat of rep.categories.values()) {
+      categories.push({
+        ...cat,
+        totals: computeDetailedTotals(cat.rows),
+      });
+    }
+    groups.push({
+      sales_rep_id: rep.sales_rep_id,
+      sales_rep_name: rep.sales_rep_name,
+      sales_rep_code: rep.sales_rep_code,
+      categories,
+      totals: computeDetailedTotals(rep.rows),
+    });
+  }
+
+  return {
+    groups,
+    details,
+    totals: computeDetailedTotals(details),
+    from: r.from,
+    to: r.to,
+  };
+}
+
 async function reportCombinedDetailed(filters = {}) {
   const source = normalizeDetailedSource(filters.source);
   const groupBy = normalizeSalesDetailedGroupBy(filters.group_by);
@@ -904,6 +1113,7 @@ module.exports = {
   reportInvoiceDiscount,
   reportCustomerOrders,
   reportCustomerOrdersByItem,
+  reportCustomerOrdersByRepCategory,
   reportDelivery,
   reportReturns,
   reportReturnsTotals,

@@ -110,6 +110,11 @@ return [
         'permission' => 'report_customer_orders',
         'title' => 'تقرير طلبات الشراء',
     ],
+    'report_customer_orders_detailed' => [
+        'file' => 'modules/reports/customer_orders_detailed.php',
+        'permission' => 'report_customer_orders_detailed',
+        'title' => 'تقرير تفصيلي لطلبات الشراء',
+    ],
     'report_customer_orders_by_item' => [
         'file' => 'modules/reports/customer_orders_by_item.php',
         'permission' => 'report_customer_orders_by_item',

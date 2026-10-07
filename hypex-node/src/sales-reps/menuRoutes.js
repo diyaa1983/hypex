@@ -249,6 +249,7 @@ router.get('/api/sales-reps/tour-customers', guard('sales_rep_route'), async (re
 
 router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
   await masters.ensureTourSchema();
+  await masters.ensureMonthlyToursRollover();
   const filterRep = Number(req.query.sales_rep_id || 0) || 0;
   const editId = Number(req.query.id || 0) || 0;
   const wantForm = editId > 0 || String(req.query.new || '') === '1';
@@ -301,7 +302,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         mark: '🗺️',
         kicker: KICKER,
         title: 'الجولات',
-        subtitle: 'شاشة مستقلة لخطط زيارات المندوبين',
+        subtitle: 'جولة شهرية كاملة لكل مندوب · يُفتح الشهر الجديد تلقائياً من الشهر السابق',
         actions: [
           { label: '＋ جولة جديدة', href: '/sales-reps/route?new=1', primary: true },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
@@ -555,14 +556,15 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                   ${isPosted ? `<input type="hidden" name="sales_rep_id" value="${selectedRep}">` : ''}
                 </label>
                 <label class="srr-field srr-field--date">
-                  <span>من تاريخ <em>*</em></span>
+                  <span>شهر الجولة <em>*</em></span>
                   <input class="si-field si-field--mono srr-date" type="date" name="date_from" id="srr-from"
-                         required value="${esc(dateFrom)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
+                         required value="${esc(dateFrom)}" dir="ltr" ${isPosted ? 'readonly' : ''}
+                         title="أول يوم في الشهر — يُضبط تلقائياً لشهر كامل">
                 </label>
                 <label class="srr-field srr-field--date">
-                  <span>إلى تاريخ <em>*</em></span>
+                  <span>نهاية الشهر</span>
                   <input class="si-field si-field--mono srr-date" type="date" name="date_to" id="srr-to"
-                         required value="${esc(dateTo)}" dir="ltr" ${isPosted ? 'readonly' : ''}>
+                         required value="${esc(dateTo)}" dir="ltr" ${isPosted ? 'readonly' : ''} readonly tabindex="-1">
                 </label>
               </div>
               <div class="srr-period">
@@ -581,39 +583,26 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
             <div class="srr-step" data-step="2">
               <div class="srr-step__head">
                 <span class="srr-step__num">2</span> أيام الأسبوع <em>*</em>
+                <span class="srr-weekdays__hint muted" id="srr-day-hint">حدد يوماً ثم أضف العملاء</span>
               </div>
               <div class="srr-weekdays" id="srr-weekdays">
                 <div class="srr-weekdays__chips" id="srr-day-chips">${weekdayChips}</div>
-                <p class="srr-weekdays__hint muted" id="srr-day-hint">حدد يوماً من أيام الأسبوع لبدء إضافة العملاء.</p>
               </div>
-              <div class="srr-cal" id="srr-cal" aria-hidden="true"></div>
+              <details class="srr-cal-wrap">
+                <summary>معاينة أيام الشهر</summary>
+                <div class="srr-cal" id="srr-cal" aria-hidden="true"></div>
+              </details>
             </div>
 
-            <div class="srr-step" data-step="3">
-              <div class="srr-step__head"><span class="srr-step__num">3</span> فلترة قائمة العملاء (اختياري)</div>
-              <div class="srr-form__row">
-                <label class="srr-field">
-                  <span>المنطقة</span>
-                  <select class="si-field" id="srr-region" ${isPosted ? 'disabled' : ''}>
-                    <option value="0">— كل المناطق —</option>
-                    ${regionOpts}
-                  </select>
-                </label>
-                <label class="srr-field">
-                  <span>العنوان</span>
-                  <select class="si-field" id="srr-address" ${isPosted ? 'disabled' : ''}>
-                    <option value="0">— كل العناوين —</option>
-                  </select>
-                </label>
-              </div>
+            <div class="srr-step srr-step--notes" data-step="notes">
+              <label class="srr-field srr-field--full">
+                <span>ملاحظات</span>
+                <input class="si-field srr-notes" name="notes" type="text" placeholder="اختياري…"
+                       value="${esc(String(req.query.notes || edit?.notes || ''))}" ${
+                         isPosted ? 'readonly' : ''
+                       }>
+              </label>
             </div>
-
-            <label class="srr-field srr-field--full">
-              <span>ملاحظات</span>
-              <textarea class="si-field srr-notes" name="notes" rows="2" placeholder="اختياري…" ${
-                isPosted ? 'readonly' : ''
-              }>${esc(String(req.query.notes || edit?.notes || ''))}</textarea>
-            </label>
 
             <div class="srr-selected-panel">
               <div class="srr-selected-panel__head">
@@ -631,6 +620,21 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                 <strong>اختيار العملاء</strong>
                 <span class="muted" id="srr-cust-day-label">— اختر يوماً —</span>
                 <span class="muted" id="srr-cust-total">0</span>
+              </div>
+              <div class="srr-cust__filters">
+                <label class="srr-field">
+                  <span>المنطقة</span>
+                  <select class="si-field" id="srr-region" ${isPosted ? 'disabled' : ''}>
+                    <option value="0">— كل المناطق —</option>
+                    ${regionOpts}
+                  </select>
+                </label>
+                <label class="srr-field">
+                  <span>العنوان</span>
+                  <select class="si-field" id="srr-address" ${isPosted ? 'disabled' : ''}>
+                    <option value="0">— كل العناوين —</option>
+                  </select>
+                </label>
               </div>
               <input type="search" class="si-field srr-cust__search" id="srr-cust-q"
                      placeholder="بحث بالاسم أو الرمز…" autocomplete="off" ${isPosted ? 'disabled' : ''}>
@@ -688,14 +692,33 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
           + '-' + String(d.getDate()).padStart(2,'0');
       }
 
+      function boundsFromAnyIso(iso){
+        var m = String(iso||'').match(/^(\\d{4})-(\\d{2})-\\d{2}$/);
+        if(!m) return null;
+        var y = +m[1], mo = +m[2]-1;
+        var last = new Date(y, mo+1, 0).getDate();
+        return {
+          from: m[1]+'-'+m[2]+'-01',
+          to: m[1]+'-'+m[2]+'-'+String(last).padStart(2,'0')
+        };
+      }
+
+      function snapFullMonth(){
+        if(posted || !fromEl || !toEl) return;
+        var b = boundsFromAnyIso(fromEl.value);
+        if(!b) return;
+        fromEl.value = b.from;
+        toEl.value = b.to;
+      }
+
       function renderPeriod(){
         if(!periodEl) return;
         var f = fromEl && fromEl.value, t = toEl && toEl.value;
-        if(!f || !t){ periodEl.textContent = 'حدّد الفترة (من / إلى).'; return; }
+        if(!f || !t){ periodEl.textContent = 'حدّد شهر الجولة (شهر تقويمي كامل).'; return; }
         var days = Math.round((new Date(t+'T12:00:00') - new Date(f+'T12:00:00')) / 86400000) + 1;
         periodEl.textContent = days > 0
-          ? ('الفترة: ' + dmy(f) + ' → ' + dmy(t) + ' · ' + days + ' يوماً')
-          : 'تاريخ النهاية قبل البداية.';
+          ? ('شهر الجولة: ' + dmy(f) + ' → ' + dmy(t) + ' · ' + days + ' يوماً')
+          : 'تاريخ غير صالح.';
       }
 
       function escHtml(s){
@@ -1006,7 +1029,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         custCache.forEach(addCustomer);
       });
 
-      function periodChanged(){ renderPeriod(); renderCal(); }
+      function periodChanged(){ snapFullMonth(); renderPeriod(); renderCal(); }
       if(fromEl) fromEl.addEventListener('change', periodChanged);
       if(toEl) toEl.addEventListener('change', periodChanged);
       document.querySelectorAll('.srr-period__quick [data-month]').forEach(function(b){
@@ -1992,7 +2015,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'الموقع',
         'وقت الدخول',
         'وقت الخروج',
-        'مجموع الساعات',
+        'الوقت الفعال',
         'نوع الدخول',
         'نوع الخروج',
         'المبيعات',
@@ -2008,7 +2031,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
         'الموقع',
         'وقت الدخول',
         'وقت الخروج',
-        'مجموع الساعات',
+        'الوقت الفعال',
         'نوع الدخول',
         'نوع الخروج',
         'المبيعات',

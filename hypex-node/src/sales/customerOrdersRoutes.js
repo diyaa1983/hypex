@@ -245,6 +245,11 @@ async function renderOrderPrint(req, res, orderId) {
             <div><span>النوع:</span> <strong>${esc(order.payment_type === 'cash' ? 'نقدي' : 'ذمم')}</strong></div>
             <div><span>المندوب:</span> <strong>${esc(order.sales_rep_name || '—')}</strong></div>
             <div><span>المستودع:</span> <strong>${esc(order.warehouse_name || '—')}</strong></div>
+            ${
+              order.delivery_date
+                ? `<div><span>تاريخ التسليم:</span> <strong dir="ltr">${esc(isoToDmy(order.delivery_date))}</strong></div>`
+                : ''
+            }
           </div>
           <div class="inv-v1-title-block">
             <h1 class="inv-v1-title">طلب شراء عميل</h1>
@@ -314,6 +319,7 @@ async function renderForm(req, res, orderId) {
     warehouse_id: order ? order.warehouse_id : lookups.warehouses[0]?.id || '',
     payment_type: order && order.payment_type === 'cash' ? 'cash' : 'credit',
     notes: order ? order.notes : '',
+    delivery_date: order && order.delivery_date ? String(order.delivery_date).slice(0, 10) : '',
     invoice_discount: order ? order.invoice_discount_input : '',
     is_approved: locked,
     status_label: order ? order.status_label : 'مسودة',
@@ -483,9 +489,15 @@ async function renderForm(req, res, orderId) {
             <div class="si-tot-row"><span>الضريبة</span><strong id="sum_tax" dir="ltr">0.000</strong></div>
             <div class="si-tot-row si-tot-grand"><span>الإجمالي</span><strong id="sum_grand" dir="ltr">0.000</strong></div>
           </div>
-          <label class="si-notes">ملاحظات
-            <textarea id="co_notes" rows="3" ${locked ? 'readonly' : ''} placeholder="اختياري…">${esc(initial.notes)}</textarea>
-          </label>
+          <div class="si-notes" style="display:flex;flex-direction:column;gap:.55rem">
+            <label>تاريخ التسليم
+              <input class="si-field si-field--mono" id="co_delivery_date" type="date"
+                     value="${esc(initial.delivery_date || '')}" dir="ltr" ${locked ? 'readonly' : ''}>
+            </label>
+            <label>ملاحظات
+              <textarea id="co_notes" rows="3" ${locked ? 'readonly' : ''} placeholder="اختياري…">${esc(initial.notes)}</textarea>
+            </label>
+          </div>
         </div>
       </section>
 

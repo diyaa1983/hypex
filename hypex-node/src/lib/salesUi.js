@@ -1,6 +1,6 @@
 'use strict';
 
-const { esc, fmtAmt, fmtUnitPrice, isoToDmy, todayIso } = require('../lib/html');
+const { esc, fmtAmt, fmtUnitPrice, isoToDmy, isoToDmyHm, todayIso } = require('../lib/html');
 const { renderApp, phpUrl, embedUrl } = require('../lib/layout');
 const { salesCatalog } = require('../sales/catalog');
 
@@ -303,6 +303,7 @@ module.exports = {
   fmtAmt,
   fmtUnitPrice,
   isoToDmy,
+  isoToDmyHm,
   esc,
   phpUrl,
   embedUrl,

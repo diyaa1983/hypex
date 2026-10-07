@@ -71,6 +71,7 @@ return [
                             'title' => 'تقارير طلبات الشراء',
                             'items' => [
                                 ['r' => 'report_customer_orders', 'label' => 'تقرير طلبات الشراء', 'icon' => '📊'],
+                                ['r' => 'report_customer_orders_detailed', 'label' => 'تقرير تفصيلي لطلبات الشراء', 'icon' => '📑'],
                                 ['r' => 'report_customer_orders_by_item', 'label' => 'طلبات الشراء للعميل حسب مادة معينة', 'icon' => '📦'],
                             ],
                         ],

@@ -30,6 +30,18 @@ try {
     $params = [];
 
     if ($type === 'customer') {
+        // مندوب الهاتف يرى فقط عملاءه المربوطين — بدون ربط مندوب لا تُعرض قائمة كاملة
+        if ($scopedRepId === null && !user_is_system_admin()) {
+            http_response_code(422);
+            echo json_encode([
+                'ok' => false,
+                'error' => 'no_sales_rep',
+                'message' => 'حسابك غير مربوط بمندوب مبيعات. لا يمكن عرض العملاء.',
+                'parties' => [],
+                'count' => 0,
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         crm_customer_ensure_oracle_pending_columns($pdo);
         $sql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude,
                        c.oracle_key, c.payment_period, c.oracle_pending

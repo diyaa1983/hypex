@@ -207,6 +207,8 @@ $appBootMigrations = [
     'database/migrations/285_action_delete_sales_rep_visit.sql',
     'database/migrations/286_customer_order_oracle_action_permissions.sql',
     'database/migrations/287_sys_user_inbox.sql',
+    'database/migrations/289_sal_customer_order_delivery_date.sql',
+    'database/migrations/290_report_customer_orders_detailed.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

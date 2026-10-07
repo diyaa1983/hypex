@@ -34,6 +34,15 @@ try {
 
     $uid = (int) (current_user()['id'] ?? 0);
     $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
+    if (($scopedRepId === null || $scopedRepId < 1) && !user_is_system_admin()) {
+        http_response_code(422);
+        echo json_encode([
+            'ok' => false,
+            'error' => 'no_sales_rep',
+            'message' => 'حسابك غير مربوط بمندوب مبيعات. لا يمكن مزامنة العملاء.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
 
     // —— عملاء (كامل أو تزايدي منذ آخر تحديث) ——
     $sinceRaw = trim((string) ($_GET['since'] ?? ''));

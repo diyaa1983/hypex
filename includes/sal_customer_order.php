@@ -134,6 +134,20 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
                 }
             }
         }
+        if (!sal_customer_order_has_column($pdo, 'sal_customer_order', 'delivery_date')) {
+            try {
+                require_once app_path('includes/sql_migration.php');
+                sql_migration_run_file($pdo, 'database/migrations/289_sal_customer_order_delivery_date.sql');
+            } catch (Throwable $e) {
+                try {
+                    $pdo->exec(
+                        'ALTER TABLE sal_customer_order
+                         ADD COLUMN delivery_date DATE NULL DEFAULT NULL AFTER notes'
+                    );
+                } catch (Throwable $e2) {
+                }
+            }
+        }
         // صلاحية الموبايل مرة واحدة فقط — لا INSERT في كل تنقّل/إشعار
         try {
             require_once app_path('includes/acc_coa_bootstrap.php');
@@ -492,7 +506,7 @@ function sal_customer_order_list_fetch(
     [$where, $params] = sal_customer_order_list_where($search, $salesRepId, $status, $customerId, $isSent, $dateFrom, $dateTo);
     $hasTotal = sal_customer_order_has_column($pdo, 'sal_customer_order', 'total');
     $hasSent = sal_customer_order_has_column($pdo, 'sal_customer_order', 'is_sent');
-    $sql = 'SELECT o.id, o.order_no, o.order_date, o.status, o.customer_id, o.sales_rep_id, o.warehouse_id,
+    $sql = 'SELECT o.id, o.order_no, o.order_date, o.created_at, o.status, o.customer_id, o.sales_rep_id, o.warehouse_id,
                    c.name_ar AS customer_name, c.code AS customer_code, w.name_ar AS warehouse_name,
                    COALESCE(r.name_ar, \'\') AS sales_rep_name,
                    COALESCE(lc.line_count, 0) AS line_count,
@@ -633,10 +647,13 @@ function sal_customer_order_normalize_priced_lines(
     $built = [];
     foreach ($lines as $line) {
         $itemId = (int) ($line['item_id'] ?? 0);
-        $qty = (float) (int) round((float) ($line['qty'] ?? 0));
-        if ($itemId < 1 || $qty < 1) {
+        $qty = max(0.0, (float) (int) round((float) ($line['qty'] ?? 0)));
+        $qtyExtra = max(0.0, (float) (int) round((float) ($line['qty_extra'] ?? 0)));
+        // كمية صفر مسموحة فقط مع كمية إضافية
+        if ($itemId < 1 || ($qty < 1 && $qtyExtra < 1)) {
             continue;
         }
+        $isBonusOnly = $qty < 1 && $qtyExtra >= 1;
         $itemName = trim((string) ($line['item_name'] ?? ''));
         if ($itemName === '') {
             $q = $pdo->prepare('SELECT name_ar FROM inv_item WHERE id = ?');
@@ -658,11 +675,13 @@ function sal_customer_order_normalize_priced_lines(
         $unitName = $priced['unit_name'] ?? (trim((string) ($line['unit_name'] ?? '')) ?: null);
         $factor = (float) $priced['unit_factor'];
         $unitPrice = (float) $priced['unit_price'];
-        if ($unitPrice <= 0) {
+        if ($unitPrice <= 0 && !$isBonusOnly) {
             throw new RuntimeException('مادة «' . $itemName . '» بدون سعر في البطاقة. عدّل السعر من شاشة تعديل الأسعار.');
         }
+        if ($unitPrice < 0) {
+            $unitPrice = 0.0;
+        }
 
-        $qtyExtra = max(0.0, (float) (int) round((float) ($line['qty_extra'] ?? 0)));
         $taxRate = (float) ($line['tax_rate_percent'] ?? $defaultTax);
         if ($taxRate < 0) {
             $taxRate = 0.0;
@@ -685,7 +704,7 @@ function sal_customer_order_normalize_priced_lines(
         ];
     }
     if ($built === []) {
-        throw new RuntimeException('أدخل بنداً واحداً بكمية موجبة على الأقل.');
+        throw new RuntimeException('أدخل بنداً واحداً بكمية أو كمية إضافية على الأقل.');
     }
 
     $headerRaw = trim((string) ($headerDiscountInput ?? ''));
@@ -759,6 +778,16 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
         throw new RuntimeException('العميل والمستودع مطلوبان.');
     }
     $notes = trim((string) ($data['notes'] ?? '')) ?: null;
+    $deliveryRaw = trim((string) ($data['delivery_date'] ?? ''));
+    $deliveryDate = null;
+    if ($deliveryRaw !== '') {
+        $deliveryDate = function_exists('parse_date_to_iso')
+            ? parse_date_to_iso($deliveryRaw)
+            : (preg_match('/^\d{4}-\d{2}-\d{2}$/', $deliveryRaw) ? $deliveryRaw : null);
+        if ($deliveryDate === null || $deliveryDate === '') {
+            throw new RuntimeException('تاريخ التسليم غير صالح.');
+        }
+    }
     $headerDisc = trim((string) ($data['invoice_discount'] ?? $data['invoice_discount_input'] ?? ''));
     $salesRepInput = (int) ($data['sales_rep_id'] ?? 0);
     $paymentType = strtolower(trim((string) ($data['payment_type'] ?? 'credit'))) === 'cash' ? 'cash' : 'credit';
@@ -766,6 +795,7 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
     sal_customer_order_ensure_pricing_schema($pdo);
     $hasPricing = sal_customer_order_has_pricing($pdo);
     $hasPay = sal_customer_order_has_column($pdo, 'sal_customer_order', 'payment_type');
+    $hasDelivery = sal_customer_order_has_column($pdo, 'sal_customer_order', 'delivery_date');
 
     if ($hasPricing) {
         require_once app_path('includes/inv_item_doc_pricing.php');
@@ -775,12 +805,15 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
     } else {
         $valid = [];
         foreach ($lines as $line) {
-            if ((int) ($line['item_id'] ?? 0) > 0 && (float) ($line['qty'] ?? 0) > 0) {
+            $qid = (int) ($line['item_id'] ?? 0);
+            $qq = (float) ($line['qty'] ?? 0);
+            $qe = (float) ($line['qty_extra'] ?? 0);
+            if ($qid > 0 && ($qq > 0 || $qe > 0)) {
                 $valid[] = $line;
             }
         }
         if ($valid === []) {
-            throw new RuntimeException('أدخل بنداً واحداً بكمية موجبة على الأقل.');
+            throw new RuntimeException('أدخل بنداً واحداً بكمية أو كمية إضافية على الأقل.');
         }
         $norm = null;
     }
@@ -800,30 +833,38 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
             }
             if ($hasPricing) {
                 $paySql = $hasPay ? 'payment_type=?,' : '';
-                $params = [$date, $customerId, $repToStore, $warehouseId];
-                if ($hasPay) {
-                    $params[] = $paymentType;
-                }
-                $params = array_merge($params, [
-                    $notes,
-                    $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
-                    $norm['invoice_discount_input'], $userId, $id,
-                ]);
-                $pdo->prepare(
-                    "UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,{$paySql}notes=?,
-                     subtotal=?,discount_amount=?,tax_amount=?,total=?,invoice_discount_input=?,updated_by=? WHERE id=?"
-                )->execute($params);
-            } else {
-                $paySql = $hasPay ? 'payment_type=?,' : '';
+                $delSql = $hasDelivery ? 'delivery_date=?,' : '';
                 $params = [$date, $customerId, $repToStore, $warehouseId];
                 if ($hasPay) {
                     $params[] = $paymentType;
                 }
                 $params[] = $notes;
+                if ($hasDelivery) {
+                    $params[] = $deliveryDate;
+                }
+                $params = array_merge($params, [
+                    $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
+                    $norm['invoice_discount_input'], $userId, $id,
+                ]);
+                $pdo->prepare(
+                    "UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,{$paySql}notes=?,{$delSql}
+                     subtotal=?,discount_amount=?,tax_amount=?,total=?,invoice_discount_input=?,updated_by=? WHERE id=?"
+                )->execute($params);
+            } else {
+                $paySql = $hasPay ? 'payment_type=?,' : '';
+                $delSql = $hasDelivery ? 'delivery_date=?,' : '';
+                $params = [$date, $customerId, $repToStore, $warehouseId];
+                if ($hasPay) {
+                    $params[] = $paymentType;
+                }
+                $params[] = $notes;
+                if ($hasDelivery) {
+                    $params[] = $deliveryDate;
+                }
                 $params[] = $userId;
                 $params[] = $id;
                 $pdo->prepare(
-                    "UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,{$paySql}notes=?,updated_by=? WHERE id=?"
+                    "UPDATE sal_customer_order SET order_date=?,customer_id=?,sales_rep_id=?,warehouse_id=?,{$paySql}notes=?,{$delSql}updated_by=? WHERE id=?"
                 )->execute($params);
             }
         } else {
@@ -834,33 +875,42 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
             if ($hasPricing) {
                 $payCol = $hasPay ? 'payment_type,' : '';
                 $payQ = $hasPay ? '?,' : '';
-                $params = [$no, $date, $customerId, $rep, $warehouseId];
-                if ($hasPay) {
-                    $params[] = $paymentType;
-                }
-                $params = array_merge($params, [
-                    $notes,
-                    $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
-                    $norm['invoice_discount_input'], $userId, $userId,
-                ]);
-                $pdo->prepare(
-                    "INSERT INTO sal_customer_order
-                     (order_no,order_date,customer_id,sales_rep_id,warehouse_id,{$payCol}notes,subtotal,discount_amount,tax_amount,total,invoice_discount_input,created_by,updated_by)
-                     VALUES (?,?,?,?,?,{$payQ}?,?,?,?,?,?,?,?)"
-                )->execute($params);
-            } else {
-                $payCol = $hasPay ? 'payment_type,' : '';
-                $payQ = $hasPay ? '?,' : '';
+                $delCol = $hasDelivery ? 'delivery_date,' : '';
+                $delQ = $hasDelivery ? '?,' : '';
                 $params = [$no, $date, $customerId, $rep, $warehouseId];
                 if ($hasPay) {
                     $params[] = $paymentType;
                 }
                 $params[] = $notes;
+                if ($hasDelivery) {
+                    $params[] = $deliveryDate;
+                }
+                $params = array_merge($params, [
+                    $norm['subtotal'], $norm['discount_amount'], $norm['tax_amount'], $norm['total'],
+                    $norm['invoice_discount_input'], $userId, $userId,
+                ]);
+                $pdo->prepare(
+                    "INSERT INTO sal_customer_order
+                     (order_no,order_date,customer_id,sales_rep_id,warehouse_id,{$payCol}notes,{$delCol}subtotal,discount_amount,tax_amount,total,invoice_discount_input,created_by,updated_by)
+                     VALUES (?,?,?,?,?,{$payQ}?," . ($hasDelivery ? '?,' : '') . "?,?,?,?,?,?,?)"
+                )->execute($params);
+            } else {
+                $payCol = $hasPay ? 'payment_type,' : '';
+                $payQ = $hasPay ? '?,' : '';
+                $delCol = $hasDelivery ? 'delivery_date,' : '';
+                $params = [$no, $date, $customerId, $rep, $warehouseId];
+                if ($hasPay) {
+                    $params[] = $paymentType;
+                }
+                $params[] = $notes;
+                if ($hasDelivery) {
+                    $params[] = $deliveryDate;
+                }
                 $params[] = $userId;
                 $params[] = $userId;
                 $pdo->prepare(
-                    "INSERT INTO sal_customer_order (order_no,order_date,customer_id,sales_rep_id,warehouse_id,{$payCol}notes,created_by,updated_by)
-                     VALUES (?,?,?,?,?,{$payQ}?,?,?)"
+                    "INSERT INTO sal_customer_order (order_no,order_date,customer_id,sales_rep_id,warehouse_id,{$payCol}notes,{$delCol}created_by,updated_by)
+                     VALUES (?,?,?,?,?,{$payQ}?," . ($hasDelivery ? '?,' : '') . "?,?)"
                 )->execute($params);
             }
             $id = (int) $pdo->lastInsertId();

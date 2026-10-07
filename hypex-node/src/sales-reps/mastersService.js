@@ -86,6 +86,105 @@ function monthBoundsIso(d = new Date()) {
   return { from, to };
 }
 
+/** يُجبر الفترة على شهر تقويمي كامل (أول يوم → آخر يوم). */
+function snapTourToFullMonth(dateFrom, dateTo = '') {
+  const anchor = normalizeIsoDate(dateFrom) || normalizeIsoDate(dateTo);
+  if (!anchor) return monthBoundsIso();
+  return monthBoundsIso(new Date(`${anchor}T12:00:00`));
+}
+
+let _tourRolloverLastRun = 0;
+
+async function tourCoveringMonth(salesRepId, monthFrom, monthTo) {
+  const rows = await safeQuery(
+    `SELECT id, status, date_from, date_to
+     FROM sal_rep_tour
+     WHERE sales_rep_id = ? AND is_active = 1
+       AND date_from <= ? AND date_to >= ?
+     LIMIT 1`,
+    [Number(salesRepId), monthTo, monthFrom]
+  );
+  return rows[0] || null;
+}
+
+async function findPreviousTourTemplate(salesRepId, beforeDate) {
+  const rows = await safeQuery(
+    `SELECT t.id, t.date_from, t.date_to, t.status
+     FROM sal_rep_tour t
+     WHERE t.sales_rep_id = ? AND is_active = 1
+       AND t.date_to < ?
+       AND EXISTS (SELECT 1 FROM sal_rep_tour_line l WHERE l.tour_id = t.id)
+     ORDER BY t.date_to DESC, t.id DESC
+     LIMIT 1`,
+    [Number(salesRepId), beforeDate]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * عند بداية كل شهر: إنشاء جولة شهرية للمندوب من جولة الشهر السابق (نفس العملاء/الأيام) وترحيلها.
+ */
+async function ensureMonthlyToursRollover(refDate = new Date()) {
+  await ensureTourSchema();
+  const now = Date.now();
+  if (now - _tourRolloverLastRun < 3600000) {
+    return { ok: true, skipped: 'throttle' };
+  }
+  _tourRolloverLastRun = now;
+
+  const { from, to } = monthBoundsIso(refDate);
+  let reps = [];
+  try {
+    reps = await safeQuery(`SELECT id FROM crm_sales_rep WHERE is_active = 1`);
+  } catch (e) {
+    console.error('ensureMonthlyToursRollover reps', e.message);
+    return { ok: false, error: e.message };
+  }
+
+  const created = [];
+  for (const rep of reps) {
+    const repId = Number(rep.id);
+    if (repId < 1) continue;
+    const existing = await tourCoveringMonth(repId, from, to);
+    if (existing) continue;
+
+    const prev = await findPreviousTourTemplate(repId, from);
+    if (!prev) continue;
+
+    const src = await getTour(Number(prev.id));
+    if (!src || !(src.lines || []).length) continue;
+
+    const saved = await saveTour(
+      {
+        sales_rep_id: repId,
+        date_from: from,
+        date_to: to,
+        notes: `فتح تلقائي للشهر · من جولة #${prev.id}`,
+        lines: src.lines.map((l, i) => ({
+          customer_id: l.customer_id,
+          weekday: l.weekday == null || l.weekday === '' ? 0 : Number(l.weekday),
+          region_id: l.region_id,
+          region_address_id: l.region_address_id,
+          sort_order: l.sort_order ?? i,
+        })),
+      },
+      null
+    );
+    if (!saved.ok) {
+      console.error('ensureMonthlyToursRollover save', repId, saved.error);
+      continue;
+    }
+    const posted = await postTour(saved.id, null);
+    created.push({
+      sales_rep_id: repId,
+      tour_id: saved.id,
+      posted: !!posted.ok,
+      error: posted.ok ? null : posted.error,
+    });
+  }
+  return { ok: true, month: from.slice(0, 7), created };
+}
+
 const WEEKDAY_LABELS = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 
 async function ensureWeekdayColumn() {
@@ -714,8 +813,12 @@ async function saveTour(payload, userId) {
     dateFrom = dateTo;
     dateTo = tmp;
   }
-  const span = daysBetween(dateFrom, dateTo).length;
-  if (span < 1 || span > 93) return { ok: false, error: 'مدة الجولة يجب أن تكون بين يوم و 93 يوماً.' };
+  const monthSnap = snapTourToFullMonth(dateFrom, dateTo);
+  dateFrom = monthSnap.from;
+  dateTo = monthSnap.to;
+  if (dateFrom.slice(0, 7) !== dateTo.slice(0, 7) || !dateFrom.endsWith('-01')) {
+    return { ok: false, error: 'الجولة يجب أن تكون لشهر تقويمي كامل (من أول يوم إلى آخر يوم في الشهر).' };
+  }
 
   const lines = parseTourLines(payload, dateFrom, dateTo);
   if (!lines.length) {
@@ -726,6 +829,33 @@ async function saveTour(payload, userId) {
     salesRepId,
   ]);
   if (!rep[0]) return { ok: false, error: 'المندوب غير موجود أو غير نشط.' };
+
+  // لا تُقبل في الجولة إلا عملاء مربوطون بهذا المندوب
+  const tourCustIds = [...new Set(lines.map((ln) => Number(ln.customer_id || 0)).filter((n) => n > 0))];
+  if (tourCustIds.length) {
+    const ph = tourCustIds.map(() => '?').join(',');
+    const linkedRows = await safeQuery(
+      `SELECT c.id, c.name_ar
+       FROM crm_customer c
+       WHERE c.id IN (${ph}) AND c.is_active = 1
+         AND (
+           c.sales_rep_id = ?
+           OR EXISTS (
+             SELECT 1 FROM crm_customer_sales_rep csr
+             WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+           )
+         )`,
+      [...tourCustIds, salesRepId, salesRepId]
+    );
+    const linkedSet = new Set(linkedRows.map((r) => Number(r.id)));
+    const bad = tourCustIds.filter((cid) => !linkedSet.has(cid));
+    if (bad.length) {
+      return {
+        ok: false,
+        error: `لا يمكن إضافة عملاء غير مربوطين بالمندوب إلى الجولة (عدد: ${bad.length}). اربط العميل من شاشة العملاء أولاً.`,
+      };
+    }
+  }
 
   // منع تداخل الفترات: لا يجوز أن تتقاطع جولة هذا المندوب مع جولة أخرى له (تداخل الفترات)
   // شرط التداخل: existing.date_from <= new.date_to AND existing.date_to >= new.date_from
@@ -1570,7 +1700,9 @@ module.exports = {
   listGpsChangeRequests,
   decideGpsChangeRequest,
   ensureTourSchema,
+  ensureMonthlyToursRollover,
   monthBoundsIso,
+  snapTourToFullMonth,
   normalizeIsoDate,
   WEEKDAY_LABELS,
   // aliases

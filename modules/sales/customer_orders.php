@@ -115,7 +115,7 @@ sales_ora12_enqueue_assets();
             <thead>
             <tr>
                 <th>رقم الطلب</th>
-                <th>التاريخ</th>
+                <th>التاريخ والوقت</th>
                 <th>العميل</th>
                 <th>المندوب</th>
                 <th>المستودع</th>
@@ -144,7 +144,7 @@ sales_ora12_enqueue_assets();
                 ?>
                 <tr>
                     <td><code><?= esc((string) $r['order_no']) ?></code></td>
-                    <td><?= esc(format_date_dmY((string) $r['order_date'])) ?></td>
+                    <td dir="ltr"><?= esc(format_datetime_dmY_Hi((string) ($r['created_at'] ?? $r['order_date'] ?? ''))) ?></td>
                     <td><?= esc((string) $r['customer_name']) ?></td>
                     <td><?= esc((string) ($r['sales_rep_name'] ?: '—')) ?></td>
                     <td><?= esc((string) $r['warehouse_name']) ?></td>

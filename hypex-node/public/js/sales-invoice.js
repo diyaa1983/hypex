@@ -584,15 +584,18 @@
     for (var i = 0; i < (payload.lines || []).length; i++) {
       var ln = payload.lines[i];
       if (!ln || !ln.item_id) continue;
-      if (!(Number(ln.qty) > 0)) {
-        hxAlert('أدخل الكمية للبند رقم ' + (i + 1) + ' قبل الحفظ.', {
+      var iq = Number(ln.qty) || 0;
+      var iqe = Number(ln.qty_extra) || 0;
+      if (!(iq > 0) && !(iqe > 0)) {
+        hxAlert('أدخل الكمية أو الكمية الإضافية للبند رقم ' + (i + 1) + ' قبل الحفظ.', {
           title: 'الكمية مطلوبة',
           kind: 'warning',
         });
         focusLineField(i, '.js-qty', true);
         return false;
       }
-      if (!(Number(ln.unit_price) > 0)) {
+      var bonusOnlyInv = !(iq > 0) && iqe > 0;
+      if (!(Number(ln.unit_price) > 0) && !bonusOnlyInv) {
         hxAlert('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', {
           title: 'تنبيه',
           kind: 'warning',
@@ -2429,8 +2432,14 @@
     return Number(src) || 0;
   }
 
+  function lineQtyExtraValue(ln) {
+    if (!ln) return 0;
+    var q = Number(ln.qty_extra);
+    return Number.isFinite(q) ? q : 0;
+  }
+
   function lineHasQty(ln) {
-    return lineQtyValue(ln) > 0;
+    return lineQtyValue(ln) > 0 || lineQtyExtraValue(ln) > 0;
   }
 
   var qtyLeaveGuard = false;
@@ -2449,9 +2458,9 @@
     }
     var ln = state.lines[idx];
     if (!lineHasItem(ln)) return true;
-    if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0) return true;
+    if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0 || lineQtyExtraValue(ln) > 0) return true;
 
-    var msg = 'أدخل الكمية للبند قبل مغادرة الحقل.';
+    var msg = 'أدخل الكمية أو الكمية الإضافية للبند قبل مغادرة الحقل.';
     setMsg(msg, 'error');
     qtyLeaveGuard = true;
     window.setTimeout(function () {
@@ -2497,8 +2506,8 @@
       if (!lineHasQty(lines[i])) {
         if (!opts.silent) {
           focusLineField(i, '.js-qty', true);
-          setMsg('أدخل الكمية في السطر الحالي قبل إضافة سطر جديد.', 'error');
-          hxAlert('أدخل الكمية قبل إضافة سطر جديد.', {
+          setMsg('أدخل الكمية أو الكمية الإضافية في السطر الحالي قبل إضافة سطر جديد.', 'error');
+          hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
             kind: 'warning',
           });
@@ -2776,7 +2785,10 @@
       }
       if (!lineHasQty(curLn)) {
         focusLineField(idx, '.js-qty', true);
-        hxAlert('أدخل الكمية قبل الانتقال لسطر جديد.', { title: 'الكمية مطلوبة', kind: 'warning' });
+        hxAlert('أدخل الكمية أو الكمية الإضافية قبل الانتقال لسطر جديد.', {
+          title: 'الكمية مطلوبة',
+          kind: 'warning',
+        });
         return;
       }
       goToNextLineSku(idx);
@@ -2882,7 +2894,7 @@
         }
         if (!lineHasQty(state.lines[idx])) {
           focusLineField(idx, '.js-qty', true);
-          setMsg('أدخل الكمية قبل إضافة سطر جديد.', 'error');
+          setMsg('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', 'error');
           return;
         }
         addEmptyLine();

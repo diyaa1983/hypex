@@ -638,6 +638,15 @@ function renderError(msg) {
 }
 
 app.listen(config.port, () => {
+  try {
+    const tourMasters = require('./sales-reps/mastersService');
+    tourMasters.ensureMonthlyToursRollover().catch((e) => console.error('tour rollover', e.message));
+    setInterval(() => {
+      tourMasters.ensureMonthlyToursRollover().catch(() => {});
+    }, 6 * 60 * 60 * 1000);
+  } catch {
+    /* */
+  }
   warmPrintBrand().catch(() => {});
   try {
     const companyDecimals = require('./lib/companyDecimals');

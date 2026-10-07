@@ -697,12 +697,268 @@
   width: 9rem;
 }
 
+.srr-cal-wrap {
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 0.25rem 0.45rem;
+}
+
+.srr-cal-wrap > summary {
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+  list-style: none;
+  padding: 0.2rem 0.15rem;
+}
+
+.srr-cal-wrap > summary::-webkit-details-marker {
+  display: none;
+}
+
+.srr-cal-wrap[open] > summary {
+  margin-bottom: 0.25rem;
+  color: #334155;
+}
+
+.srr-cust__filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.5rem;
+}
+
+.srr-cust__filters .srr-field {
+  font-size: 0.72rem;
+}
+
+.srr-cust__filters .si-field {
+  min-height: 2rem;
+  font-size: 0.82rem;
+}
+
+/* ——— شاشة تعديل الجولة: كل شيء ضمن ارتفاع الشاشة بدون تمرير الصفحة ——— */
+body.si-2027:has(.srr-tour-form) .app-shell {
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
+}
+
+body.si-2027:has(.srr-tour-form) .main.si-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+body.si-2027:has(.srr-tour-form) .main.si-main > .si-stage.srr-tour-page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-block: 0.55rem 0.45rem;
+  overflow: hidden;
+}
+
+.srr-tour-page > .si-hero {
+  flex: 0 0 auto;
+  padding: 0.55rem 0.85rem;
+  margin: 0;
+  gap: 0.45rem;
+}
+
+.srr-tour-page > .si-hero h1 {
+  font-size: 1.15rem;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.srr-tour-page > .si-hero > p,
+.srr-tour-page > .si-hero .si-hero-sub {
+  display: none;
+}
+
+.srr-tour-page > .si-hero .si-hero-actions {
+  gap: 0.35rem;
+}
+
+.srr-tour-page > .si-hero .si-btn {
+  min-height: 2rem;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+}
+
+.srr-tour-page > .si-pill {
+  flex: 0 0 auto;
+  margin: 0;
+}
+
+.srr-tour-page > .srr-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.srr-tour-page > .srr-card > .si-surface-head {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.85rem;
+}
+
+.srr-tour-page > .srr-card > .si-surface-head h2 {
+  font-size: 0.95rem;
+}
+
+.srr-tour-form.srr-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(17rem, 1.05fr) minmax(16rem, 0.95fr);
+  gap: 0.55rem 0.75rem;
+  padding: 0.55rem 0.75rem 0.65rem;
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.srr-tour-form .srr-form__fields {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.srr-tour-form .srr-step {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.55rem 0.45rem;
+  gap: 0.35rem;
+}
+
+.srr-tour-form .srr-step__head {
+  font-size: 0.78rem;
+  flex-wrap: wrap;
+}
+
+.srr-tour-form .srr-step__num {
+  width: 1.2rem;
+  height: 1.2rem;
+  font-size: 0.7rem;
+}
+
+.srr-tour-form .srr-step__head .srr-weekdays__hint {
+  margin-inline-start: auto;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.srr-tour-form .srr-period {
+  padding: 0.25rem 0.4rem;
+}
+
+.srr-tour-form .srr-period__txt {
+  font-size: 0.72rem;
+}
+
+.srr-tour-form .srr-day-chip {
+  min-height: 1.85rem;
+  padding: 0.25rem 0.45rem 0.25rem 0.55rem;
+  font-size: 0.76rem;
+}
+
+.srr-tour-form .srr-notes {
+  min-height: 2.15rem;
+  max-height: 2.15rem;
+  resize: none;
+  font-weight: 500;
+}
+
+.srr-tour-form .srr-cal__d {
+  min-height: 1.2rem;
+  font-size: 0.64rem;
+}
+
+.srr-tour-form .srr-selected-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.srr-tour-form .srr-selected-panel__head {
+  flex: 0 0 auto;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.srr-tour-form .srr-plan {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+  overflow: auto;
+  padding: 0.4rem 0.5rem 0.5rem;
+}
+
+.srr-tour-form .srr-form__cust {
+  min-height: 0;
+  max-height: none;
+  height: 100%;
+  overflow: hidden;
+}
+
+.srr-tour-form .srr-cust__toolbar {
+  padding: 0.5rem 0.65rem;
+  gap: 0.35rem;
+}
+
+.srr-tour-form .srr-cust__title strong {
+  font-size: 0.86rem;
+}
+
+.srr-tour-form .srr-cust__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
 @media (max-width: 1100px) {
-  .srr-form {
-    grid-template-columns: 1fr;
+  body.si-2027:has(.srr-tour-form) .app-shell {
+    height: auto;
+    max-height: none;
+    overflow: visible;
   }
 
-  .srr-form__cust {
+  body.si-2027:has(.srr-tour-form) .main.si-main {
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .srr-tour-page > .si-hero > p,
+  .srr-tour-page > .si-hero .si-hero-sub {
+    display: block;
+  }
+
+  .srr-tour-form.srr-form {
+    grid-template-columns: 1fr;
+    overflow: visible;
+  }
+
+  .srr-tour-form .srr-form__fields,
+  .srr-tour-form .srr-selected-panel {
+    overflow: visible;
+  }
+
+  .srr-tour-form .srr-plan {
+    max-height: 14rem;
+  }
+
+  .srr-tour-form .srr-form__cust {
     max-height: min(22rem, 50vh);
     min-height: 16rem;
   }
@@ -712,7 +968,8 @@
   .srr-form__row,
   .srr-form__row--3,
   .srr-form__row--dates,
-  .srr-step[data-step='1'] .srr-form__row {
+  .srr-step[data-step='1'] .srr-form__row,
+  .srr-cust__filters {
     grid-template-columns: 1fr;
   }
 }

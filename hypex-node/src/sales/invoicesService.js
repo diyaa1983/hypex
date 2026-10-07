@@ -467,10 +467,13 @@ async function saveInvoice(payload, userId) {
   const normalized = [];
   for (const ln of offered.lines) {
     if (!ln || !Number(ln.item_id)) continue;
-    if (Number(ln.qty) <= 0 && Number(ln.qty_extra) <= 0) continue;
+    const qty = Number(ln.qty) || 0;
+    const qtyExtra = Number(ln.qty_extra) || 0;
+    if (qty <= 0 && qtyExtra <= 0) continue;
+    const isBonusOnly = qty <= 0 && qtyExtra > 0;
     // السعر من بطاقة المادة (بيع أو جملة حسب العميل) × معامل الوحدة
     const priced = await itemPricing.resolveDocLinePricing(ln, { useWholesale });
-    if (!(priced.unit_price > 0)) {
+    if (!(priced.unit_price > 0) && !isBonusOnly) {
       return {
         ok: false,
         error: `لا يمكن حفظ فاتورة: ${priceLabel} للمادة صفر في البطاقة. حدّد السعر من بطاقة المادة أولاً.`,
@@ -483,7 +486,9 @@ async function saveInvoice(payload, userId) {
     normalized.push(
       computeLine({
         ...ln,
-        unit_price: priced.unit_price,
+        qty: Math.max(0, qty),
+        qty_extra: Math.max(0, qtyExtra),
+        unit_price: priced.unit_price > 0 ? priced.unit_price : 0,
         unit_factor: priced.unit_factor,
         unit_id: priced.unit_id,
         unit_name: priced.unit_name,
