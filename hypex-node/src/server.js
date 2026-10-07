@@ -262,7 +262,8 @@ app.post('/logout', (req, res) => {
 app.get('/app', auth.requireAuth, async (req, res) => {
   try {
     const user = req.session.user;
-    const dash = await dashboard.collectDashboard();
+    const dash = await dashboard.collectDashboard(user);
+    const panels = dash.panels || {};
     const kpis = (dash.kpis || [])
       .map((k) => {
         const inner = `
@@ -297,81 +298,61 @@ app.get('/app', auth.requireAuth, async (req, res) => {
     const approvedOrderRows = (dash.approved_orders || []).map(orderRow).join('');
     const recentOrderRows = (dash.recent_orders || []).map(orderRow).join('');
 
+    const panelHtml = (show, title, href, thead, tbody, emptyColspan) => {
+      if (!show) return '';
+      return `<section class="panel">
+        <div class="panel-head">
+          <h2>${esc(title)}</h2>
+          <a href="${esc(href)}">عرض الكل</a>
+        </div>
+        <div class="table-wrap">
+          <table class="grid">
+            <thead><tr>${thead}</tr></thead>
+            <tbody>
+              ${
+                tbody ||
+                `<tr><td colspan="${emptyColspan}" class="empty">لا توجد بيانات</td></tr>`
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+    };
+
     const bodyHtml = `
-      <section class="kpi-grid">${kpis}</section>
-      <section class="panel">
-        <div class="panel-head">
-          <h2>آخر فواتير المبيعات</h2>
-          <a href="/sales/invoices">عرض الكل</a>
-        </div>
-        <div class="table-wrap">
-          <table class="grid">
-            <thead>
-              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th></tr>
-            </thead>
-            <tbody>
-              ${rows || '<tr><td colspan="4" class="empty">لا توجد فواتير بعد</td></tr>'}
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-head">
-          <h2>طلبات شراء العملاء</h2>
-          <a href="/sales/orders">عرض الكل</a>
-        </div>
-        <div class="table-wrap">
-          <table class="grid">
-            <thead>
-              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th></tr>
-            </thead>
-            <tbody>
-              ${
-                recentOrderRows ||
-                '<tr><td colspan="5" class="empty">لا توجد طلبات بعد</td></tr>'
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-head">
-          <h2>طلبات بانتظار الاعتماد</h2>
-          <a href="/sales/orders/approve">عرض الكل</a>
-        </div>
-        <div class="table-wrap">
-          <table class="grid">
-            <thead>
-              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th></tr>
-            </thead>
-            <tbody>
-              ${
-                openOrderRows ||
-                '<tr><td colspan="5" class="empty">لا توجد طلبات بانتظار الاعتماد</td></tr>'
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
-      <section class="panel">
-        <div class="panel-head">
-          <h2>الطلبات المعتمدة</h2>
-          <a href="/sales/orders/approved">عرض الكل</a>
-        </div>
-        <div class="table-wrap">
-          <table class="grid">
-            <thead>
-              <tr><th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th></tr>
-            </thead>
-            <tbody>
-              ${
-                approvedOrderRows ||
-                '<tr><td colspan="5" class="empty">لا توجد طلبات معتمدة</td></tr>'
-              }
-            </tbody>
-          </table>
-        </div>
-      </section>
+      ${kpis ? `<section class="kpi-grid">${kpis}</section>` : ''}
+      ${panelHtml(
+        panels.recent_sales,
+        'آخر فواتير المبيعات',
+        '/sales/invoices',
+        '<th>رقم</th><th>التاريخ</th><th>العميل</th><th>الإجمالي</th>',
+        rows,
+        4
+      )}
+      ${panelHtml(
+        panels.recent_orders,
+        'طلبات شراء العملاء',
+        '/sales/orders',
+        '<th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th>',
+        recentOrderRows,
+        5
+      )}
+      ${panelHtml(
+        panels.open_orders,
+        'طلبات بانتظار الاعتماد',
+        '/sales/orders/approve',
+        '<th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th>',
+        openOrderRows,
+        5
+      )}
+      ${panelHtml(
+        panels.approved_orders,
+        'الطلبات المعتمدة',
+        '/sales/orders/approved',
+        '<th>رقم</th><th>التاريخ</th><th>العميل</th><th>الحالة</th><th>الإجمالي</th>',
+        approvedOrderRows,
+        5
+      )}
     `;
 
     res.send(renderApp({ user, title: 'لوحة التحكم', bodyHtml }));
@@ -389,7 +370,7 @@ app.use(notifications.router);
 
 app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
   try {
-    const data = await dashboard.collectDashboard();
+    const data = await dashboard.collectDashboard(req.session.user);
     res.json({ ok: true, data });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

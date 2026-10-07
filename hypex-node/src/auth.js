@@ -106,7 +106,7 @@ async function refreshSessionPermissions(sessionUser) {
  * يضمن تحديث صلاحيات الجلسة دورياً (مثل PHP ensure_session_permissions).
  * افتراضي: كل 5 دقائق.
  */
-async function ensureSessionPermissions(sessionUser, ttlSeconds = 300) {
+async function ensureSessionPermissions(sessionUser, ttlSeconds = 60) {
   if (!sessionUser || !sessionUser.id) return sessionUser;
   const loadedAt = Number(sessionUser.permissions_loaded_at || 0);
   const ttlMs = Math.max(30, ttlSeconds) * 1000;

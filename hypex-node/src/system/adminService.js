@@ -218,7 +218,8 @@ async function savePermissions(groupId, screenIds) {
   const g = await getGroup(gid);
   if (!g) return { ok: false, error: 'المجموعة غير موجودة.' };
 
-  const selected = new Set(
+  const { permCodeForRoute } = require('../lib/routePermissions');
+  const selectedRaw = new Set(
     [].concat(screenIds || [])
       .map(Number)
       .filter((n) => n > 0)
@@ -229,6 +230,24 @@ async function savePermissions(groupId, screenIds) {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
+    // حوّل مفاتيح المسار البديلة إلى كود الصلاحية الفعلي قبل الحفظ
+    const [allScreens] = await conn.execute(`SELECT id, code FROM sys_screen`);
+    const idByCode = Object.create(null);
+    const codeById = Object.create(null);
+    for (const s of allScreens) {
+      idByCode[String(s.code)] = Number(s.id);
+      codeById[Number(s.id)] = String(s.code);
+    }
+    const selected = new Set();
+    for (const sid of selectedRaw) {
+      const code = codeById[sid];
+      if (!code) continue;
+      const canonical = permCodeForRoute(code) || code;
+      const canonId = idByCode[canonical];
+      if (canonId) selected.add(canonId);
+      else selected.add(sid);
+    }
+
     if (isMobile) {
       await conn.execute(
         `DELETE gp FROM sys_group_permission gp
@@ -236,10 +255,8 @@ async function savePermissions(groupId, screenIds) {
          WHERE gp.group_id = ? AND s.code LIKE 'm_%'`,
         [gid]
       );
-      const [mobileScreens] = await conn.execute(
-        `SELECT id FROM sys_screen WHERE code LIKE 'm_%'`
-      );
-      for (const s of mobileScreens) {
+      for (const s of allScreens) {
+        if (!String(s.code).startsWith('m_')) continue;
         if (selected.has(Number(s.id))) {
           await conn.execute(
             `INSERT INTO sys_group_permission (group_id, screen_id, allowed) VALUES (?,?,1)`,
@@ -249,8 +266,7 @@ async function savePermissions(groupId, screenIds) {
       }
     } else {
       await conn.execute(`DELETE FROM sys_group_permission WHERE group_id = ?`, [gid]);
-      const [all] = await conn.execute(`SELECT id FROM sys_screen`);
-      for (const s of all) {
+      for (const s of allScreens) {
         if (selected.has(Number(s.id))) {
           await conn.execute(
             `INSERT INTO sys_group_permission (group_id, screen_id, allowed) VALUES (?,?,1)`,
