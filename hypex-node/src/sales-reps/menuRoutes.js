@@ -517,6 +517,15 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
                         name: 'tour_action',
                         value: 'post',
                       },
+                      {
+                        label: 'حذف',
+                        submit: true,
+                        form: 'srr-form',
+                        name: 'tour_action',
+                        value: 'delete',
+                        danger: true,
+                        confirm: 'حذف هذه الجولة نهائياً؟ لا يمكن التراجع.',
+                      },
                     ]
                   : []),
               ]),

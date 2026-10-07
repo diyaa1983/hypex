@@ -108,7 +108,11 @@ function hero(opts) {
         const formAttr = a.form ? ` form="${esc(a.form)}"` : '';
         const nameAttr = a.name ? ` name="${esc(a.name)}" value="${esc(a.value ?? '')}"` : '';
         const titleAttr = a.title ? ` title="${esc(a.title)}"` : '';
-        return `<button type="submit" class="${cls} no-print"${formAttr}${nameAttr}${titleAttr}${
+        const confirmAttr = a.confirm
+          ? ` onclick="return confirm(${JSON.stringify(String(a.confirm))})"`
+          : '';
+        const dangerCls = a.danger ? ' si-btn--danger' : '';
+        return `<button type="submit" class="${cls}${dangerCls} no-print"${formAttr}${nameAttr}${titleAttr}${confirmAttr}${
           a.hxSave ? ' data-hx-save="1"' : ''
         }>${esc(a.label)}</button>`;
       }
