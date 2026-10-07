@@ -249,12 +249,8 @@ async function savePermissions(groupId, screenIds) {
     }
 
     if (isMobile) {
-      await conn.execute(
-        `DELETE gp FROM sys_group_permission gp
-         INNER JOIN sys_screen s ON s.id = gp.screen_id
-         WHERE gp.group_id = ? AND s.code LIKE 'm_%'`,
-        [gid]
-      );
+      // مجموعة الهاتف: استبدال كامل — شاشات m_ المحددة فقط (بدون بقايا سطح المكتب)
+      await conn.execute(`DELETE FROM sys_group_permission WHERE group_id = ?`, [gid]);
       for (const s of allScreens) {
         if (!String(s.code).startsWith('m_')) continue;
         if (selected.has(Number(s.id))) {

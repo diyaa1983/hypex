@@ -14,13 +14,7 @@ if (!is_logged_in()) {
     exit;
 }
 
-if (!(
-    user_can('m_party_statement')
-    || user_can('m_customer_orders')
-    || user_can('report_oracle_customer_statement')
-    || user_can('customers')
-    || user_is_admin()
-)) {
+if (!user_can('m_party_statement') && !user_is_system_admin()) {
     http_response_code(403);
     echo 'forbidden';
     exit;

@@ -5,7 +5,10 @@ require_once app_path('includes/mobile_auth.php');
 
 function mobile_can_access_customer_order_api(): bool
 {
-    return user_can('sales_customer_orders') || user_can('m_customer_orders');
+    return user_can('m_customer_orders')
+        || user_can('m_customer_orders_pending')
+        || user_can('m_customer_orders_sent')
+        || user_can('m_customer_orders_query');
 }
 
 function sal_customer_order_has_column(PDO $pdo, string $table, string $column): bool
@@ -148,18 +151,18 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
                 }
             }
         }
-        // صلاحية الموبايل مرة واحدة فقط — لا INSERT في كل تنقّل/إشعار
+        // شاشة الطلبات: تُسجَّل لـ ADMINS مرة واحدة — مجموعة الهاتف من شاشة الصلاحيات فقط
         try {
             require_once app_path('includes/acc_coa_bootstrap.php');
-            if (acc_coa_meta_get($pdo, 'sal_customer_order_mobile_perm_v1') !== '1') {
+            if (acc_coa_meta_get($pdo, 'sal_customer_order_mobile_perm_v2') !== '1') {
                 $pdo->exec(
                     "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
                      SELECT g.id, s.id, 1
                      FROM sys_group g
                      INNER JOIN sys_screen s ON s.code = 'm_customer_orders'
-                     WHERE g.code IN ('MOBILE', 'ADMINS')"
+                     WHERE g.code = 'ADMINS'"
                 );
-                acc_coa_meta_set($pdo, 'sal_customer_order_mobile_perm_v1', '1');
+                acc_coa_meta_set($pdo, 'sal_customer_order_mobile_perm_v2', '1');
             }
             if (acc_coa_meta_get($pdo, 'sal_customer_order_approved_screen_v1') !== '1') {
                 $pdo->exec(

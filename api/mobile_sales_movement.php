@@ -15,12 +15,7 @@ try {
         exit;
     }
 
-    if (
-        !user_can('m_sales_movement')
-        && !user_can('m_sales_invoices')
-        && !user_can('m_customer_orders')
-        && !user_is_system_admin()
-    ) {
+    if (!user_can('m_sales_movement') && !user_is_system_admin()) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'error' => 'forbidden', 'message' => 'لا توجد صلاحية.'], JSON_UNESCAPED_UNICODE);
         exit;

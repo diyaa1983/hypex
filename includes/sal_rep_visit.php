@@ -66,7 +66,10 @@ function sal_rep_visit_ensure_multi_visit_index(PDO $pdo): void
     }
 }
 
-/** تسجيل شاشة الموبايل ومنحها لمجموعة هاتف حتى تظهر في الرئيسية. */
+/**
+ * تسجيل شاشات الموبايل في sys_screen فقط.
+ * لا تُمنح لمجموعة هاتف تلقائياً — الصلاحيات من شاشة «الصلاحيات» فقط.
+ */
 function sal_rep_visit_ensure_mobile_screen(PDO $pdo): void
 {
     try {
@@ -80,12 +83,13 @@ function sal_rep_visit_ensure_mobile_screen(PDO $pdo): void
             "UPDATE sys_screen SET name_ar = 'هاتف — جولات المندوبين'
              WHERE code IN ('m_rep_route_today', 'm_rep_visits')"
         );
+        // ADMINS فقط عند إنشاء الشاشة أول مرة — لا تُعاد كتابة صلاحيات MOBILE
         $pdo->exec(
             "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
              SELECT g.id, s.id, 1
              FROM sys_group g
              CROSS JOIN sys_screen s
-             WHERE g.code IN ('MOBILE', 'ADMINS')
+             WHERE g.code = 'ADMINS'
                AND s.code IN ('m_rep_route_today', 'm_rep_visits', 'm_rep_visit_report')"
         );
     } catch (Throwable $e) {

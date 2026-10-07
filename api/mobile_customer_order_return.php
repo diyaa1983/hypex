@@ -13,11 +13,7 @@ if (!is_logged_in() || !mobile_is_context() || !user_in_mobile_group()) {
     echo json_encode(['ok' => false, 'error' => 'unauthorized'], JSON_UNESCAPED_UNICODE);
     exit;
 }
-if (
-    !user_can('m_customer_order_returns')
-    && !user_can('m_customer_orders')
-    && !user_is_system_admin()
-) {
+if (!user_can('m_customer_order_returns') && !user_is_system_admin()) {
     http_response_code(403);
     echo json_encode(['ok' => false, 'message' => 'لا صلاحية.'], JSON_UNESCAPED_UNICODE);
     exit;

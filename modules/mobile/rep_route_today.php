@@ -5,7 +5,7 @@ require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/crm_sales_rep_schema.php');
 require_once app_path('includes/sal_rep_route.php');
 
-if (!user_can('m_rep_route_today') && !user_can('m_customer_orders') && !user_can('m_sales_invoices') && !user_is_system_admin()) {
+if (!user_can('m_rep_route_today') && !user_is_system_admin()) {
     http_response_code(403);
     echo '<div class="m-alert m-alert--error">لا توجد صلاحية.</div>';
     return;

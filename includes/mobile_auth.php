@@ -207,6 +207,7 @@ function mobile_logout(): void
 
 /**
  * شاشات تظهر في الرئيسية (مربعات) — من routes_mobile.php فقط.
+ * تظهر الشاشة فقط إن مُنحت كود صلاحيتها صراحةً (بدون توسيع لشاشات أخرى).
  *
  * @return list<array{code: string, label: string, icon: string, url: string, kind: string}>
  */
@@ -226,81 +227,7 @@ function mobile_home_launcher_tiles(): array
             continue;
         }
         $perm = (string) ($route['permission'] ?? $code);
-        if ($code === 'm_rep_custody_list') {
-            require_once app_path('includes/mobile_rep_custody.php');
-            if (!mobile_can_access_rep_custody_list()) {
-                continue;
-            }
-        } elseif ($code === 'm_rep_route_today') {
-            if (
-                !user_can('m_rep_route_today')
-                && !user_can('m_customer_orders')
-                && !user_can('m_sales_invoices')
-                && !user_is_system_admin()
-            ) {
-                continue;
-            }
-        } elseif ($code === 'm_rep_visits') {
-            if (
-                !user_can('m_rep_visits')
-                && !user_can('m_rep_route_today')
-                && !user_can('m_customer_orders')
-                && !user_can('m_sales_invoices')
-                && !user_is_system_admin()
-            ) {
-                continue;
-            }
-        } elseif ($code === 'm_rep_visit_report') {
-            if (
-                !user_can('m_rep_visit_report')
-                && !user_can('m_rep_visits')
-                && !user_can('m_rep_route_today')
-                && !user_can('m_customer_orders')
-                && !user_can('m_sales_invoices')
-                && !user_is_system_admin()
-            ) {
-                continue;
-            }
-        } elseif ($code === 'm_sales_movement') {
-            if (
-                !user_can('m_sales_movement')
-                && !user_can('m_sales_invoices')
-                && !user_can('m_customer_orders')
-                && !user_is_system_admin()
-            ) {
-                continue;
-            }
-        } elseif ($code === 'm_party_statement') {
-            if (
-                !user_can('m_party_statement')
-                && !user_can('m_customer_orders')
-                && !user_can('report_oracle_customer_statement')
-                && !user_can('customers')
-                && !user_is_system_admin()
-            ) {
-                continue;
-            }
-        } elseif (
-            in_array(
-                $code,
-                [
-                    'm_customer_list',
-                    'm_customer_orders_pending',
-                    'm_customer_orders_sent',
-                    'm_customer_orders_query',
-                    'm_customer_order_returns',
-                ],
-                true
-            )
-        ) {
-            if (
-                !user_can($code)
-                && !user_can('m_customer_orders')
-                && !user_is_system_admin()
-            ) {
-                continue;
-            }
-        } elseif (!user_can($perm)) {
+        if ($perm === '' || !user_can($perm)) {
             continue;
         }
         // تجنّب بلاطتين لنفس شاشة الجولات

@@ -406,7 +406,7 @@ function mobile_can_access_rep_custody_list(): bool
         return false;
     }
 
-    return user_can('m_rep_custody_list') || user_can('m_rep_load');
+    return user_can('m_rep_custody_list');
 }
 
 /** حذف عهدة غير مرحّلة من تطبيق الهاتف. */

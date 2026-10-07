@@ -21,18 +21,7 @@ if ($repScreenCount < 3 || $customerAddExists < 1) {
     require_once app_path('includes/acc_coa_bootstrap.php');
     acc_coa_meta_set($pdoPerm, 'sys_sync_routes_mtime', '');
     $syncedScreens += sys_sync_screens_from_routes($pdoPerm);
-    // منح مجموعة الهاتف صلاحية إضافة عميل إن وُجدت الشاشة ولم تُمنح بعد
-    try {
-        $pdoPerm->exec(
-            "INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
-             SELECT g.id, s.id, 1
-             FROM sys_group g
-             CROSS JOIN sys_screen s
-             WHERE g.code = 'MOBILE' AND s.code = 'm_customer_add'"
-        );
-    } catch (Throwable $e) {
-        error_log('permissions grant m_customer_add: ' . $e->getMessage());
-    }
+    // لا تُمنح شاشات الهاتف تلقائياً — من شاشة الصلاحيات فقط
 }
 $syncedActions = sys_sync_action_permissions($pdoPerm);
 $actionCatalog = action_permissions_catalog();
@@ -134,17 +123,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $saveGroupCode = strtoupper(trim((string) ($stGroupCode->fetchColumn() ?: '')));
                 $saveMobileOnly = $saveGroupCode === MOBILE_GROUP_CODE;
 
-                if ($saveMobileOnly) {
-                    $del = $pdo->prepare(
-                        'DELETE gp FROM sys_group_permission gp
-                         INNER JOIN sys_screen s ON s.id = gp.screen_id
-                         WHERE gp.group_id = ? AND s.code LIKE ?'
-                    );
-                    $del->execute([$gid, 'm_%']);
-                } else {
-                    $del = $pdo->prepare('DELETE FROM sys_group_permission WHERE group_id = ?');
-                    $del->execute([$gid]);
-                }
+                // مجموعة الهاتف: استبدال كامل (m_ فقط) حتى لا تبقى صلاحيات سطح المكتب عالقة
+                $del = $pdo->prepare('DELETE FROM sys_group_permission WHERE group_id = ?');
+                $del->execute([$gid]);
 
                 $ins = $pdo->prepare('INSERT INTO sys_group_permission (group_id, screen_id, allowed) VALUES (?, ?, 1)');
                 if ($saveMobileOnly) {
