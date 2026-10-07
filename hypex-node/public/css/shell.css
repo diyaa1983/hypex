@@ -332,6 +332,24 @@ body.has-topnav .app-shell,
   padding-inline: 6px 10px;
 }
 
+.hx-topnav__account {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.hx-topnav__user {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 650;
+  color: #e8ebf2;
+  line-height: 1.2;
+}
+
 .hx-topnav__tools .sidebar-logout,
 .hx-topnav__tools .sidebar-logout-btn {
   min-height: 28px;

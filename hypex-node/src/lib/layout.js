@@ -189,6 +189,9 @@ function renderSidebar(user, activePath = '', notifyBellHtml = '', pageTitle = '
   const brand = getPrintBrand();
   const companyName = brand.companyName || 'Hypex';
   const screenTitle = String(pageTitle || '').trim() || 'لوحة التحكم';
+  const userLabel = String(
+    (user && (user.full_name_ar || user.username)) || ''
+  ).trim();
 
   return `<header class="hx-topnav no-print" data-active-path="${esc(activePath || '')}">
     <div class="hx-topnav__title">${esc(companyName)} — ${esc(screenTitle)}</div>
@@ -196,9 +199,16 @@ function renderSidebar(user, activePath = '', notifyBellHtml = '', pageTitle = '
       <nav class="hx-topnav__nav" aria-label="القائمة الرئيسية">${itemsHtml}</nav>
       <div class="hx-topnav__tools">
         ${notifyBellHtml || ''}
-        <form method="post" action="/logout">
-          <button type="submit" class="sidebar-logout">خروج</button>
-        </form>
+        <div class="hx-topnav__account">
+          ${
+            userLabel
+              ? `<span class="hx-topnav__user" title="${esc(userLabel)}">${esc(userLabel)}</span>`
+              : ''
+          }
+          <form method="post" action="/logout">
+            <button type="submit" class="sidebar-logout" title="تسجيل خروج" aria-label="تسجيل خروج">خروج</button>
+          </form>
+        </div>
       </div>
     </div>
   </header>`;
