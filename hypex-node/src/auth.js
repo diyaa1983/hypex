@@ -78,6 +78,7 @@ async function attemptLogin(username, password) {
       full_name_ar: row.full_name_ar || row.username,
       is_admin: admin,
       permissions,
+      permissions_loaded_at: Date.now(),
     },
   };
 }
@@ -89,9 +90,40 @@ function userCan(sessionUser, screenCode) {
   return perms.includes(screenCode);
 }
 
+/** إعادة تحميل صلاحيات المستخدم في الجلسة من قاعدة البيانات. */
+async function refreshSessionPermissions(sessionUser) {
+  if (!sessionUser || !sessionUser.id) return sessionUser;
+  const uid = Number(sessionUser.id);
+  const admin = await isSystemAdmin(uid);
+  const permissions = await loadPermissions(uid, admin);
+  sessionUser.is_admin = admin;
+  sessionUser.permissions = permissions;
+  sessionUser.permissions_loaded_at = Date.now();
+  return sessionUser;
+}
+
+/**
+ * يضمن تحديث صلاحيات الجلسة دورياً (مثل PHP ensure_session_permissions).
+ * افتراضي: كل 5 دقائق.
+ */
+async function ensureSessionPermissions(sessionUser, ttlSeconds = 300) {
+  if (!sessionUser || !sessionUser.id) return sessionUser;
+  const loadedAt = Number(sessionUser.permissions_loaded_at || 0);
+  const ttlMs = Math.max(30, ttlSeconds) * 1000;
+  if (Array.isArray(sessionUser.permissions) && loadedAt > 0 && Date.now() - loadedAt < ttlMs) {
+    return sessionUser;
+  }
+  return refreshSessionPermissions(sessionUser);
+}
+
 function requireAuth(req, res, next) {
   if (req.session && req.session.user) {
-    return next();
+    return ensureSessionPermissions(req.session.user)
+      .then((user) => {
+        req.session.user = user;
+        next();
+      })
+      .catch((err) => next(err));
   }
   if (req.path.startsWith('/api/')) {
     return res.status(401).json({ ok: false, error: 'غير مسجّل الدخول' });
@@ -104,4 +136,8 @@ module.exports = {
   userCan,
   requireAuth,
   verifyPassword,
+  loadPermissions,
+  isSystemAdmin,
+  refreshSessionPermissions,
+  ensureSessionPermissions,
 };

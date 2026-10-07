@@ -257,7 +257,7 @@ router.get('/sales/posting', guard('sales_invoices_list'), async (req, res) => {
 
 router.get('/sales/orders', async (req, res) => {
   const u = req.session.user;
-  if (!can(u, 'sales_customer_orders') && !can(u, 'sales_customer_order_entry') && !u.is_admin) {
+  if (!can(u, 'sales_customer_orders') && !u.is_admin) {
     return res.status(403).send(
       ui.salesPage({
         user: u,
@@ -327,7 +327,7 @@ router.get('/sales/orders/approve', guard('sales_customer_orders_approve'), asyn
   });
 });
 
-router.get('/sales/orders/approved', guard('sales_customer_orders_approved'), async (req, res) => {
+router.get('/sales/orders/approved', guard('sales_customer_orders_approve'), async (req, res) => {
   const rows = await q.listOrders({ status: 'approved' });
   const rowsHtml =
     rows
@@ -1298,11 +1298,7 @@ router.get('/sales/reports/customer-orders-by-item', guard('report_customer_orde
 
 router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
   const u = req.session.user;
-  if (
-    !can(u, 'report_customer_orders_detailed') &&
-    !can(u, 'report_customer_orders') &&
-    !u.is_admin
-  ) {
+  if (!can(u, 'report_customer_orders_detailed') && !u.is_admin) {
     return res.status(403).send(
       ui.salesPage({
         user: u,

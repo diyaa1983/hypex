@@ -5,14 +5,20 @@
  */
 const auth = require('./auth');
 const { DOMAIN_CATALOGS, resolveScreen } = require('./lib/screenMap');
+const { permCodeFromNavItem, permCodeForRoute } = require('./lib/routePermissions');
 const db = require('./db');
+
+function canNavItem(user, it) {
+  if (!user) return false;
+  if (user.is_admin) return true;
+  const code = permCodeFromNavItem(it);
+  return code !== '' && auth.userCan(user, code);
+}
 
 function domainVisible(user, domainCatalog) {
   if (user.is_admin) return true;
   if (domainCatalog.id === 'main') return true;
-  return domainCatalog.catalog.some((g) =>
-    g.items.some((it) => auth.userCan(user, it.r) || String(it.r).startsWith('dashboard_'))
-  );
+  return domainCatalog.catalog.some((g) => g.items.some((it) => canNavItem(user, it)));
 }
 
 /** قائمة الشريط — متزامن (مثل PHP) */
@@ -58,12 +64,7 @@ function domainHubContent(user, domainId) {
   if (!domain) return null;
   const groups = domain.catalog
     .map((g) => {
-      const items = g.items.filter(
-        (it) =>
-          user.is_admin ||
-          auth.userCan(user, it.r) ||
-          String(it.r).startsWith('dashboard_')
-      );
+      const items = g.items.filter((it) => canNavItem(user, it));
       return { title: g.title, items };
     })
     .filter((g) => g.items.length > 0);
@@ -92,7 +93,8 @@ async function favoritesHubContent(user) {
   for (const code of codes) {
     const sc = resolveScreen(code);
     if (!sc) continue;
-    if (!user.is_admin && !auth.userCan(user, sc.r) && sc.r !== 'dashboard') continue;
+    const perm = permCodeForRoute(sc.r) || sc.r;
+    if (!user.is_admin && !auth.userCan(user, perm) && perm !== 'dashboard') continue;
     items.push(sc);
   }
   return {
@@ -115,7 +117,11 @@ function filterNav(user, userCan) {
     icon: d.icon,
     items: d.catalog.flatMap((g) =>
       g.items
-        .filter((it) => user.is_admin || userCan(user, it.r) || String(it.r).startsWith('dashboard_'))
+        .filter((it) => {
+          if (user.is_admin) return true;
+          const code = permCodeFromNavItem(it);
+          return code !== '' && userCan(user, code);
+        })
         .map((it) => ({
           r: it.r,
           label: it.label,

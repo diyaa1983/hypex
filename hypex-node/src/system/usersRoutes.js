@@ -146,7 +146,6 @@ router.get('/system/users', async (req, res) => {
       .su-gitem-title{line-height:1.3}
       .su-gitem-desc{font-size:.72rem;font-weight:500;color:#6b7280;line-height:1.35}
       .su-mobile-note{margin:0 0 .6rem;font-size:.75rem;font-weight:500;color:#5c6578;line-height:1.45}
-      .su-actions{display:flex;flex-wrap:wrap;gap:.5rem;padding:.85rem 1.15rem 0;border-top:1px solid #eef1f6;margin-top:.25rem}
       details.su-pw{margin-top:.5rem}
       details.su-pw>summary{cursor:pointer;font-size:.8rem;font-weight:700;color:#0b6bcb;list-style:none;display:flex;align-items:center;gap:.35rem}
       details.su-pw>summary::-webkit-details-marker{display:none}
@@ -159,7 +158,8 @@ router.get('/system/users', async (req, res) => {
         title: 'المستخدمون',
         subtitle: 'إدارة حسابات النظام والمجموعات وربط مندوب التطبيق',
         actions: [
-          { label: '＋ جديد', href: '/system/users?id=new', primary: true },
+          { label: 'حفظ', submit: true, form: 'su-user-form', primary: true, hxSave: true, title: 'F10' },
+          { label: 'جديد', href: '/system/users?id=new' },
           { label: 'المجموعات', href: '/system/groups' },
           { label: 'لوحة النظام', href: HUB },
         ],
@@ -190,7 +190,7 @@ router.get('/system/users', async (req, res) => {
         </section>
         <section class="si-surface su-form-panel">
           <div class="si-surface-head"><h2>${formTitle}</h2></div>
-          <form method="post" action="${postAction}" class="su-form">
+          <form id="su-user-form" method="post" action="${postAction}" class="su-form">
             <input type="hidden" name="id" value="${row.id || 0}">
             <div class="su-sec">
               <h3 class="su-sec-title">الحساب</h3>
@@ -266,10 +266,6 @@ router.get('/system/users', async (req, res) => {
               </p>
               ${groupsHtml}
             </div>
-            <div class="su-actions">
-              <button class="si-btn si-btn--primary" type="submit">حفظ</button>
-              <a class="si-btn" href="/system/users?id=new">جديد</a>
-            </div>
           </form>
         </section>
       </div>
@@ -290,6 +286,14 @@ async function handleSave(req, res, idForce) {
         encodeURIComponent(result.error) +
         (id > 0 ? '&id=' + id : '&id=new')
     );
+  }
+  // إن عُدّلت مجموعات المستخدم الحالي — حدّث صلاحيات الجلسة فوراً
+  if (Number(result.id) === Number(req.session.user.id)) {
+    try {
+      await auth.refreshSessionPermissions(req.session.user);
+    } catch (_) {
+      /* ignore */
+    }
   }
   res.redirect(
     '/system/users?id=' + result.id + '&msg=' + encodeURIComponent(result.message || 'تم الحفظ')

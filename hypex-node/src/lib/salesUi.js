@@ -215,10 +215,16 @@ function statusPill(kind, text) {
 }
 
 function hubTiles(userCan, user, catalog = salesCatalog) {
+  const { permCodeFromNavItem } = require('./routePermissions');
   return catalog
     .map((g) => {
       const tiles = g.items
-        .filter((it) => !it.r || userCan(user, it.r) || user.is_admin)
+        .filter((it) => {
+          if (user.is_admin) return true;
+          if (!it.r && !it.code) return true;
+          const code = permCodeFromNavItem(it);
+          return code !== '' && userCan(user, code);
+        })
         .map(
           (it) => `
           <a class="si-tile" href="${esc(it.path)}">

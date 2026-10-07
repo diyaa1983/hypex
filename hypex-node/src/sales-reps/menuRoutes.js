@@ -24,14 +24,13 @@ function requireAny(req, res, next) {
   if (u.is_admin) return next();
   const flat = salesRepsCatalog.flatMap((g) => g.items);
   const any = flat.some((it) => can(u, it.r));
-  // روابط قديمة للتقارير (تُحوّل إلى /sales/reports/…)
+  // روابط قديمة للتقارير — بصلاحية التقرير فقط (بدون توسيع لمندوبين/جولات)
   const reportOk =
     req.path.startsWith('/sales-reps/reports/') &&
     (can(u, 'report_sales_by_rep') ||
       can(u, 'report_sales_by_region') ||
       can(u, 'report_sales_rep_tours') ||
-      can(u, 'report_sales_rep_visits') ||
-      can(u, 'sales_rep_route'));
+      can(u, 'report_sales_rep_visits'));
   if (!any && !reportOk) return res.status(403).send('ممنوع');
   next();
 }
@@ -1617,11 +1616,7 @@ router.post('/sales-reps/customer-gps-approve', guard('crm_customer_gps_approve'
 
 /* ── تقرير الجولات ── */
 router.get('/sales-reps/reports/tours', async (req, res) => {
-  if (
-    !can(req.session.user, 'report_sales_rep_tours') &&
-    !can(req.session.user, 'sales_rep_route') &&
-    !can(req.session.user, 'sales_reps')
-  ) {
+  if (!can(req.session.user, 'report_sales_rep_tours')) {
     return res.status(403).send('ممنوع');
   }
 
@@ -1791,12 +1786,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
 
 /* ── تقرير زيارات العملاء ── */
 router.get('/sales-reps/reports/visits/data', async (req, res) => {
-  if (
-    !can(req.session.user, 'report_sales_rep_visits') &&
-    !can(req.session.user, 'report_sales_rep_tours') &&
-    !can(req.session.user, 'sales_rep_route') &&
-    !can(req.session.user, 'sales_reps')
-  ) {
+  if (!can(req.session.user, 'report_sales_rep_visits')) {
     return res.status(403).json({ ok: false, error: 'forbidden' });
   }
   await masters.ensureTourSchema();
@@ -1824,12 +1814,7 @@ router.post('/sales-reps/reports/visits/delete', async (req, res) => {
 });
 
 router.get('/sales-reps/reports/visits', async (req, res) => {
-  if (
-    !can(req.session.user, 'report_sales_rep_visits') &&
-    !can(req.session.user, 'report_sales_rep_tours') &&
-    !can(req.session.user, 'sales_rep_route') &&
-    !can(req.session.user, 'sales_reps')
-  ) {
+  if (!can(req.session.user, 'report_sales_rep_visits')) {
     return res.status(403).send('ممنوع');
   }
 

@@ -89,11 +89,16 @@ function actionItemsFlat() {
   return out;
 }
 
+const { permCodeFromNavItem, permCodeForRoute } = require('../lib/routePermissions');
+
 function permCodeFromItem(it) {
-  if (!it || typeof it !== 'object') return '';
-  const code = String(it.code || '').trim();
-  if (code) return code;
-  return String(it.r || '').trim();
+  return permCodeFromNavItem(it);
+}
+
+/** مفاتيح مسار تختلف عن كود الصلاحية — لا تُعرض كصلاحيات مستقلة في «إضافي». */
+function isRouteAliasCode(code, idByCode) {
+  const mapped = permCodeForRoute(code);
+  return mapped !== '' && mapped !== code && !!idByCode[mapped];
 }
 
 function kindFor(code, typeByCode) {
@@ -244,6 +249,7 @@ function buildPermissionPanels(screens, opts = {}) {
     if (!code || shown.has(code)) continue;
     if (isMobile && !code.startsWith('m_')) continue;
     if (!idByCode[code]) continue;
+    if (isRouteAliasCode(code, idByCode)) continue;
     const kind = kindFor(code, typeByCode);
     if (kind === 'action') continue;
     const row = {

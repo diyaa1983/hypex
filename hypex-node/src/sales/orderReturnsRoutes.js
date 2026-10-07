@@ -9,13 +9,12 @@ const { esc, todayIso } = require('../lib/html');
 const router = express.Router();
 const KICKER = 'Hypex Sales · Node';
 
-function canView(user) {
-  return (
-    user.is_admin ||
-    auth.userCan(user, 'sales_customer_order_returns') ||
-    auth.userCan(user, 'sales_customer_orders') ||
-    auth.userCan(user, 'report_customer_order_returns')
-  );
+function canViewList(user) {
+  return user.is_admin || auth.userCan(user, 'sales_customer_order_returns');
+}
+
+function canViewReport(user) {
+  return user.is_admin || auth.userCan(user, 'report_customer_order_returns');
 }
 
 router.use((req, res, next) => {
@@ -25,7 +24,9 @@ router.use((req, res, next) => {
   }
   return auth.requireAuth(req, res, (err) => {
     if (err) return next(err);
-    if (!canView(req.session.user)) {
+    const u = req.session.user;
+    const ok = p.startsWith('/sales/reports/order-returns') ? canViewReport(u) : canViewList(u);
+    if (!ok) {
       return res.status(403).send('ممنوع');
     }
     next();

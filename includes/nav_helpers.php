@@ -179,6 +179,27 @@ function nav_find_subgroup_path(string $domainId, string $subId, string $nestedS
     return null;
 }
 
+/**
+ * كود الصلاحية لعنصر قائمة (code مباشرة أو permission لمسار r).
+ * القائمة كانت تتحقق من مفتاح المسار بينما الدخول يتحقق من permission — هذا يوحّدهما.
+ */
+function nav_item_permission_code(array $it): string
+{
+    $code = trim((string) ($it['code'] ?? ''));
+    if ($code !== '') {
+        return $code;
+    }
+    $route = trim((string) ($it['r'] ?? ''));
+    if ($route === '') {
+        return '';
+    }
+    if (!function_exists('sys_screen_code_for_route')) {
+        require_once app_path('includes/sys_screens.php');
+    }
+
+    return sys_screen_code_for_route($route);
+}
+
 /** @return list<array{r: string, label: string, icon: string}> */
 function nav_subgroup_allowed_items(array $subgroup): array
 {
@@ -187,7 +208,7 @@ function nav_subgroup_allowed_items(array $subgroup): array
         if (!is_array($it) || empty($it['r'])) {
             continue;
         }
-        if (!empty($it['always_visible']) || user_can((string) $it['r'])) {
+        if (!empty($it['always_visible']) || user_can(nav_item_permission_code($it))) {
             $out[] = $it;
         }
     }
@@ -243,7 +264,7 @@ function nav_resolve_active_hub(string $activeRoute): ?array
         foreach ($domain['subgroups'] as $sg) {
             $subId = (string) ($sg['id'] ?? '');
             foreach ($sg['items'] ?? [] as $it) {
-                if (is_array($it) && ($it['r'] ?? '') === $activeRoute && user_can((string) $it['r'])) {
+                if (is_array($it) && ($it['r'] ?? '') === $activeRoute && user_can(nav_item_permission_code($it))) {
                     return ['domain_id' => $domainId, 'sub_id' => $subId];
                 }
             }
@@ -253,7 +274,7 @@ function nav_resolve_active_hub(string $activeRoute): ?array
                 }
                 $nestedSubId = (string) ($nested['id'] ?? '');
                 foreach ($nested['items'] ?? [] as $it) {
-                    if (is_array($it) && ($it['r'] ?? '') === $activeRoute && user_can((string) $it['r'])) {
+                    if (is_array($it) && ($it['r'] ?? '') === $activeRoute && user_can(nav_item_permission_code($it))) {
                         return [
                             'domain_id' => $domainId,
                             'sub_id' => $subId,

@@ -500,6 +500,12 @@ router.post('/system/permissions', async (req, res) => {
       '/system/permissions?group_id=' + gid + '&err=' + encodeURIComponent(result.error)
     );
   }
+  try {
+    // إعادة تحميل صلاحيات الجلسة الحالية فوراً بعد الحفظ
+    await auth.refreshSessionPermissions(req.session.user);
+  } catch (_) {
+    /* ignore */
+  }
   res.redirect(
     '/system/permissions?group_id=' + gid + '&msg=' + encodeURIComponent(result.message)
   );
