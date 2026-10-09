@@ -248,6 +248,24 @@ async function savePermissions(groupId, screenIds) {
       else selected.add(sid);
     }
 
+    // عند منح شاشة أصل: أضف إجراءاتها المرتبطة (inherit_from) تلقائياً
+    if (!isMobile) {
+      const selectedCodes = new Set(
+        [...selected].map((id) => codeById[id]).filter(Boolean)
+      );
+      for (const actionItem of permissionsNav.actionItemsFlat()) {
+        const actionCode = String(actionItem.code || '');
+        const actionId = idByCode[actionCode];
+        if (!actionId || selected.has(actionId)) continue;
+        const parents = Array.isArray(actionItem.inherit_from) ? actionItem.inherit_from : [];
+        const parentGranted = parents.some((p) => selectedCodes.has(String(p || '')));
+        if (parentGranted) {
+          selected.add(actionId);
+          selectedCodes.add(actionCode);
+        }
+      }
+    }
+
     if (isMobile) {
       // مجموعة الهاتف: استبدال كامل — شاشات m_ المحددة فقط (بدون بقايا سطح المكتب)
       await conn.execute(`DELETE FROM sys_group_permission WHERE group_id = ?`, [gid]);

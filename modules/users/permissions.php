@@ -127,6 +127,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $del = $pdo->prepare('DELETE FROM sys_group_permission WHERE group_id = ?');
                 $del->execute([$gid]);
 
+                // عند منح شاشة أصل: أضف إجراءات inherit_from تلقائياً
+                if (!$saveMobileOnly) {
+                    $idByCode = [];
+                    foreach ($pdo->query('SELECT id, code FROM sys_screen')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $row) {
+                        $idByCode[(string) $row['code']] = (int) $row['id'];
+                    }
+                    $codeById = array_flip($idByCode);
+                    $selectedCodes = [];
+                    foreach ($selectedIds as $sid) {
+                        if (isset($codeById[$sid])) {
+                            $selectedCodes[$codeById[$sid]] = true;
+                        }
+                    }
+                    $catalog = action_permissions_catalog();
+                    foreach (($catalog['groups'] ?? []) as $ag) {
+                        foreach (($ag['items'] ?? []) as $item) {
+                            $ac = (string) ($item['code'] ?? '');
+                            $aid = $idByCode[$ac] ?? 0;
+                            if ($ac === '' || $aid < 1 || isset($selectedCodes[$ac])) {
+                                continue;
+                            }
+                            foreach ((array) ($item['inherit_from'] ?? []) as $parent) {
+                                $p = (string) $parent;
+                                if ($p !== '' && isset($selectedCodes[$p])) {
+                                    $selectedIds[] = $aid;
+                                    $selectedCodes[$ac] = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    $selectedIds = array_values(array_unique(array_map('intval', $selectedIds)));
+                }
+
                 $ins = $pdo->prepare('INSERT INTO sys_group_permission (group_id, screen_id, allowed) VALUES (?, ?, 1)');
                 if ($saveMobileOnly) {
                     $allScreens = $pdo->query(

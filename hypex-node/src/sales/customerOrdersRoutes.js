@@ -30,11 +30,18 @@ function canAction(user, code) {
 }
 
 function canApprove(user) {
-  return canApproveScreen(user) && canAction(user, 'action_approve_customer_order');
+  // شاشة «اعتماد طلبات الشراء» كافية للاعتماد (إجراء action_ اختياري للتقييد الإضافي)
+  return (
+    canApproveScreen(user) ||
+    canAction(user, 'action_approve_customer_order')
+  );
 }
 
 function canUnapprove(user) {
-  return canApproveScreen(user) && canAction(user, 'action_unapprove_customer_order');
+  return (
+    canApproveScreen(user) ||
+    canAction(user, 'action_unapprove_customer_order')
+  );
 }
 
 function canDeleteOrder(user) {
