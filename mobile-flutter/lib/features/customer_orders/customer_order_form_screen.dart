@@ -35,6 +35,7 @@ class CustomerOrderFormScreen extends StatefulWidget {
     this.hideCustomerPicker = false,
     this.onSaved,
     this.onDeleted,
+    this.onPosted,
   });
   final int? orderId;
   final int? initialCustomerId;
@@ -50,6 +51,9 @@ class CustomerOrderFormScreen extends StatefulWidget {
 
   final void Function(int orderId)? onSaved;
   final VoidCallback? onDeleted;
+
+  /// بعد الترحيل الناجح — يُفرَّغ النموذج ويُزال من غير المرسلة.
+  final VoidCallback? onPosted;
 
   @override
   CustomerOrderFormScreenState createState() =>
@@ -314,9 +318,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     _offline!.skipDirtyOrderId = () => isDirty ? _id : 0;
     _offline!.onOrdersSentFromSync = (ids) {
       if (!mounted) return;
-      if (_id > 0 && ids.contains(_id) && !_isSent) {
-        setState(() => _isSent = true);
-        _markClean();
+      if (_id != 0 && ids.contains(_id)) {
+        _afterPostedClear();
       }
     };
   }
@@ -651,6 +654,117 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     };
   }
 
+  /// بناء جسم الحفظ للإرسال لاحقاً عند الترحيل فقط.
+  Future<Map<String, dynamic>> _buildSaveBody() async {
+    final session = context.read<SessionController>();
+    final body = <String, dynamic>{
+      'id': _id > 0 ? _id : 0,
+      'customer_id': _customer!.id,
+      'warehouse_id': _warehouseId,
+      'payment_type': _paymentType,
+      'delivery_date': _deliveryDate,
+      'notes': _notesCtrl.text.trim(),
+      'lines': _lines.map((l) => l.toJson()).toList(),
+    };
+    final visitLine = widget.visitRouteLineId ?? 0;
+    if (visitLine > 0) {
+      body['visit_route_line_id'] = visitLine;
+    } else if (visitLine < 0) {
+      body['offline_visit'] = true;
+    }
+    if (session.gpsConfig.repVisitGeofence) {
+      final offline = context.read<OfflineController>();
+      if (offline.online) {
+        final gps = await LocationService.requirePosition();
+        body['latitude'] = gps.latitude;
+        body['longitude'] = gps.longitude;
+        body['gps_accuracy'] = gps.accuracy;
+        body['gps_source'] = 'mobile';
+      } else {
+        final g = await LocationService.tryGetPosition();
+        if (g != null) {
+          body['latitude'] = g.latitude;
+          body['longitude'] = g.longitude;
+          body['gps_accuracy'] = g.accuracy;
+          body['gps_source'] = 'mobile_offline';
+        }
+      }
+    }
+    return body;
+  }
+
+  /// حفظ على الجهاز فقط — لا يُرسل للنظام حتى الترحيل.
+  Future<int> _persistLocalDraft(Map<String, dynamic> body) async {
+    final visitLine = widget.visitRouteLineId ?? 0;
+    var localId = _id;
+    if (localId == 0) {
+      localId = await OfflineStore.instance.nextLocalOrderId();
+    }
+    final orderNo = (_orderNo != null && _orderNo!.isNotEmpty)
+        ? _orderNo!
+        : 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
+    final saveBody = Map<String, dynamic>.from(body);
+    saveBody['id'] = localId > 0 ? localId : 0;
+    saveBody['local_order_id'] = localId;
+    final lines = _lines.map((l) => l.toJson()).toList();
+    final prev = await OfflineStore.instance.getOrderById(localId);
+    final keepPending = prev != null &&
+        (prev['pending_send'] == true ||
+            prev['pending_send'] == 1 ||
+            '${prev['pending_send']}' == '1');
+    await OfflineStore.instance.upsertLocalOrder({
+      'id': localId,
+      'order_no': orderNo,
+      'order_date': Fmt.todayIso(),
+      'customer_id': _customer!.id,
+      'customer_name': _customer!.name,
+      'warehouse_id': _warehouseId,
+      'warehouse_name': '',
+      'status': 'draft',
+      'is_sent': 0,
+      if (keepPending) 'pending_send': 1,
+      'total': 0,
+      'line_count': lines.length,
+      'lines': lines,
+      'payment_type': _paymentType,
+      'delivery_date': _deliveryDate,
+      'notes': _notesCtrl.text.trim(),
+      'pending_save_body': saveBody,
+      if (visitLine != 0) 'visit_route_line_id': visitLine,
+      if (visitLine < 0) 'offline_visit': true,
+    });
+    if (mounted) {
+      setState(() {
+        _id = localId;
+        _orderNo = orderNo;
+        _isSent = false;
+      });
+      _orderNoCtrl.text = orderNo;
+      _markClean();
+    }
+    return localId;
+  }
+
+  void _afterPostedClear() {
+    if (!mounted) return;
+    setState(() {
+      _id = 0;
+      _orderNo = null;
+      _orderDate = Fmt.todayIso();
+      _deliveryDate = '';
+      _orderNoCtrl.clear();
+      _notesCtrl.clear();
+      _lines.clear();
+      _isSent = false;
+      _approved = false;
+      _visitRouteLineId = widget.visitRouteLineId ?? 0;
+      _error = null;
+    });
+    _markClean();
+    widget.onSaved?.call(0);
+    widget.onPosted?.call();
+  }
+
   Future<int> _save() async {
     if (!_editable) {
       showSnack(context, 'لا يمكن تعديل طلب معتمد.', error: true);
@@ -682,202 +796,26 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     setState(() => _busy = true);
     try {
-      final session = context.read<SessionController>();
-      final body = <String, dynamic>{
-        'id': _id,
-        'customer_id': _customer!.id,
-        'warehouse_id': _warehouseId,
-        'payment_type': _paymentType,
-        'delivery_date': _deliveryDate,
-        'notes': _notesCtrl.text.trim(),
-        'lines': _lines.map((l) => l.toJson()).toList(),
-      };
-      final visitLine = widget.visitRouteLineId ?? 0;
-      if (visitLine > 0) {
-        body['visit_route_line_id'] = visitLine;
-      } else if (visitLine < 0) {
-        body['offline_visit'] = true;
-        // يُستبدل بـ route_line_id الحقيقي عند ترحيل check-in
-      }
-      if (session.gpsConfig.repVisitGeofence) {
-        final offline = context.read<OfflineController>();
-        if (offline.online) {
-        final gps = await LocationService.requirePosition();
-        body['latitude'] = gps.latitude;
-        body['longitude'] = gps.longitude;
-        body['gps_accuracy'] = gps.accuracy;
-        body['gps_source'] = 'mobile';
-        } else {
-          final g = await LocationService.tryGetPosition();
-          if (g != null) {
-            body['latitude'] = g.latitude;
-            body['longitude'] = g.longitude;
-            body['gps_accuracy'] = g.accuracy;
-            body['gps_source'] = 'mobile_offline';
-          }
-        }
-      }
-      if (!mounted) return 0;
       final offline = context.read<OfflineController>();
-      if (!offline.online) {
-        if (!offline.catalogReady) {
-          showSnack(
-            context,
-            'لا اتصال ولا بيانات محلية. حدّث البيانات وأنت متصل أولاً.',
-            error: true,
-          );
-          return 0;
-        }
-        var localId = _id;
-        if (localId <= 0) {
-          localId = await OfflineStore.instance.nextLocalOrderId();
-        }
-        final orderNo = (_orderNo != null && _orderNo!.isNotEmpty)
-            ? _orderNo!
-            : 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
-        body['id'] = localId < 0 ? 0 : localId;
-        body['local_order_id'] = localId;
-        final uuid = await offline.enqueue(
-          kind: 'customer_order_save',
-          path: AppConfig.customerOrderSavePath,
-          body: body,
-        );
-        final lines = _lines.map((l) => l.toJson()).toList();
-        final prev = await OfflineStore.instance.getOrderById(localId);
-        final keepPending = prev != null &&
-            (prev['pending_send'] == true ||
-                prev['pending_send'] == 1 ||
-                '${prev['pending_send']}' == '1');
-        await OfflineStore.instance.upsertLocalOrder(
-          {
-            'id': localId,
-            'order_no': orderNo,
-            'order_date': Fmt.todayIso(),
-            'customer_id': _customer!.id,
-            'customer_name': _customer!.name,
-            'warehouse_id': _warehouseId,
-            'warehouse_name': '',
-            'status': 'draft',
-            'is_sent': 0,
-            if (keepPending) 'pending_send': 1,
-            'total': 0,
-            'line_count': lines.length,
-            'lines': lines,
-            'payment_type': _paymentType,
-            'delivery_date': _deliveryDate,
-            'notes': _notesCtrl.text.trim(),
-            if (visitLine != 0) 'visit_route_line_id': visitLine,
-            if (visitLine < 0) 'offline_visit': true,
-          },
-          clientUuid: uuid,
-        );
-        if (mounted) {
-          setState(() {
-            _id = localId;
-            _orderNo = orderNo;
-          });
-          _orderNoCtrl.text = orderNo;
-          _markClean();
-          showSnack(
-            context,
-            'حُفظ الطلب محلياً في «غير المرسلة». اضغط «ترحيل» لإرساله عند توفر الاتصال.',
-          );
-          widget.onSaved?.call(localId);
-        }
-        return localId;
-      }
-      try {
-      final result = await context.read<ApiClient>().postJson(
-        AppConfig.customerOrderSavePath,
-        csrf: session.csrf,
-        body: body,
-      );
-      final id = Fmt.toInt(result['order_id'] ?? result['id']);
-        final sent = _flagOn(result['is_sent']);
-      if (mounted) {
-        setState(() {
-          _id = id == 0 ? _id : id;
-          _orderNo = Fmt.str(result['order_no']) == ''
-              ? _orderNo
-              : Fmt.str(result['order_no']);
-            _orderNoCtrl.text = _orderNo ?? '';
-            _isSent = sent;
-            _markClean();
-            if (result.containsKey('auto_send') ||
-                result.containsKey('auto_send_orders')) {
-              _autoSendOrders = _flagOn(
-                result['auto_send'] ?? result['auto_send_orders'],
-                defaultOn: true,
-              );
-            }
-        });
+      if (!offline.online && !offline.catalogReady) {
         showSnack(
-            context,
-            Fmt.str(result['message']).isEmpty
-                ? 'تم حفظ الطلب.'
-                : Fmt.str(result['message']));
-          widget.onSaved?.call(_id);
+          context,
+          'لا اتصال ولا بيانات محلية. حدّث البيانات وأنت متصل أولاً.',
+          error: true,
+        );
+        return 0;
       }
-      return _id;
-      } on ApiException catch (e) {
-        if (offline.catalogReady &&
-            (e.message.contains('تعذر الاتصال') ||
-                e.message.contains('الإنترنت'))) {
-          var localId = _id;
-          if (localId <= 0) {
-            localId = await OfflineStore.instance.nextLocalOrderId();
-          }
-          body['id'] = localId < 0 ? 0 : localId;
-          body['local_order_id'] = localId;
-          final uuid = await offline.enqueue(
-            kind: 'customer_order_save',
-            path: AppConfig.customerOrderSavePath,
-            body: body,
-          );
-          final orderNo = (_orderNo != null && _orderNo!.isNotEmpty)
-              ? _orderNo!
-              : 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
-          final prev = await OfflineStore.instance.getOrderById(localId);
-          final keepPending = prev != null &&
-              (prev['pending_send'] == true ||
-                  prev['pending_send'] == 1 ||
-                  '${prev['pending_send']}' == '1');
-          await OfflineStore.instance.upsertLocalOrder(
-            {
-              'id': localId,
-              'order_no': orderNo,
-              'order_date': Fmt.todayIso(),
-              'customer_id': _customer!.id,
-              'customer_name': _customer!.name,
-              'warehouse_id': _warehouseId,
-              'status': 'draft',
-              'is_sent': 0,
-              if (keepPending) 'pending_send': 1,
-              'lines': _lines.map((l) => l.toJson()).toList(),
-              'delivery_date': _deliveryDate,
-              'notes': _notesCtrl.text.trim(),
-              if (visitLine != 0) 'visit_route_line_id': visitLine,
-              if (visitLine < 0) 'offline_visit': true,
-            },
-            clientUuid: uuid,
-          );
-          if (mounted) {
-            setState(() {
-              _id = localId;
-              _orderNo = orderNo;
-            });
-            _orderNoCtrl.text = orderNo;
-            _markClean();
-            showSnack(
-              context,
-              'انقطع الاتصال — حُفظ الطلب في «غير المرسلة». اضغط «ترحيل» لإرساله.',
-            );
-            widget.onSaved?.call(localId);
-          }
-          return localId;
-        }
-        rethrow;
+      final body = await _buildSaveBody();
+      if (!mounted) return 0;
+      final localId = await _persistLocalDraft(body);
+      if (mounted) {
+        showSnack(
+          context,
+          'حُفظ الطلب على الجهاز في «غير المرسلة». اضغط «ترحيل» لإرساله إلى النظام.',
+        );
+        widget.onSaved?.call(localId);
       }
+      return localId;
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
       return 0;
@@ -963,6 +901,18 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
   }
 
+  Future<Map<String, dynamic>> _resolveSaveBodyForPost() async {
+    final stored = await OfflineStore.instance.getOrderById(_id);
+    final pending = stored?['pending_save_body'];
+    if (pending is Map) {
+      final body = pending.cast<String, dynamic>();
+      body['local_order_id'] = _id;
+      body['id'] = _id > 0 ? _id : 0;
+      return body;
+    }
+    return _buildSaveBody();
+  }
+
   Future<void> _post() async {
     if (_busy) return;
     if (!_isSaved || isDirty) {
@@ -973,58 +923,103 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     if (_isSent) return;
     setState(() => _busy = true);
     final offline = context.read<OfflineController>();
+    final session = context.read<SessionController>();
     try {
+      final body = await _resolveSaveBodyForPost();
+      if (!mounted) return;
+
+      // أوفلاين: طابور حفظ ثم ترحيل — يُرسل عند عودة الاتصال.
       if (!offline.online && offline.catalogReady) {
+        body['id'] = _id > 0 ? _id : 0;
+        body['local_order_id'] = _id;
+        await offline.enqueue(
+          kind: 'customer_order_save',
+          path: AppConfig.customerOrderSavePath,
+          body: body,
+        );
         await OfflineStore.instance.markOrderSendRequested(_id);
         await offline.enqueue(
           kind: 'customer_order_send',
           path: AppConfig.customerOrderSendPath,
-          body: {
-            'ids': [_id],
-          },
+          body: {'ids': [_id]},
         );
         if (!mounted) return;
         showSnack(
           context,
-          'تم طلب الترحيل — سيُرسل تلقائياً عند عودة الاتصال.',
+          'تم طلب الترحيل — سيُرسل إلى النظام تلقائياً عند عودة الاتصال.',
         );
+        _afterPostedClear();
         return;
+      }
+
+      // أونلاين: حفظ على السيرفر ثم ترحيل (is_sent=1).
+      final saveRes = await context.read<ApiClient>().postJson(
+            AppConfig.customerOrderSavePath,
+            csrf: session.csrf,
+            body: {
+              ...body,
+              'id': _id > 0 ? _id : 0,
+              'local_order_id': _id,
+            },
+          );
+      final serverId = Fmt.toInt(saveRes['order_id'] ?? saveRes['id']);
+      final localId = _id;
+      if (localId < 0 && serverId > 0) {
+        await OfflineStore.instance.rewriteLocalOrderId(
+          localId: localId,
+          serverId: serverId,
+          orderNo: Fmt.str(saveRes['order_no']),
+        );
+      }
+      final sendId = serverId > 0 ? serverId : localId;
+      if (sendId <= 0) {
+        throw ApiException('تعذر حفظ الطلب قبل الترحيل.');
       }
       final res = await context.read<ApiClient>().postJson(
             AppConfig.customerOrderSendPath,
-            body: {
-              'ids': [_id],
-            },
-            csrf: context.read<SessionController>().csrf,
+            body: {'ids': [sendId]},
+            csrf: session.csrf,
           );
-      if (_id != 0) {
-        await OfflineStore.instance.markOrderSent([_id]);
+      await OfflineStore.instance.markOrderSent([sendId]);
+      if (localId < 0 && serverId > 0) {
+        await OfflineStore.instance.markOrderSent([localId]);
       }
       if (!mounted) return;
-      setState(() => _isSent = true);
       showSnack(
         context,
         Fmt.str(res['message']).isEmpty
             ? 'تم ترحيل الطلب إلى النظام.'
             : Fmt.str(res['message']),
       );
+      _afterPostedClear();
     } on ApiException catch (e) {
       if (offline.catalogReady &&
           (e.message.contains('تعذر الاتصال') ||
               e.message.contains('الإنترنت'))) {
-        await OfflineStore.instance.markOrderSendRequested(_id);
-        await offline.enqueue(
-          kind: 'customer_order_send',
-          path: AppConfig.customerOrderSendPath,
-          body: {
-            'ids': [_id],
-          },
-        );
-        if (mounted) {
-          showSnack(
-            context,
-            'انقطع الاتصال — سيُرحَّل الطلب تلقائياً عند عودة الشبكة.',
+        try {
+          final body = await _resolveSaveBodyForPost();
+          body['id'] = _id > 0 ? _id : 0;
+          body['local_order_id'] = _id;
+          await offline.enqueue(
+            kind: 'customer_order_save',
+            path: AppConfig.customerOrderSavePath,
+            body: body,
           );
+          await OfflineStore.instance.markOrderSendRequested(_id);
+          await offline.enqueue(
+            kind: 'customer_order_send',
+            path: AppConfig.customerOrderSendPath,
+            body: {'ids': [_id]},
+          );
+          if (mounted) {
+            showSnack(
+              context,
+              'انقطع الاتصال — سيُرحَّل الطلب تلقائياً عند عودة الشبكة.',
+            );
+            _afterPostedClear();
+          }
+        } catch (_) {
+          if (mounted) showSnack(context, e.message, error: true);
         }
       } else if (mounted) {
         showSnack(context, e.message, error: true);

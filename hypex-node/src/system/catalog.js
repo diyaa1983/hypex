@@ -80,13 +80,6 @@ const systemCatalog = [
         kind: 'list',
       },
       {
-        r: 'user_gps_tracker',
-        label: 'تتبّع المواقع الحية',
-        icon: '📡',
-        path: '/system/gps-tracker',
-        kind: 'list',
-      },
-      {
         r: 'gps_tracking_settings',
         label: 'إعدادات تتبّع الهاتف',
         icon: '⚙',

@@ -66,11 +66,17 @@ try {
         }
     }
 
+    if (!function_exists('sys_gps_track_group_ids')) {
+        require_once app_path('includes/sys_gps_track_groups.php');
+    }
+    $trackGroupIds = sys_gps_track_group_ids($pdo);
     $lastPings = sys_user_location_recent_snapshots($pdo, 8);
     $hint = '';
-    if ($rows === [] && $lastPings !== []) {
+    if ($trackGroupIds === []) {
+        $hint = 'لم تُحدد مجموعات للتتبع. من شاشة الصلاحيات ضع علامة ✓ بجانب المجموعة ثم احفظ مجموعات التتبع.';
+    } elseif ($rows === [] && $lastPings !== []) {
         $top = $lastPings[0];
-        $hint = 'لا يوجد متصل الآن. آخر موقع محفوظ: '
+        $hint = 'لا يوجد مندوب متصل من المجموعات المحددة. آخر موقع محفوظ: '
             . (string) ($top['user_label'] ?? '')
             . ' — '
             . (string) ($top['age_label'] ?? '')
@@ -81,7 +87,7 @@ try {
             $hint .= ' النبضة أقدم من نافذة الاتصال (' . $onlineSeconds . ' ثانية).';
         }
     } elseif ($rows === []) {
-        $hint = 'لا يوجد متصل الآن. تأكد أن تطبيق المندوب يرسل الموقع كل 10 ثوانٍ إلى نفس هذا السيرفر.';
+        $hint = 'لا يوجد مندوب متصل من المجموعات المحددة. تأكد أن تطبيق المندوب يرسل الموقع وأن المستخدم ضمن مجموعة مفعّلة للتتبع.';
     }
 
     $osm = app_osm_js_config();

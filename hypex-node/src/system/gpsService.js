@@ -113,6 +113,63 @@ function mapMarkerRow(r, onlineSeconds) {
 }
 
 /** Live markers — شكل متوافق مع PHP api/user_gps_tracker_live.php */
+async function ensureGpsTrackGroupTable() {
+  await q(
+    `CREATE TABLE IF NOT EXISTS sys_gps_track_group (
+       group_id INT UNSIGNED NOT NULL,
+       PRIMARY KEY (group_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+}
+
+/** @returns {Promise<number[]>} */
+async function listGpsTrackGroupIds() {
+  await ensureGpsTrackGroupTable();
+  const rows = await q('SELECT group_id FROM sys_gps_track_group ORDER BY group_id');
+  return (rows || []).map((r) => Number(r.group_id)).filter((id) => id > 0);
+}
+
+/**
+ * مندوبون فقط ضمن مجموعات تتبّع مفعّلة من شاشة الصلاحيات.
+ * إن لم تُحدد أي مجموعة → لا أحد.
+ * @returns {Promise<{sql:string, params:number[]}>}
+ */
+async function gpsTrackUserFilterSql(userAlias = 'u') {
+  const ids = await listGpsTrackGroupIds();
+  if (!ids.length) {
+    return { sql: ' AND 1=0 ', params: [] };
+  }
+  const ph = ids.map(() => '?').join(',');
+  return {
+    sql:
+      ` AND ${userAlias}.sales_rep_id IS NOT NULL AND ${userAlias}.sales_rep_id > 0` +
+      ` AND EXISTS (` +
+      `   SELECT 1 FROM sys_user_group ug` +
+      `   WHERE ug.user_id = ${userAlias}.id AND ug.group_id IN (${ph})` +
+      ` )`,
+    params: ids,
+  };
+}
+
+async function saveGpsTrackGroups(groupIds) {
+  await ensureGpsTrackGroupTable();
+  const ids = [
+    ...new Set(
+      (Array.isArray(groupIds) ? groupIds : [])
+        .map((x) => Number(x))
+        .filter((id) => id > 0)
+    ),
+  ];
+  await q('DELETE FROM sys_gps_track_group');
+  for (const id of ids) {
+    const ok = await q('SELECT id FROM sys_group WHERE id = ? LIMIT 1', [id]);
+    if (ok && ok.length) {
+      await q('INSERT INTO sys_gps_track_group (group_id) VALUES (?)', [id]);
+    }
+  }
+  return { ok: true, message: 'تم حفظ مجموعات تتبع مواقع المندوبين.' };
+}
+
 async function liveTrackerPayload({
   onlineSec = 60,
   includeStale = false,
@@ -121,12 +178,14 @@ async function liveTrackerPayload({
 } = {}) {
   const onlineSeconds = Math.max(15, Math.min(12 * 3600, Number(onlineSec) || 60));
   const windowSec = includeStale ? Math.max(onlineSeconds, 24 * 3600) : onlineSeconds;
+  const track = await gpsTrackUserFilterSql('u');
 
   const where = [
     'u.is_active = 1',
     `ul.captured_at >= DATE_SUB(NOW(), INTERVAL ${Number(windowSec)} SECOND)`,
   ];
-  const params = [];
+  const params = [...track.params];
+  where.push(track.sql.replace(/^\s*AND\s+/i, ''));
   if (search) {
     const like = `%${search}%`;
     where.push(`(u.username LIKE ? OR IFNULL(u.full_name_ar,'') LIKE ?)`);
@@ -157,8 +216,9 @@ async function liveTrackerPayload({
   }
 
   // مندوبو اليوم: آخر موقع معروف لليوم حتى لو أقدم من نافذة «متصل»
+  // (نفس فلتر مجموعات التتبع)
   if (includeDayReps && !includeStale) {
-    const repParams = [];
+    const repParams = [...track.params];
     let repSearch = '';
     if (search) {
       const like = `%${search}%`;
@@ -173,8 +233,8 @@ async function liveTrackerPayload({
               1 AS is_sales_rep
        FROM sys_user_location ul
        INNER JOIN sys_user u ON u.id = ul.user_id AND u.is_active = 1
-       WHERE u.sales_rep_id IS NOT NULL AND u.sales_rep_id > 0
-         AND DATE(ul.captured_at) = CURDATE()
+       WHERE DATE(ul.captured_at) = CURDATE()
+         ${track.sql}
          ${repSearch}
        ORDER BY ul.captured_at DESC
        LIMIT 500`,
@@ -194,11 +254,15 @@ async function liveTrackerPayload({
   });
 
   const lastPings = await recentSnapshots(8);
+  const trackIds = await listGpsTrackGroupIds();
   let hint = '';
-  if (!markers.length && lastPings.length) {
+  if (!trackIds.length) {
+    hint =
+      'لم تُحدد مجموعات للتتبع. من شاشة الصلاحيات ضع علامة ✓ بجانب المجموعة ثم احفظ مجموعات التتبع.';
+  } else if (!markers.length && lastPings.length) {
     const top = lastPings[0];
     hint =
-      'لا يوجد متصل الآن. آخر موقع محفوظ: ' +
+      'لا يوجد مندوب متصل من المجموعات المحددة. آخر موقع محفوظ: ' +
       (top.user_label || '') +
       ' — ' +
       (top.age_label || '') +
@@ -209,7 +273,7 @@ async function liveTrackerPayload({
     }
   } else if (!markers.length) {
     hint =
-      'لا يوجد متصل الآن. تأكد أن تطبيق المندوب يرسل الموقع كل 10 ثوانٍ إلى نفس هذا السيرفر.';
+      'لا يوجد مندوب متصل من المجموعات المحددة. تأكد أن تطبيق المندوب يرسل الموقع وأن المستخدم ضمن مجموعة مفعّلة للتتبع.';
   }
 
   const online = markers.filter((m) => m.is_online).length;
@@ -319,16 +383,19 @@ async function listUserLocations({ q: search = '', from = '', to = '' } = {}) {
 }
 
 async function trackUsers() {
+  const track = await gpsTrackUserFilterSql('u');
   return q(
     `SELECT u.id AS user_id, u.username, u.full_name_ar
      FROM sys_user u
      WHERE u.is_active = 1
+       ${track.sql}
        AND (
          EXISTS (SELECT 1 FROM sys_user_location ul WHERE ul.user_id = u.id)
          OR EXISTS (SELECT 1 FROM sys_user_location_track t WHERE t.user_id = u.id)
        )
      ORDER BY u.full_name_ar, u.username
-     LIMIT 300`
+     LIMIT 300`,
+    track.params
   ).then((rows) =>
     rows.map((r) => ({
       user_id: Number(r.user_id),
@@ -676,4 +743,6 @@ module.exports = {
   listInvoiceGps,
   mapUrl,
   sourceLabel,
+  listGpsTrackGroupIds,
+  saveGpsTrackGroups,
 };

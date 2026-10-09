@@ -60,11 +60,13 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
   DateTime _invoicesTo = DateTime.now();
 
   int? _orderId;
+  List<Map<String, dynamic>> _unsentLocal = [];
 
   @override
   void initState() {
     super.initState();
-    _orderId = widget.orderId;
+    // لا نفتح طلباً قديماً تلقائياً — نموذج فارغ + قائمة غير المرسلة.
+    _orderId = null;
     _tabs = TabController(length: 5, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging && mounted) setState(() {});
@@ -72,6 +74,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     _loadCustomer();
     _loadOrders();
     _loadInvoices();
+    _loadUnsentLocal();
   }
 
   @override
@@ -85,13 +88,25 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.customerId != widget.customerId ||
         oldWidget.visitRouteLineId != widget.visitRouteLineId) {
-      _orderId = widget.orderId;
+      _orderId = null;
       _loadCustomer();
       _loadOrders();
       _loadInvoices();
-    } else if (oldWidget.orderId != widget.orderId) {
+      _loadUnsentLocal();
+    } else if (oldWidget.orderId != widget.orderId &&
+        widget.orderId != null &&
+        widget.orderId != 0) {
+      // يُحدَّث فقط عند حفظ مسودة حالية من الأب
       _orderId = widget.orderId;
     }
+  }
+
+  Future<void> _loadUnsentLocal() async {
+    final rows = await OfflineStore.instance.listUnsentOrdersForCustomer(
+      widget.customerId,
+    );
+    if (!mounted) return;
+    setState(() => _unsentLocal = rows);
   }
 
   String _iso(DateTime d) =>
@@ -399,25 +414,89 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
         ),
       );
     }
-    return CustomerOrderFormScreen(
-      key: ValueKey(
-        'po-${widget.customerId}-${widget.visitRouteLineId}-${_orderId ?? 0}',
-      ),
-      embedded: true,
-      hideCustomerPicker: true,
-      initialCustomerId: widget.customerId,
-      initialCustomerName: widget.customerName,
-      initialCustomerCode: widget.customerCode,
-      visitRouteLineId: widget.visitRouteLineId,
-      orderId: (_orderId ?? 0) != 0 ? _orderId : null,
-      onSaved: (id) {
-        setState(() => _orderId = id);
-        widget.onOrderChanged?.call();
-      },
-      onDeleted: () {
-        setState(() => _orderId = null);
-        widget.onOrderChanged?.call();
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_unsentLocal.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'طلبات غير مرحّلة لهذا العميل',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                    color: AppTheme.textSoft,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      for (final o in _unsentLocal)
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(end: 6),
+                          child: ActionChip(
+                            label: Text(
+                              Fmt.str(o['order_no']).isEmpty
+                                  ? '#${o['id']}'
+                                  : Fmt.str(o['order_no']),
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                            onPressed: () {
+                              final id = (o['id'] as num?)?.toInt() ?? 0;
+                              if (id == 0) return;
+                              setState(() => _orderId = id);
+                            },
+                            backgroundColor:
+                                (_orderId == ((o['id'] as num?)?.toInt() ?? 0))
+                                    ? AppTheme.primary.withValues(alpha: 0.15)
+                                    : null,
+                          ),
+                        ),
+                      ActionChip(
+                        label: const Text('＋ طلب جديد', style: TextStyle(fontSize: 12)),
+                        onPressed: () => setState(() => _orderId = null),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        Expanded(
+          child: CustomerOrderFormScreen(
+            key: ValueKey(
+              'po-${widget.customerId}-${widget.visitRouteLineId}-${_orderId ?? 0}',
+            ),
+            embedded: true,
+            hideCustomerPicker: true,
+            initialCustomerId: widget.customerId,
+            initialCustomerName: widget.customerName,
+            initialCustomerCode: widget.customerCode,
+            visitRouteLineId: widget.visitRouteLineId,
+            orderId: (_orderId ?? 0) != 0 ? _orderId : null,
+            onSaved: (id) {
+              setState(() => _orderId = id == 0 ? null : id);
+              _loadUnsentLocal();
+              widget.onOrderChanged?.call();
+            },
+            onPosted: () {
+              setState(() => _orderId = null);
+              _loadUnsentLocal();
+              widget.onOrderChanged?.call();
+            },
+            onDeleted: () {
+              setState(() => _orderId = null);
+              _loadUnsentLocal();
+              widget.onOrderChanged?.call();
+            },
+          ),
+        ),
+      ],
     );
   }
 

@@ -99,10 +99,23 @@ if ($flash) {
     $messageType = $flash['type'];
 }
 
+require_once app_path('includes/sys_gps_track_groups.php');
+require_once app_path('includes/sql_migration.php');
+sql_migration_run_file_once($pdoPerm, 'database/migrations/291_sys_gps_track_group.sql');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf($_POST['_csrf'] ?? null)) {
         $message = 'انتهت صلاحية الجلسة، أعد المحاولة.';
         $messageType = 'error';
+    } elseif ((string) ($_POST['_action'] ?? '') === 'save_gps_track_groups') {
+        try {
+            sys_gps_track_groups_save($pdoPerm, $_POST['gps_track_groups'] ?? []);
+            flash_set('success', 'تم حفظ مجموعات تتبع مواقع المندوبين.');
+            redirect($permPageUrl($groupId));
+        } catch (Throwable $e) {
+            $message = 'تعذر حفظ مجموعات التتبع.';
+            $messageType = 'error';
+        }
     } else {
         $gid = (int) ($_POST['group_id'] ?? 0);
         if (!in_array($gid, $validIds, true)) {
@@ -601,12 +614,40 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
         </div>
     <?php endif; ?>
 
+    <?php
+    $gpsTrackSet = sys_gps_track_group_id_set($pdoPerm);
+    ?>
     <section class="dashboard-ora-panel perm-ora12-group-bar no-print">
         <div class="dashboard-ora-panel__body">
+            <form method="post" action="<?= esc($permPageUrl($groupId)) ?>" class="perm-gps-track-form"
+                  style="margin-bottom:1rem;padding-bottom:.85rem;border-bottom:1px solid #e8ecf2">
+                <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
+                <input type="hidden" name="_action" value="save_gps_track_groups">
+                <div style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-start;justify-content:space-between">
+                    <div style="flex:1;min-width:14rem">
+                        <strong style="display:block;margin-bottom:.35rem">تتبع مواقع المندوبين — المجموعات</strong>
+                        <p class="muted" style="margin:0 0 .55rem;font-size:.82rem;line-height:1.45">
+                            ضع علامة بجانب المجموعة لإظهار مندوبيها فقط على خريطة التتبع.
+                            إن لم تُحدد أي مجموعة لن يظهر أحد.
+                        </p>
+                        <div style="display:flex;flex-wrap:wrap;gap:.35rem .75rem">
+                            <?php foreach ($groups as $g): ?>
+                                <?php $gidOpt = (int) $g['id']; ?>
+                                <label style="display:inline-flex;align-items:center;gap:.35rem;font-size:.88rem;cursor:pointer;padding:.2rem .4rem;border:1px solid #dbe3ef;border-radius:6px;background:#f8fafc">
+                                    <input type="checkbox" name="gps_track_groups[]" value="<?= $gidOpt ?>"
+                                           <?= isset($gpsTrackSet[$gidOpt]) ? 'checked' : '' ?>>
+                                    <span>(<?= esc((string) $g['code']) ?>) <?= esc((string) $g['name_ar']) ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm" style="align-self:flex-end">حفظ مجموعات التتبع</button>
+                </div>
+            </form>
             <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" id="permissions-group-form">
                 <input type="hidden" name="r" value="permissions">
                 <label class="field">
-                    <span class="field-label">المجموعة</span>
+                    <span class="field-label">تعديل صلاحيات المجموعة</span>
                     <select class="input" name="group_id" id="permissions-group-select">
                         <?php foreach ($groups as $g): ?>
                             <option value="<?= (int) $g['id'] ?>" <?= $groupId === (int) $g['id'] ? 'selected' : '' ?>>

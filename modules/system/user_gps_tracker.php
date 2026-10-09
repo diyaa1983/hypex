@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * تتبّع المواقع الحية — خريطة سطح المكتب (مثل تتبّع أسطول السيارات).
+ * تتبع مواقع المندوبين — خريطة سطح المكتب (مجموعات محددة من الصلاحيات).
  */
 require_once app_path('includes/sys_user_location.php');
 require_once app_path('includes/app_osm.php');
@@ -10,7 +10,7 @@ require_once app_path('includes/nav_helpers.php');
 
 if (!sys_user_location_may_track()) {
     http_response_code(403);
-    echo '<div class="alert alert-danger">لا توجد صلاحية لتتبّع المواقع الحية.</div>';
+    echo '<div class="alert alert-danger">لا توجد صلاحية لتتبع مواقع المندوبين.</div>';
     return;
 }
 
@@ -55,8 +55,8 @@ $today = date('Y-m-d');
         <div class="ugt-toolbar__title">
             <span class="ugt-toolbar__icon" aria-hidden="true">📡</span>
             <div>
-                <strong>تتبّع المواقع</strong>
-                <small>الأجهزة الحيّة الآن وخط السير اليومي</small>
+                <strong>تتبع مواقع المندوبين</strong>
+                <small>مندوبو المجموعات المحددة من الصلاحيات — حيّ الآن وخط السير اليومي</small>
             </div>
         </div>
         <div class="ugt-modeswitch" role="tablist">

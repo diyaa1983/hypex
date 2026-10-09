@@ -4,6 +4,7 @@ const express = require('express');
 const multer = require('multer');
 const auth = require('../auth');
 const svc = require('./adminService');
+const gpsSvc = require('./gpsService');
 const ui = require('../lib/salesUi');
 const { esc } = require('../lib/html');
 
@@ -360,6 +361,18 @@ router.get('/system/permissions', async (req, res) => {
     }
   }
 
+  const trackIds = new Set(await gpsSvc.listGpsTrackGroupIds());
+  const gpsTrackBoxes = groups
+    .map((g) => {
+      const id = Number(g.id);
+      const checked = trackIds.has(id) ? 'checked' : '';
+      return `<label style="display:inline-flex;align-items:center;gap:.35rem;font-size:.88rem;cursor:pointer;padding:.25rem .45rem;border:1px solid #dbe3ef;border-radius:6px;background:#f8fafc">
+        <input type="checkbox" name="gps_track_groups" value="${id}" ${checked}>
+        <span>${esc(g.name_ar)} (${esc(g.code)})</span>
+      </label>`;
+    })
+    .join('');
+
   const body = `
     <style>
       .perm-row[hidden]{display:none!important}
@@ -377,9 +390,22 @@ router.get('/system/permissions', async (req, res) => {
         ],
       })}
       ${flashHtml(flash, err)}
+      <form method="post" action="/system/permissions/gps-track-groups" class="si-surface"
+        style="padding:.85rem 1rem;margin-bottom:.75rem">
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-start;justify-content:space-between">
+          <div style="flex:1;min-width:14rem">
+            <strong style="display:block;margin-bottom:.35rem">تتبع مواقع المندوبين — المجموعات</strong>
+            <p class="muted" style="margin:0 0 .55rem;font-size:.82rem;line-height:1.45">
+              ضع علامة بجانب المجموعة لإظهار مندوبيها فقط على خريطة التتبع. إن لم تُحدد أي مجموعة لن يظهر أحد.
+            </p>
+            <div style="display:flex;flex-wrap:wrap;gap:.35rem .75rem">${gpsTrackBoxes}</div>
+          </div>
+          <button class="si-btn si-btn--primary" type="submit" style="align-self:flex-end">حفظ مجموعات التتبع</button>
+        </div>
+      </form>
       <form method="get" action="/system/permissions" class="si-rail"
             style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
-        <label style="font-weight:700;font-size:.85rem">المجموعة
+        <label style="font-weight:700;font-size:.85rem">تعديل صلاحيات المجموعة
           <select name="group_id" class="si-field" style="min-height:2.1rem;min-width:14rem;display:block"
                   onchange="this.form.submit()">
             ${opts}
@@ -489,6 +515,20 @@ router.get('/system/permissions', async (req, res) => {
       }
     </div>`;
   res.send(ui.salesPage({ user: req.session.user, title: 'الصلاحيات', bodyHtml: body }));
+});
+
+router.post('/system/permissions/gps-track-groups', async (req, res) => {
+  if (!can(req.session.user, 'permissions')) return forbid(res);
+  const raw = req.body.gps_track_groups;
+  const ids = Array.isArray(raw) ? raw : raw != null && raw !== '' ? [raw] : [];
+  const result = await gpsSvc.saveGpsTrackGroups(ids);
+  const gid = Number(req.query.group_id || req.body.group_id || 0);
+  res.redirect(
+    '/system/permissions?group_id=' +
+      (gid > 0 ? gid : '') +
+      '&msg=' +
+      encodeURIComponent(result.message || 'تم الحفظ')
+  );
 });
 
 router.post('/system/permissions', async (req, res) => {

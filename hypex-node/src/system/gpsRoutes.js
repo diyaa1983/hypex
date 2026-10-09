@@ -224,8 +224,8 @@ router.get('/system/gps-tracker', async (req, res) => {
           <div class="ugt-toolbar__title">
             <span class="ugt-toolbar__icon" aria-hidden="true">📡</span>
             <div>
-              <strong>تتبّع المواقع</strong>
-              <small>المندوبون على الخريطة + خط المسار</small>
+              <strong>تتبع مواقع المندوبين</strong>
+              <small>مندوبو المجموعات المحددة من الصلاحيات — حيّ الآن وخط المسار</small>
             </div>
           </div>
           <div class="ugt-modeswitch" role="tablist">

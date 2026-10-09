@@ -1283,13 +1283,18 @@ class OfflineStore {
     return null;
   }
 
+  bool _orderIsSent(Map<String, dynamic> o) =>
+      o['is_sent'] == true || o['is_sent'] == 1 || '${o['is_sent']}' == '1';
+
   Future<int> orderIdForVisitLine(int routeLineId, {int? customerId}) async {
     if (routeLineId == 0) return 0;
     final rows = await listOrders(
       customerId: customerId != null && customerId != 0 ? customerId : null,
+      isSent: 0,
       limit: 100,
     );
     for (final o in rows) {
+      if (_orderIsSent(o)) continue;
       final vid = (o['visit_route_line_id'] as num?)?.toInt() ??
           int.tryParse('${o['visit_route_line_id'] ?? ''}') ??
           0;
@@ -1305,9 +1310,9 @@ class OfflineStore {
   int _orderIdOf(Map<String, dynamic> o) =>
       (o['id'] as num?)?.toInt() ?? int.tryParse('${o['id'] ?? ''}') ?? 0;
 
-  /// طلب محلي/معلّق لنفس العميل (لم يُرحَّل بعد) — يُعتبر أن الزيارة فيها طلب.
+  /// طلب محلي غير مُرحَّل لنفس العميل (للتحقق من وجود طلب / عدم فتح طلب مرحّل).
   Future<int> localOrPendingOrderIdForCustomer(int customerId) async {
-    if (customerId < 1) return 0;
+    if (customerId == 0) return 0;
 
     final today = DateTime.now();
     final todayIso =
@@ -1315,18 +1320,21 @@ class OfflineStore {
 
     final todayOrders = await listOrders(
       customerId: customerId,
+      isSent: 0,
       from: todayIso,
       limit: 50,
     );
     for (final o in todayOrders) {
+      if (_orderIsSent(o)) continue;
       final id = _orderIdOf(o);
       if (id != 0) return id;
     }
 
-    final all = await listOrders(customerId: customerId, limit: 50);
+    final all = await listOrders(customerId: customerId, isSent: 0, limit: 50);
     for (final o in all) {
+      if (_orderIsSent(o)) continue;
       final id = _orderIdOf(o);
-      if (id < 0) return id; // طلب أوفلاين لم يُزامن
+      if (id != 0) return id;
     }
 
     final pending = await pendingOutbox(limit: 120);
@@ -1348,6 +1356,27 @@ class OfflineStore {
       } catch (_) {}
     }
     return 0;
+  }
+
+  bool _orderPendingSend(Map<String, dynamic> o) =>
+      o['pending_send'] == true ||
+      o['pending_send'] == 1 ||
+      '${o['pending_send']}' == '1';
+
+  /// طلبات محفوظة ولم يُضغط ترحيل بعد (للعرض في شاشة العميل).
+  Future<List<Map<String, dynamic>>> listUnsentOrdersForCustomer(
+    int customerId, {
+    int limit = 50,
+  }) async {
+    if (customerId == 0) return [];
+    final rows = await listOrders(
+      customerId: customerId,
+      isSent: 0,
+      limit: limit,
+    );
+    return rows
+        .where((o) => !_orderIsSent(o) && !_orderPendingSend(o))
+        .toList();
   }
 
   /// أي طلب مرتبط بالزيارة أو محفوظ محلياً لنفس العميل (بما فيه معلّق بالـ outbox).

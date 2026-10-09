@@ -362,6 +362,7 @@ function sal_rep_visit_list_for_rep(PDO $pdo, int $salesRepId, ?string $date = n
                       WHERE o.visit_route_line_id = l.id
                         AND l.visit_checkin_at IS NOT NULL
                         AND o.created_at >= l.visit_checkin_at
+                        AND IFNULL(o.is_sent, 0) = 0
                       ORDER BY o.id DESC
                       LIMIT 1
                     ) AS order_id
@@ -679,9 +680,28 @@ function sal_rep_visit_no_order_reasons(PDO $pdo): array
 
 function sal_rep_visit_has_order(PDO $pdo, int $routeLineId): bool
 {
-    return sal_rep_visit_order_id($pdo, $routeLineId) > 0;
+    if ($routeLineId < 1) {
+        return false;
+    }
+    try {
+        $st = $pdo->prepare(
+            'SELECT 1
+             FROM sal_customer_order o
+             INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+             WHERE o.visit_route_line_id = ?
+               AND l.visit_checkin_at IS NOT NULL
+               AND o.created_at >= l.visit_checkin_at
+             LIMIT 1'
+        );
+        $st->execute([$routeLineId]);
+
+        return (bool) $st->fetchColumn();
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
+/** آخر طلب غير مُرحَّل للزيارة (للنموذج) — لا يُرجع الطلبات المرحَّلة. */
 function sal_rep_visit_order_id(PDO $pdo, int $routeLineId): int
 {
     if ($routeLineId < 1) {
@@ -695,6 +715,7 @@ function sal_rep_visit_order_id(PDO $pdo, int $routeLineId): int
              WHERE o.visit_route_line_id = ?
                AND l.visit_checkin_at IS NOT NULL
                AND o.created_at >= l.visit_checkin_at
+               AND IFNULL(o.is_sent, 0) = 0
              ORDER BY o.id DESC
              LIMIT 1'
         );
@@ -703,7 +724,25 @@ function sal_rep_visit_order_id(PDO $pdo, int $routeLineId): int
 
         return $id !== false ? (int) $id : 0;
     } catch (Throwable $e) {
-        return 0;
+        // عمود is_sent غير موجود في قواعد قديمة
+        try {
+            $st = $pdo->prepare(
+                'SELECT o.id
+                 FROM sal_customer_order o
+                 INNER JOIN sal_rep_route_line l ON l.id = o.visit_route_line_id
+                 WHERE o.visit_route_line_id = ?
+                   AND l.visit_checkin_at IS NOT NULL
+                   AND o.created_at >= l.visit_checkin_at
+                 ORDER BY o.id DESC
+                 LIMIT 1'
+            );
+            $st->execute([$routeLineId]);
+            $id = $st->fetchColumn();
+
+            return $id !== false ? (int) $id : 0;
+        } catch (Throwable $e2) {
+            return 0;
+        }
     }
 }
 

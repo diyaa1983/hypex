@@ -301,13 +301,19 @@ function sys_user_location_tracker_rows(
     // الرقم يُحقن كعدد صحيح فقط — بعض إصدارات MySQL/PDO لا تربط INTERVAL ? بشكل موثوق.
     $windowSec = (int) ($includeStale ? $staleSec : $onlineSec);
 
+    if (!function_exists('sys_gps_track_groups_user_filter_sql')) {
+        require_once app_path('includes/sys_gps_track_groups.php');
+    }
+    [$trackSql, $trackParams] = sys_gps_track_groups_user_filter_sql($pdo, 'u');
+
     $sql = 'SELECT ul.user_id, ul.latitude, ul.longitude, ul.gps_accuracy, ul.gps_source, ul.captured_at,
                    u.username, u.full_name_ar,
                    TIMESTAMPDIFF(SECOND, ul.captured_at, NOW()) AS age_sec
             FROM sys_user_location ul
             INNER JOIN sys_user u ON u.id = ul.user_id AND u.is_active = 1
-            WHERE ul.captured_at >= DATE_SUB(NOW(), INTERVAL ' . $windowSec . ' SECOND)';
-    $params = [];
+            WHERE ul.captured_at >= DATE_SUB(NOW(), INTERVAL ' . $windowSec . ' SECOND)'
+            . $trackSql;
+    $params = $trackParams;
 
     if ($search !== '') {
         $sql .= ' AND (u.username LIKE ? OR u.full_name_ar LIKE ?)';
@@ -453,17 +459,24 @@ function sys_user_location_age_label(int $ageSec): string
 function sys_user_location_track_users(PDO $pdo): array
 {
     sys_user_location_ensure_schema($pdo);
+    if (!function_exists('sys_gps_track_groups_user_filter_sql')) {
+        require_once app_path('includes/sys_gps_track_groups.php');
+    }
+    [$trackSql, $trackParams] = sys_gps_track_groups_user_filter_sql($pdo, 'u');
 
     try {
         $sql = 'SELECT u.id AS user_id, u.username, u.full_name_ar
                 FROM sys_user u
                 WHERE u.is_active = 1
+                  ' . $trackSql . '
                   AND (
                     EXISTS (SELECT 1 FROM sys_user_location ul WHERE ul.user_id = u.id)
                     OR EXISTS (SELECT 1 FROM sys_user_location_track t WHERE t.user_id = u.id)
                   )
                 ORDER BY u.full_name_ar, u.username';
-        $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $st = $pdo->prepare($sql);
+        $st->execute($trackParams);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
         error_log('sys_user_location_track_users: ' . $e->getMessage());
 

@@ -41,16 +41,21 @@ class _CustomerOrdersPendingScreenState
     _load();
   }
 
+  bool _isPendingSend(Map<String, dynamic> o) =>
+      o['pending_send'] == true ||
+      o['pending_send'] == 1 ||
+      '${o['pending_send']}' == '1';
+
   Future<void> _loadLocal() async {
     const perPage = 30;
     final store = OfflineStore.instance;
-    final total = await store.countOrders(isSent: 0);
+    // محفوظة فقط — ما طُلب ترحيلها تخرج من القائمة حتى تُزامن.
+    final all = (await store.listOrders(isSent: 0, limit: 500))
+        .where((o) => !_isPendingSend(o))
+        .toList();
+    final total = all.length;
     final offset = (_page - 1) * perPage;
-    final orders = await store.listOrders(
-      isSent: 0,
-      limit: perPage,
-      offset: offset,
-    );
+    final orders = all.skip(offset).take(perPage).toList();
     final pages = total == 0 ? 1 : ((total + perPage - 1) ~/ perPage);
     if (!mounted) return;
     setState(() {
@@ -92,6 +97,26 @@ class _CustomerOrdersPendingScreenState
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
           .toList();
+      // أضف مسودات الجهاز التي لم تُرحَّل بعد (معرّفات سالبة / محلية).
+      final localDrafts = (await OfflineStore.instance.listOrders(
+        isSent: 0,
+        limit: 200,
+      ))
+          .where((o) =>
+              !_isPendingSend(o) &&
+              ((o['id'] as num?)?.toInt() ?? 0) < 0)
+          .toList();
+      final seen = <int>{
+        for (final o in orders) Fmt.toInt(o['id']),
+      };
+      for (final o in localDrafts) {
+        final id = Fmt.toInt(o['id']);
+        if (id != 0 && !seen.contains(id)) {
+          orders.insert(0, o);
+          seen.add(id);
+        }
+      }
+      if (!mounted) return;
       setState(() {
         _orders = orders;
         _pager = pager;

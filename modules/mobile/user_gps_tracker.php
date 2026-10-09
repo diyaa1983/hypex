@@ -48,7 +48,7 @@ $today = date('Y-m-d');
      data-mode="mobile">
     <div class="ugt-toolbar ugt-toolbar--mobile">
         <div class="ugt-toolbar__title">
-            <strong>تتبّع المواقع</strong>
+            <strong>تتبع مواقع المندوبين</strong>
             <small id="ugt-mobile-summary">—</small>
         </div>
         <div class="ugt-toolbar__actions">

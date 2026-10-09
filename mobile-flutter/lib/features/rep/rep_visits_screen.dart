@@ -1032,16 +1032,14 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
           Expanded(
             child: VisitWorkspacePanel(
               key: ValueKey(
-                'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}-${Fmt.toInt(_selected!['order_id'])}',
+                'ws-${Fmt.toInt(_selected!['customer_id'])}-${Fmt.toInt(_selected!['route_line_id'])}',
               ),
               customerId: Fmt.toInt(_selected!['customer_id']),
               customerName: Fmt.str(_selected!['name']),
               customerCode: Fmt.str(_selected!['code']),
               visitRouteLineId: Fmt.toInt(_selected!['route_line_id']),
               visitOpen: true,
-              orderId: Fmt.toInt(_selected!['order_id']) != 0
-                  ? Fmt.toInt(_selected!['order_id'])
-                  : null,
+              orderId: null,
               onOrderChanged: () => _load(
                 keepCustomerId: Fmt.toInt(_selected!['customer_id']),
               ),

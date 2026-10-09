@@ -196,18 +196,29 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
 
   void _onVisitOrderSaved(int orderId) {
     // Offline: orderId قد يكون سالباً بعد الحفظ المحلي
+    // orderId == 0 بعد الترحيل → نموذج فارغ
     if (!mounted) return;
     setState(() {
-      if (orderId != 0) _visitOrderId = orderId;
+      _visitOrderId = orderId;
       if (_visit != null) {
         _visit = Map<String, dynamic>.from(_visit!)
-          ..['has_order'] = true
-          ..['order_id'] = orderId != 0 ? orderId : (_visit!['order_id'] ?? 0);
+          ..['has_order'] = orderId != 0 || (_visit!['has_order'] == true)
+          ..['order_id'] = orderId;
       }
     });
-    if (_selectedId != null && orderId != 0) {
-      _loadHistOrders(_selectedId!);
-    }
+  }
+
+  void _onVisitOrderPosted() {
+    if (!mounted) return;
+    setState(() {
+      _visitOrderId = 0;
+      if (_visit != null) {
+        // الطلب المرحّل يبقى has_order للخروج، لكن لا يُفتح في النموذج
+        _visit = Map<String, dynamic>.from(_visit!)
+          ..['has_order'] = true
+          ..['order_id'] = 0;
+      }
+    });
   }
 
   void _onVisitOrderDeleted() {
@@ -567,9 +578,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
           'has_order': linkedOrderId != 0,
           'offline': true,
         };
-        if (linkedOrderId != 0) {
-          _visitOrderId = linkedOrderId;
-        }
+        // لا تُحمَّل الطلبات السابقة في النموذج عند فتح العميل —
+        // غير المرحّلة تظهر في القائمة؛ المرحّلة تُحتسب فقط لـ has_order.
       }
 
       if ((!offline.online && offline.catalogReady) || id < 0) {
@@ -603,8 +613,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         _noOrderReasons = noOrderReasons;
         if (radius > 0) _radiusM = radius;
         _detailLoading = false;
-        final oid = Fmt.toInt(v?['order_id']);
-        if (oid != 0) _visitOrderId = oid;
+        // لا نفتح آخر طلب تلقائياً عند اختيار العميل.
         if (_visitOpenFromMap(v)) {
           _openVisitCustomerId = id;
           _openVisitCheckinAt = Fmt.str(v?['visit_checkin_at']);
@@ -1374,13 +1383,13 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                 _hubCheckedInBar(cname, ccode),
                 Expanded(
                   child: VisitWorkspacePanel(
-                    key: ValueKey('hub-ws-$cid-$lineId-$_visitOrderId'),
+                    key: ValueKey('hub-ws-$cid-$lineId'),
                     customerId: cid,
                     customerName: cname,
                     customerCode: ccode,
                     visitRouteLineId: lineId,
                     visitOpen: true,
-                    orderId: _visitOrderId != 0 ? _visitOrderId : null,
+                    orderId: null,
                     onOrderChanged: () async {
                       await _refreshOpenVisit();
                       if (_selectedId != null) {
@@ -1946,9 +1955,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                           customer: _customer!,
                           visitOpen: _selectedIsOpen,
                           visitRouteLineId: Fmt.toInt(_visit?['route_line_id']),
-                          orderId: _visitOrderId != 0 ? _visitOrderId : null,
+                          orderId: null,
                           onSaved: _onVisitOrderSaved,
                           onDeleted: _onVisitOrderDeleted,
+                          onPosted: _onVisitOrderPosted,
                         ),
                         _InfoTab(
                           customer: _customer!,
@@ -2687,7 +2697,7 @@ class _StatementTab extends StatelessWidget {
   }
 }
 
-class _PurchaseOrderTab extends StatelessWidget {
+class _PurchaseOrderTab extends StatefulWidget {
   const _PurchaseOrderTab({
     required this.customer,
     required this.visitOpen,
@@ -2695,6 +2705,7 @@ class _PurchaseOrderTab extends StatelessWidget {
     this.orderId,
     required this.onSaved,
     required this.onDeleted,
+    this.onPosted,
   });
 
   final Map<String, dynamic> customer;
@@ -2703,18 +2714,41 @@ class _PurchaseOrderTab extends StatelessWidget {
   final int? orderId;
   final void Function(int orderId) onSaved;
   final VoidCallback onDeleted;
+  final VoidCallback? onPosted;
+
+  @override
+  State<_PurchaseOrderTab> createState() => _PurchaseOrderTabState();
+}
+
+class _PurchaseOrderTabState extends State<_PurchaseOrderTab> {
+  int? _orderId;
+  List<Map<String, dynamic>> _unsent = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _orderId = null;
+    _loadUnsent();
+  }
+
+  Future<void> _loadUnsent() async {
+    final cid = Fmt.toInt(widget.customer['id']);
+    final rows = await OfflineStore.instance.listUnsentOrdersForCustomer(cid);
+    if (!mounted) return;
+    setState(() => _unsent = rows);
+  }
 
   @override
   Widget build(BuildContext context) {
     // Offline: route_line_id سالب مقبول طالما الزيارة مفتوحة محلياً
-    final canOrder = visitOpen && (visitRouteLineId != 0);
+    final canOrder = widget.visitOpen && (widget.visitRouteLineId != 0);
     if (!canOrder) {
       return const Center(
-      child: Padding(
+        child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
             'سجّل الدخول عند العميل أولاً لإنشاء طلب شراء.',
-              textAlign: TextAlign.center,
+            textAlign: TextAlign.center,
             style: TextStyle(
               color: AppTheme.textSoft,
               fontWeight: FontWeight.w700,
@@ -2724,19 +2758,70 @@ class _PurchaseOrderTab extends StatelessWidget {
         ),
       );
     }
-    return CustomerOrderFormScreen(
-      key: ValueKey(
-        'po-${Fmt.toInt(customer['id'])}-$visitRouteLineId-${orderId ?? 0}',
-      ),
-      embedded: true,
-      hideCustomerPicker: true,
-      initialCustomerId: Fmt.toInt(customer['id']),
-      initialCustomerName: Fmt.str(customer['name']),
-      initialCustomerCode: Fmt.str(customer['code']),
-      visitRouteLineId: visitRouteLineId,
-      orderId: (orderId ?? 0) > 0 ? orderId : null,
-      onSaved: onSaved,
-      onDeleted: onDeleted,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (_unsent.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  for (final o in _unsent)
+                    Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 6),
+                      child: ActionChip(
+                        label: Text(
+                          Fmt.str(o['order_no']).isEmpty
+                              ? '#${o['id']}'
+                              : Fmt.str(o['order_no']),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onPressed: () {
+                          final id = (o['id'] as num?)?.toInt() ?? 0;
+                          if (id != 0) setState(() => _orderId = id);
+                        },
+                      ),
+                    ),
+                  ActionChip(
+                    label: const Text('＋ طلب جديد', style: TextStyle(fontSize: 12)),
+                    onPressed: () => setState(() => _orderId = null),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        Expanded(
+          child: CustomerOrderFormScreen(
+            key: ValueKey(
+              'po-${Fmt.toInt(widget.customer['id'])}-${widget.visitRouteLineId}-${_orderId ?? 0}',
+            ),
+            embedded: true,
+            hideCustomerPicker: true,
+            initialCustomerId: Fmt.toInt(widget.customer['id']),
+            initialCustomerName: Fmt.str(widget.customer['name']),
+            initialCustomerCode: Fmt.str(widget.customer['code']),
+            visitRouteLineId: widget.visitRouteLineId,
+            orderId: (_orderId ?? 0) != 0 ? _orderId : null,
+            onSaved: (id) {
+              setState(() => _orderId = id == 0 ? null : id);
+              _loadUnsent();
+              widget.onSaved(id);
+            },
+            onPosted: () {
+              setState(() => _orderId = null);
+              _loadUnsent();
+              widget.onPosted?.call();
+            },
+            onDeleted: () {
+              setState(() => _orderId = null);
+              _loadUnsent();
+              widget.onDeleted();
+            },
+          ),
+        ),
+      ],
     );
   }
 }

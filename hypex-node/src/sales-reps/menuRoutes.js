@@ -19,6 +19,10 @@ function can(user, code) {
   return auth.userCan(user, code) || user.is_admin;
 }
 
+function forbid(res) {
+  res.status(403).send('<div class="si-stage"><p class="muted">لا توجد صلاحية.</p></div>');
+}
+
 function requireAny(req, res, next) {
   const u = req.session.user;
   if (u.is_admin) return next();
@@ -73,6 +77,14 @@ router.get('/sales-reps', (req, res) => {
       ${ui.hubTiles(can, user, salesRepsCatalog)}
     </div>`;
   res.send(ui.salesPage({ user, title: 'المندوبين', bodyHtml: body }));
+});
+
+/** تتبع مواقع المندوبين — نفس شاشة التتبع الحي تحت قائمة المندوبين. */
+router.get('/sales-reps/gps-tracker', (req, res) => {
+  if (!can(req.session.user, 'user_gps_tracker') && !can(req.session.user, 'm_user_gps_tracker')) {
+    return forbid(res);
+  }
+  res.redirect(302, '/system/gps-tracker');
 });
 
 /* ═══════════ List ═══════════ */
