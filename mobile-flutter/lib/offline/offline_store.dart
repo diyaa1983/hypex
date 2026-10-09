@@ -1302,6 +1302,69 @@ class OfflineStore {
     return 0;
   }
 
+  int _orderIdOf(Map<String, dynamic> o) =>
+      (o['id'] as num?)?.toInt() ?? int.tryParse('${o['id'] ?? ''}') ?? 0;
+
+  /// طلب محلي/معلّق لنفس العميل (لم يُرحَّل بعد) — يُعتبر أن الزيارة فيها طلب.
+  Future<int> localOrPendingOrderIdForCustomer(int customerId) async {
+    if (customerId < 1) return 0;
+
+    final today = DateTime.now();
+    final todayIso =
+        '${today.year.toString().padLeft(4, '0')}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+
+    final todayOrders = await listOrders(
+      customerId: customerId,
+      from: todayIso,
+      limit: 50,
+    );
+    for (final o in todayOrders) {
+      final id = _orderIdOf(o);
+      if (id != 0) return id;
+    }
+
+    final all = await listOrders(customerId: customerId, limit: 50);
+    for (final o in all) {
+      final id = _orderIdOf(o);
+      if (id < 0) return id; // طلب أوفلاين لم يُزامن
+    }
+
+    final pending = await pendingOutbox(limit: 120);
+    for (final row in pending) {
+      final kind = (row['kind'] ?? '').toString();
+      if (kind != 'customer_order_save' && kind != 'customer_order_send') {
+        continue;
+      }
+      try {
+        final body =
+            jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
+        final cid = (body['customer_id'] as num?)?.toInt() ?? 0;
+        if (cid != customerId) continue;
+        final localOid = (body['local_order_id'] as num?)?.toInt() ??
+            (body['id'] as num?)?.toInt() ??
+            0;
+        if (localOid != 0) return localOid;
+        return -1;
+      } catch (_) {}
+    }
+    return 0;
+  }
+
+  /// أي طلب مرتبط بالزيارة أو محفوظ محلياً لنفس العميل (بما فيه معلّق بالـ outbox).
+  Future<int> visitRelatedOrderId({
+    required int customerId,
+    int routeLineId = 0,
+  }) async {
+    if (routeLineId != 0) {
+      final byLine = await orderIdForVisitLine(
+        routeLineId,
+        customerId: customerId > 0 ? customerId : null,
+      );
+      if (byLine != 0) return byLine;
+    }
+    return localOrPendingOrderIdForCustomer(customerId);
+  }
+
   Future<Map<String, dynamic>?> getOrderById(int id) async {
     if (id == 0) return null;
     final db = await _db;

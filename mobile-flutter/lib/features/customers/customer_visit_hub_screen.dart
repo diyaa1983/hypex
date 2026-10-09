@@ -547,10 +547,10 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                 : Fmt.str(open?['checkin_method']))
             : (_openVisitCustomerId == id ? _openVisitCheckinMethod : '');
         var linkedOrderId = _visitOrderId;
-        if (linkedOrderId == 0 && lineId != 0) {
-          linkedOrderId = await OfflineStore.instance.orderIdForVisitLine(
-            lineId,
+        if (linkedOrderId == 0) {
+          linkedOrderId = await OfflineStore.instance.visitRelatedOrderId(
             customerId: id,
+            routeLineId: lineId,
           );
         }
         v = {
@@ -1161,12 +1161,11 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
 
     if (!hasOrder) {
       final lineId = Fmt.toInt(_visit?['route_line_id']);
-      final localOid = lineId != 0
-          ? await OfflineStore.instance.orderIdForVisitLine(
-              lineId,
-              customerId: id,
-            )
-          : 0;
+      // يشمل طلبات الأوفلاين المعلّقة التي لم تُرحَّل بعد بسبب فقد الاتصال
+      final localOid = await OfflineStore.instance.visitRelatedOrderId(
+        customerId: id,
+        routeLineId: lineId,
+      );
       if (localOid != 0) {
         setState(() {
           _visitOrderId = localOid;

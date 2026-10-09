@@ -796,14 +796,13 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     final name = Fmt.str(v['name']);
     List<int> noOrderReasonIds = [];
     if (!_visitHasOrder(v)) {
-      // Offline: تحقق من طلب محلي مرتبط بنفس سطر الزيارة.
+      // Offline: طلب محلي/معلّق لنفس العميل أو مرتبط بسطر الزيارة
+      // (حتى لو لم يُرحَّل بعد بسبب فقد الاتصال — لا تُطلب أسباب عدم الطلب).
       final lineId = Fmt.toInt(v['route_line_id']);
-      final localOid = lineId != 0
-          ? await OfflineStore.instance.orderIdForVisitLine(
-              lineId,
-              customerId: keepCid,
-            )
-          : 0;
+      final localOid = await OfflineStore.instance.visitRelatedOrderId(
+        customerId: keepCid,
+        routeLineId: lineId,
+      );
       if (localOid != 0) {
         setState(() {
           _selected = Map<String, dynamic>.from(v)

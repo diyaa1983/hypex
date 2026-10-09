@@ -78,10 +78,49 @@ function haversineM(lat1, lng1, lat2, lng2) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
 }
 
+function mapMarkerRow(r, onlineSeconds) {
+  const lat = Number(r.latitude);
+  const lng = Number(r.longitude);
+  if (!coordsValid(lat, lng)) return null;
+  const ageSec = Math.max(0, Number(r.age_sec) || 0);
+  const isOnline = ageSec <= onlineSeconds;
+  const rawSrc = String(r.gps_source || '').trim();
+  const isRep = Number(r.sales_rep_id || 0) > 0 || Number(r.is_sales_rep || 0) === 1;
+  return {
+    user_id: Number(r.user_id),
+    user_label: userLabel(r.full_name_ar, r.username),
+    username: String(r.username || ''),
+    latitude: lat,
+    longitude: lng,
+    gps_accuracy:
+      r.gps_accuracy != null && r.gps_accuracy !== '' ? Number(r.gps_accuracy) : null,
+    accuracy_label:
+      r.gps_accuracy != null && r.gps_accuracy !== ''
+        ? Math.round(Number(r.gps_accuracy)) + ' م'
+        : '',
+    gps_source: rawSrc || null,
+    source_label: sourceLabel(rawSrc),
+    place_label: placeLabel(r),
+    captured_at: r.captured_at,
+    age_sec: ageSec,
+    age_label: ageLabel(ageSec),
+    is_online: isOnline,
+    is_sales_rep: isRep,
+    status: isOnline ? 'online' : 'offline',
+    status_label: isOnline ? 'متصل' : isRep ? 'مندوب — آخر موقع' : 'غير متصل',
+    map_url: mapUrl(lat, lng),
+  };
+}
+
 /** Live markers — شكل متوافق مع PHP api/user_gps_tracker_live.php */
-async function liveTrackerPayload({ onlineSec = 60, includeStale = false, q: search = '' } = {}) {
+async function liveTrackerPayload({
+  onlineSec = 60,
+  includeStale = false,
+  includeDayReps = true,
+  q: search = '',
+} = {}) {
   const onlineSeconds = Math.max(15, Math.min(12 * 3600, Number(onlineSec) || 60));
-  const windowSec = includeStale ? Math.max(onlineSeconds, 3600) : onlineSeconds;
+  const windowSec = includeStale ? Math.max(onlineSeconds, 24 * 3600) : onlineSeconds;
 
   const where = [
     'u.is_active = 1',
@@ -97,7 +136,7 @@ async function liveTrackerPayload({ onlineSec = 60, includeStale = false, q: sea
   const raw = await q(
     `SELECT ul.user_id, ul.latitude, ul.longitude, ul.gps_accuracy, ul.gps_source,
             ul.gps_place, ul.gps_landmark, ul.captured_at,
-            u.username, u.full_name_ar,
+            u.username, u.full_name_ar, u.sales_rep_id,
             TIMESTAMPDIFF(SECOND, ul.captured_at, NOW()) AS age_sec
      FROM sys_user_location ul
      INNER JOIN sys_user u ON u.id = ul.user_id
@@ -107,39 +146,52 @@ async function liveTrackerPayload({ onlineSec = 60, includeStale = false, q: sea
     params
   );
 
-  const markers = [];
+  const byUser = new Map();
   for (const r of raw) {
-    const lat = Number(r.latitude);
-    const lng = Number(r.longitude);
-    if (!coordsValid(lat, lng)) continue;
-    const ageSec = Math.max(0, Number(r.age_sec) || 0);
-    const isOnline = ageSec <= onlineSeconds;
-    if (!includeStale && !isOnline) continue;
-    const rawSrc = String(r.gps_source || '').trim();
-    markers.push({
-      user_id: Number(r.user_id),
-      user_label: userLabel(r.full_name_ar, r.username),
-      username: String(r.username || ''),
-      latitude: lat,
-      longitude: lng,
-      gps_accuracy:
-        r.gps_accuracy != null && r.gps_accuracy !== '' ? Number(r.gps_accuracy) : null,
-      accuracy_label:
-        r.gps_accuracy != null && r.gps_accuracy !== ''
-          ? Math.round(Number(r.gps_accuracy)) + ' م'
-          : '',
-      gps_source: rawSrc || null,
-      source_label: sourceLabel(rawSrc),
-      place_label: placeLabel(r),
-      captured_at: r.captured_at,
-      age_sec: ageSec,
-      age_label: ageLabel(ageSec),
-      is_online: isOnline,
-      status: isOnline ? 'online' : 'offline',
-      status_label: isOnline ? 'متصل' : 'غير متصل',
-      map_url: mapUrl(lat, lng),
-    });
+    const uid = Number(r.user_id);
+    if (byUser.has(uid)) continue; // أحدث نبضة أولاً بسبب ORDER BY DESC
+    const m = mapMarkerRow(r, onlineSeconds);
+    if (!m) continue;
+    if (!includeStale && !m.is_online) continue;
+    byUser.set(uid, m);
   }
+
+  // مندوبو اليوم: آخر موقع معروف لليوم حتى لو أقدم من نافذة «متصل»
+  if (includeDayReps && !includeStale) {
+    const repParams = [];
+    let repSearch = '';
+    if (search) {
+      const like = `%${search}%`;
+      repSearch = ` AND (u.username LIKE ? OR IFNULL(u.full_name_ar,'') LIKE ?)`;
+      repParams.push(like, like);
+    }
+    const dayReps = await q(
+      `SELECT ul.user_id, ul.latitude, ul.longitude, ul.gps_accuracy, ul.gps_source,
+              ul.gps_place, ul.gps_landmark, ul.captured_at,
+              u.username, u.full_name_ar, u.sales_rep_id,
+              TIMESTAMPDIFF(SECOND, ul.captured_at, NOW()) AS age_sec,
+              1 AS is_sales_rep
+       FROM sys_user_location ul
+       INNER JOIN sys_user u ON u.id = ul.user_id AND u.is_active = 1
+       WHERE u.sales_rep_id IS NOT NULL AND u.sales_rep_id > 0
+         AND DATE(ul.captured_at) = CURDATE()
+         ${repSearch}
+       ORDER BY ul.captured_at DESC
+       LIMIT 500`,
+      repParams
+    );
+    for (const r of dayReps) {
+      const uid = Number(r.user_id);
+      if (byUser.has(uid)) continue;
+      const m = mapMarkerRow(r, onlineSeconds);
+      if (m) byUser.set(uid, m);
+    }
+  }
+
+  const markers = [...byUser.values()].sort((a, b) => {
+    if (a.is_online !== b.is_online) return a.is_online ? -1 : 1;
+    return (a.age_sec || 0) - (b.age_sec || 0);
+  });
 
   const lastPings = await recentSnapshots(8);
   let hint = '';

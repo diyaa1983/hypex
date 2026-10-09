@@ -760,6 +760,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             'payment_type': _paymentType,
             'delivery_date': _deliveryDate,
             'notes': _notesCtrl.text.trim(),
+            if (visitLine != 0) 'visit_route_line_id': visitLine,
+            if (visitLine < 0) 'offline_visit': true,
           },
           clientUuid: uuid,
         );
@@ -844,6 +846,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               'lines': _lines.map((l) => l.toJson()).toList(),
               'delivery_date': _deliveryDate,
               'notes': _notesCtrl.text.trim(),
+              if (visitLine != 0) 'visit_route_line_id': visitLine,
+              if (visitLine < 0) 'offline_visit': true,
             },
             clientUuid: uuid,
           );

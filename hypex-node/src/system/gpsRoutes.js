@@ -69,8 +69,18 @@ router.get('/api/system/gps-live', async (req, res) => {
   }
   const onlineSec = Number(req.query.online_seconds || req.query.online_minutes * 60 || 60) || 60;
   const includeStale = String(req.query.include_stale || '') === '1';
+  // افتراضي: إظهار مندوبي اليوم بآخر موقع حتى لو انقطع الاتصال مؤقتاً
+  const includeDayReps =
+    req.query.include_day_reps == null
+      ? true
+      : String(req.query.include_day_reps || '') === '1';
   const qv = String(req.query.q || '');
-  const data = await svc.liveTrackerPayload({ onlineSec, includeStale, q: qv });
+  const data = await svc.liveTrackerPayload({
+    onlineSec,
+    includeStale,
+    includeDayReps,
+    q: qv,
+  });
   res.json(data);
 });
 
@@ -197,6 +207,7 @@ router.get('/system/gps-tracker', async (req, res) => {
       </div>
       <div class="ugt-page" id="ugt-root"
            data-api="/api/system/gps-live"
+           data-track-api="/api/system/gps-track-day"
            data-tile-url="${esc(tileUrl)}"
            data-attribution="${esc(attribution)}"
            data-map-provider="${mapProvider}"
@@ -205,13 +216,15 @@ router.get('/system/gps-tracker', async (req, res) => {
            data-poll-sec="3"
            data-online-seconds="60"
            data-stale-seconds="60"
+           data-today="${esc(today)}"
+           data-include-day-reps="1"
            data-mode="desktop">
         <div class="ugt-toolbar">
           <div class="ugt-toolbar__title">
             <span class="ugt-toolbar__icon" aria-hidden="true">📡</span>
             <div>
               <strong>تتبّع المواقع</strong>
-              <small>الأجهزة الحيّة الآن وخط السير اليومي</small>
+              <small>المندوبون على الخريطة + خط المسار</small>
             </div>
           </div>
           <div class="ugt-modeswitch" role="tablist">
@@ -230,6 +243,10 @@ router.get('/system/gps-tracker', async (req, res) => {
               <span class="ugt-chip"><b id="ugt-cnt-total">0</b> على الخريطة</span>
             </div>
             <div class="ugt-subbar__actions">
+              <label class="ugt-check" title="عرض آخر موقع لمندوبي اليوم حتى لو غير متصلين الآن">
+                <input type="checkbox" id="ugt-day-reps" checked>
+                <span>مندوبو اليوم</span>
+              </label>
               <input type="search" id="ugt-search" class="ugt-search" placeholder="بحث بالاسم..." autocomplete="off">
               <button type="button" class="btn btn-sm btn-secondary" id="ugt-clear-trails" title="مسح الخطوط الحيّة">مسح الخط</button>
               <button type="button" class="btn btn-sm btn-primary" id="ugt-refresh">تحديث</button>
@@ -246,9 +263,9 @@ router.get('/system/gps-tracker', async (req, res) => {
               <div id="ugt-map" class="ugt-map" role="application" aria-label="خريطة التتبّع"></div>
               <div class="ugt-legend">
                 <span><i class="ugt-dot ugt-dot--online"></i> متصل (آخر 60 ثانية)</span>
-                <span><i class="ugt-line"></i> خط حي + حركة سلسة</span>
-                <span><i class="ugt-dot ugt-dot--away"></i> غير متصل = لا يظهر على الخريطة</span>
-                <span>الرقم على الخريطة = نفس الرقم في القائمة</span>
+                <span><i class="ugt-dot ugt-dot--away"></i> مندوب — آخر موقع اليوم</span>
+                <span><i class="ugt-line"></i> خط المسار</span>
+                <span>الرقم على الدبوس = نفس الرقم في القائمة</span>
               </div>
               <div class="ugt-status" id="ugt-status">تحديث كل 3 ثوانٍ</div>
             </div>
