@@ -879,6 +879,17 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
     where.push(`o.status IN ('approved','posted')`);
   }
 
+  const groupByEarly =
+    String(filters.group_by || 'rep_category').toLowerCase() === 'category_rep'
+      ? 'category_rep'
+      : 'rep_category';
+  const orderSql =
+    groupByEarly === 'category_rep'
+      ? `category_name ASC, category_id ASC, sales_rep_name ASC, sales_rep_id ASC,
+         o.order_date ASC, o.id ASC, l.line_no ASC`
+      : `sales_rep_name ASC, sales_rep_id ASC, category_name ASC, category_id ASC,
+         o.order_date ASC, o.id ASC, l.line_no ASC`;
+
   const limit = Math.min(8000, Math.max(100, Number(filters.limit || 5000)));
   let rows = [];
   try {
@@ -909,9 +920,7 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
        INNER JOIN inv_item it ON it.id = l.item_id
        LEFT JOIN inv_item_category cat ON cat.id = it.category_id
        WHERE ${where.join(' AND ')}
-       ORDER BY sales_rep_name ASC, sales_rep_id ASC,
-                category_name ASC, category_id ASC,
-                o.order_date ASC, o.id ASC, l.line_no ASC
+       ORDER BY ${orderSql}
        LIMIT ${limit}`,
       params
     );
@@ -945,9 +954,7 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
          INNER JOIN inv_item it ON it.id = l.item_id
          LEFT JOIN inv_item_category cat ON cat.id = it.category_id
          WHERE ${where.join(' AND ')}
-         ORDER BY sales_rep_name ASC, sales_rep_id ASC,
-                  category_name ASC, category_id ASC,
-                  o.order_date ASC, o.id ASC, l.line_no ASC
+         ORDER BY ${orderSql}
          LIMIT ${limit}`,
         params
       );
@@ -995,51 +1002,123 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
     };
   });
 
-  const repMap = new Map();
+  const groupBy = String(filters.group_by || 'rep_category').toLowerCase() === 'category_rep'
+    ? 'category_rep'
+    : 'rep_category';
+
+  /** ملخص فئة × مندوب */
+  const matrixMap = new Map();
   for (const row of details) {
-    const rk = String(row.sales_rep_id);
-    if (!repMap.has(rk)) {
-      repMap.set(rk, {
+    const key = `${row.category_id}|${row.sales_rep_id}`;
+    if (!matrixMap.has(key)) {
+      matrixMap.set(key, {
+        category_id: row.category_id,
+        category_name: row.category_name,
         sales_rep_id: row.sales_rep_id,
         sales_rep_name: row.sales_rep_name,
         sales_rep_code: row.sales_rep_code,
-        categories: new Map(),
         rows: [],
       });
     }
-    const rep = repMap.get(rk);
-    rep.rows.push(row);
-    const ck = String(row.category_id);
-    if (!rep.categories.has(ck)) {
-      rep.categories.set(ck, {
-        category_id: row.category_id,
-        category_name: row.category_name,
-        rows: [],
-      });
-    }
-    rep.categories.get(ck).rows.push(row);
+    matrixMap.get(key).rows.push(row);
   }
+  const matrix = [...matrixMap.values()]
+    .map((cell) => ({
+      ...cell,
+      totals: computeDetailedTotals(cell.rows),
+    }))
+    .sort((a, b) =>
+      String(a.category_name).localeCompare(String(b.category_name), 'ar') ||
+      String(a.sales_rep_name).localeCompare(String(b.sales_rep_name), 'ar')
+    );
 
-  const groups = [];
-  for (const rep of repMap.values()) {
-    const categories = [];
-    for (const cat of rep.categories.values()) {
-      categories.push({
-        ...cat,
+  let groups = [];
+  if (groupBy === 'category_rep') {
+    const catMap = new Map();
+    for (const row of details) {
+      const ck = String(row.category_id);
+      if (!catMap.has(ck)) {
+        catMap.set(ck, {
+          category_id: row.category_id,
+          category_name: row.category_name,
+          reps: new Map(),
+          rows: [],
+        });
+      }
+      const cat = catMap.get(ck);
+      cat.rows.push(row);
+      const rk = String(row.sales_rep_id);
+      if (!cat.reps.has(rk)) {
+        cat.reps.set(rk, {
+          sales_rep_id: row.sales_rep_id,
+          sales_rep_name: row.sales_rep_name,
+          sales_rep_code: row.sales_rep_code,
+          rows: [],
+        });
+      }
+      cat.reps.get(rk).rows.push(row);
+    }
+    for (const cat of catMap.values()) {
+      const reps = [];
+      for (const rep of cat.reps.values()) {
+        reps.push({ ...rep, totals: computeDetailedTotals(rep.rows) });
+      }
+      groups.push({
+        kind: 'category',
+        category_id: cat.category_id,
+        category_name: cat.category_name,
+        reps,
         totals: computeDetailedTotals(cat.rows),
       });
     }
-    groups.push({
-      sales_rep_id: rep.sales_rep_id,
-      sales_rep_name: rep.sales_rep_name,
-      sales_rep_code: rep.sales_rep_code,
-      categories,
-      totals: computeDetailedTotals(rep.rows),
-    });
+  } else {
+    const repMap = new Map();
+    for (const row of details) {
+      const rk = String(row.sales_rep_id);
+      if (!repMap.has(rk)) {
+        repMap.set(rk, {
+          sales_rep_id: row.sales_rep_id,
+          sales_rep_name: row.sales_rep_name,
+          sales_rep_code: row.sales_rep_code,
+          categories: new Map(),
+          rows: [],
+        });
+      }
+      const rep = repMap.get(rk);
+      rep.rows.push(row);
+      const ck = String(row.category_id);
+      if (!rep.categories.has(ck)) {
+        rep.categories.set(ck, {
+          category_id: row.category_id,
+          category_name: row.category_name,
+          rows: [],
+        });
+      }
+      rep.categories.get(ck).rows.push(row);
+    }
+    for (const rep of repMap.values()) {
+      const categories = [];
+      for (const cat of rep.categories.values()) {
+        categories.push({
+          ...cat,
+          totals: computeDetailedTotals(cat.rows),
+        });
+      }
+      groups.push({
+        kind: 'rep',
+        sales_rep_id: rep.sales_rep_id,
+        sales_rep_name: rep.sales_rep_name,
+        sales_rep_code: rep.sales_rep_code,
+        categories,
+        totals: computeDetailedTotals(rep.rows),
+      });
+    }
   }
 
   return {
     groups,
+    group_by: groupBy,
+    matrix,
     details,
     totals: computeDetailedTotals(details),
     from: r.from,

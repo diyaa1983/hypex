@@ -1317,9 +1317,19 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
     const categoryId = Number(req.query.category_id || 0) || 0;
     const customerId = Number(req.query.customer_id || 0) || 0;
     const status = String(req.query.status || 'all').toLowerCase();
+    const groupBy =
+      String(req.query.group_by || 'rep_category').toLowerCase() === 'category_rep'
+        ? 'category_rep'
+        : 'rep_category';
     const run = String(req.query.run || '') === '1';
     let err = '';
-    let data = { groups: [], details: [], totals: { qty: 0, line_gross: 0, line_count: 0, order_count: 0 } };
+    let data = {
+      groups: [],
+      matrix: [],
+      group_by: groupBy,
+      details: [],
+      totals: { qty: 0, line_gross: 0, line_count: 0, order_count: 0 },
+    };
 
     if (run) {
       try {
@@ -1330,6 +1340,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           category_id: categoryId,
           customer_id: customerId,
           status,
+          group_by: groupBy,
         });
       } catch (e) {
         err = e.message || 'تعذر تحميل التقرير';
@@ -1379,6 +1390,26 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       </tr>`;
     }
 
+    function detailRowHtml(r, seq) {
+      return `<tr>
+        <td class="si-num" dir="ltr">${seq}</td>
+        <td class="si-num" dir="ltr">${ui.esc(r.order_no || '')}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+        <td class="si-num" dir="ltr">${
+          r.delivery_date ? ui.esc(ui.isoToDmy(r.delivery_date)) : '—'
+        }</td>
+        <td>${ui.esc(r.customer_name || '—')}</td>
+        <td>${ui.esc(r.item_name || '')}${
+          r.item_sku ? ` <span class="muted" dir="ltr">(${ui.esc(r.item_sku)})</span>` : ''
+        }</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty_total != null ? r.qty_total : r.qty))}</td>
+        <td>${ui.esc(r.unit_name || '—')}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
+        <td>${ui.esc(r.status_label || '—')}</td>
+      </tr>`;
+    }
+
     let rowsHtml = '';
     if (!run) {
       rowsHtml = ui.emptyRow(colCount, 'حدّد الفترة ثم اعرض التقرير');
@@ -1388,45 +1419,93 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       rowsHtml = ui.emptyRow(colCount, 'لا توجد بنود طلبات شراء في الفترة المحددة');
     } else {
       let seq = 0;
-      for (const g of data.groups) {
-        const repTitle =
-          (g.sales_rep_code ? g.sales_rep_code + ' — ' : '') + (g.sales_rep_name || 'مندوب');
-        rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>المندوب: ${ui.esc(
-          repTitle
-        )}</strong> · ${Number(g.totals.order_count || 0)} طلب · إجمالي ${ui.esc(
-          ui.fmtAmt(g.totals.line_gross || 0)
-        )}</td></tr>`;
-        for (const cat of g.categories || []) {
-          rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">فئة المادة: <strong>${ui.esc(
-            cat.category_name || '—'
-          )}</strong> · ${Number((cat.rows || []).length)} بند</td></tr>`;
-          for (const r of cat.rows || []) {
-            seq += 1;
-            rowsHtml += `<tr>
-              <td class="si-num" dir="ltr">${seq}</td>
-              <td class="si-num" dir="ltr">${ui.esc(r.order_no || '')}</td>
-              <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
-              <td class="si-num" dir="ltr">${
-                r.delivery_date ? ui.esc(ui.isoToDmy(r.delivery_date)) : '—'
-              }</td>
-              <td>${ui.esc(r.customer_name || '—')}</td>
-              <td>${ui.esc(r.item_name || '')}${
-                r.item_sku
-                  ? ` <span class="muted" dir="ltr">(${ui.esc(r.item_sku)})</span>`
-                  : ''
-              }</td>
-              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty_total != null ? r.qty_total : r.qty))}</td>
-              <td>${ui.esc(r.unit_name || '—')}</td>
-              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
-              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
-              <td>${ui.esc(r.status_label || '—')}</td>
-            </tr>`;
+      if (groupBy === 'category_rep') {
+        for (const g of data.groups) {
+          rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>فئة المادة: ${ui.esc(
+            g.category_name || '—'
+          )}</strong> · ${Number(g.totals.order_count || 0)} طلب · إجمالي ${ui.esc(
+            ui.fmtAmt(g.totals.line_gross || 0)
+          )}</td></tr>`;
+          for (const rep of g.reps || []) {
+            const repTitle =
+              (rep.sales_rep_code ? rep.sales_rep_code + ' — ' : '') +
+              (rep.sales_rep_name || 'مندوب');
+            rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">المندوب: <strong>${ui.esc(
+              repTitle
+            )}</strong> · ${Number((rep.rows || []).length)} بند</td></tr>`;
+            for (const r of rep.rows || []) {
+              seq += 1;
+              rowsHtml += detailRowHtml(r, seq);
+            }
+            rowsHtml += totalsTr(
+              'مجموع المندوب ضمن الفئة · ' + (rep.sales_rep_name || ''),
+              rep.totals,
+              'co-det-cat-tot'
+            );
           }
-          rowsHtml += totalsTr('مجموع الفئة · ' + (cat.category_name || ''), cat.totals, 'co-det-cat-tot');
+          rowsHtml += totalsTr(
+            'مجموع الفئة · ' + (g.category_name || ''),
+            g.totals,
+            'co-det-rep-tot'
+          );
         }
-        rowsHtml += totalsTr('مجموع المندوب · ' + (g.sales_rep_name || ''), g.totals, 'co-det-rep-tot');
+      } else {
+        for (const g of data.groups) {
+          const repTitle =
+            (g.sales_rep_code ? g.sales_rep_code + ' — ' : '') + (g.sales_rep_name || 'مندوب');
+          rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>المندوب: ${ui.esc(
+            repTitle
+          )}</strong> · ${Number(g.totals.order_count || 0)} طلب · إجمالي ${ui.esc(
+            ui.fmtAmt(g.totals.line_gross || 0)
+          )}</td></tr>`;
+          for (const cat of g.categories || []) {
+            rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">فئة المادة: <strong>${ui.esc(
+              cat.category_name || '—'
+            )}</strong> · ${Number((cat.rows || []).length)} بند</td></tr>`;
+            for (const r of cat.rows || []) {
+              seq += 1;
+              rowsHtml += detailRowHtml(r, seq);
+            }
+            rowsHtml += totalsTr(
+              'مجموع الفئة · ' + (cat.category_name || ''),
+              cat.totals,
+              'co-det-cat-tot'
+            );
+          }
+          rowsHtml += totalsTr(
+            'مجموع المندوب · ' + (g.sales_rep_name || ''),
+            g.totals,
+            'co-det-rep-tot'
+          );
+        }
       }
       rowsHtml += totalsTr('الإجمالي النهائي', data.totals, 'co-det-grand');
+    }
+
+    let matrixHtml = '';
+    if (run && !err && (data.matrix || []).length) {
+      matrixHtml = `
+        <div class="si-print-area" style="margin-bottom:1rem">
+          ${ui.tableSurface(
+            'ملخص حسب فئة المادة والمندوب',
+            `${data.matrix.length} مجموعة`,
+            ['فئة المادة', 'المندوب', 'عدد البنود', 'عدد الطلبات', 'الكمية', 'الإجمالي'],
+            data.matrix
+              .map(
+                (m) => `<tr>
+              <td>${ui.esc(m.category_name || '—')}</td>
+              <td>${ui.esc(
+                (m.sales_rep_code ? m.sales_rep_code + ' — ' : '') + (m.sales_rep_name || '—')
+              )}</td>
+              <td class="si-num" dir="ltr">${Number(m.totals.line_count || 0)}</td>
+              <td class="si-num" dir="ltr">${Number(m.totals.order_count || 0)}</td>
+              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(m.totals.qty || 0))}</td>
+              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(m.totals.line_gross || 0))}</td>
+            </tr>`
+              )
+              .join('')
+          )}
+        </div>`;
     }
 
     const body = `
@@ -1438,8 +1517,12 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           subtitle: run
             ? `من ${ui.esc(ui.isoToDmy(range.from))} إلى ${ui.esc(ui.isoToDmy(range.to))} · ${
                 data.details.length
-              } بند · ${Number(data.totals.order_count || 0)} طلب · مجمّع حسب المندوب وفئة المادة`
-            : 'تفصيل بنود الطلبات مجمّعة حسب كل مندوب ثم كل فئة مادة',
+              } بند · ${Number(data.totals.order_count || 0)} طلب · ${
+                groupBy === 'category_rep'
+                  ? 'مجمّع حسب فئة المادة ثم المندوب'
+                  : 'مجمّع حسب المندوب ثم فئة المادة'
+              }`
+            : 'تفصيل بنود الطلبات حسب كل فئة مادة وكل مندوب',
           actions: [
             ui.printAction(),
             { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
@@ -1456,6 +1539,12 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             </label>
             <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
               <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required dir="ltr">
+            </label>
+            <label style="font-size:.8rem;font-weight:700;color:#5c6578">طريقة التجميع
+              <select class="si-field" name="group_by">
+                <option value="rep_category" ${groupBy === 'rep_category' ? 'selected' : ''}>مندوب ← فئة المادة</option>
+                <option value="category_rep" ${groupBy === 'category_rep' ? 'selected' : ''}>فئة المادة ← مندوب</option>
+              </select>
             </label>
             <label style="font-size:.8rem;font-weight:700;color:#5c6578">المندوب
               <select class="si-field" name="sales_rep_id">
@@ -1503,6 +1592,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         </div>`
             : ''
         }
+        ${matrixHtml}
         <div class="si-print-area">
           <style>
             .co-det-rep td{background:#1e3a5f;color:#fff;font-weight:800;padding:.55rem .65rem !important}
@@ -1513,7 +1603,9 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             .co-det-grand td strong{color:#fff}
           </style>
           ${ui.tableSurface(
-            'تفصيل الطلبات حسب المندوب وفئة المادة',
+            groupBy === 'category_rep'
+              ? 'تفصيل الطلبات حسب فئة المادة ثم المندوب'
+              : 'تفصيل الطلبات حسب المندوب ثم فئة المادة',
             run ? `${data.details.length} سطر` : '—',
             [
               '#',
