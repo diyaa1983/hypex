@@ -86,18 +86,17 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   Timer? _poll;
   Timer? _animTimer;
   bool _loading = true;
+  bool _mapReady = false;
   String? _error;
-  String? _tileUrl;
-  String _mapProvider = 'osm';
   double _mapZoom = 8;
   List<_Marker> _markers = [];
   final Map<int, List<LatLng>> _trails = {};
   final Map<int, LatLng> _displayPos = {};
   final Map<int, _MoveAnim> _anims = {};
-  static const int _maxTrailPoints = 400;
-  static const double _minTrailMoveMeters = 8;
+  static const int _maxTrailPoints = 200;
+  static const double _minTrailMoveMeters = 12;
   static const double _maxTrailJumpMeters = 800;
-  static const int _smoothMoveMs = 4500;
+  static const int _smoothMoveMs = 3500;
   int _online = 0;
   int? _selectedId;
   bool _fitOnce = true;
@@ -108,9 +107,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     super.initState();
     _load();
     _poll =
-        Timer.periodic(const Duration(seconds: 5), (_) => _load(silent: true));
+        Timer.periodic(const Duration(seconds: 8), (_) => _load(silent: true));
     _animTimer =
-        Timer.periodic(const Duration(milliseconds: 50), (_) => _tickAnims());
+        Timer.periodic(const Duration(milliseconds: 100), (_) => _tickAnims());
   }
 
   @override
@@ -141,22 +140,13 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         },
       );
       if (!mounted) return;
-      final mapCfg = (res['map'] as Map?)?.cast<String, dynamic>() ?? {};
-      final tile = (mapCfg['tile_url'] ?? '').toString();
       final counts = (res['counts'] as Map?)?.cast<String, dynamic>() ?? {};
       final rows = (res['markers'] as List? ?? [])
           .whereType<Map>()
           .map((e) => _Marker(e.cast<String, dynamic>()))
           .where((m) => m.lat != 0 || m.lng != 0)
           .toList();
-      final cleanTiles = GpsMapTiles.sanitize(
-        mapProvider: (mapCfg['map_provider'] ?? 'osm').toString(),
-        tileUrl: tile,
-      );
-
       setState(() {
-        _tileUrl = cleanTiles.tileUrl;
-        _mapProvider = cleanTiles.provider;
         _markers = rows;
         for (final m in rows) {
           _appendTrailPoint(m.userId, m.point);
@@ -171,7 +161,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         _error = null;
       });
 
-      if (_fitOnce && rows.isNotEmpty) {
+      if (_fitOnce && rows.isNotEmpty && _mapReady) {
         _fitOnce = false;
         WidgetsBinding.instance.addPostFrameCallback((_) => _fitAll());
       }
@@ -187,17 +177,30 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     }
   }
 
-  void _fitAll() {
-    if (_markers.isEmpty) return;
-    if (_markers.length == 1) {
-      _map.move(_markers.first.point, 14);
-      return;
+  void _safeMapMove(LatLng center, double zoom) {
+    if (!_mapReady || !mounted) return;
+    try {
+      _map.move(center, zoom);
+    } catch (_) {
+      /* الخريطة غير جاهزة بعد */
     }
-    final bounds =
-        LatLngBounds.fromPoints(_markers.map((m) => m.point).toList());
-    _map.fitCamera(
-      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
-    );
+  }
+
+  void _fitAll() {
+    if (_markers.isEmpty || !_mapReady) return;
+    try {
+      if (_markers.length == 1) {
+        _safeMapMove(_markers.first.point, 14);
+        return;
+      }
+      final bounds =
+          LatLngBounds.fromPoints(_markers.map((m) => m.point).toList());
+      _map.fitCamera(
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
+      );
+    } catch (_) {
+      /* تجاهل حتى تكتمل تهيئة الخريطة */
+    }
   }
 
   double _haversineMeters(LatLng a, LatLng b) {
@@ -263,11 +266,23 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     return t < 0.5 ? 2 * t * t : 1 - math.pow(-2 * t + 2, 2) / 2;
   }
 
+  DateTime? _lastFollowMove;
+
   void _tickAnims() {
-    if (_anims.isEmpty || !mounted) return;
+    if (_anims.isEmpty || !mounted || !_mapReady) return;
     final now = DateTime.now();
     var changed = false;
     final done = <int>[];
+    double? followZoom;
+    try {
+      followZoom = _map.camera.zoom;
+    } catch (_) {
+      _mapReady = false;
+      return;
+    }
+    final canFollow = followZoom != null &&
+        (_lastFollowMove == null ||
+            now.difference(_lastFollowMove!).inMilliseconds >= 280);
     _anims.forEach((id, anim) {
       final elapsed = now.difference(anim.start).inMilliseconds /
           anim.duration.inMilliseconds;
@@ -276,8 +291,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         _appendTrailPoint(id, anim.to);
         done.add(id);
         changed = true;
-        if (anim.follow) {
-          _map.move(anim.to, _map.camera.zoom);
+        if (anim.follow && canFollow) {
+          _lastFollowMove = now;
+          _safeMapMove(anim.to, followZoom!);
         }
         return;
       }
@@ -288,11 +304,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
           anim.from.longitude + (anim.to.longitude - anim.from.longitude) * e;
       final pos = LatLng(lat, lng);
       _displayPos[id] = pos;
-      if (elapsed > 0.15 && elapsed < 0.95) {
+      if (elapsed > 0.2 && elapsed < 0.9) {
         _appendTrailPoint(id, pos);
       }
-      if (anim.follow) {
-        _map.move(pos, _map.camera.zoom);
+      if (anim.follow && canFollow) {
+        _lastFollowMove = now;
+        _safeMapMove(pos, followZoom!);
       }
       changed = true;
     });
@@ -354,7 +371,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         _anims[m.userId] = anim.copyWith(follow: true);
       }
     });
-    _map.move(_pointFor(m), 15);
+    _safeMapMove(_pointFor(m), 15);
   }
 
   @override
@@ -396,32 +413,37 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
           ),
         ],
       ),
-      body: AsyncView(
-        loading: _loading && _markers.isEmpty,
-        error: _error,
-        onRetry: _load,
-        skeleton: false,
-        child: Stack(
-          children: [
+      // لا نُزيل FlutterMap أثناء التحميل — إزالته تُبقي _mapReady=true
+      // بينما MapController غير مربوط → إغلاق التطبيق عند move/camera.
+      body: Stack(
+        children: [
             FlutterMap(
               mapController: _map,
               options: MapOptions(
                 initialCenter: const LatLng(31.9539, 35.9106),
                 initialZoom: 8,
                 minZoom: 4,
-                maxZoom: 20,
-                onMapEvent: (e) {
-                  final z = _map.camera.zoom;
-                  if ((z - _mapZoom).abs() > 0.01) {
+                maxZoom: 18,
+                onMapReady: () {
+                  if (!mounted) return;
+                  _mapReady = true;
+                  if (_fitOnce && _markers.isNotEmpty) {
+                    _fitOnce = false;
+                    WidgetsBinding.instance
+                        .addPostFrameCallback((_) => _fitAll());
+                  }
+                },
+                onPositionChanged: (camera, _) {
+                  final z = camera.zoom;
+                  if ((z - _mapZoom).abs() > 0.25 && mounted) {
                     setState(() => _mapZoom = z);
                   }
                 },
                 onTap: (_, __) => setState(() => _selectedId = null),
               ),
               children: [
-                ...GpsMapTiles.layers(
-                  mapProvider: _mapProvider,
-                  tileUrl: _tileUrl,
+                ...GpsMapTiles.safeLayers(
+                  mapProvider: 'osm',
                   zoom: _mapZoom,
                 ),
                 PolylineLayer(polylines: _buildLiveTrails()),
@@ -449,6 +471,22 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 ),
               ],
             ),
+            if (_loading && _markers.isEmpty)
+              const ColoredBox(
+                color: Color(0x66FFFFFF),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (_error != null && _markers.isEmpty)
+              ColoredBox(
+                color: Colors.white,
+                child: AsyncView(
+                  loading: false,
+                  error: _error,
+                  onRetry: _load,
+                  skeleton: false,
+                  child: const SizedBox.shrink(),
+                ),
+              ),
             Positioned(
               top: 12,
               left: 12,
@@ -517,7 +555,6 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 ),
               ),
           ],
-        ),
       ),
     );
   }

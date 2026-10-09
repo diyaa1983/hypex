@@ -669,10 +669,27 @@ function crm_customer_ensure_gps_columns(PDO $pdo): void
     }
     $done = true;
     try {
-        $pdo->query('SELECT latitude, longitude FROM crm_customer LIMIT 1');
+        $pdo->query('SELECT latitude, longitude, gps_accuracy, gps_at FROM crm_customer LIMIT 1');
     } catch (Throwable $e) {
         require_once app_path('includes/sql_migration.php');
         sql_migration_run_file($pdo, 'database/migrations/238_crm_customer_gps.sql');
+        // إن وُجد lat/lng فقط من تثبيت قديم — أكمل الأعمدة الناقصة.
+        try {
+            $pdo->query('SELECT gps_accuracy FROM crm_customer LIMIT 1');
+        } catch (Throwable $e2) {
+            try {
+                $pdo->exec('ALTER TABLE crm_customer ADD COLUMN gps_accuracy DECIMAL(10,2) NULL DEFAULT NULL AFTER longitude');
+            } catch (Throwable $e3) {
+            }
+        }
+        try {
+            $pdo->query('SELECT gps_at FROM crm_customer LIMIT 1');
+        } catch (Throwable $e2) {
+            try {
+                $pdo->exec('ALTER TABLE crm_customer ADD COLUMN gps_at DATETIME NULL DEFAULT NULL AFTER gps_accuracy');
+            } catch (Throwable $e3) {
+            }
+        }
     }
 }
 

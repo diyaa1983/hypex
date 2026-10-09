@@ -231,10 +231,17 @@ function crm_customer_gps_change_decide(
         return ['ok' => false, 'message' => 'هذا الطلب سبق البت فيه.'];
     }
 
+    // قبل المعاملة: ضمان أعمدة GPS (الدالة في crm_sales_rep_schema.php).
+    if ($approve) {
+        if (!function_exists('crm_customer_ensure_gps_columns')) {
+            require_once app_path('includes/crm_sales_rep_schema.php');
+        }
+        crm_customer_ensure_gps_columns($pdo);
+    }
+
     $pdo->beginTransaction();
     try {
         if ($approve) {
-            crm_customer_ensure_gps_columns($pdo);
             if (!empty($row['clear_gps'])) {
                 $pdo->prepare(
                     'UPDATE crm_customer
@@ -260,13 +267,16 @@ function crm_customer_gps_change_decide(
              WHERE id=?'
         )->execute([
             $approve ? 'approved' : 'rejected',
-            $userId,
+            $userId > 0 ? $userId : null,
             $note !== null && trim($note) !== '' ? trim($note) : null,
             $id,
         ]);
         $pdo->commit();
     } catch (Throwable $e) {
-        $pdo->rollBack();
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log('crm_customer_gps_change_decide: ' . $e->getMessage());
         return ['ok' => false, 'message' => 'تعذر حفظ القرار.'];
     }
 

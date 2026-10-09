@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -13,6 +15,10 @@ import '../../services/location_tracking_service.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
 
+/// شاشة التتبّع التلقائي + قائمة آخر مواقع المستخدمين.
+///
+/// التتبّع التلقائي = إرسال موقع هذا الجهاز دورياً للسيرفر (خلفية + أثناء فتح التطبيق)
+/// حتى يظهر المندوب على «تتبّع المواقع الحية» لدى المدير.
 class UserGpsScreen extends StatefulWidget {
   const UserGpsScreen({super.key});
 
@@ -23,27 +29,39 @@ class UserGpsScreen extends StatefulWidget {
 class _UserGpsScreenState extends State<UserGpsScreen> {
   bool _loading = true;
   bool _sending = false;
+  bool _toggling = false;
   bool _tracking = false;
   String? _error;
   List<Map<String, dynamic>> _rows = [];
   final _search = TextEditingController();
+  TrackingStatus? _status;
+  Timer? _statusTimer;
 
   @override
   void initState() {
     super.initState();
     _load();
     _refreshTracking();
+    _statusTimer =
+        Timer.periodic(const Duration(seconds: 12), (_) => _refreshTracking());
   }
 
   @override
   void dispose() {
+    _statusTimer?.cancel();
     _search.dispose();
     super.dispose();
   }
 
   Future<void> _refreshTracking() async {
     final on = await LocationTrackingService.isRunning;
-    if (mounted) setState(() => _tracking = on);
+    final st = await LocationTrackingService.status();
+    if (mounted) {
+      setState(() {
+        _tracking = on;
+        _status = st;
+      });
+    }
   }
 
   Future<void> _load() async {
@@ -74,39 +92,50 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
   }
 
   Future<void> _toggleTracking(bool on) async {
+    if (_toggling) return;
     final session = context.read<SessionController>();
     if (!session.gpsConfig.userCanDisable && !on) {
       showSnack(context, 'إيقاف التتبّع يتم من إعدادات النظام فقط.',
           error: true);
       return;
     }
+    setState(() => _toggling = true);
     String? msg;
-    if (on) {
-      msg = await LocationTrackingService.start();
-      if (msg == null) {
-        await LocationPresenceService.start(
-          api: session.api,
-          csrf: session.csrf,
-          intervalSec: session.gpsConfig.intervalSec,
+    try {
+      if (on) {
+        msg = await LocationTrackingService.start();
+        if (msg == null) {
+          await LocationPresenceService.start(
+            api: session.api,
+            csrf: session.csrf,
+            intervalSec: session.gpsConfig.intervalSec,
+          );
+          LocationTrackingService.requestImmediatePing();
+          await LocationPresenceService.pingNow(force: true);
+        }
+      } else {
+        await LocationPresenceService.stop();
+        await LocationTrackingService.stop();
+      }
+      if (!mounted) return;
+      if (msg != null) {
+        showSnack(context, msg, error: true);
+      } else {
+        final tip =
+            on ? await LocationTrackingService.backgroundPermissionTip() : null;
+        if (!mounted) return;
+        showSnack(
+          context,
+          tip ??
+              (on
+                  ? 'تم تشغيل التتبّع التلقائي — سيظهر موقعك للمدير على الخريطة الحية.'
+                  : 'تم إيقاف التتبّع التلقائي.'),
         );
       }
-    } else {
-      await LocationPresenceService.stop();
-      await LocationTrackingService.stop();
+    } finally {
+      if (mounted) setState(() => _toggling = false);
+      await _refreshTracking();
     }
-    if (!mounted) return;
-    if (msg != null) {
-      showSnack(context, msg, error: true);
-    } else {
-      final tip =
-          on ? await LocationTrackingService.backgroundPermissionTip() : null;
-      if (!mounted) return;
-      showSnack(
-        context,
-        tip ?? (on ? 'تم تشغيل التتبّع.' : 'تم إيقاف التتبّع.'),
-      );
-    }
-    await _refreshTracking();
   }
 
   Future<void> _sendMyLocation() async {
@@ -128,7 +157,13 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
       if (!mounted) return;
       final skipped = res['skipped'] == true;
       showSnack(context, skipped ? 'موقعك محدّث مسبقاً' : 'تم إرسال موقعك');
+      await LocationTrackingService.saveLastStatus(
+        skipped ? 'موقع محدّث مسبقاً' : 'تم إرسال الموقع يدوياً',
+        lat: pos.latitude,
+        lng: pos.longitude,
+      );
       await _load();
+      await _refreshTracking();
     } on ApiException catch (e) {
       if (mounted) showSnack(context, e.message, error: true);
     } catch (e) {
@@ -146,15 +181,44 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
     }
   }
 
+  String _fmtHm(DateTime? t) {
+    if (t == null) return '—';
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  String get _statusLine {
+    final st = _status;
+    if (!_tracking) return 'متوقف — لن يُرسل موقعك تلقائياً';
+    if (st == null) return 'يعمل — جاري التحقق من آخر إرسال…';
+    final interval = LocationTrackingService.humanInterval(st.intervalSec);
+    if (st.lastPing != null) {
+      final age = DateTime.now().difference(st.lastPing!).inSeconds;
+      final ageLabel = age < 60
+          ? 'منذ $age ث'
+          : 'منذ ${(age / 60).floor()} د';
+      return 'يعمل · كل $interval · آخر إرسال ${_fmtHm(st.lastPing)} ($ageLabel)';
+    }
+    if (st.lastStatus.isNotEmpty) return 'يعمل لكن: ${st.lastStatus}';
+    return 'يعمل — بانتظار أول إرسال (كل $interval)';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final session = context.watch<SessionController>();
+    final canDisable = session.gpsConfig.userCanDisable;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('مواقع المستخدمين'),
+        title: const Text('التتبّع التلقائي'),
         actions: [
           IconButton(
             tooltip: 'تحديث',
-            onPressed: _load,
+            onPressed: () {
+              _load();
+              _refreshTracking();
+            },
             icon: const Icon(Icons.refresh_rounded),
           ),
         ],
@@ -171,7 +235,7 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                 ),
               )
             : const Icon(Icons.my_location_rounded, size: 20),
-        label: const Text('إرسال موقعي'),
+        label: const Text('إرسال موقعي الآن'),
       ),
       body: Column(
         children: [
@@ -179,15 +243,40 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
             color: AppTheme.surface,
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                TextField(
-                  controller: _search,
-                  textInputAction: TextInputAction.search,
-                  decoration: const InputDecoration(
-                    hintText: 'بحث باسم المستخدم...',
-                    prefixIcon: Icon(Icons.search_rounded, size: 20),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: AppTheme.primary.withValues(alpha: 0.15),
+                    ),
                   ),
-                  onSubmitted: (_) => _load(),
+                  child: const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ما وظيفة التتبّع التلقائي؟',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'يرسل موقع هذا الهاتف للسيرفر بشكل دوري (حتى مع إغلاق التطبيق) '
+                        'كي يظهر المندوب على شاشة «تتبّع المواقع الحية» لدى المدير. '
+                        'ليس خريطة حية — بل تشغيل/إيقاف الإرسال من جهازك.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.35,
+                          color: AppTheme.textSoft,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 10),
                 Container(
@@ -200,7 +289,9 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                     dense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 12),
                     value: _tracking,
-                    onChanged: _toggleTracking,
+                    onChanged: _toggling || (!canDisable && _tracking)
+                        ? null
+                        : _toggleTracking,
                     title: Text(
                       _tracking
                           ? 'التتبّع التلقائي يعمل'
@@ -210,14 +301,39 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                    subtitle: const Text(
-                      'يرسل موقعك دورياً حتى مع إغلاق التطبيق',
-                      style: TextStyle(
+                    subtitle: Text(
+                      _statusLine,
+                      style: const TextStyle(
                         fontSize: 11.5,
                         color: AppTheme.textSoft,
                       ),
                     ),
                   ),
+                ),
+                if (_status != null &&
+                    _tracking &&
+                    _status!.lastStatus.isNotEmpty &&
+                    !_status!.lastStatus.contains('تم إرسال') &&
+                    !_status!.lastStatus.contains('تم تأكيد')) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    _status!.lastStatus,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppTheme.danger,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _search,
+                  textInputAction: TextInputAction.search,
+                  decoration: const InputDecoration(
+                    hintText: 'بحث باسم المستخدم...',
+                    prefixIcon: Icon(Icons.search_rounded, size: 20),
+                  ),
+                  onSubmitted: (_) => _load(),
                 ),
               ],
             ),
@@ -225,7 +341,10 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
           const Divider(height: 1),
           Expanded(
             child: RefreshIndicator(
-              onRefresh: _load,
+              onRefresh: () async {
+                await _load();
+                await _refreshTracking();
+              },
               child: AsyncView(
                 loading: _loading,
                 error: _error,
@@ -235,7 +354,8 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
                         children: const [
                           SizedBox(height: 60),
                           EmptyState(
-                            message: 'لا توجد مواقع مسجّلة.',
+                            message:
+                                'لا توجد مواقع مسجّلة بعد. شغّل التتبّع أو أرسل موقعك.',
                             icon: Icons.location_off_rounded,
                           ),
                         ],

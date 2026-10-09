@@ -56,9 +56,8 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   final _map = MapController();
 
   bool _loading = true;
+  bool _mapReady = false;
   String? _error;
-  String _tileUrl = GpsMapTiles.esriUrl;
-  String _mapProvider = 'esri';
   double _mapZoom = 8;
 
   List<_UserOption> _users = [];
@@ -107,8 +106,6 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
             AppConfig.userGpsTrackDayPath,
           );
       if (!mounted) return;
-      final mapCfg = (res['map'] as Map?)?.cast<String, dynamic>() ?? {};
-      final tile = (mapCfg['tile_url'] ?? '').toString();
       final users = (res['users'] as List? ?? [])
           .whereType<Map>()
           .map((e) => _UserOption(
@@ -117,13 +114,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
               ))
           .where((u) => u.id > 0)
           .toList();
-      final cleanTiles = GpsMapTiles.sanitize(
-        mapProvider: (mapCfg['map_provider'] ?? 'osm').toString(),
-        tileUrl: tile,
-      );
       setState(() {
-        _tileUrl = cleanTiles.tileUrl ?? GpsMapTiles.osmUrl;
-        _mapProvider = cleanTiles.provider;
         _users = users;
         _loading = false;
       });
@@ -247,7 +238,15 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
     }
   }
 
+  void _safeMapMove(LatLng center, double zoom) {
+    if (!_mapReady || !mounted) return;
+    try {
+      _map.move(center, zoom);
+    } catch (_) {}
+  }
+
   void _fit() {
+    if (!_mapReady) return;
     final fitPts = <LatLng>[];
     for (final path in _roadPaths) {
       fitPts.addAll(path);
@@ -256,14 +255,16 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
       fitPts.addAll(_points.map((p) => p.point));
     }
     if (fitPts.isEmpty) return;
-    if (fitPts.length == 1) {
-      _map.move(fitPts.first, 15);
-      return;
-    }
-    final bounds = LatLngBounds.fromPoints(fitPts);
-    _map.fitCamera(
-      CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
-    );
+    try {
+      if (fitPts.length == 1) {
+        _safeMapMove(fitPts.first, 15);
+        return;
+      }
+      final bounds = LatLngBounds.fromPoints(fitPts);
+      _map.fitCamera(
+        CameraFit.bounds(bounds: bounds, padding: const EdgeInsets.all(48)),
+      );
+    } catch (_) {}
   }
 
   double _haversine(LatLng a, LatLng b) {
@@ -566,7 +567,7 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
         stops: _stops,
         onSelect: (s) {
           Navigator.of(context).pop();
-          _map.move(s.point, 17);
+          _safeMapMove(s.point, 17);
         },
       ),
     );
@@ -611,21 +612,28 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
                   FlutterMap(
                     mapController: _map,
                     options: MapOptions(
-                      initialCenter: LatLng(31.9539, 35.9106),
+                      initialCenter: const LatLng(31.9539, 35.9106),
                       initialZoom: 8,
                       minZoom: 4,
                       maxZoom: 20,
-                      onMapEvent: (e) {
-                        final z = _map.camera.zoom;
-                        if ((z - _mapZoom).abs() > 0.01) {
+                      onMapReady: () {
+                        if (!mounted) return;
+                        _mapReady = true;
+                        if (_points.isNotEmpty) {
+                          WidgetsBinding.instance
+                              .addPostFrameCallback((_) => _fit());
+                        }
+                      },
+                      onPositionChanged: (camera, _) {
+                        final z = camera.zoom;
+                        if ((z - _mapZoom).abs() > 0.25 && mounted) {
                           setState(() => _mapZoom = z);
                         }
                       },
                     ),
                     children: [
-                      ...GpsMapTiles.layers(
-                        mapProvider: _mapProvider,
-                        tileUrl: _tileUrl,
+                      ...GpsMapTiles.safeLayers(
+                        mapProvider: 'osm',
                         zoom: _mapZoom,
                       ),
                       PolylineLayer(
@@ -810,8 +818,11 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
   }
 
   void _focusPoint(LatLng point, {double zoom = 17}) {
-    final targetZoom = _map.camera.zoom < zoom ? zoom : _map.camera.zoom;
-    _map.move(point, targetZoom);
+    if (!_mapReady) return;
+    try {
+      final targetZoom = _map.camera.zoom < zoom ? zoom : _map.camera.zoom;
+      _safeMapMove(point, targetZoom);
+    } catch (_) {}
   }
 
   List<Marker> _buildMarkers() {
