@@ -89,6 +89,32 @@ body.si-2027 .si-main::before {
   top: 0.35rem;
 }
 
+/* شريط موحّد لطلب شراء عميل — كل العناصر في سطر واحد */
+.si-cmd.si-doc-toolbar.co-unified-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+.si-cmd.si-doc-toolbar.co-unified-bar .si-tb-group--identity {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+.si-cmd.si-doc-toolbar.co-unified-bar .si-tb-group--keys {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+}
+.si-cmd.si-doc-toolbar.co-unified-bar .si-doc-screen-title {
+  margin: 0;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
 /* عنوان الشاشة + اختصارات في سطر واحد */
 .si-doc-top-row {
   display: flex;
