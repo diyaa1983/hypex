@@ -1,7 +1,6 @@
 -- تقرير تفصيلي لطلبات الشراء (حسب المندوب وفئة المادة)
 INSERT INTO sys_screen (code, name_ar, screen_type, sort_order)
 SELECT 'report_customer_orders_detailed', 'تقرير تفصيلي لطلبات الشراء', 'report', 239
-FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM sys_screen WHERE code = 'report_customer_orders_detailed');
 
 INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
