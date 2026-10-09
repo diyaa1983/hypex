@@ -121,4 +121,6 @@ class AppConfig {
   static const String customerGpsApprovePath =
       'api/crm_customer_gps_change_approve.php';
   static const String repToursManagePath = 'api/mobile_rep_tours_manage.php';
+  static const String managerCustomerOrdersPath =
+      'api/mobile_manager_customer_orders.php';
 }

@@ -8,7 +8,14 @@ function mobile_can_access_customer_order_api(): bool
     return user_can('m_customer_orders')
         || user_can('m_customer_orders_pending')
         || user_can('m_customer_orders_sent')
-        || user_can('m_customer_orders_query');
+        || user_can('m_customer_orders_query')
+        || user_can('m_manager_customer_orders');
+}
+
+/** مدير المبيعات: اطلاع على طلبات أي مندوب من الموبايل. */
+function mobile_can_manage_customer_orders(): bool
+{
+    return user_can('m_manager_customer_orders') || user_is_system_admin();
 }
 
 function sal_customer_order_has_column(PDO $pdo, string $table, string $column): bool

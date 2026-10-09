@@ -17,6 +17,7 @@ import 'features/customer_orders/customer_order_view_screen.dart';
 import 'features/customer_orders/customer_orders_pending_screen.dart';
 import 'features/customer_orders/customer_orders_query_screen.dart';
 import 'features/customer_orders/customer_orders_sent_screen.dart';
+import 'features/customer_orders/manager_customer_orders_screen.dart';
 import 'features/gps/invoice_gps_screen.dart';
 import 'features/gps/user_gps_screen.dart';
 import 'features/gps/user_gps_tracker_screen.dart';
@@ -292,6 +293,10 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/rep/tours-manage',
           builder: (_, __) => const RepToursManageScreen(),
+        ),
+        GoRoute(
+          path: '/manager/customer-orders',
+          builder: (_, __) => const ManagerCustomerOrdersScreen(),
         ),
       ],
     );

@@ -347,5 +347,15 @@ return [
         'tile_kind' => 'list',
         'home_tile' => true,
     ],
+
+    'm_manager_customer_orders' => [
+        'file' => 'modules/mobile/manager_customer_orders.php',
+        'permission' => 'm_manager_customer_orders',
+        'title' => 'طلبات شراء العملاء',
+        'home_label' => 'طلبات شراء العملاء',
+        'icon' => 'list',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
 ];
 

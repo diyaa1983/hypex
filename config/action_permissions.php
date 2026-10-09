@@ -313,6 +313,11 @@ return [
                     'name_ar' => 'حذف إشعار دائنة',
                     'inherit_from' => ['credit_notes'],
                 ],
+                [
+                    'code' => 'action_delete_user',
+                    'name_ar' => 'حذف مستخدم',
+                    'inherit_from' => ['users'],
+                ],
             ],
         ],
         [

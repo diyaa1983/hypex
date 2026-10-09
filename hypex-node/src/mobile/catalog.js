@@ -18,6 +18,7 @@ const mobileCatalog = [
       { r: 'm_visit_checkout_approve', label: 'اعتماد خروج يدوي', icon: '🚪', path: '/mobile/visit-checkout-approve', kind: 'list' },
       { r: 'm_customer_gps_approve', label: 'اعتماد موقع العميل', icon: '📍', path: '/mobile/customer-gps-approve', kind: 'list' },
       { r: 'm_rep_tours_manage', label: 'إدارة جولات المندوبين', icon: '🗺', path: '/mobile/rep-tours-manage', kind: 'list' },
+      { r: 'm_manager_customer_orders', label: 'طلبات شراء العملاء', icon: '📝', path: '/mobile/manager-customer-orders', kind: 'list' },
       { r: 'm_rep_route_today', label: 'جولات المندوبين', icon: '🗺', path: '/mobile/rep-route-today', kind: 'bridge' },
       { r: 'm_rep_visits', label: 'جولات المندوبين', icon: '🗺', path: '/mobile/rep-visits', kind: 'bridge' },
       { r: 'm_rep_visit_report', label: 'تقرير الزيارات', icon: '📋', path: '/mobile/rep-visit-report', kind: 'bridge' },

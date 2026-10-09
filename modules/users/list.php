@@ -16,6 +16,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $act = (string) ($_POST['_action'] ?? '');
+    if ($act === 'delete') {
+        $id = (int) ($_POST['id'] ?? 0);
+        try {
+            if (!user_can('action_delete_user') && !user_is_system_admin()) {
+                throw new RuntimeException('لا توجد صلاحية حذف مستخدم.');
+            }
+            if ($id < 1) {
+                throw new RuntimeException('مستخدم غير صالح.');
+            }
+            if ($id === $currentUserId) {
+                throw new RuntimeException('لا يمكنك حذف حسابك الحالي.');
+            }
+            $st = $pdo->prepare('SELECT id, username FROM sys_user WHERE id = ? LIMIT 1');
+            $st->execute([$id]);
+            $victim = $st->fetch(PDO::FETCH_ASSOC);
+            if (!$victim) {
+                throw new RuntimeException('المستخدم غير موجود.');
+            }
+            $chkAdmin = $pdo->prepare(
+                "SELECT 1 FROM sys_user_group ug
+                 INNER JOIN sys_group g ON g.id = ug.group_id AND g.code = 'ADMINS'
+                 WHERE ug.user_id = ? LIMIT 1"
+            );
+            $chkAdmin->execute([$id]);
+            if ($chkAdmin->fetchColumn()) {
+                $others = $pdo->prepare(
+                    "SELECT COUNT(*) FROM sys_user_group ug
+                     INNER JOIN sys_group g ON g.id = ug.group_id AND g.code = 'ADMINS'
+                     INNER JOIN sys_user u ON u.id = ug.user_id AND u.is_active = 1
+                     WHERE ug.user_id <> ?"
+                );
+                $others->execute([$id]);
+                if ((int) $others->fetchColumn() < 1) {
+                    throw new RuntimeException('لا يمكن حذف آخر مستخدم نشط في مجموعة مدير النظام.');
+                }
+            }
+
+            $pdo->beginTransaction();
+            try {
+                foreach ([
+                    'sys_user_group',
+                    'sys_user_favorite',
+                    'sys_user_inbox',
+                    'sys_user_location',
+                    'sys_user_location_track',
+                    'sys_user_open_session',
+                    'sys_user_mobile_device_lock',
+                    'sys_user_device_presence',
+                    'sys_user_password_reset',
+                ] as $tbl) {
+                    try {
+                        $pdo->prepare("DELETE FROM {$tbl} WHERE user_id = ?")->execute([$id]);
+                    } catch (Throwable $e) {
+                        // جدول قد لا يوجد
+                    }
+                }
+                $pdo->prepare('DELETE FROM sys_user WHERE id = ?')->execute([$id]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
+            }
+
+            require_once app_path('includes/sys_permissions_version.php');
+            sys_permissions_version_bump();
+            flash_set('success', 'تم حذف المستخدم «' . (string) ($victim['username'] ?? '') . '».');
+            redirect($listUrl);
+        } catch (RuntimeException $e) {
+            flash_set('error', $e->getMessage());
+            redirect($listUrl . ($id > 0 ? '&id=' . $id : ''));
+        } catch (Throwable $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'foreign key') !== false || stripos($msg, '1451') !== false) {
+                flash_set('error', 'لا يمكن حذف المستخدم لارتباطه ببيانات أخرى. عطّل الحساب بدلاً من الحذف.');
+            } else {
+                flash_set('error', 'تعذر حذف المستخدم.');
+            }
+            redirect($listUrl . ($id > 0 ? '&id=' . $id : ''));
+        }
+    }
+
     if ($act !== 'save') {
         flash_set('error', 'إجراء غير معروف.');
         redirect($listUrl);

@@ -19,13 +19,14 @@ sal_customer_order_ensure_schema($pdo);
 
 $id = (int) ($_GET['id'] ?? 0);
 $customerIdQ = (int) ($_GET['customer_id'] ?? 0);
-$rep = user_is_system_admin() ? null : crm_mobile_scoped_sales_rep_id($pdo);
+$managerBrowse = mobile_can_manage_customer_orders();
+$rep = $managerBrowse ? null : crm_mobile_scoped_sales_rep_id($pdo);
 
 if ($id > 0) {
     $order = sal_customer_order_fetch($pdo, $id);
     if (
         !$order
-        || (!user_is_system_admin() && ($rep === null || (int) $order['sales_rep_id'] !== $rep))
+        || (!$managerBrowse && ($rep === null || (int) $order['sales_rep_id'] !== $rep))
     ) {
         http_response_code(404);
         echo json_encode(['ok' => false, 'error' => 'not_found']);
@@ -36,7 +37,7 @@ if ($id > 0) {
     $nav = sal_customer_order_browse_neighbors(
         $pdo,
         $id,
-        user_is_system_admin() ? null : $rep,
+        $managerBrowse ? null : $rep,
         $scopeCustomerId > 0 ? $scopeCustomerId : null
     );
     echo json_encode(
@@ -54,7 +55,7 @@ if ($id > 0) {
 }
 
 // مستند جديد: جيران النطاق فقط (السابق = آخر طلب)
-if (!user_is_system_admin() && $rep === null) {
+if (!$managerBrowse && $rep === null) {
     http_response_code(404);
     echo json_encode(['ok' => false, 'error' => 'not_found']);
     exit;
@@ -64,7 +65,7 @@ $scopeCustomerId = $customerIdQ > 0 ? $customerIdQ : null;
 $nav = sal_customer_order_browse_neighbors(
     $pdo,
     0,
-    user_is_system_admin() ? null : $rep,
+    $managerBrowse ? null : $rep,
     $scopeCustomerId
 );
 

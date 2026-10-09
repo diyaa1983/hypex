@@ -81,6 +81,36 @@
     }
   }
 
+  function submitDeleteUser() {
+    var idInput = form.querySelector('input[name="id"]');
+    var id = idInput ? parseInt(idInput.value, 10) || 0 : 0;
+    if (id < 1) {
+      if (window.AppDialog && AppDialog.alert) {
+        AppDialog.alert('اختر مستخدماً موجوداً للحذف.', { type: 'warning' });
+      } else {
+        alert('اختر مستخدماً موجوداً للحذف.');
+      }
+      return;
+    }
+    var ask = window.AppDialog && AppDialog.confirm
+      ? AppDialog.confirm('هل تريد حذف هذا المستخدم نهائياً؟ لا يمكن التراجع.', {
+          type: 'danger',
+          okText: 'حذف',
+        })
+      : Promise.resolve(window.confirm('هل تريد حذف هذا المستخدم نهائياً؟ لا يمكن التراجع.'));
+    Promise.resolve(ask).then(function (ok) {
+      if (!ok) return;
+      var actionInput = form.querySelector('input[name="_action"]');
+      if (actionInput) actionInput.value = 'delete';
+      allowLeave();
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit();
+      } else {
+        form.submit();
+      }
+    });
+  }
+
   document.addEventListener('master-toolbar', function (e) {
     if (!e.detail) return;
     var action = e.detail.action;
@@ -96,6 +126,13 @@
       e.preventDefault();
       e.stopImmediatePropagation();
       submitUserForm();
+      return;
+    }
+
+    if (action === 'delete') {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      submitDeleteUser();
     }
   });
 })();

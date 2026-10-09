@@ -591,6 +591,7 @@ return [
                 'sales_customer_orders_approve',
                 'sales_customer_order_entry',
                 'sales_customer_order_entry_approve',
+                'users',
             ],
             'permission_by_screen' => [
                 'sales_customer_orders_approve' => 'action_delete_customer_order',
@@ -616,6 +617,7 @@ return [
                 'journal_voucher' => 'action_delete_journal_voucher',
                 'warehouse_moves' => 'action_delete_warehouse_move',
                 'inventory_stocktake' => 'action_delete_inventory_stocktake',
+                'users' => 'action_delete_user',
             ],
         ],
         [

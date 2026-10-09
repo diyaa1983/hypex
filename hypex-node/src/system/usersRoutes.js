@@ -14,6 +14,10 @@ function can(user) {
   return user.is_admin || auth.userCan(user, 'users');
 }
 
+function canDelete(user) {
+  return user.is_admin || auth.userCan(user, 'action_delete_user');
+}
+
 router.use((req, res, next) => {
   const p = req.path || '';
   if (!p.startsWith('/system/users')) return next('router');
@@ -84,6 +88,8 @@ router.get('/system/users', async (req, res) => {
   const formTitle = isNew ? 'مستخدم جديد' : row.id ? `تعديل: ${esc(row.username || '')}` : 'بيانات المستخدم';
   const postAction = isNew || !row.id ? '/system/users/new' : '/system/users/' + row.id;
   const showPassword = isNew || !row.id;
+  const allowDelete =
+    !isNew && Number(row.id) > 0 && canDelete(req.session.user) && Number(row.id) !== Number(req.session.user.id);
 
   const groupsHtml = groups.length
     ? `<div class="su-ggrid">${groups
@@ -159,6 +165,18 @@ router.get('/system/users', async (req, res) => {
         subtitle: 'إدارة حسابات النظام والمجموعات وربط مندوب التطبيق',
         actions: [
           { label: 'حفظ', submit: true, form: 'su-user-form', primary: true, hxSave: true, title: 'F10' },
+          ...(allowDelete
+            ? [
+                {
+                  label: 'حذف',
+                  submit: true,
+                  form: 'su-delete-form',
+                  danger: true,
+                  confirm: 'هل تريد حذف هذا المستخدم نهائياً؟ لا يمكن التراجع.',
+                  title: 'حذف المستخدم',
+                },
+              ]
+            : []),
           { label: 'جديد', href: '/system/users?id=new' },
           { label: 'المجموعات', href: '/system/groups' },
           { label: 'لوحة النظام', href: HUB },
@@ -190,6 +208,11 @@ router.get('/system/users', async (req, res) => {
         </section>
         <section class="si-surface su-form-panel">
           <div class="si-surface-head"><h2>${formTitle}</h2></div>
+          ${
+            allowDelete
+              ? `<form id="su-delete-form" method="post" action="/system/users/${Number(row.id)}/delete" style="display:none"></form>`
+              : ''
+          }
           <form id="su-user-form" method="post" action="${postAction}" class="su-form">
             <input type="hidden" name="id" value="${row.id || 0}">
             <div class="su-sec">
@@ -301,6 +324,27 @@ async function handleSave(req, res, idForce) {
 }
 
 router.post('/system/users/new', (req, res) => handleSave(req, res, 0));
+router.post('/system/users/:id/delete', async (req, res) => {
+  if (!can(req.session.user)) return res.status(403).send('ممنوع');
+  if (!canDelete(req.session.user)) {
+    return res.redirect(
+      '/system/users?err=' + encodeURIComponent('لا توجد صلاحية حذف مستخدم.')
+    );
+  }
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id) || id < 1) {
+    return res.redirect('/system/users?err=' + encodeURIComponent('مستخدم غير صالح.'));
+  }
+  const result = await svc.deleteUser(id, req.session.user.id);
+  if (!result.ok) {
+    return res.redirect(
+      '/system/users?id=' + id + '&err=' + encodeURIComponent(result.error || 'تعذر الحذف')
+    );
+  }
+  return res.redirect(
+    '/system/users?msg=' + encodeURIComponent(result.message || 'تم الحذف')
+  );
+});
 router.post('/system/users/:id', (req, res, next) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id < 1) return next();

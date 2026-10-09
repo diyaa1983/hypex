@@ -582,6 +582,7 @@ return [
                         ['r' => 'm_user_gps_tracker', 'label' => 'تتبع مواقع المندوبين', 'icon' => '📡'],
                         ['r' => 'm_rep_visits', 'label' => 'تسجيل زيارة العميل', 'icon' => '🗺'],
                         ['r' => 'm_rep_tours_manage', 'label' => 'إدارة جولات المندوبين', 'icon' => '🗺'],
+                        ['r' => 'm_manager_customer_orders', 'label' => 'طلبات شراء العملاء', 'icon' => '📝'],
                         ['r' => 'm_rep_visit_report', 'label' => 'تقرير الزيارات', 'icon' => '📋'],
                         ['r' => 'm_rep_load', 'label' => 'تحميل عهدة', 'icon' => '📦'],
                         ['r' => 'm_rep_return', 'label' => 'إرجاع عهدة', 'icon' => '↩'],

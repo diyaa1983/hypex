@@ -24,10 +24,11 @@ if ($id < 1) {
 $pdo = db();
 sal_customer_order_ensure_schema($pdo);
 $order = sal_customer_order_fetch($pdo, $id);
-$rep = user_is_system_admin() ? null : crm_mobile_scoped_sales_rep_id($pdo);
+$managerBrowse = mobile_can_manage_customer_orders();
+$rep = $managerBrowse ? null : crm_mobile_scoped_sales_rep_id($pdo);
 if (
     !$order
-    || (!user_is_system_admin() && ($rep === null || (int) ($order['sales_rep_id'] ?? 0) !== $rep))
+    || (!$managerBrowse && ($rep === null || (int) ($order['sales_rep_id'] ?? 0) !== $rep))
 ) {
     http_response_code(404);
     echo 'not_found';

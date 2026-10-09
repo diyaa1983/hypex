@@ -216,6 +216,12 @@ const Map<String, TileSpec> kTileSpecs = {
     AppTheme.violet,
     'الإدارة',
   ),
+  'm_manager_customer_orders': TileSpec(
+    '/manager/customer-orders',
+    Icons.receipt_long_rounded,
+    AppTheme.primary,
+    'الإدارة',
+  ),
 };
 
 const List<String> _groupOrder = [

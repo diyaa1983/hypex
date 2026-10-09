@@ -234,10 +234,95 @@ async function saveUser(payload, currentUserId) {
   }
 }
 
+async function deleteUser(id, currentUserId) {
+  const userId = Number(id || 0);
+  const me = Number(currentUserId || 0);
+  if (userId < 1) return { ok: false, error: 'مستخدم غير صالح.' };
+  if (userId === me) return { ok: false, error: 'لا يمكنك حذف حسابك الحالي.' };
+
+  const rows = await safeQuery(
+    `SELECT id, username FROM sys_user WHERE id = ? LIMIT 1`,
+    [userId]
+  );
+  if (!rows[0]) return { ok: false, error: 'المستخدم غير موجود.' };
+
+  const adminRows = await safeQuery(
+    `SELECT COUNT(*) AS c
+     FROM sys_user_group ug
+     INNER JOIN sys_group g ON g.id = ug.group_id AND g.code = 'ADMINS'
+     WHERE ug.user_id = ?`,
+    [userId]
+  );
+  const isAdmin = Number((adminRows[0] && adminRows[0].c) || 0) > 0;
+  if (isAdmin) {
+    const others = await safeQuery(
+      `SELECT COUNT(*) AS c
+       FROM sys_user_group ug
+       INNER JOIN sys_group g ON g.id = ug.group_id AND g.code = 'ADMINS'
+       INNER JOIN sys_user u ON u.id = ug.user_id AND u.is_active = 1
+       WHERE ug.user_id <> ?`,
+      [userId]
+    );
+    if (Number((others[0] && others[0].c) || 0) < 1) {
+      return { ok: false, error: 'لا يمكن حذف آخر مستخدم نشط في مجموعة مدير النظام.' };
+    }
+  }
+
+  const pool = db.getPool();
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const cleanup = [
+      'DELETE FROM sys_user_group WHERE user_id = ?',
+      'DELETE FROM sys_user_favorite WHERE user_id = ?',
+      'DELETE FROM sys_user_inbox WHERE user_id = ?',
+      'DELETE FROM sys_user_location WHERE user_id = ?',
+      'DELETE FROM sys_user_location_track WHERE user_id = ?',
+      'DELETE FROM sys_user_open_session WHERE user_id = ?',
+      'DELETE FROM sys_user_mobile_device_lock WHERE user_id = ?',
+      'DELETE FROM sys_user_device_presence WHERE user_id = ?',
+      'DELETE FROM sys_user_password_reset WHERE user_id = ?',
+    ];
+    for (const sql of cleanup) {
+      try {
+        await conn.execute(sql, [userId]);
+      } catch (_) {
+        /* جدول قد لا يوجد */
+      }
+    }
+    await conn.execute('DELETE FROM sys_user WHERE id = ?', [userId]);
+    await conn.commit();
+    try {
+      const { bumpPermissionsVersion } = require('../lib/permissionsVersion');
+      await bumpPermissionsVersion();
+    } catch (_) {
+      /* ignore */
+    }
+    return {
+      ok: true,
+      message: `تم حذف المستخدم «${rows[0].username}».`,
+    };
+  } catch (e) {
+    await conn.rollback();
+    console.error('deleteUser', e.message);
+    const msg = String(e.message || '');
+    if (/foreign key|ER_ROW_IS_REFERENCED/i.test(msg)) {
+      return {
+        ok: false,
+        error: 'لا يمكن حذف المستخدم لارتباطه ببيانات أخرى في النظام. عطّل الحساب بدلاً من الحذف.',
+      };
+    }
+    return { ok: false, error: 'تعذر حذف المستخدم: ' + msg };
+  } finally {
+    conn.release();
+  }
+}
+
 module.exports = {
   listUsers,
   listGroups,
   listSalesReps,
   getUser,
   saveUser,
+  deleteUser,
 };

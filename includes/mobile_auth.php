@@ -27,6 +27,21 @@ function mobile_is_context(): bool
     return ($_SESSION['app_context'] ?? '') === 'mobile';
 }
 
+/**
+ * مدير المبيعات / النظام: يمكنه مزامنة كتالوج الموبايل دون ربط حسابه بمندوب.
+ */
+function mobile_can_sync_catalog_without_sales_rep(): bool
+{
+    if (user_is_system_admin()) {
+        return true;
+    }
+
+    return user_can('m_manager_customer_orders')
+        || user_can('m_rep_tours_manage')
+        || user_can('m_visit_checkout_approve')
+        || user_can('m_customer_gps_approve');
+}
+
 /** طلب HTTP من مسار /m/ — أدق من الجلسة وحدها عند التوجيه بعد الحفظ. */
 function app_request_from_mobile_app(): bool
 {
