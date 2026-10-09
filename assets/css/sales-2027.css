@@ -595,6 +595,19 @@ body.si-2027 .si-main::before {
   max-height: min(62vh, 720px);
 }
 
+/* كشف حساب Oracle / تقارير كشف: الجدول كاملاً مع تمرير الصفحة */
+.ora-stmt .si-table-wrap,
+.ora-stmt-body .si-table-wrap,
+.ar-report .ora-stmt .si-table-wrap {
+  max-height: none;
+  overflow: visible;
+  height: auto;
+}
+.ora-stmt .si-table thead th,
+.ora-stmt-body .si-table thead th {
+  position: static;
+}
+
 .si-table {
   width: 100%;
   border-collapse: separate;

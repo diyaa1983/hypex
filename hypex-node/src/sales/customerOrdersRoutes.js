@@ -49,11 +49,12 @@ function canDeleteOrder(user) {
 }
 
 function canPostOracle(user) {
-  return canApproveScreen(user) && canAction(user, 'action_post_customer_order_oracle');
+  // صلاحية الإجراء وحدها كافية (لا يُشترط شاشة الاعتماد أيضاً)
+  return canAction(user, 'action_post_customer_order_oracle');
 }
 
 function canUnpostOracle(user) {
-  return canApproveScreen(user) && canAction(user, 'action_unpost_customer_order_oracle');
+  return canAction(user, 'action_unpost_customer_order_oracle');
 }
 
 function canView(user) {
@@ -105,6 +106,7 @@ function toolbarCaps(user, order) {
   const allowDelete = canDeleteOrder(user);
   const allowPostOracle = canPostOracle(user);
   const allowUnpostOracle = canUnpostOracle(user);
+  const oracleVnum = Number(order.oracle_v_num || 0) || 0;
   return {
     canSave: edit && !locked,
     canApprove: allowApprove && hasId && !locked,
@@ -113,9 +115,12 @@ function toolbarCaps(user, order) {
     canPrint: hasId,
     canPdf: hasId,
     canExcel: hasId,
-    canPostOracle: allowPostOracle && hasId && locked && !(Number(order.oracle_v_num || 0) > 0),
-    canUnpostOracle: allowUnpostOracle && hasId && Number(order.oracle_v_num || 0) > 0,
-    oracleVnum: Number(order.oracle_v_num || 0) || 0,
+    // صلاحية مجردة (لإظهار الزر/النافذة) مقابل التفعيل حسب حالة الطلب
+    allowPostOracle,
+    allowUnpostOracle,
+    canPostOracle: allowPostOracle && hasId && locked && !(oracleVnum > 0),
+    canUnpostOracle: allowUnpostOracle && hasId && oracleVnum > 0,
+    oracleVnum,
     oracleVyear: Number(order.oracle_vyear || 0) || 0,
   };
 }
@@ -158,24 +163,34 @@ function toolbarHtml(caps, order, badgeHtml = '') {
       <div class="si-tb-group si-tb-group--core">
         ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10', 'حفظ')}
         ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد الطلب"', '', 'اعتماد')}
-        ${b(
-          'co-oracle',
-          caps.oracleVnum > 0 ? 'Oracle #' + caps.oracleVnum : 'ترحيل إلى Oracle',
-          'si-tb--post',
-          !caps.canPostOracle && !(caps.oracleVnum > 0),
-          caps.oracleVnum > 0
-            ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
-            : ' title="تحويل الطلب المعتمد إلى فاتورة بيع في فواتير المبيعات"'
-        )}
-        ${b(
-          'co-oracle-unpost',
-          'إلغاء ترحيل Oracle',
-          'si-tb--ghost',
-          !caps.canUnpostOracle,
-          caps.oracleVnum > 0
-            ? ` title="حذف مسودة Oracle #${caps.oracleVnum} لإعادة الترحيل بعد التعديل"`
-            : ' title="لا يوجد ترحيل Oracle لإلغائه"'
-        )}
+        ${
+          caps.allowPostOracle || caps.oracleVnum > 0
+            ? b(
+                'co-oracle',
+                caps.oracleVnum > 0 ? 'Oracle #' + caps.oracleVnum : 'ترحيل إلى Oracle',
+                'si-tb--post',
+                !caps.canPostOracle && !(caps.oracleVnum > 0),
+                caps.oracleVnum > 0
+                  ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
+                  : locked
+                    ? ' title="تحويل الطلب المعتمد إلى فاتورة بيع في فواتير المبيعات"'
+                    : ' title="فعّال بعد اعتماد الطلب"'
+              )
+            : ''
+        }
+        ${
+          caps.allowUnpostOracle || caps.oracleVnum > 0
+            ? b(
+                'co-oracle-unpost',
+                'إلغاء ترحيل Oracle',
+                'si-tb--ghost',
+                !caps.canUnpostOracle,
+                caps.oracleVnum > 0
+                  ? ` title="حذف مسودة Oracle #${caps.oracleVnum} لإعادة الترحيل بعد التعديل"`
+                  : ' title="لا يوجد ترحيل Oracle لإلغائه"'
+              )
+            : ''
+        }
       </div>
       <div class="si-tb-group">
         ${b('co-search', 'القائمة', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
@@ -386,6 +401,8 @@ async function renderForm(req, res, orderId) {
     caps,
     can_approve: canApprove(user),
     can_delete: caps.canDelete,
+    can_post_oracle: !!caps.allowPostOracle,
+    can_unpost_oracle: !!caps.allowUnpostOracle,
   };
 
   const whOpts = (lookups.warehouses || [])
@@ -563,7 +580,7 @@ async function renderForm(req, res, orderId) {
       </div><!-- /.co-ora-canvas -->
 
       ${
-        caps.canPostOracle
+        caps.allowPostOracle
           ? `
       <div id="co-batch-modal" class="co-batch-modal" hidden aria-hidden="true">
         <div class="co-batch-panel" role="dialog" aria-labelledby="co-batch-title">

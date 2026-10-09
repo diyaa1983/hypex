@@ -477,6 +477,16 @@ body.si-2027 .si-main::before {
   border: 1px solid var(--si-line);
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 30px rgba(11, 18, 32, 0.04);
+  overflow: visible;
+}
+
+/* قائمة اختيار المندوب/العميل داخل شريط الفلاتر */
+.si-rail .report-cust-pick,
+.si-rail .si-search,
+.report-sales-filters.si-search {
+  overflow: visible;
+  position: relative;
+  z-index: 5;
 }
 
 .si-seg {
@@ -585,6 +595,19 @@ body.si-2027 .si-main::before {
   max-height: min(62vh, 720px);
 }
 
+/* كشف حساب Oracle / تقارير كشف: الجدول كاملاً مع تمرير الصفحة */
+.ora-stmt .si-table-wrap,
+.ora-stmt-body .si-table-wrap,
+.ar-report .ora-stmt .si-table-wrap {
+  max-height: none;
+  overflow: visible;
+  height: auto;
+}
+.ora-stmt .si-table thead th,
+.ora-stmt-body .si-table thead th {
+  position: static;
+}
+
 .si-table {
   width: 100%;
   border-collapse: separate;
@@ -645,32 +668,6 @@ body.si-2027 .si-main::before {
   text-align: center;
   color: var(--si-muted);
   padding: 2.5rem 1rem !important;
-}
-
-.si-table--lined {
-  border-collapse: collapse;
-  border: 1px solid #b7c4d6;
-}
-.si-table--lined thead th {
-  border: 1px solid #9eb0c8;
-  background: #e4edf8;
-  color: #1e3a5f;
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 0.8rem;
-}
-.si-table--lined tbody td {
-  border: 1px solid #c9d6e6;
-  background: #fff;
-}
-.si-table--lined tbody tr:nth-child(even) td {
-  background: #f3f7fb;
-}
-.si-table--lined tbody tr:hover td {
-  background: #e7f1fc;
-}
-.si-table--lined tbody tr[hidden] {
-  display: none;
 }
 
 .si-num {
