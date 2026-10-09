@@ -202,7 +202,15 @@
   }
 
   function isCartoUrl(url) {
-    return url && String(url).indexOf('basemaps.cartocdn.com') >= 0;
+    var u = String(url || '').toLowerCase();
+    return u.indexOf('basemaps.cartocdn.com') >= 0 || u.indexOf('carto.com') >= 0;
+  }
+
+  /** CARTO المجاني توقف — حوّل دائماً إلى OSM/Esri. */
+  function normalizeProvider(provider) {
+    var p = String(provider || 'esri').toLowerCase();
+    if (p === 'carto') return 'osm';
+    return p;
   }
 
   function attachRaster(map, providerKey, tileUrl, attribution, extra) {
@@ -271,7 +279,9 @@
   function attachBaseLayer(map, opts) {
     opts = opts || {};
     var cfg = global.AppOsmConfig || {};
-    var provider = (opts.mapProvider || cfg.mapProvider || 'esri').toLowerCase();
+    var provider = normalizeProvider(opts.mapProvider || cfg.mapProvider || 'esri');
+    var tileUrl = opts.tileUrl || cfg.tileUrl || '';
+    if (isCartoUrl(tileUrl)) tileUrl = '';
     var googleKey = opts.googleKey || cfg.googleMapsKey || cfg.google_maps_key || '';
 
     if (provider === 'google' && googleKey) {
@@ -281,26 +291,26 @@
             attachGoogle(map);
             return 'google';
           }
-          attachEsriHybrid(map, opts.tileUrl, opts.attribution);
+          attachEsriHybrid(map, tileUrl, opts.attribution);
           return 'esri';
         })
         .catch(function () {
-          attachEsriHybrid(map, opts.tileUrl, opts.attribution);
+          attachEsriHybrid(map, tileUrl, opts.attribution);
           return 'esri';
         });
     }
 
-    if (provider === 'carto' || provider === 'osm') {
-      attachRaster(map, 'osm', opts.tileUrl, opts.attribution);
+    if (provider === 'osm') {
+      attachRaster(map, 'osm', tileUrl, opts.attribution);
       return Promise.resolve('osm');
     }
 
     if (provider === 'natgeo') {
-      attachRaster(map, 'natgeo', opts.tileUrl, opts.attribution);
+      attachRaster(map, 'natgeo', tileUrl, opts.attribution);
       return Promise.resolve('natgeo');
     }
 
-    attachEsriHybrid(map, opts.tileUrl, opts.attribution);
+    attachEsriHybrid(map, tileUrl, opts.attribution);
     return Promise.resolve('esri');
   }
 

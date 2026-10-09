@@ -627,7 +627,10 @@ async function getGpsSettings() {
       min_distance_m: Number(r.gps_mobile_min_distance_m) || 0,
       user_can_disable: Number(r.gps_mobile_user_can_disable) === 1,
       google_maps_api_key: String(r.gps_google_maps_api_key || ''),
-      map_provider: String(r.gps_map_provider || 'esri'),
+      map_provider: (() => {
+        const p = String(r.gps_map_provider || 'esri').toLowerCase();
+        return p === 'carto' ? 'osm' : p;
+      })(),
       map_engine: String(r.gps_map_engine || 'leaflet'),
       rep_visit_geofence: Number(r.sales_rep_visit_geofence) === 1,
       visit_radius_m: radius,
@@ -662,7 +665,8 @@ async function saveGpsSettings(payload) {
   if (radius > 5000) radius = 5000;
   radius = Math.round(radius);
   let provider = String(payload.gps_map_provider || 'esri').toLowerCase();
-  if (!['esri', 'carto', 'osm', 'google', 'natgeo'].includes(provider)) provider = 'esri';
+  if (provider === 'carto') provider = 'osm';
+  if (!['esri', 'osm', 'google', 'natgeo'].includes(provider)) provider = 'esri';
   let engine = String(payload.gps_map_engine || 'leaflet').toLowerCase();
   if (!['leaflet', 'google'].includes(engine)) engine = 'leaflet';
   const gkey = String(payload.gps_google_maps_api_key || '').trim();

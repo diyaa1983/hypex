@@ -228,7 +228,7 @@ function mobile_gps_settings_map_engine(PDO $pdo = null): string
 
 function mobile_gps_settings_map_provider(PDO $pdo = null): string
 {
-    $allowed = ['esri', 'natgeo', 'carto', 'google'];
+    $allowed = ['esri', 'natgeo', 'carto', 'osm', 'google'];
     try {
         $pdo = $pdo ?? db();
         mobile_gps_settings_ensure_schema($pdo);
@@ -237,6 +237,9 @@ function mobile_gps_settings_map_provider(PDO $pdo = null): string
         )->fetch(PDO::FETCH_ASSOC);
         if (is_array($row)) {
             $p = strtolower(trim((string) ($row['gps_map_provider'] ?? '')));
+            if ($p === 'carto') {
+                return 'osm';
+            }
             if (in_array($p, $allowed, true)) {
                 return $p;
             }
@@ -259,7 +262,11 @@ function mobile_gps_settings_save(PDO $pdo, array $input): void
     $visitRadius = mobile_gps_settings_normalize_visit_radius((int) ($input['visit_radius_m'] ?? 200));
     $googleKey = trim((string) ($input['google_maps_api_key'] ?? ''));
     $provider = strtolower(trim((string) ($input['map_provider'] ?? 'esri')));
-    if (!in_array($provider, ['esri', 'natgeo', 'carto', 'google'], true)) {
+    // CARTO لم يعد مجانياً — نحفظه كـ OSM.
+    if ($provider === 'carto') {
+        $provider = 'osm';
+    }
+    if (!in_array($provider, ['esri', 'natgeo', 'osm', 'google'], true)) {
         $provider = 'esri';
     }
     $engine = strtolower(trim((string) ($input['map_engine'] ?? 'leaflet')));

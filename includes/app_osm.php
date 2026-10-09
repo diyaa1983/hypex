@@ -144,6 +144,10 @@ function app_osm_js_config(): array
     if ($provider === 'google' && $googleKey === '') {
         $provider = 'esri';
     }
+    // CARTO يتطلب API key — للعميل نُرسل osm حتى لا تظهر بلاطات «API KEY REQUIRED».
+    if ($provider === 'carto') {
+        $provider = 'osm';
+    }
 
     $meta = $defs[$provider] ?? $defs['esri'];
     if ($provider === 'google') {
@@ -154,8 +158,15 @@ function app_osm_js_config(): array
         ];
     }
 
+    $tileUrl = (string) ($meta['tileUrl'] ?? '');
+    if (stripos($tileUrl, 'basemaps.cartocdn.com') !== false || stripos($tileUrl, 'carto.com') !== false) {
+        $tileUrl = $defs['osm']['tileUrl'];
+        $provider = 'osm';
+        $meta = $defs['osm'];
+    }
+
     return [
-        'tileUrl' => $meta['tileUrl'],
+        'tileUrl' => $tileUrl !== '' ? $tileUrl : (string) ($meta['tileUrl'] ?? ''),
         'attribution' => $meta['attribution'],
         'googleMapsKey' => $googleKey,
         'mapProvider' => $provider,

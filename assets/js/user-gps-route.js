@@ -70,6 +70,18 @@
       root.getAttribute('data-attribution') ||
       '&copy; Esri &mdash; OpenStreetMap contributors';
     this.mapProvider = root.getAttribute('data-map-provider') || 'esri';
+    // CARTO توقف بدون API key — لا تستخدم بلاطاته أبداً.
+    if (
+      this.mapProvider === 'carto' ||
+      (this.tileUrl &&
+        (this.tileUrl.indexOf('basemaps.cartocdn.com') >= 0 ||
+          this.tileUrl.indexOf('carto.com') >= 0))
+    ) {
+      this.mapProvider = 'osm';
+      this.tileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+      this.attribution =
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+    }
     this.googleKey = root.getAttribute('data-google-key') || '';
     this.today = root.getAttribute('data-today') || '';
     this.mode = root.getAttribute('data-mode') || 'desktop';

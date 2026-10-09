@@ -175,8 +175,8 @@ $cssUrl = app_url('assets/css/settings-oracle12.css') . (is_file($cssPath) ? '?v
                         <option value="natgeo" <?= $mapProvider === 'natgeo' ? 'selected' : '' ?>>
                             National Geographic World Map — مجاني
                         </option>
-                        <option value="carto" <?= $mapProvider === 'carto' ? 'selected' : '' ?>>
-                            OpenStreetMap — مجاني (بديل CARTO بدون مفتاح)
+                        <option value="osm" <?= ($mapProvider === 'osm' || $mapProvider === 'carto') ? 'selected' : '' ?>>
+                            OpenStreetMap — مجاني (بدون مفتاح)
                         </option>
                         <option value="google" <?= $mapProvider === 'google' ? 'selected' : '' ?>>
                             Google Maps — يحتاج مفتاح وفوترة

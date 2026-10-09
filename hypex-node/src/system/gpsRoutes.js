@@ -185,19 +185,22 @@ router.get('/system/gps-tracker', async (req, res) => {
     return forbid(res);
   }
   const gps = await svc.getGpsSettings();
-  // CARTO يتطلب API key — نستخدم OSM عند اختيار carto، وEsri افتراضياً.
+  // CARTO يتطلب API key — نستخدم OSM بدل carto، وEsri افتراضياً.
+  let mapProviderRaw = String(gps.map_provider || 'esri').toLowerCase();
+  if (mapProviderRaw === 'carto') mapProviderRaw = 'osm';
   const tileUrl =
-    gps.map_provider === 'carto' || gps.map_provider === 'osm'
+    mapProviderRaw === 'osm'
       ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
       : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
   const attribution =
-    gps.map_provider === 'carto' || gps.map_provider === 'osm'
+    mapProviderRaw === 'osm'
       ? '© OpenStreetMap'
       : '© Esri — OpenStreetMap contributors';
   const today = todayIso();
   const gkey = esc(gps.google_maps_api_key || '');
   const mapEngine = esc(gps.map_engine || 'leaflet');
-  const mapProvider = esc(gps.map_provider || 'esri');
+  const mapProvider = esc(mapProviderRaw);
+  const assetV = String(Date.now()); // كسر كاش المتصفح لملفات الخريطة
 
   const body = `
     <div class="si-stage" style="padding-top:.5rem">
@@ -320,7 +323,7 @@ router.get('/system/gps-tracker', async (req, res) => {
       window.AppOsmConfig = {
         tileUrl: ${JSON.stringify(tileUrl)},
         attribution: ${JSON.stringify(attribution)},
-        mapProvider: ${JSON.stringify(gps.map_provider || 'esri')},
+        mapProvider: ${JSON.stringify(mapProviderRaw)},
         mapEngine: ${JSON.stringify(gps.map_engine || 'leaflet')},
         googleMapsKey: ${JSON.stringify(gps.google_maps_api_key || '')}
       };
@@ -329,17 +332,17 @@ router.get('/system/gps-tracker', async (req, res) => {
   res.send(
     ui.salesPage({
       user: req.session.user,
-      title: 'تتبع المواقع الحية',
+      title: 'تتبع مواقع المندوبين',
       bodyHtml: body,
       css: [
-        '/hypex/assets/css/user-gps-tracker.css',
-        '/hypex/assets/vendor/leaflet/leaflet.css',
+        `/hypex/assets/css/user-gps-tracker.css?v=${assetV}`,
+        `/hypex/assets/vendor/leaflet/leaflet.css?v=${assetV}`,
       ],
       js: [
-        '/hypex/assets/vendor/leaflet/leaflet.js',
-        '/hypex/assets/js/leaflet-map-layers.js',
-        '/hypex/assets/js/user-gps-tracker.js',
-        '/hypex/assets/js/user-gps-route.js',
+        `/hypex/assets/vendor/leaflet/leaflet.js?v=${assetV}`,
+        `/hypex/assets/js/leaflet-map-layers.js?v=${assetV}`,
+        `/hypex/assets/js/user-gps-tracker.js?v=${assetV}`,
+        `/hypex/assets/js/user-gps-route.js?v=${assetV}`,
       ],
     })
   );
