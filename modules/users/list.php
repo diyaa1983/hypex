@@ -170,6 +170,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw $e;
         }
 
+        require_once app_path('includes/sys_permissions_version.php');
+        sys_permissions_version_bump();
+
         if ($id === $currentUserId) {
             refresh_session_permissions($currentUserId);
             $_SESSION['user']['username'] = $username;

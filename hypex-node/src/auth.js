@@ -2,6 +2,7 @@
 
 const bcrypt = require('bcryptjs');
 const db = require('./db');
+const permissionsVersion = require('./lib/permissionsVersion');
 
 /**
  * يتحقق من كلمة مرور PHP password_hash (bcrypt $2y$ / $2a$ / $2b$).
@@ -31,6 +32,26 @@ async function isSystemAdmin(userId) {
   return rows.length > 0;
 }
 
+/** توسيع صلاحيات الإجراءات المرتبطة بشاشات ممنوحة (inherit_from). */
+function expandInheritedActions(codes) {
+  const set = new Set((codes || []).map(String).filter(Boolean));
+  if (!set.size) return [];
+  try {
+    const permissionsNav = require('./system/permissionsNav');
+    for (const actionItem of permissionsNav.actionItemsFlat()) {
+      const actionCode = String(actionItem.code || '');
+      if (!actionCode || set.has(actionCode)) continue;
+      const parents = Array.isArray(actionItem.inherit_from) ? actionItem.inherit_from : [];
+      if (parents.some((p) => set.has(String(p || '')))) {
+        set.add(actionCode);
+      }
+    }
+  } catch (e) {
+    console.error('expandInheritedActions', e.message || e);
+  }
+  return [...set];
+}
+
 async function loadPermissions(userId, isAdmin) {
   if (isAdmin) {
     const all = await db.query('SELECT code FROM sys_screen ORDER BY sort_order, id');
@@ -44,7 +65,7 @@ async function loadPermissions(userId, isAdmin) {
      WHERE ug.user_id = ?`,
     [userId]
   );
-  return rows.map((r) => r.code);
+  return expandInheritedActions(rows.map((r) => r.code));
 }
 
 async function attemptLogin(username, password) {
@@ -69,6 +90,7 @@ async function attemptLogin(username, password) {
   const uid = Number(row.id);
   const admin = await isSystemAdmin(uid);
   const permissions = await loadPermissions(uid, admin);
+  const permsVer = await permissionsVersion.getPermissionsVersion();
 
   return {
     ok: true,
@@ -79,6 +101,7 @@ async function attemptLogin(username, password) {
       is_admin: admin,
       permissions,
       permissions_loaded_at: Date.now(),
+      permissions_version: permsVer,
     },
   };
 }
@@ -96,21 +119,35 @@ async function refreshSessionPermissions(sessionUser) {
   const uid = Number(sessionUser.id);
   const admin = await isSystemAdmin(uid);
   const permissions = await loadPermissions(uid, admin);
+  const permsVer = await permissionsVersion.getPermissionsVersion();
   sessionUser.is_admin = admin;
   sessionUser.permissions = permissions;
   sessionUser.permissions_loaded_at = Date.now();
+  sessionUser.permissions_version = permsVer;
   return sessionUser;
 }
 
 /**
- * يضمن تحديث صلاحيات الجلسة دورياً (مثل PHP ensure_session_permissions).
- * افتراضي: كل 5 دقائق.
+ * يضمن تحديث صلاحيات الجلسة دورياً أو عند تغيّر إصدار الصلاحيات بعد حفظ المجموعة.
  */
 async function ensureSessionPermissions(sessionUser, ttlSeconds = 60) {
   if (!sessionUser || !sessionUser.id) return sessionUser;
   const loadedAt = Number(sessionUser.permissions_loaded_at || 0);
   const ttlMs = Math.max(30, ttlSeconds) * 1000;
-  if (Array.isArray(sessionUser.permissions) && loadedAt > 0 && Date.now() - loadedAt < ttlMs) {
+  const sessionVer = String(sessionUser.permissions_version || '');
+  let globalVer = '0';
+  try {
+    globalVer = await permissionsVersion.getPermissionsVersion();
+  } catch {
+    globalVer = '0';
+  }
+  const versionStale = sessionVer === '' || sessionVer !== globalVer;
+  if (
+    Array.isArray(sessionUser.permissions) &&
+    loadedAt > 0 &&
+    !versionStale &&
+    Date.now() - loadedAt < ttlMs
+  ) {
     return sessionUser;
   }
   return refreshSessionPermissions(sessionUser);
@@ -140,4 +177,5 @@ module.exports = {
   isSystemAdmin,
   refreshSessionPermissions,
   ensureSessionPermissions,
+  expandInheritedActions,
 };

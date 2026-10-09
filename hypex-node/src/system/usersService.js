@@ -214,6 +214,12 @@ async function saveUser(payload, currentUserId) {
     }
 
     await conn.commit();
+    try {
+      const { bumpPermissionsVersion } = require('../lib/permissionsVersion');
+      await bumpPermissionsVersion();
+    } catch (_) {
+      /* ignore */
+    }
     return {
       ok: true,
       id: userId,

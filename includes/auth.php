@@ -46,6 +46,46 @@ function user_is_system_admin(?int $userId = null): bool
     return $isAdmin;
 }
 
+/**
+ * إن وُجدت شاشة أصل ممنوحة: اعتبر إجراءات inherit_from ممنوحة أيضاً (فعّالة وقت التشغيل).
+ *
+ * @param list<string> $codes
+ * @return list<string>
+ */
+function expand_inherited_action_permissions(array $codes): array
+{
+    if ($codes === []) {
+        return [];
+    }
+    try {
+        require_once app_path('includes/sys_action_permissions.php');
+        $set = [];
+        foreach ($codes as $c) {
+            $c = (string) $c;
+            if ($c !== '') {
+                $set[$c] = true;
+            }
+        }
+        foreach (action_permissions_flat() as $item) {
+            $ac = (string) ($item['code'] ?? '');
+            if ($ac === '' || isset($set[$ac])) {
+                continue;
+            }
+            foreach ((array) ($item['inherit_from'] ?? []) as $parent) {
+                $p = (string) $parent;
+                if ($p !== '' && isset($set[$p])) {
+                    $set[$ac] = true;
+                    break;
+                }
+            }
+        }
+
+        return array_keys($set);
+    } catch (Throwable $e) {
+        return array_values(array_map('strval', $codes));
+    }
+}
+
 function load_user_permissions(int $userId): array
 {
     if (user_is_system_admin($userId)) {
@@ -60,7 +100,9 @@ function load_user_permissions(int $userId): array
             WHERE ug.user_id = ?';
     $st = db()->prepare($sql);
     $st->execute([$userId]);
-    return $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    $codes = $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+    return expand_inherited_action_permissions(array_map('strval', $codes));
 }
 
 /** إعادة تحميل صلاحيات الجلسة من قاعدة البيانات بعد تعديل المجموعات أو صلاحيات الشاشات. */
@@ -86,11 +128,13 @@ function refresh_session_permissions(?int $userId = null): void
     }
     $_SESSION['permissions_user_id'] = $userId;
     $_SESSION['permissions_loaded_at'] = time();
+    require_once app_path('includes/sys_permissions_version.php');
+    $_SESSION['permissions_version'] = sys_permissions_version_get();
 }
 
 /**
  * يضمن وجود صلاحيات في الجلسة دون إعادة الاستعلام من DB في كل طلب.
- * يُعاد التحميل عند غيابها أو بعد انتهاء المهلة أو تغيّر المستخدم.
+ * يُعاد التحميل عند غيابها أو بعد انتهاء المهلة أو تغيّر المستخدم أو تغيّر إصدار الصلاحيات.
  */
 function ensure_session_permissions(int $ttlSeconds = 300): void
 {
@@ -104,7 +148,16 @@ function ensure_session_permissions(int $ttlSeconds = 300): void
     $have = $_SESSION['permissions'] ?? null;
     $loadedFor = (int) ($_SESSION['permissions_user_id'] ?? 0);
     $loadedAt = (int) ($_SESSION['permissions_loaded_at'] ?? 0);
-    if (is_array($have) && $loadedFor === $userId && (time() - $loadedAt) < max(30, $ttlSeconds)) {
+    $sessionVer = (string) ($_SESSION['permissions_version'] ?? '');
+    require_once app_path('includes/sys_permissions_version.php');
+    $globalVer = sys_permissions_version_get();
+    $versionStale = $sessionVer === '' || $sessionVer !== $globalVer;
+    if (
+        is_array($have)
+        && $loadedFor === $userId
+        && !$versionStale
+        && (time() - $loadedAt) < max(30, $ttlSeconds)
+    ) {
         return;
     }
     refresh_session_permissions($userId);
@@ -217,6 +270,8 @@ function attempt_login(string $username, string $password): bool
     $_SESSION['permissions'] = load_user_permissions($uid);
     $_SESSION['permissions_user_id'] = $uid;
     $_SESSION['permissions_loaded_at'] = time();
+    require_once app_path('includes/sys_permissions_version.php');
+    $_SESSION['permissions_version'] = sys_permissions_version_get();
     $_SESSION['app_context'] = 'desktop';
     try {
         require_once app_path('includes/company_settings.php');

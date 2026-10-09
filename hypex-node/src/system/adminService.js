@@ -290,6 +290,14 @@ async function savePermissions(groupId, screenIds) {
       }
     }
     await conn.commit();
+    try {
+      // مزامنة إجراءات inherit_from الناقصة لباقي المجموعات + إبطال جلسات الصلاحيات
+      await backfillInheritActionsForAllGroups();
+      const { bumpPermissionsVersion } = require('../lib/permissionsVersion');
+      await bumpPermissionsVersion();
+    } catch (e) {
+      console.error('post-savePermissions sync', e.message || e);
+    }
     return { ok: true, message: 'تم حفظ الصلاحيات.' };
   } catch (e) {
     await conn.rollback();
@@ -298,6 +306,54 @@ async function savePermissions(groupId, screenIds) {
   } finally {
     conn.release();
   }
+}
+
+/**
+ * مزامنة إجراءات inherit_from في قاعدة البيانات لكل المجموعات (عدا MOBILE)
+ * التي لديها الشاشة الأصل ممنوحة والإجراء ناقص.
+ */
+async function backfillInheritActionsForAllGroups() {
+  const groups = await q(`SELECT id, code FROM sys_group`);
+  const allScreens = await q(`SELECT id, code FROM sys_screen`);
+  const idByCode = Object.create(null);
+  for (const s of allScreens) {
+    idByCode[String(s.code)] = Number(s.id);
+  }
+  const actions = permissionsNav.actionItemsFlat();
+  let inserted = 0;
+  for (const g of groups) {
+    if (String(g.code || '').toUpperCase() === 'MOBILE') continue;
+    const gid = Number(g.id);
+    const granted = await q(
+      `SELECT s.code FROM sys_group_permission gp
+       INNER JOIN sys_screen s ON s.id = gp.screen_id
+       WHERE gp.group_id = ? AND gp.allowed = 1`,
+      [gid]
+    );
+    const codes = new Set(granted.map((r) => String(r.code)));
+    for (const actionItem of actions) {
+      const actionCode = String(actionItem.code || '');
+      const actionId = idByCode[actionCode];
+      if (!actionId || codes.has(actionCode)) continue;
+      const parents = Array.isArray(actionItem.inherit_from) ? actionItem.inherit_from : [];
+      if (!parents.some((p) => codes.has(String(p || '')))) continue;
+      await q(
+        `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed) VALUES (?,?,1)`,
+        [gid, actionId]
+      );
+      codes.add(actionCode);
+      inserted += 1;
+    }
+  }
+  if (inserted > 0) {
+    try {
+      const { bumpPermissionsVersion } = require('../lib/permissionsVersion');
+      await bumpPermissionsVersion();
+    } catch (_) {
+      /* ignore */
+    }
+  }
+  return inserted;
 }
 
 /* ── sessions ── */
@@ -1616,6 +1672,7 @@ module.exports = {
   saveGroup,
   listPermissionsMatrix,
   savePermissions,
+  backfillInheritActionsForAllGroups,
   listActiveSessions,
   killSession,
   getCompanySettings,

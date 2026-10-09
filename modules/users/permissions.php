@@ -188,6 +188,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $pdo->commit();
 
+                require_once app_path('includes/sys_permissions_version.php');
+                require_once app_path('includes/sys_action_permissions.php');
+                // مزامنة إجراءات inherit_from الناقصة للمجموعات الأخرى أيضاً
+                sys_backfill_inherit_action_permissions($pdo);
+                sys_permissions_version_bump();
                 refresh_session_permissions();
 
                 flash_set('success', 'تم حفظ الصلاحيات.');
