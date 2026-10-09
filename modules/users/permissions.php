@@ -644,7 +644,7 @@ $permCssUrl = app_url('assets/css/permissions-oracle12.css')
                     <button type="submit" class="btn btn-primary btn-sm" style="align-self:flex-end">حفظ مجموعات التتبع</button>
                 </div>
             </form>
-            <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" id="permissions-group-form">
+            <form method="get" action="<?= esc(app_url('index.php')) ?>" class="form-row" id="permissions-group-form" data-nav-mode="php">
                 <input type="hidden" name="r" value="permissions">
                 <label class="field">
                     <span class="field-label">تعديل صلاحيات المجموعة</span>

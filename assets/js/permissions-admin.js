@@ -12,18 +12,26 @@
   var globalEmpty = document.getElementById('perm-global-empty');
   var selectAllBtn = document.getElementById('perm-select-all');
   var clearAllBtn = document.getElementById('perm-clear-all');
+  var visibleLabel = document.getElementById('perm-visible-label');
+  var panelCountLabel = document.getElementById('perm-panel-count');
 
   if (groupSelect && groupForm) {
     groupSelect.addEventListener('change', function () {
-      var base = groupForm.getAttribute('action') || 'index.php';
+      var base = groupForm.getAttribute('action') || '';
+      var mode = groupForm.getAttribute('data-nav-mode') || 'php';
       var url;
       try {
-        url = new URL(base, window.location.href);
+        url = new URL(base || window.location.href, window.location.href);
       } catch (e) {
         url = new URL(window.location.pathname, window.location.origin);
       }
-      url.searchParams.set('r', 'permissions');
-      url.searchParams.set('group_id', groupSelect.value);
+      if (mode === 'node') {
+        url.search = '';
+        url.searchParams.set('group_id', groupSelect.value);
+      } else {
+        url.searchParams.set('r', 'permissions');
+        url.searchParams.set('group_id', groupSelect.value);
+      }
       if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
         window.AppDesktopWindow.allowNextUnload();
       }
@@ -70,7 +78,7 @@
     var panel = activePanel();
     if (detailTitle && panel) {
       var title = panel.getAttribute('data-panel-title') || 'الشاشات / التقارير';
-      detailTitle.textContent = 'الشاشات / التقارير — ' + title;
+      detailTitle.textContent = title;
     }
     applyRowFilters();
   }
@@ -95,6 +103,8 @@
     var panel = activePanel();
     if (!panel) {
       if (globalEmpty) globalEmpty.hidden = true;
+      if (visibleLabel) visibleLabel.textContent = '';
+      if (panelCountLabel) panelCountLabel.textContent = '';
       return;
     }
     var term = normalizeSearchText(screenSearch ? screenSearch.value : '');
@@ -111,6 +121,12 @@
     });
     if (globalEmpty) {
       globalEmpty.hidden = visible > 0 || rows.length === 0;
+    }
+    if (visibleLabel) {
+      visibleLabel.textContent = 'ظاهر في القسم: ' + visible + ' / ' + rows.length;
+    }
+    if (panelCountLabel) {
+      panelCountLabel.textContent = visible + ' عنصر';
     }
   }
 

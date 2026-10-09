@@ -1,15 +1,31 @@
-/* ── صلاحيات القوائم والشاشات — لوحة منقسمة ── */
+/* ── صلاحيات القوائم والشاشات — لوحة منقسمة بأسلوب Oracle Forms ── */
 
 .perm-ora12-page {
+  --ora12-title: #1a4480;
+  --ora12-blue: #316ac5;
+  --ora12-blue-dark: #1a3366;
+  --ora12-blue-light: #e8f0fa;
+  --ora12-border: #808080;
+  --ora12-surface: #fff;
+  --ora12-panel: #ece9e4;
+  --ora12-panel-2: #e4e1da;
+  --ora12-text: #111;
+  --ora12-muted: #555;
+  --ora12-hover: #ffffcc;
+  --ora12-active: #c6d8f0;
   width: 100%;
   max-width: 100%;
+  color: var(--ora12-text);
+  font-family: Arial, Tahoma, sans-serif;
+  font-size: 12px;
 }
 
-.perm-ora12-page .dashboard-ora-workspace {
-  padding: 0.5rem;
+.perm-ora12-page .dashboard-ora-workspace,
+.perm-ora12-page.perm-ora-workspace {
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .perm-ora12-page .perm-ora12-flash,
@@ -17,18 +33,117 @@
   margin: 0;
 }
 
-.perm-ora12-group-bar .dashboard-ora-panel__body {
-  padding: 0.55rem 0.7rem;
+/* شريط المجموعة + GPS */
+.perm-ora-bar {
+  background: var(--ora12-panel);
+  border: 1px solid var(--ora12-border);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #a0a0a0;
+  padding: 8px 10px;
 }
 
-.perm-ora12-group-bar .field {
-  margin: 0;
+.perm-ora-bar__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.perm-ora-bar__field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   min-width: 16rem;
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+}
+
+.perm-ora-bar__field .si-field,
+.perm-ora-bar__field .input,
+.perm-ora-bar select,
+.perm-ora-bar input[type='search'] {
+  min-height: 24px;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  background: #fff;
+  font-size: 12px;
+  padding: 2px 6px;
+}
+
+.perm-ora-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.perm-ora-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--ora12-border);
+  background: linear-gradient(180deg, #fff 0%, #e8e8e8 100%);
+  box-shadow: inset 1px 1px 0 #fff;
+}
+
+.perm-ora-stat strong {
+  color: var(--ora12-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.perm-gps-block {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #c0bbb0;
+}
+
+.perm-gps-block strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--ora12-title);
+}
+
+.perm-gps-block .muted,
+.perm-gps-hint {
+  margin: 0 0 6px;
+  font-size: 11px;
+  color: var(--ora12-muted);
+  line-height: 1.4;
+}
+
+.perm-gps-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+
+.perm-gps-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 7px;
+  border: 1px solid var(--ora12-border);
+  background: #f8f7f4;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+
+.perm-gps-chip:has(input:checked) {
+  background: var(--ora12-blue-light);
+  border-color: var(--ora12-blue);
+  color: var(--ora12-blue-dark);
 }
 
 .perm-mobile-group-note {
-  margin: 0.45rem 0 0;
-  font-size: 0.78rem;
+  margin: 6px 0 0;
+  font-size: 11px;
   color: var(--ora12-muted);
 }
 
@@ -36,10 +151,11 @@
   margin: 0;
 }
 
+/* التقسيم: شجرة | تفاصيل */
 .perm-split {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  gap: 0.55rem;
+  gap: 8px;
   align-items: stretch;
   min-height: 28rem;
 }
@@ -50,26 +166,59 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  background: var(--ora12-panel);
+  border: 1px solid var(--ora12-border);
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #a0a0a0;
 }
 
-.perm-tree-body {
+.perm-pane-head {
+  background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%);
+  color: #fff;
+  border-bottom: 1px solid #1a3366;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.perm-pane-head span {
+  color: #dce8ff;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.perm-tree-body,
+.perm-detail-body {
   display: flex;
   flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.55rem !important;
+  gap: 6px;
+  padding: 6px 8px 8px;
   flex: 1;
   min-height: 0;
 }
 
 .perm-tree-search-row {
   display: flex;
-  gap: 0.35rem;
+  gap: 4px;
   align-items: center;
 }
 
-.perm-tree-search-row .input {
+.perm-tree-search-row .input,
+.perm-tree-search-row .si-field,
+.perm-detail-toolbar .input,
+.perm-detail-toolbar .si-field {
   flex: 1;
   min-width: 0;
+  min-height: 24px;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  background: #fff;
+  font-size: 12px;
+  padding: 2px 6px;
 }
 
 .perm-tree {
@@ -77,16 +226,16 @@
   overflow: auto;
   border: 1px solid var(--ora12-border);
   background: var(--ora12-surface);
-  max-height: min(70vh, 40rem);
+  max-height: min(70vh, 42rem);
 }
 
 .perm-tree-domain-title {
   margin: 0;
-  padding: 0.38rem 0.55rem;
-  font-size: 0.78rem;
-  font-weight: 700;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 800;
   color: #fff;
-  background: var(--ora12-title);
+  background: linear-gradient(180deg, #4a6fa8 0%, #2a4a7a 100%);
   border-bottom: 1px solid var(--ora12-blue-dark);
   position: sticky;
   top: 0;
@@ -96,7 +245,7 @@
 .perm-tree-list {
   list-style: none;
   margin: 0;
-  padding: 0.15rem 0 0.35rem;
+  padding: 2px 0 4px;
 }
 
 .perm-tree-list li {
@@ -108,16 +257,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.35rem;
+  gap: 6px;
   border: 0;
   background: transparent;
   text-align: right;
-  padding: 0.38rem 0.65rem;
-  font-size: 0.78rem;
+  padding: 5px 8px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--ora12-text);
   cursor: pointer;
   border-right: 3px solid transparent;
+  font-family: inherit;
 }
 
 .perm-tree-node:hover {
@@ -125,9 +275,10 @@
 }
 
 .perm-tree-node.is-active {
-  background: var(--ora12-blue-light);
+  background: var(--ora12-active);
   border-right-color: var(--ora12-blue);
   color: var(--ora12-blue-dark);
+  font-weight: 800;
 }
 
 .perm-tree-node-label {
@@ -137,13 +288,213 @@
 
 .perm-tree-node-count {
   color: var(--ora12-muted);
-  font-size: 0.72rem;
+  font-size: 10px;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .perm-tree-domain[hidden],
 .perm-tree-node[hidden] {
   display: none !important;
+}
+
+.perm-detail-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+  background: var(--ora12-panel-2);
+  border: 1px solid #c0bbb0;
+  padding: 5px 6px;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+
+.perm-detail-toolbar > .input,
+.perm-detail-toolbar > .si-field {
+  min-width: 12rem;
+  flex: 1 1 12rem;
+}
+
+.perm-type-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.perm-type-filters-label {
+  color: var(--ora12-muted);
+}
+
+.perm-type-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  margin: 0;
+}
+
+.perm-type-opt input {
+  accent-color: var(--ora12-blue);
+}
+
+.perm-bulk-actions {
+  display: flex;
+  gap: 4px;
+  margin-inline-start: auto;
+}
+
+.perm-panel[hidden] {
+  display: none !important;
+}
+
+.perm-domain-note {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ora12-muted);
+  background: var(--ora12-blue-light);
+  border: 1px solid #a8c0e0;
+}
+
+.perm-table-wrap {
+  margin: 0;
+  border: 1px solid var(--ora12-border);
+  border-radius: 0;
+  background: var(--ora12-surface);
+  max-height: min(62vh, 38rem);
+  overflow: auto;
+}
+
+.perm-ora12-page .perm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.perm-ora12-page .perm-table th,
+.perm-ora12-page .perm-table td {
+  border: 1px solid #a0a0a0;
+  padding: 3px 6px;
+  background: #fff;
+  vertical-align: middle;
+}
+
+.perm-ora12-page .perm-table thead th {
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%);
+  color: #111;
+  font-weight: 800;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.perm-ora12-page .perm-table tbody tr:nth-child(even) td {
+  background: #f7f7f0;
+}
+
+.perm-ora12-page .perm-table td code {
+  font-size: 10px;
+  white-space: nowrap;
+  color: #444;
+  background: #f0f0ea;
+  padding: 0 3px;
+  border: 1px solid #d0d0c8;
+}
+
+.perm-ora12-page .perm-table input[type='checkbox'] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--ora12-blue);
+  cursor: pointer;
+}
+
+.perm-ora12-page .perm-row-entry:hover td {
+  background: var(--ora12-hover) !important;
+}
+
+.perm-ora12-page .perm-row-entry[hidden] {
+  display: none !important;
+}
+
+.perm-kind-badge {
+  display: inline-block;
+  min-width: 3.2rem;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 5px;
+  border: 1px solid #a0a0a0;
+  background: #eee;
+  color: #333;
+}
+
+.perm-kind-badge--report {
+  background: #e8f5e9;
+  border-color: #81c784;
+  color: #1b5e20;
+}
+
+.perm-kind-badge--action {
+  background: #fff3e0;
+  border-color: #ffb74d;
+  color: #e65100;
+}
+
+.perm-kind-badge--screen {
+  background: #e3f2fd;
+  border-color: #64b5f6;
+  color: #0d47a1;
+}
+
+.perm-ora12-page .perm-global-empty {
+  margin: 0;
+  padding: 10px;
+  text-align: center;
+  color: var(--ora12-muted);
+  background: #f5f5f0;
+  border: 1px dashed #b0b0a8;
+}
+
+.perm-ora-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  padding: 6px 8px;
+  background: #e4e1da;
+  border: 1px solid var(--ora12-border);
+  box-shadow: inset 1px 1px 0 #fff, 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.perm-ora-foot__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.perm-ora-foot .muted {
+  font-size: 11px;
+  color: var(--ora12-muted);
+}
+
+/* توافق مع لوحة PHP القديمة */
+.perm-ora12-group-bar .dashboard-ora-panel__body {
+  padding: 0.55rem 0.7rem;
+}
+
+.perm-ora12-group-bar .field {
+  margin: 0;
+  min-width: 16rem;
 }
 
 .perm-detail-pane .dashboard-ora-panel__body {
@@ -155,100 +506,13 @@
   min-height: 0;
 }
 
-.perm-detail-toolbar {
+.perm-tree-body.dashboard-ora-panel__body {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.75rem;
-  align-items: center;
-}
-
-.perm-detail-toolbar > .input {
-  min-width: 12rem;
-  flex: 1 1 12rem;
-}
-
-.perm-type-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.35rem 0.65rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.perm-type-filters-label {
-  color: var(--ora12-muted);
-}
-
-.perm-type-opt {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  cursor: pointer;
-  margin: 0;
-}
-
-.perm-type-opt input {
-  accent-color: var(--ora12-blue);
-}
-
-.perm-bulk-actions {
-  display: flex;
-  gap: 0.35rem;
-  margin-inline-start: auto;
-}
-
-.perm-panel[hidden] {
-  display: none !important;
-}
-
-.perm-domain-note {
-  margin: 0;
-  padding: 0.32rem 0.55rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--ora12-muted);
-  background: var(--ora12-blue-light);
-  border: 1px solid var(--ora12-border);
-}
-
-.perm-table-wrap {
-  margin: 0;
-  border: 1px solid var(--ora12-border);
-  border-radius: 0;
-  background: var(--ora12-surface);
-  max-height: min(62vh, 36rem);
-  overflow: auto;
-}
-
-.perm-ora12-page .perm-table th,
-.perm-ora12-page .perm-table td {
-  font-size: 0.78rem;
-}
-
-.perm-ora12-page .perm-table td code {
-  font-size: 0.72rem;
-  white-space: nowrap;
-}
-
-.perm-ora12-page .perm-table input[type='checkbox'] {
-  width: 0.95rem;
-  height: 0.95rem;
-  margin: 0;
-  accent-color: var(--ora12-blue);
-  cursor: pointer;
-}
-
-.perm-ora12-page .perm-row-entry:hover td {
-  background: var(--ora12-hover);
-}
-
-.perm-ora12-page .perm-row-entry[hidden] {
-  display: none !important;
-}
-
-.perm-ora12-page .perm-global-empty {
-  margin: 0;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem !important;
+  flex: 1;
+  min-height: 0;
 }
 
 @media (max-width: 900px) {

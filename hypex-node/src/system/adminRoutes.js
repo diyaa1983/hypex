@@ -291,230 +291,233 @@ router.get('/system/permissions', async (req, res) => {
   const groups = matrix.groups;
   const gid = groupId > 0 ? groupId : groups[0] ? Number(groups[0].id) : 0;
   if (gid !== groupId) matrix = await svc.listPermissionsMatrix(gid);
-  const { allowed, isMobile, panels, treeByDomain } = matrix;
+  const { allowed, isMobile, panels, treeByDomain, firstPanelId } = matrix;
+  const selectedGroup = groups.find((g) => Number(g.id) === Number(gid));
+  const selectedGroupLabel = selectedGroup
+    ? `(${selectedGroup.code}) ${selectedGroup.name_ar}`
+    : '';
 
   const opts = groups
     .map(
       (g) =>
-        `<option value="${g.id}" ${gid === Number(g.id) ? 'selected' : ''}>${esc(g.name_ar)} (${esc(
-          g.code
-        )})</option>`
+        `<option value="${g.id}" ${gid === Number(g.id) ? 'selected' : ''}>${esc(
+          `(${g.code}) ${g.name_ar}`
+        )}</option>`
     )
-    .join('');
-
-  /** خيارات «اسم القائمة»: مجال كامل أو قسم فرعي */
-  const menuFilterOpts = [];
-  menuFilterOpts.push({ value: '', label: 'كل القوائم' });
-  for (const domId of Object.keys(treeByDomain || {})) {
-    const dom = treeByDomain[domId];
-    const domTitle = String(dom.title || domId);
-    menuFilterOpts.push({ value: 'domain:' + domId, label: '▸ ' + domTitle });
-    for (const n of dom.nodes || []) {
-      menuFilterOpts.push({
-        value: 'panel:' + n.id,
-        label: '  · ' + domTitle + ' / ' + n.title + ' (' + n.count + ')',
-      });
-    }
-  }
-  const menuOptsHtml = menuFilterOpts
-    .map((o) => `<option value="${esc(o.value)}">${esc(o.label)}</option>`)
     .join('');
 
   let totalScreens = 0;
   let allowedCount = 0;
-  const rowsHtml = [];
   for (const panel of panels) {
-    const domainId = String(panel.domainId || '');
-    const domainTitle = String(panel.domainTitle || '');
-    const panelId = String(panel.id || '');
-    const panelTitle = String(panel.title || '');
-    const menuLabel = domainTitle + (panelTitle ? ' / ' + panelTitle : '');
-    for (const it of panel.items) {
+    for (const it of panel.items || []) {
       totalScreens += 1;
-      const sid = Number(it.id);
-      if (allowed.has(sid)) allowedCount += 1;
-      const searchKey = (
-        it.label +
-        ' ' +
-        it.code +
-        ' ' +
-        it.typeLabel +
-        ' ' +
-        menuLabel +
-        ' ' +
-        domainTitle +
-        ' ' +
-        panelTitle
-      ).toLowerCase();
-      rowsHtml.push(`<label class="perm-row" data-domain="${esc(domainId)}" data-panel="${esc(panelId)}"
-        data-kind="${esc(it.filterKind || 'screen')}" data-search="${esc(searchKey)}"
-        style="display:flex;gap:.45rem;align-items:flex-start;padding:.4rem .25rem;border-bottom:1px solid #eef1f6">
-        <input type="checkbox" name="screens" value="${sid}" ${allowed.has(sid) ? 'checked' : ''}>
-        <span style="flex:1;min-width:0">
-          <strong>${esc(it.label)}</strong>
-          <span class="muted" dir="ltr" style="font-size:.78rem"> · ${esc(it.typeLabel || 'شاشة')} · ${esc(
-            it.code
-          )}</span>
-          <br><span class="muted" style="font-size:.75rem">القائمة: ${esc(menuLabel)}</span>
-        </span>
-      </label>`);
+      if (allowed.has(Number(it.id))) allowedCount += 1;
     }
   }
+
+  const initialPanel = firstPanelId || (panels[0] && panels[0].id) || '';
+
+  const treeHtml = Object.keys(treeByDomain || {})
+    .map((domId) => {
+      const dom = treeByDomain[domId];
+      const nodes = (dom.nodes || [])
+        .map(
+          (n) => `<li>
+          <button type="button" class="perm-tree-node${
+            String(n.id) === String(initialPanel) ? ' is-active' : ''
+          }" data-panel-id="${esc(String(n.id))}">
+            <span class="perm-tree-node-label">${esc(n.title || '')}</span>
+            <span class="perm-tree-node-count">(${Number(n.count || 0)})</span>
+          </button>
+        </li>`
+        )
+        .join('');
+      return `<div class="perm-tree-domain" data-tree-domain="${esc(domId)}">
+        <div class="perm-tree-domain-title">${esc(dom.title || domId)}</div>
+        <ul class="perm-tree-list">${nodes}</ul>
+      </div>`;
+    })
+    .join('');
+
+  function kindBadge(filterKind, typeLabel) {
+    const k = String(filterKind || 'screen');
+    const cls =
+      k === 'report' ? 'perm-kind-badge--report' : k === 'action' ? 'perm-kind-badge--action' : 'perm-kind-badge--screen';
+    return `<span class="perm-kind-badge ${cls}">${esc(typeLabel || 'شاشة')}</span>`;
+  }
+
+  const panelsHtml = (panels || [])
+    .map((panel) => {
+      const panelId = String(panel.id || '');
+      const isFirst = panelId === String(initialPanel);
+      const rows =
+        (panel.items || [])
+          .map((it) => {
+            const sid = Number(it.id);
+            const fk = String(it.filterKind || 'screen');
+            return `<tr class="perm-row-entry" data-perm-kind="${esc(fk)}">
+              <td>${kindBadge(fk, it.typeLabel)}</td>
+              <td dir="ltr"><code>${esc(it.code || '')}</code></td>
+              <td><strong>${esc(it.label || '')}</strong></td>
+              <td style="text-align:center">
+                <input type="checkbox" name="screens" value="${sid}" ${
+                  allowed.has(sid) ? 'checked' : ''
+                }>
+              </td>
+            </tr>`;
+          })
+          .join('') ||
+        `<tr class="perm-row-empty-static"><td colspan="4" class="muted" style="text-align:center">لا توجد عناصر في هذا القسم.</td></tr>`;
+      return `<div class="perm-panel${isFirst ? ' is-active' : ''}"
+           data-panel-id="${esc(panelId)}"
+           data-panel-title="${esc(panel.title || '')}"
+           ${isFirst ? '' : 'hidden'}>
+        <div class="perm-table-wrap">
+          <table class="perm-table">
+            <thead>
+              <tr>
+                <th style="width:5.5rem">النوع</th>
+                <th style="width:14rem">الكود</th>
+                <th>الاسم</th>
+                <th style="width:4.5rem;text-align:center">تفعيل</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>`;
+    })
+    .join('');
 
   const trackIds = new Set(await gpsSvc.listGpsTrackGroupIds());
   const gpsTrackBoxes = groups
     .map((g) => {
       const id = Number(g.id);
       const checked = trackIds.has(id) ? 'checked' : '';
-      return `<label style="display:inline-flex;align-items:center;gap:.35rem;font-size:.88rem;cursor:pointer;padding:.25rem .45rem;border:1px solid #dbe3ef;border-radius:6px;background:#f8fafc">
+      return `<label class="perm-gps-chip">
         <input type="checkbox" name="gps_track_groups" value="${id}" ${checked}>
-        <span>${esc(g.name_ar)} (${esc(g.code)})</span>
+        <span>${esc(`(${g.code}) ${g.name_ar}`)}</span>
       </label>`;
     })
     .join('');
 
   const body = `
-    <style>
-      .perm-row[hidden]{display:none!important}
-      .perm-type-filters label{margin-inline-start:.5rem;font-size:.82rem;cursor:pointer}
-    </style>
-    <div class="si-stage">
+    <div class="si-stage perm-ora12-page perm-ora-workspace" data-exit-guard-root>
       ${ui.hero({
         mark: 'Pm',
         kicker: KICKER,
-        title: 'الصلاحيات',
-        subtitle: 'صلاحيات الشاشات والمجموعات — فلترة باسم القائمة',
+        title: 'صلاحيات القوائم والشاشات',
+        subtitle: selectedGroupLabel
+          ? `تعديل صلاحيات المجموعة: ${selectedGroupLabel}`
+          : 'اختر مجموعة ثم فعّل الشاشات والتقارير من المستكشف',
         actions: [
           { label: 'المجموعات', href: '/system/groups' },
           { label: 'لوحة النظام', href: HUB },
         ],
       })}
       ${flashHtml(flash, err)}
-      <form method="post" action="/system/permissions/gps-track-groups" class="si-surface"
-        style="padding:.85rem 1rem;margin-bottom:.75rem">
-        <div style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-start;justify-content:space-between">
-          <div style="flex:1;min-width:14rem">
-            <strong style="display:block;margin-bottom:.35rem">تتبع مواقع المندوبين — المجموعات</strong>
-            <p class="muted" style="margin:0 0 .55rem;font-size:.82rem;line-height:1.45">
-              ضع علامة بجانب المجموعة لإظهار مندوبيها فقط على خريطة التتبع. إن لم تُحدد أي مجموعة لن يظهر أحد.
-            </p>
-            <div style="display:flex;flex-wrap:wrap;gap:.35rem .75rem">${gpsTrackBoxes}</div>
+      <div class="perm-ora-bar">
+        <div class="perm-ora-bar__row">
+          <form method="get" action="/system/permissions" id="permissions-group-form" data-nav-mode="node">
+            <label class="perm-ora-bar__field">تعديل صلاحيات المجموعة
+              <select name="group_id" id="permissions-group-select" class="si-field">${opts}</select>
+            </label>
+          </form>
+          <div class="perm-ora-stats">
+            <span class="perm-ora-stat">مسموح <strong dir="ltr">${allowedCount}</strong> / ${totalScreens}</span>
+            ${
+              isMobile
+                ? '<span class="perm-ora-stat">مجموعة هاتف — شاشات التطبيق فقط</span>'
+                : ''
+            }
           </div>
-          <button class="si-btn si-btn--primary" type="submit" style="align-self:flex-end">حفظ مجموعات التتبع</button>
         </div>
-      </form>
-      <form method="get" action="/system/permissions" class="si-rail"
-            style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end">
-        <label style="font-weight:700;font-size:.85rem">تعديل صلاحيات المجموعة
-          <select name="group_id" class="si-field" style="min-height:2.1rem;min-width:14rem;display:block"
-                  onchange="this.form.submit()">
-            ${opts}
-          </select>
-        </label>
-        <span class="muted" style="font-size:.85rem;padding-bottom:.35rem" id="perm-count-label">
-          ${allowedCount} / ${totalScreens} مسموح
-        </span>
-        ${
-          isMobile
-            ? '<span class="si-pill" style="font-size:.78rem">مجموعة هاتف: شاشات التطبيق فقط</span>'
-            : ''
-        }
-      </form>
-      ${
-        gid
-          ? `<form method="post" action="/system/permissions" class="si-surface" id="permissions-form"
-               style="padding:1rem 1.1rem">
-          <input type="hidden" name="group_id" value="${gid}">
-          <div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:flex-end;margin-bottom:.75rem">
-            <label style="font-weight:700;font-size:.85rem;flex:1;min-width:14rem">اسم القائمة
-              <select id="perm-menu-filter" class="si-field" style="min-height:2.1rem;width:100%;display:block">
-                ${menuOptsHtml}
-              </select>
-            </label>
-            <label style="font-weight:700;font-size:.85rem;flex:1;min-width:12rem">بحث
-              <input class="si-field" type="search" id="perm-screen-search" placeholder="اسم الشاشة أو الكود..."
-                     style="min-height:2.1rem;width:100%;display:block" autocomplete="off">
-            </label>
-            <div class="perm-type-filters" style="padding-bottom:.35rem">
-              <span class="muted" style="font-size:.82rem">النوع:</span>
-              <label><input type="radio" name="perm_type_filter" value="all" checked> الكل</label>
-              <label><input type="radio" name="perm_type_filter" value="screen"> شاشة</label>
-              <label><input type="radio" name="perm_type_filter" value="report"> تقرير</label>
-              <label><input type="radio" name="perm_type_filter" value="action"> إجراء</label>
+        <form method="post" action="/system/permissions/gps-track-groups" class="perm-gps-block">
+          <input type="hidden" name="group_id" value="${gid || ''}">
+          <div class="perm-ora-bar__row">
+            <div style="flex:1;min-width:14rem">
+              <strong>تتبع مواقع المندوبين — المجموعات</strong>
+              <p class="perm-gps-hint">ضع علامة بجانب المجموعة لإظهار مندوبيها فقط على خريطة التتبع. إن لم تُحدد أي مجموعة لن يظهر أحد.</p>
+              <div class="perm-gps-chips">${gpsTrackBoxes}</div>
             </div>
-          </div>
-          <div style="display:flex;gap:.5rem;margin-bottom:.65rem;flex-wrap:wrap;align-items:center">
-            <button class="si-btn si-btn--primary" type="submit">حفظ الصلاحيات</button>
-            <button class="si-btn" type="button" id="perm-select-all">تحديد الكل (الظاهر)</button>
-            <button class="si-btn" type="button" id="perm-clear-all">إلغاء الكل (الظاهر)</button>
-            <span class="muted" style="font-size:.85rem" id="perm-visible-label"></span>
-          </div>
-          <div id="perm-rows" style="max-height:62vh;overflow:auto">
-            ${rowsHtml.join('') || '<p class="muted">لا شاشات</p>'}
-          </div>
-          <div id="perm-global-empty" class="muted" style="padding:.75rem;text-align:center" hidden>
-            لا توجد نتائج مطابقة لاسم القائمة أو البحث.
-          </div>
-          <div style="margin-top:.75rem">
-            <button class="si-btn si-btn--primary" type="submit">حفظ الصلاحيات</button>
+            <button class="si-btn si-btn--primary" type="submit">حفظ مجموعات التتبع</button>
           </div>
         </form>
-        <script>
-        (function(){
-          var form=document.getElementById('permissions-form');
-          if(!form) return;
-          var menuSel=document.getElementById('perm-menu-filter');
-          var search=document.getElementById('perm-screen-search');
-          var emptyEl=document.getElementById('perm-global-empty');
-          var visLabel=document.getElementById('perm-visible-label');
-          var rows=[].slice.call(form.querySelectorAll('.perm-row'));
-          function norm(v){return String(v||'').toLowerCase().trim();}
-          function typeVal(){
-            var c=form.querySelector('input[name="perm_type_filter"]:checked');
-            return c?String(c.value||'all'):'all';
-          }
-          function applyFilter(){
-            var menu=menuSel?String(menuSel.value||''):'';
-            var term=norm(search&&search.value);
-            var tf=typeVal();
-            var vis=0;
-            rows.forEach(function(row){
-              var domain=row.getAttribute('data-domain')||'';
-              var panel=row.getAttribute('data-panel')||'';
-              var kind=row.getAttribute('data-kind')||'screen';
-              var menuOk=true;
-              if(menu.indexOf('domain:')===0) menuOk=domain===menu.slice(7);
-              else if(menu.indexOf('panel:')===0) menuOk=panel===menu.slice(6);
-              var typeOk=tf==='all'||kind===tf;
-              var textOk=!term||norm(row.getAttribute('data-search')||row.textContent).indexOf(term)!==-1;
-              var show=menuOk&&typeOk&&textOk;
-              row.hidden=!show;
-              if(show) vis++;
-            });
-            if(emptyEl) emptyEl.hidden=vis>0||rows.length===0;
-            if(visLabel) visLabel.textContent='ظاهر: '+vis+' / '+rows.length;
-          }
-          function visCbs(){
-            return rows.filter(function(r){return !r.hidden;})
-              .map(function(r){return r.querySelector('input[type=checkbox]');})
-              .filter(function(el){return el&&!el.disabled;});
-          }
-          if(menuSel) menuSel.addEventListener('change',applyFilter);
-          if(search) search.addEventListener('input',applyFilter);
-          [].forEach.call(form.querySelectorAll('input[name="perm_type_filter"]'),function(r){
-            r.addEventListener('change',applyFilter);
-          });
-          var sa=document.getElementById('perm-select-all');
-          var ca=document.getElementById('perm-clear-all');
-          if(sa) sa.addEventListener('click',function(){ visCbs().forEach(function(c){c.checked=true;}); });
-          if(ca) ca.addEventListener('click',function(){ visCbs().forEach(function(c){c.checked=false;}); });
-          applyFilter();
-        })();
-        </script>`
+        ${
+          isMobile
+            ? '<p class="perm-mobile-group-note">مجموعة <strong>هاتف (MOBILE)</strong>: شاشات التطبيق فقط.</p>'
+            : ''
+        }
+      </div>
+      ${
+        gid
+          ? `<form method="post" action="/system/permissions" class="perm-ora12-form" id="permissions-form"
+               data-initial-panel="${esc(String(initialPanel))}">
+          <input type="hidden" name="group_id" value="${gid}">
+          <div class="perm-split">
+            <aside class="perm-tree-pane" aria-label="القوائم">
+              <div class="perm-pane-head">القوائم <span>${Object.keys(treeByDomain || {}).length} مجال</span></div>
+              <div class="perm-tree-body">
+                <div class="perm-tree-search-row">
+                  <input class="si-field" type="search" id="perm-tree-search"
+                         placeholder="بحث في القوائم..." autocomplete="off" spellcheck="false">
+                  <button type="button" class="si-btn" id="perm-tree-search-btn">بحث</button>
+                </div>
+                <nav class="perm-tree" id="perm-tree">${treeHtml || '<p class="muted" style="padding:.5rem">لا قوائم</p>'}</nav>
+              </div>
+            </aside>
+            <section class="perm-detail-pane" aria-label="الشاشات والتقارير">
+              <div class="perm-pane-head">
+                <span id="perm-detail-title">${esc(
+                  (panels.find((p) => String(p.id) === String(initialPanel)) || {}).title ||
+                    'الشاشات / التقارير'
+                )}</span>
+                <span id="perm-panel-count"></span>
+              </div>
+              <div class="perm-detail-body">
+                <div class="perm-detail-toolbar">
+                  <input class="si-field" type="search" id="perm-screen-search"
+                         placeholder="بحث في الشاشات والكود..." autocomplete="off" spellcheck="false">
+                  <div class="perm-type-filters" role="radiogroup" aria-label="النوع">
+                    <span class="perm-type-filters-label">النوع:</span>
+                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="all" checked> الكل</label>
+                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="screen"> شاشة</label>
+                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="report"> تقرير</label>
+                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="action"> إجراء</label>
+                  </div>
+                  <div class="perm-bulk-actions">
+                    <button type="button" class="si-btn" id="perm-select-all">تحديد الكل</button>
+                    <button type="button" class="si-btn" id="perm-clear-all">إلغاء الكل</button>
+                  </div>
+                </div>
+                ${panelsHtml || '<p class="muted">لا شاشات</p>'}
+                <div id="perm-global-empty" class="perm-global-empty" hidden>
+                  لا توجد نتائج مطابقة للبحث أو النوع في هذا القسم.
+                </div>
+              </div>
+            </section>
+          </div>
+          <div class="perm-ora-foot">
+            <div class="perm-ora-foot__actions">
+              <button class="si-btn si-btn--primary" type="submit">حفظ الصلاحيات</button>
+              <a class="si-btn" href="/system/groups">المجموعات</a>
+            </div>
+            <span class="muted" id="perm-visible-label"></span>
+          </div>
+        </form>`
           : '<p class="muted">لا توجد مجموعات.</p>'
       }
     </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: 'الصلاحيات', bodyHtml: body }));
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'الصلاحيات',
+      bodyHtml: body,
+      css: ['/assets/css/permissions-oracle12.css'],
+      js: ['/assets/js/permissions-admin.js'],
+      activePath: '/system/permissions',
+    })
+  );
 });
 
 router.post('/system/permissions/gps-track-groups', async (req, res) => {
