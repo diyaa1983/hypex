@@ -47,10 +47,16 @@
       if (btn.__busy) return;
       btn.__busy = true;
       btn.disabled = true;
-      var fd = new FormData();
-      fd.append('screen', code);
-      if (csrf) fd.append('_csrf', csrf);
-      fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+      // application/x-www-form-urlencoded — يعمل مع Node (urlencoded/json) وPHP ($_POST)
+      var body = new URLSearchParams();
+      body.append('screen', code);
+      if (csrf) body.append('_csrf', csrf);
+      fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: body.toString(),
+        credentials: 'same-origin',
+      })
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (!data || !data.ok) {

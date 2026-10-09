@@ -66,8 +66,54 @@ function resolveScreen(code) {
   return byCode.get(code) || null;
 }
 
+function normalizePath(pathname) {
+  let p = String(pathname || '').trim();
+  if (!p) return '';
+  if (!p.startsWith('/')) p = '/' + p;
+  if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+  return p;
+}
+
+/** مطابقة مسار الشاشة — بما فيها /sales/orders/123 → /sales/orders/new */
 function resolvePath(pathname) {
-  return byPath.get(pathname) || null;
+  const p = normalizePath(pathname);
+  if (!p) return null;
+  if (byPath.has(p)) return byPath.get(p);
+
+  // مسارات مستندات بمعرّف: /sales/orders/12 → شاشة الإدخال
+  const docPrefixes = [
+    ['/sales/orders/', 'sales_customer_orders'],
+    ['/sales/invoices/', 'sales_invoices'],
+    ['/sales/returns/', 'sales_returns'],
+    ['/sales/offers/', 'sales_offers'],
+    ['/sales/delivery/', 'sales_delivery'],
+    ['/sales/order-returns/', 'sales_customer_order_returns'],
+    ['/purchases/invoices/', 'purchase_invoices'],
+    ['/purchases/orders/', 'purchase_orders'],
+    ['/purchases/returns/', 'purchase_returns'],
+  ];
+  for (const [prefix, code] of docPrefixes) {
+    if (p.startsWith(prefix) && p.length > prefix.length) {
+      const rest = p.slice(prefix.length);
+      // تجاهل مسارات فرعية مثل print إن وُجدت في الخريطة لاحقاً
+      if (/^\d+(\/|$)/.test(rest) || rest === 'new' || rest === 'entry') {
+        return byCode.get(code) || null;
+      }
+    }
+  }
+
+  // أطول بادئة معروفة في الكتالوج
+  let best = null;
+  let bestLen = 0;
+  for (const [path, entry] of byPath.entries()) {
+    if (p === path || p.startsWith(path + '/')) {
+      if (path.length > bestLen) {
+        best = entry;
+        bestLen = path.length;
+      }
+    }
+  }
+  return best;
 }
 
 module.exports = {

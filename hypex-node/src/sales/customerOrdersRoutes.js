@@ -625,6 +625,8 @@ async function renderForm(req, res, orderId) {
       bodyHtml,
       bodyClass: 'si-2027 co-ora-body',
       mainClass: 'main si-main',
+      activePath: isNew ? '/sales/orders/new' : '/sales/orders/' + Number(initial.id || 0),
+      screenCode: 'sales_customer_orders',
       /* للرجوع: احذف customer-order-ora.css واسترجع customerOrdersRoutes.js.bak */
       css: [
         '/assets/css/sales-2027.css',
