@@ -9,6 +9,8 @@ const auth = require('./auth');
 const nav = require('./nav');
 const dashboard = require('./dashboard');
 const { renderApp, faviconLinksHtml, setRequestPath } = require('./lib/layout');
+const { loadFavoritesForRequest } = require('./lib/favoritesContext');
+const favoritesRoutes = require('./favorites/favoritesRoutes');
 const { esc, fmtAmt, isoToDmy } = require('./lib/html');
 const { resolveNativeEmbedTarget } = require('./lib/nativeEmbed');
 const { resolveScreen } = require('./lib/screenMap');
@@ -86,6 +88,11 @@ app.use(async (req, res, next) => {
       try {
         const companyDecimals = require('./lib/companyDecimals');
         await companyDecimals.load();
+      } catch {
+        /* */
+      }
+      try {
+        await loadFavoritesForRequest(req);
       } catch {
         /* */
       }
@@ -367,6 +374,7 @@ app.get('/api/me', auth.requireAuth, (req, res) => {
 });
 
 app.use(notifications.router);
+app.use(favoritesRoutes);
 
 app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
   try {

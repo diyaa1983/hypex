@@ -7,7 +7,9 @@
   var grid = document.getElementById('nav-fav-grid');
   if (!input || !grid) return;
 
-  var tiles = Array.prototype.slice.call(grid.querySelectorAll('.nav-fav-tile'));
+  var tiles = Array.prototype.slice.call(
+    grid.querySelectorAll('.nav-fav-tile, .si-tile[data-fav-label], .si-tile[data-fav-route]')
+  );
 
   function normalize(text) {
     return String(text || '')
@@ -31,7 +33,10 @@
       }
       var label = tile.getAttribute('data-fav-label') || '';
       var route = tile.getAttribute('data-fav-route') || '';
-      var text = (tile.querySelector('.nav-fav-tile__label') || {}).textContent || '';
+      var text =
+        (tile.querySelector('.nav-fav-tile__label, .si-tile-label') || {}).textContent ||
+        tile.textContent ||
+        '';
       var hay = normalize(label + ' ' + route + ' ' + text);
       var match = hay.indexOf(q) !== -1;
       tile.hidden = !match;

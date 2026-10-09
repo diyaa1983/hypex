@@ -5,6 +5,12 @@ const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
 const basePath = require('./basePath');
+const { resolvePath } = require('./screenMap');
+const {
+  getFavoritesContext,
+  isCurrentFavorite,
+  setFavoritesScreen,
+} = require('./favoritesContext');
 const {
   wrapPrintShell,
   getPrintBrand,
@@ -82,6 +88,27 @@ function screenExitHref(activePath) {
   return '/app';
 }
 
+function renderFavoriteToggleButton() {
+  const ctx = getFavoritesContext();
+  const code = String(ctx.screenCode || '').trim();
+  if (!code || !ctx.allowed) return '';
+  const isFav = isCurrentFavorite(code);
+  const title = isFav ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة';
+  const cls =
+    'app-screen-fav-btn app-screen-fav-btn--on-blue no-print' + (isFav ? ' is-active' : '');
+  return `<button type="button" class="${cls}" data-favorite-toggle
+      data-screen-code="${esc(code)}"
+      data-csrf="${esc(ctx.csrf || '')}"
+      data-api-url="/api/favorites/toggle"
+      aria-pressed="${isFav ? 'true' : 'false'}"
+      aria-label="${esc(title)}" title="${esc(title)}">
+      <svg class="app-screen-fav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+        <path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
+          fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+      </svg>
+    </button>`;
+}
+
 function wrapScreenChrome(title, bodyHtml, activePath) {
   const path = normalizeAppPath(currentRequestPath || activePath);
   if (isDashboardPath(path)) return bodyHtml;
@@ -89,9 +116,11 @@ function wrapScreenChrome(title, bodyHtml, activePath) {
   const minimizeBtn = isMdiEmbedRequest()
     ? ''
     : `<button type="button" class="ora12-title-bar__btn ora12-title-bar__minimize" id="app-mdi-minimize-screen" title="تصغير" aria-label="تصغير"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>`;
+  const favBtn = renderFavoriteToggleButton();
   return `<div class="hx-ora-screen">
       <header class="hx-ora-screen-title dashboard-ora-screen-title no-print" role="banner">
         <h1 class="dashboard-ora-screen-title__text">${esc(title || '')}</h1>
+        ${favBtn}
         <div class="ora12-title-bar__controls no-print">
           ${minimizeBtn}
           <a class="ora12-title-bar__close app-screen-exit-btn" href="${esc(href)}"
@@ -224,12 +253,23 @@ function renderApp({
   bodyClass = '',
   mainClass = 'main main--wide',
   activePath = '',
+  screenCode = '',
   /** ترويسة/تذييل الطباعة عبر iframe (افتراضي مفعّل) */
   printChrome = true,
   printTitle = '',
   notifyBellHtml = '',
 }) {
   getPrintBrand();
+
+  const path = normalizeAppPath(currentRequestPath || activePath);
+  let resolvedCode = String(screenCode || '').trim();
+  if (!resolvedCode && path) {
+    const sc = resolvePath(path);
+    if (sc && sc.r) resolvedCode = String(sc.r);
+  }
+  if (user) {
+    setFavoritesScreen(resolvedCode, user);
+  }
 
   let bellHtml = notifyBellHtml || '';
   if (user && !bellHtml) {
@@ -258,6 +298,7 @@ function renderApp({
   const uiDlgJsVer = assetVersion('js/ui-dialog.js');
   const uiDlgCssVer = assetVersion('css/ui-dialog.css');
   const exitGuardVer = assetVersion('js/screen-exit-guard.js');
+  const favJsVer = assetVersion('js/favorites.js');
   const allCss = [...css];
   const allJs = [...js];
   if (printChrome && user) {
@@ -266,6 +307,8 @@ function renderApp({
   }
   // واجهة تنبيهات/تأكيد + اختصارات + تواريخ يوم-شهر-سنة لكل الشاشات
   if (user) {
+    const hasFavJs = allJs.some((j) => String(j).indexOf('favorites.js') !== -1);
+    if (!hasFavJs) allJs.push(`/assets/js/favorites.js?v=${favJsVer}`);
     // جلد Oracle Forms لكل شاشات النظام (قوائم / تقارير / مستندات)
     if (!/\bco-ora-body\b/.test(String(bodyClass || ''))) {
       bodyClass = `${String(bodyClass || '').trim()} co-ora-body`.trim();
@@ -359,6 +402,12 @@ function renderApp({
     printChrome && user
       ? bodyPrintDataHtml({ user, documentTitle: printTitle || title })
       : '';
+  const favCtx = getFavoritesContext();
+  const favAttrs = user
+    ? ` data-active-route="${esc(resolvedCode)}" data-csrf="${esc(favCtx.csrf || '')}" data-fav-api="/api/favorites/toggle" data-fav-allowed="${
+        favCtx.allowed ? '1' : '0'
+      }" data-is-favorite="${isCurrentFavorite(resolvedCode) ? '1' : '0'}"`
+    : '';
 
   let decimalsScript = '';
   try {
@@ -389,7 +438,7 @@ function renderApp({
   ${cssLinks}
   ${extraHead}
 </head>
-<body class="${esc(bodyCls)}"${printAttrs}>
+<body class="${esc(bodyCls)}"${printAttrs}${favAttrs}>
   <div class="app-shell">
     ${user ? renderSidebar(user, activePath, bellHtml, title) : ''}
     <main class="${esc(mainCls)}">

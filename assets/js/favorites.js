@@ -38,15 +38,18 @@
       e.preventDefault();
       e.stopPropagation();
       var code = btn.getAttribute('data-screen-code') || '';
-      var csrf = btn.getAttribute('data-csrf') || '';
-      var apiUrl = btn.getAttribute('data-api-url') || '';
+      var csrf = btn.getAttribute('data-csrf') || (document.body && document.body.getAttribute('data-csrf')) || '';
+      var apiUrl = btn.getAttribute('data-api-url') || (document.body && document.body.getAttribute('data-fav-api')) || '';
       if (!code || !apiUrl) return;
+      // Node API يعتمد الجلسة؛ CSRF اختياري. PHP يتطلبه.
+      var needsCsrf = apiUrl.indexOf('/api/favorites/toggle') === -1;
+      if (needsCsrf && !csrf) return;
       if (btn.__busy) return;
       btn.__busy = true;
       btn.disabled = true;
       var fd = new FormData();
       fd.append('screen', code);
-      fd.append('_csrf', csrf);
+      if (csrf) fd.append('_csrf', csrf);
       fetch(apiUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -134,7 +137,8 @@
     var route = body.getAttribute('data-active-route') || '';
     var csrf = body.getAttribute('data-csrf') || '';
     var apiUrl = body.getAttribute('data-fav-api') || '';
-    if (!route || !csrf || !apiUrl) return;
+    if (!route || !apiUrl) return;
+    if (apiUrl.indexOf('/api/favorites/toggle') === -1 && !csrf) return;
 
     var isFav = body.getAttribute('data-is-favorite') === '1';
     var bars = document.querySelectorAll(

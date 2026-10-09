@@ -386,6 +386,39 @@ body.co-ora-body .si-table a:hover {
   margin-inline-start: auto;
 }
 
+/* زر المفضلة على شريط عنوان الشاشة */
+.hx-ora-screen-title .app-screen-fav-btn,
+.dashboard-ora-screen-title .app-screen-fav-btn,
+.app-screen-fav-btn--on-blue {
+  background: transparent;
+  border: 0;
+  padding: 0.1rem 0.28rem;
+  cursor: pointer;
+  color: rgba(255, 255, 255, 0.55);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+}
+
+.hx-ora-screen-title .app-screen-fav-btn:hover,
+.dashboard-ora-screen-title .app-screen-fav-btn:hover,
+.app-screen-fav-btn--on-blue:hover {
+  color: #fbbf24;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.hx-ora-screen-title .app-screen-fav-btn.is-active,
+.dashboard-ora-screen-title .app-screen-fav-btn.is-active,
+.app-screen-fav-btn--on-blue.is-active {
+  color: #fbbf24;
+}
+
+.app-screen-fav-icon {
+  display: block;
+}
+
 .hx-ora-screen-title .ora12-title-bar__minimize,
 .dashboard-ora-screen-title .ora12-title-bar__minimize,
 .ora12-title-bar__btn.ora12-title-bar__minimize {

@@ -38,7 +38,7 @@ function buildSidebar(user) {
     id: 'favorites',
     title: 'المفضلة',
     icon: '⭐',
-    path: '/app',
+    path: '/hub/favorites',
     isDomain: true,
   });
   return items;
@@ -80,14 +80,20 @@ function domainHubContent(user, domainId) {
 async function favoritesHubContent(user) {
   let codes = [];
   try {
-    const rows = await db.query(
-      `SELECT screen_code FROM sys_user_favorite WHERE user_id = ?
-       ORDER BY sort_order ASC, id ASC`,
-      [user.id]
-    );
-    codes = rows.map((r) => String(r.screen_code));
+    const favSvc = require('./favorites/favoritesService');
+    await favSvc.ensureSchema();
+    codes = await favSvc.codesForUser(user.id);
   } catch {
-    codes = [];
+    try {
+      const rows = await db.query(
+        `SELECT screen_code FROM sys_user_favorite WHERE user_id = ?
+         ORDER BY sort_order ASC, id ASC`,
+        [user.id]
+      );
+      codes = rows.map((r) => String(r.screen_code));
+    } catch {
+      codes = [];
+    }
   }
   const items = [];
   for (const code of codes) {
