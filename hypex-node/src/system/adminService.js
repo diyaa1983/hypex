@@ -188,11 +188,92 @@ async function syncActionPermissions() {
   return added;
 }
 
+/** مزامنة شاشات/تقارير القائمة مع sys_screen (مثل PHP sys_ensure_nav_menu_screen_codes) */
+async function syncNavMenuScreens() {
+  const needed = permissionsNav.collectNavScreenCodes();
+  const codes = Object.keys(needed || {});
+  if (!codes.length) return 0;
+
+  let added = 0;
+  const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+  let nextOrder = Number(maxRows[0]?.m || 0) || 0;
+
+  for (const code of codes) {
+    const nameAr = String(needed[code] || code).trim() || code;
+    const existing = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    if (existing[0]) continue;
+    nextOrder += 10;
+    const screenType = code.startsWith('report_') ? 'report' : 'screen';
+    await q(
+      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, ?, ?)`,
+      [code, nameAr, screenType, nextOrder]
+    );
+    const created = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    const screenId = Number(created[0]?.id || 0);
+    if (screenId > 0) {
+      await q(
+        `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+         SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = 'ADMINS'`,
+        [screenId]
+      );
+      added += 1;
+    }
+  }
+  return added;
+}
+
+/**
+ * ضمان تسجيل تقرير تفصيلي طلبات الشراء ومنحه للمجموعات التي لديها تقرير طلبات الشراء.
+ * يغطي السيرفرات التي نُشر عليها التقرير دون تشغيل ترحيل 290.
+ */
+async function ensureReportCustomerOrdersDetailedScreen() {
+  const code = 'report_customer_orders_detailed';
+  const nameAr = 'تقرير تفصيلي لطلبات الشراء';
+  let rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+  let screenId = Number(rows[0]?.id || 0);
+  if (!screenId) {
+    const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+    const nextOrder = Math.max(Number(maxRows[0]?.m || 0) + 10, 239);
+    await q(
+      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'report', ?)`,
+      [code, nameAr, nextOrder]
+    );
+    rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    screenId = Number(rows[0]?.id || 0);
+  }
+  if (!screenId) return false;
+
+  await q(
+    `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+     SELECT gp.group_id, ?, 1
+     FROM sys_screen s_old
+     INNER JOIN sys_group_permission gp ON gp.screen_id = s_old.id AND gp.allowed = 1
+     WHERE s_old.code = 'report_customer_orders'`,
+    [screenId]
+  );
+  await q(
+    `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+     SELECT g.id, ?, 1 FROM sys_group g WHERE g.code IN ('ADMINS', 'administrators', 'admin')`,
+    [screenId]
+  );
+  return true;
+}
+
 async function listPermissionsMatrix(groupId = 0) {
   try {
     await syncActionPermissions();
   } catch (e) {
     console.error('syncActionPermissions', e.message || e);
+  }
+  try {
+    await syncNavMenuScreens();
+  } catch (e) {
+    console.error('syncNavMenuScreens', e.message || e);
+  }
+  try {
+    await ensureReportCustomerOrdersDetailedScreen();
+  } catch (e) {
+    console.error('ensureReportCustomerOrdersDetailedScreen', e.message || e);
   }
   const groups = await listGroups();
   const screens = await q(

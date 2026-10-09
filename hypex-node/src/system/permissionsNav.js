@@ -335,10 +335,38 @@ function buildPermissionPanels(screens, opts = {}) {
   };
 }
 
+/** أكواد شاشات/تقارير القائمة مع تسمياتها — لمزامنة sys_screen */
+function collectNavScreenCodes() {
+  const needed = Object.create(null);
+  function walk(nodes) {
+    for (const node of nodes || []) {
+      if (!node || typeof node !== 'object') continue;
+      if (Array.isArray(node.subgroups) && node.subgroups.length) {
+        walk(node.subgroups);
+      }
+      for (const it of node.items || []) {
+        if (!it || typeof it !== 'object') continue;
+        const code = permCodeFromItem(it);
+        if (!code) continue;
+        const label = String(it.label || code).trim() || code;
+        if (!needed[code] || needed[code] === code) {
+          needed[code] = label;
+        }
+      }
+    }
+  }
+  for (const domain of loadNavMenu().domains || []) {
+    if (!domain || typeof domain !== 'object') continue;
+    walk(domain.subgroups || []);
+  }
+  return needed;
+}
+
 module.exports = {
   loadNavMenu,
   loadActionCatalog,
   actionItemsFlat,
   buildPermissionPanels,
+  collectNavScreenCodes,
   typeLabelAr,
 };

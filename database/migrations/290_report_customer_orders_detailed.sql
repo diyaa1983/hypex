@@ -1,4 +1,6 @@
 -- تقرير تفصيلي لطلبات الشراء (حسب المندوب وفئة المادة)
+-- يُشغَّل من PHP boot أو يدوياً على السيرفر
+
 INSERT INTO sys_screen (code, name_ar, screen_type, sort_order)
 SELECT 'report_customer_orders_detailed', 'تقرير تفصيلي لطلبات الشراء', 'report', 239
 WHERE NOT EXISTS (SELECT 1 FROM sys_screen WHERE code = 'report_customer_orders_detailed');
