@@ -79,7 +79,7 @@ class _OrderLine {
   }
 
   final PickedItem item;
-  int qty = 1;
+  int qty = 0;
   int qtyExtra = 0;
   int unitId = 0;
   String unitName = '';
@@ -2323,14 +2323,15 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               DataCell(
                 _numPadField(
                   width: m.qty,
-                  text: '${_lines[i].qty}',
+                  text: _lines[i].qty > 0 ? '${_lines[i].qty}' : '',
                   style: cellStyle,
                   m: m,
                   onTap: !_editable
                       ? null
                       : () => _editLineNumber(
                             title: 'الكمية',
-                            initial: '${_lines[i].qty}',
+                            initial:
+                                _lines[i].qty > 0 ? '${_lines[i].qty}' : '',
                             decimal: false,
                             apply: (v) {
                               _lines[i].qty =
