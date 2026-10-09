@@ -145,13 +145,14 @@ class _CustomerOrdersPendingScreenState
 
       Future<void> queueSend(List<int> ids) async {
         if (ids.isEmpty) return;
+        for (final id in ids) {
+          await OfflineStore.instance.markOrderSendRequested(id);
+        }
         await offline.enqueue(
           kind: 'customer_order_send',
           path: AppConfig.customerOrderSendPath,
           body: {'ids': ids},
         );
-        // محلياً: أظهرها كمرسلة بعد وضعها في الطابور فقط للسالبين بعد save؛
-        // للسيرفر ids تُعلَّم بعد الترحيل. للـ offline المحلي يمكن تعليمها كمرسلة مؤقتاً بعد أن يكون الـ save قد رُحّل — نبقيها غير مرسلة حتى flush.
       }
 
       if (!offline.online && offline.catalogReady) {

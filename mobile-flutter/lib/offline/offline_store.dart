@@ -1501,8 +1501,26 @@ class OfflineStore {
       final o = await getOrderById(id);
       if (o == null) continue;
       o['is_sent'] = 1;
+      o['pending_send'] = 0;
       await upsertLocalOrder(o);
     }
+  }
+
+  /// المندوب ضغط «ترحيل» — يبقى في غير المرسلة حتى يُزامن، ثم يُرسل تلقائياً.
+  Future<void> markOrderSendRequested(int id) async {
+    if (id == 0) return;
+    final o = await getOrderById(id);
+    if (o == null) {
+      await upsertLocalOrder({
+        'id': id,
+        'is_sent': 0,
+        'pending_send': 1,
+      });
+      return;
+    }
+    o['pending_send'] = 1;
+    o['is_sent'] = 0;
+    await upsertLocalOrder(o);
   }
 
   Future<void> deleteLocalOrder(int id) async {
@@ -1661,6 +1679,23 @@ class OfflineStore {
       } catch (_) {}
     }
     return n;
+  }
+
+  Future<Map<String, dynamic>?> outboxBodyById(int id) async {
+    final db = await _db;
+    final rows = await db.query(
+      'outbox',
+      columns: ['body_json'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    try {
+      final m = jsonDecode(rows.first['body_json'] as String);
+      if (m is Map) return m.cast<String, dynamic>();
+    } catch (_) {}
+    return null;
   }
 
   Future<List<Map<String, dynamic>>> pendingOutbox({int limit = 50}) async {

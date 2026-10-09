@@ -260,7 +260,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   Map<String, dynamic>? _arSummary;
   bool _arLoading = false;
   String? _arError;
-  bool _autoSendOrders = true;
+  bool _autoSendOrders = false;
   bool _isSent = false;
   final _orderNoCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
@@ -743,6 +743,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           body: body,
         );
         final lines = _lines.map((l) => l.toJson()).toList();
+        final prev = await OfflineStore.instance.getOrderById(localId);
+        final keepPending = prev != null &&
+            (prev['pending_send'] == true ||
+                prev['pending_send'] == 1 ||
+                '${prev['pending_send']}' == '1');
         await OfflineStore.instance.upsertLocalOrder(
           {
             'id': localId,
@@ -754,6 +759,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             'warehouse_name': '',
             'status': 'draft',
             'is_sent': 0,
+            if (keepPending) 'pending_send': 1,
             'total': 0,
             'line_count': lines.length,
             'lines': lines,
@@ -774,9 +780,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           _markClean();
           showSnack(
             context,
-            _autoSendOrders
-                ? 'حُفظ الطلب محلياً. اضغط «ترحيل» بعد عودة الاتصال أو من هنا.'
-                : 'حُفظ الطلب محلياً — سيُرحَّل تلقائياً عند عودة الاتصال.',
+            'حُفظ الطلب محلياً في «غير المرسلة». اضغط «ترحيل» لإرساله عند توفر الاتصال.',
           );
           widget.onSaved?.call(localId);
         }
@@ -833,6 +837,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           final orderNo = (_orderNo != null && _orderNo!.isNotEmpty)
               ? _orderNo!
               : 'OFF-${DateTime.now().millisecondsSinceEpoch % 100000}';
+          final prev = await OfflineStore.instance.getOrderById(localId);
+          final keepPending = prev != null &&
+              (prev['pending_send'] == true ||
+                  prev['pending_send'] == 1 ||
+                  '${prev['pending_send']}' == '1');
           await OfflineStore.instance.upsertLocalOrder(
             {
               'id': localId,
@@ -843,6 +852,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               'warehouse_id': _warehouseId,
               'status': 'draft',
               'is_sent': 0,
+              if (keepPending) 'pending_send': 1,
               'lines': _lines.map((l) => l.toJson()).toList(),
               'delivery_date': _deliveryDate,
               'notes': _notesCtrl.text.trim(),
@@ -860,7 +870,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             _markClean();
             showSnack(
               context,
-              'انقطع الاتصال — حُفظ الطلب محلياً وسيُرحَّل لاحقاً.',
+              'انقطع الاتصال — حُفظ الطلب في «غير المرسلة». اضغط «ترحيل» لإرساله.',
             );
             widget.onSaved?.call(localId);
           }
@@ -965,6 +975,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final offline = context.read<OfflineController>();
     try {
       if (!offline.online && offline.catalogReady) {
+        await OfflineStore.instance.markOrderSendRequested(_id);
         await offline.enqueue(
           kind: 'customer_order_send',
           path: AppConfig.customerOrderSendPath,
@@ -975,7 +986,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         if (!mounted) return;
         showSnack(
           context,
-          'وُضع الترحيل في الطابور — سيُرسل عند عودة الاتصال.',
+          'تم طلب الترحيل — سيُرسل تلقائياً عند عودة الاتصال.',
         );
         return;
       }
@@ -986,7 +997,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             },
             csrf: context.read<SessionController>().csrf,
           );
-      if (_id > 0) {
+      if (_id != 0) {
         await OfflineStore.instance.markOrderSent([_id]);
       }
       if (!mounted) return;
@@ -1001,6 +1012,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       if (offline.catalogReady &&
           (e.message.contains('تعذر الاتصال') ||
               e.message.contains('الإنترنت'))) {
+        await OfflineStore.instance.markOrderSendRequested(_id);
         await offline.enqueue(
           kind: 'customer_order_send',
           path: AppConfig.customerOrderSendPath,
@@ -1009,7 +1021,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           },
         );
         if (mounted) {
-          showSnack(context, 'انقطع الاتصال — وُضع الترحيل في الطابور.');
+          showSnack(
+            context,
+            'انقطع الاتصال — سيُرحَّل الطلب تلقائياً عند عودة الشبكة.',
+          );
         }
       } else if (mounted) {
         showSnack(context, e.message, error: true);

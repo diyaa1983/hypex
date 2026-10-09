@@ -560,27 +560,6 @@
   display: none !important;
 }
 
-.ugt-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin: 0;
-  padding: 0.2rem 0.55rem;
-  border-radius: 8px;
-  background: #fff;
-  border: 1px solid #d5dbe6;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #334155;
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-.ugt-check input {
-  margin: 0;
-  accent-color: #0b63ce;
-}
-
 .ugt-marker {
   background: transparent;
   border: 0;

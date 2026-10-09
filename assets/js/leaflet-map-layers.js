@@ -1,6 +1,8 @@
 (function (global) {
   'use strict';
 
+  // ملاحظة: بلاطات CARTO المجانية أصبحت تتطلب API key (تظهر «API KEY REQUIRED»).
+  // نستخدم OSM للتكبير العالي وEsri للتكبير المنخفض بدون مفتاح.
   var PROVIDERS = {
     esri: {
       tileUrl:
@@ -16,13 +18,20 @@
       maxZoom: 16,
       maxNativeZoom: 16,
     },
-    carto: {
-      tileUrl:
-        'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    osm: {
+      tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO',
-      maxZoom: 20,
-      subdomains: 'abcd',
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+      maxNativeZoom: 19,
+    },
+    // carto = نفس مظهر Voyager تقريباً عبر OSM (بدون مفتاح)
+    carto: {
+      tileUrl: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+      maxNativeZoom: 19,
     },
   };
 
@@ -192,10 +201,14 @@
     return global.__leafletGooglePromise;
   }
 
+  function isCartoUrl(url) {
+    return url && String(url).indexOf('basemaps.cartocdn.com') >= 0;
+  }
+
   function attachRaster(map, providerKey, tileUrl, attribution, extra) {
     var def = PROVIDERS[providerKey] || PROVIDERS.esri;
     var url =
-      tileUrl && String(tileUrl).indexOf('{z}') >= 0
+      tileUrl && String(tileUrl).indexOf('{z}') >= 0 && !isCartoUrl(tileUrl)
         ? tileUrl
         : def.tileUrl;
     var opts = {
@@ -209,15 +222,15 @@
     global.L.tileLayer(url, opts).addTo(map);
   }
 
-  /** Carto دائماً + Esri للتكبير المنخفض فقط (يمنع بلاطات «Map data not yet available»). */
+  /** OSM للتكبير العالي + Esri للتكبير المنخفض (بدون CARTO / بدون مفتاح). */
   function attachEsriHybrid(map, tileUrl, attribution) {
-    var carto = global.L.tileLayer(PROVIDERS.carto.tileUrl, {
-      attribution: PROVIDERS.carto.attribution,
-      maxZoom: 20,
-      subdomains: PROVIDERS.carto.subdomains,
+    var detail = global.L.tileLayer(PROVIDERS.osm.tileUrl, {
+      attribution: PROVIDERS.osm.attribution,
+      maxZoom: 19,
+      maxNativeZoom: 19,
     });
     var esriUrl =
-      tileUrl && String(tileUrl).indexOf('{z}') >= 0
+      tileUrl && String(tileUrl).indexOf('{z}') >= 0 && !isCartoUrl(tileUrl)
         ? tileUrl
         : PROVIDERS.esri.tileUrl;
     var esri = global.L.tileLayer(esriUrl, {
@@ -225,7 +238,7 @@
       maxNativeZoom: 17,
       maxZoom: 17,
     });
-    carto.addTo(map);
+    detail.addTo(map);
 
     var esriCutoff = 14;
 
@@ -277,9 +290,9 @@
         });
     }
 
-    if (provider === 'carto') {
-      attachRaster(map, 'carto', opts.tileUrl, opts.attribution);
-      return Promise.resolve('carto');
+    if (provider === 'carto' || provider === 'osm') {
+      attachRaster(map, 'osm', opts.tileUrl, opts.attribution);
+      return Promise.resolve('osm');
     }
 
     if (provider === 'natgeo') {

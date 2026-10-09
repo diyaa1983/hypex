@@ -67,26 +67,30 @@
       });
     }
 
-    var carto = global.L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    // OSM بدل CARTO (CARTO يتطلب API key ويظهر «API KEY REQUIRED»).
+    var osm = global.L.tileLayer(
+      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
       {
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO',
-        maxZoom: 20,
-        subdomains: 'abcd',
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        maxZoom: 19,
+        maxNativeZoom: 19,
       }
     );
-    carto.addTo(map);
+    osm.addTo(map);
 
     var provider = String(osmCfg.mapProvider || 'esri').toLowerCase();
-    if (provider === 'carto') {
-      return Promise.resolve('carto');
+    if (provider === 'carto' || provider === 'osm') {
+      return Promise.resolve('osm');
     }
 
+    var rawTile = osmCfg.tileUrl && String(osmCfg.tileUrl);
     var esriUrl =
-      (osmCfg.tileUrl && String(osmCfg.tileUrl).indexOf('{z}') >= 0
-        ? String(osmCfg.tileUrl)
-        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}');
+      rawTile &&
+      rawTile.indexOf('{z}') >= 0 &&
+      rawTile.indexOf('basemaps.cartocdn.com') < 0
+        ? rawTile
+        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
     var esri = global.L.tileLayer(esriUrl, {
       attribution: (osmCfg.attribution && String(osmCfg.attribution)) || '&copy; Esri',
       maxNativeZoom: 17,

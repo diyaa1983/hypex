@@ -63,10 +63,12 @@
   function RouteView(root) {
     this.root = root;
     this.api = root.getAttribute('data-track-api') || '';
-    this.tileUrl = root.getAttribute('data-tile-url') || 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+    this.tileUrl =
+      root.getAttribute('data-tile-url') ||
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
     this.attribution =
       root.getAttribute('data-attribution') ||
-      '&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> &copy; CARTO';
+      '&copy; Esri &mdash; OpenStreetMap contributors';
     this.mapProvider = root.getAttribute('data-map-provider') || 'esri';
     this.googleKey = root.getAttribute('data-google-key') || '';
     this.today = root.getAttribute('data-today') || '';
@@ -263,14 +265,17 @@
   };
 
   RouteView.prototype._attachCartoLayer = function () {
+    // احتياط إن لم يُحمَّل LeafletMapLayers — Esri بدون مفتاح (CARTO يتطلب API key).
+    var raw =
+      this.tileUrl && this.tileUrl.indexOf('{z}') >= 0 ? this.tileUrl : '';
     var url =
-      this.tileUrl && this.tileUrl.indexOf('{z}') >= 0
-        ? this.tileUrl
-        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+      raw && raw.indexOf('basemaps.cartocdn.com') < 0
+        ? raw
+        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
     global.L.tileLayer(url, {
       attribution: this.attribution,
-      maxZoom: 20,
-      subdomains: 'abcd',
+      maxZoom: 19,
+      maxNativeZoom: 17,
     }).addTo(this.map);
   };
 

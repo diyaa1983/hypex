@@ -166,9 +166,9 @@ class OfflineController extends ChangeNotifier {
             if (sessionReauth != null) {
               await sessionReauth!();
             }
-            // عند عودة الاتصال: ترحيل المعلّق فقط — بدون تحميل كتالوج.
-            if (info.flushableOutbox > 0 ||
-                (await store.autoSendOrdersEnabled() && info.ordersPending > 0)) {
+            // عند عودة الاتصال: ترحيل طابور العمليات فقط
+            // (حفظ + ترحيل صرّح به المندوب). لا تُرسل طلبات «محفوظة فقط» تلقائياً.
+            if (info.flushableOutbox > 0) {
               await flushAndAutoPost();
             } else {
               await store.cleanupOutbox();
@@ -191,7 +191,8 @@ class OfflineController extends ChangeNotifier {
     }
   }
 
-  /// ترحيل الطابور ثم (اختياري) إرسال الطلبات غير المرحَّلة إن فُعّل الإعداد.
+  /// ترحيل طابور العمليات (حفظ/ترحيل صرّح به المندوب).
+  /// طلبات «حفظ فقط» تبقى في غير المرسلة حتى يضغط «ترحيل».
   Future<int> flushAndAutoPost({bool silent = true}) async {
     await _waitNotFlushing();
     await store.cleanupOutbox();
@@ -201,7 +202,8 @@ class OfflineController extends ChangeNotifier {
     for (var round = 0; round < 4; round++) {
       final n = await flushOutbox(silent: silent || round > 0);
       total += n;
-      final queued = await _queueUnsentOrderSends();
+      // أعد طابور «ترحيل» فقط للطلبات التي طلب المندوب ترحيلها صراحةً
+      final queued = await _queueExplicitPendingSends();
       await refreshInfo();
       if (queued == 0 && n == 0) break;
       if (info.pendingOutbox < 1) break;
@@ -227,10 +229,9 @@ class OfflineController extends ChangeNotifier {
     _flushing = false;
   }
 
-  Future<int> _queueUnsentOrderSends() async {
+  /// فقط الطلبات التي عليها pending_send=1 (ضغط المندوب ترحيل وهو أوفلاين).
+  Future<int> _queueExplicitPendingSends() async {
     if (!serverReachable) return 0;
-    // لا تُنشئ طابوراً وهمياً لطلبات السيرفر غير المرسلة إن لم يُفعَّل الإرسال التلقائي.
-    if (!await store.autoSendOrdersEnabled()) return 0;
 
     final pending = await store.pendingOutbox(limit: 200);
     final already = <int>{};
@@ -249,10 +250,14 @@ class OfflineController extends ChangeNotifier {
     final toSend = <int>[];
     for (final o in unsent) {
       final id = (o['id'] as num?)?.toInt() ?? 0;
-      // طلبات سالبة = لم تُحفظ على السيرفر بعد — تنتظر customer_order_save أولاً.
+      // فقط بعد الحفظ على السيرفر (معرّف موجب) وطلب ترحيل صريح.
       if (id <= 0) continue;
       if (id == skip) continue;
       if (already.contains(id)) continue;
+      final wantSend = o['pending_send'] == true ||
+          o['pending_send'] == 1 ||
+          '${o['pending_send']}' == '1';
+      if (!wantSend) continue;
       toSend.add(id);
     }
     if (toSend.isEmpty) return 0;
@@ -410,6 +415,7 @@ class OfflineController extends ChangeNotifier {
         final path = row['path'] as String;
         final method = (row['method'] as String?) ?? 'POST_JSON';
         Map<String, dynamic> body;
+        final kind = (row['kind'] as String?) ?? '';
         try {
           body =
               jsonDecode(row['body_json'] as String) as Map<String, dynamic>;
@@ -418,6 +424,24 @@ class OfflineController extends ChangeNotifier {
           continue;
         }
         try {
+          // أعد قراءة الجسم بعد remap (مثلاً بعد حفظ طلب محلي سالب).
+          if (kind == 'customer_order_send' || kind == 'customer_order_save') {
+            try {
+              final fresh = await store.outboxBodyById(id);
+              if (fresh != null) body = fresh;
+            } catch (_) {}
+          }
+          if (kind == 'customer_order_send') {
+            final ids = (body['ids'] as List? ?? [])
+                .map((e) => (e as num?)?.toInt() ?? 0)
+                .where((e) => e != 0)
+                .toList();
+            // إرسال بمعرّف سالب يفشل — انتظر انتهاء الحفظ وremap في الجولة التالية.
+            if (ids.any((e) => e < 0)) {
+              continue;
+            }
+          }
+
           final sendBody = Map<String, dynamic>.from(body);
           sendBody.remove('local_customer_id');
           sendBody.remove('local_order_id');
@@ -457,7 +481,6 @@ class OfflineController extends ChangeNotifier {
               rethrow;
             }
           }
-          final kind = (row['kind'] as String?) ?? '';
           await _afterFlushSuccess(kind: kind, body: body, res: res);
           await store.markOutboxDone(id);
           okCount++;
@@ -469,20 +492,17 @@ class OfflineController extends ChangeNotifier {
             break;
           }
           if (_alreadyOnServer(e.message)) {
-            final kind = (row['kind'] as String?) ?? '';
             await _afterFlushSuccess(kind: kind, body: body, res: {'ok': true});
             await store.markOutboxDone(id);
             okCount++;
             continue;
           }
-          final kind = (row['kind'] as String?) ?? '';
           if (kind == 'customer_delete') {
             await _restoreDeletedCustomer(body);
           }
           lastError = e.message;
           await store.markOutboxError(id, e.message);
         } catch (e) {
-          final kind = (row['kind'] as String?) ?? '';
           if (kind == 'customer_delete') {
             await _restoreDeletedCustomer(body);
           }

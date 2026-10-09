@@ -185,13 +185,14 @@ router.get('/system/gps-tracker', async (req, res) => {
     return forbid(res);
   }
   const gps = await svc.getGpsSettings();
+  // CARTO يتطلب API key — نستخدم OSM عند اختيار carto، وEsri افتراضياً.
   const tileUrl =
-    gps.map_provider === 'carto'
-      ? 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+    gps.map_provider === 'carto' || gps.map_provider === 'osm'
+      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
       : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
   const attribution =
-    gps.map_provider === 'carto'
-      ? '© OSM © CARTO'
+    gps.map_provider === 'carto' || gps.map_provider === 'osm'
+      ? '© OpenStreetMap'
       : '© Esri — OpenStreetMap contributors';
   const today = todayIso();
   const gkey = esc(gps.google_maps_api_key || '');
