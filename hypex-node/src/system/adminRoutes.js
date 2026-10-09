@@ -425,6 +425,18 @@ router.get('/system/permissions', async (req, res) => {
           ? `${scope === 'mobile' ? 'شاشات الموبايل للمجموعة' : 'تعديل صلاحيات المجموعة'}: ${selectedGroupLabel}`
           : 'اختر نوع الصلاحيات ثم المجموعة',
         actions: [
+          ...(gid
+            ? [
+                {
+                  label: scope === 'mobile' ? 'حفظ صلاحيات الموبايل' : 'حفظ الصلاحيات',
+                  submit: true,
+                  form: 'permissions-form',
+                  primary: true,
+                  hxSave: true,
+                  title: 'F10',
+                },
+              ]
+            : []),
           { label: 'المجموعات', href: '/system/groups' },
           { label: 'لوحة النظام', href: HUB },
         ],
@@ -521,17 +533,9 @@ router.get('/system/permissions', async (req, res) => {
                 <div id="perm-global-empty" class="perm-global-empty" hidden>
                   لا توجد نتائج مطابقة للبحث أو النوع في هذا القسم.
                 </div>
+                <p class="muted" id="perm-visible-label" style="margin:.35rem 0 0;font-size:.82rem"></p>
               </div>
             </section>
-          </div>
-          <div class="perm-ora-foot">
-            <div class="perm-ora-foot__actions">
-              <button class="si-btn si-btn--primary" type="submit">${
-                scope === 'mobile' ? 'حفظ صلاحيات الموبايل' : 'حفظ الصلاحيات'
-              }</button>
-              <a class="si-btn" href="/system/groups">المجموعات</a>
-            </div>
-            <span class="muted" id="perm-visible-label"></span>
           </div>
         </form>`
           : '<p class="muted">لا توجد مجموعات.</p>'

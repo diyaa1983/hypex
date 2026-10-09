@@ -198,6 +198,24 @@ const Map<String, TileSpec> kTileSpecs = {
     AppTheme.teal,
     'المواقع',
   ),
+  'm_visit_checkout_approve': TileSpec(
+    '/approvals/visit-checkout',
+    Icons.logout_rounded,
+    AppTheme.warn,
+    'الموافقات',
+  ),
+  'm_customer_gps_approve': TileSpec(
+    '/approvals/customer-gps',
+    Icons.pin_drop_rounded,
+    AppTheme.teal,
+    'الموافقات',
+  ),
+  'm_rep_tours_manage': TileSpec(
+    '/rep/tours-manage',
+    Icons.map_rounded,
+    AppTheme.violet,
+    'الإدارة',
+  ),
 };
 
 const List<String> _groupOrder = [
@@ -206,6 +224,8 @@ const List<String> _groupOrder = [
   'عهدة المندوب',
   'رصيد المستودع',
   'المواقع',
+  'الموافقات',
+  'الإدارة',
 ];
 
 class _Tile {

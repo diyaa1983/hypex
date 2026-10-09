@@ -317,5 +317,35 @@ return [
         'tile_kind' => 'list',
         'home_tile' => true,
     ],
+
+    'm_visit_checkout_approve' => [
+        'file' => 'modules/mobile/visit_checkout_approve.php',
+        'permission' => 'm_visit_checkout_approve',
+        'title' => 'اعتماد خروج يدوي',
+        'home_label' => 'اعتماد خروج يدوي',
+        'icon' => 'map-pin',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
+    'm_customer_gps_approve' => [
+        'file' => 'modules/mobile/customer_gps_approve.php',
+        'permission' => 'm_customer_gps_approve',
+        'title' => 'اعتماد موقع العميل',
+        'home_label' => 'اعتماد موقع العميل',
+        'icon' => 'map-pin',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
+
+    'm_rep_tours_manage' => [
+        'file' => 'modules/mobile/rep_tours_manage.php',
+        'permission' => 'm_rep_tours_manage',
+        'title' => 'إدارة جولات المندوبين',
+        'home_label' => 'إدارة جولات المندوبين',
+        'icon' => 'map-pin',
+        'tile_kind' => 'list',
+        'home_tile' => true,
+    ],
 ];
 

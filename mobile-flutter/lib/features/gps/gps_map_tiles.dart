@@ -16,6 +16,29 @@ class GpsMapTiles {
   static const esriVisibleMaxZoom = 14;
   static const pkg = 'com.gppjo.biodev.mobile';
 
+  static bool isCartoUrl(String? url) {
+    final u = (url ?? '').toLowerCase();
+    if (u.isEmpty) return false;
+    return u.contains('basemaps.cartocdn.com') ||
+        u.contains('cartocdn.com') ||
+        u.contains('carto.com') ||
+        u.contains('cartodb.com');
+  }
+
+  /// تنظيف إعدادات الخادم — لا تمرّر CARTO أبداً.
+  static ({String provider, String? tileUrl}) sanitize({
+    String? mapProvider,
+    String? tileUrl,
+  }) {
+    var provider = (mapProvider ?? 'osm').toLowerCase().trim();
+    if (provider == 'carto' || provider.isEmpty) provider = 'osm';
+    var tile = (tileUrl ?? '').trim();
+    if (tile.isEmpty || isCartoUrl(tile) || !tile.contains('{z}')) {
+      tile = '';
+    }
+    return (provider: provider, tileUrl: tile.isEmpty ? null : tile);
+  }
+
   static TileLayer _osm() {
     return TileLayer(
       urlTemplate: osmUrl,
@@ -31,13 +54,10 @@ class GpsMapTiles {
     String? tileUrl,
     double? zoom,
   }) {
-    final provider = (mapProvider ?? 'osm').toLowerCase();
+    final clean = sanitize(mapProvider: mapProvider, tileUrl: tileUrl);
+    final provider = clean.provider;
+    final custom = clean.tileUrl;
     final showEsri = zoom == null || zoom <= esriVisibleMaxZoom;
-    final custom = (tileUrl != null &&
-            tileUrl.contains('{z}') &&
-            !tileUrl.contains('basemaps.cartocdn.com'))
-        ? tileUrl
-        : null;
 
     // أقمار صناعية.
     if (provider == 'imagery' || provider == 'satellite') {
@@ -52,12 +72,12 @@ class GpsMapTiles {
     }
 
     // OpenStreetMap — الافتراضي / بديل CARTO بدون مفتاح.
-    if (provider == 'osm' || provider == 'carto') {
+    if (provider == 'osm') {
       return [_osm()];
     }
 
     // Esri شوارع + OSM عند التكبير العالي.
-    if (provider == 'esri') {
+    if (provider == 'esri' || provider == 'natgeo') {
       final layers = <Widget>[_osm()];
       if (showEsri) {
         layers.add(

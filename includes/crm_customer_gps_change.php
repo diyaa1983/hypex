@@ -22,7 +22,9 @@ function crm_customer_gps_change_ensure(PDO $pdo): void
 
 function crm_customer_gps_change_user_can_approve(): bool
 {
-    return user_can('crm_customer_gps_approve') || user_is_system_admin();
+    return user_can('crm_customer_gps_approve')
+        || user_can('m_customer_gps_approve')
+        || user_is_system_admin();
 }
 
 function crm_customer_has_saved_gps(PDO $pdo, int $customerId): bool
@@ -114,6 +116,19 @@ function crm_customer_gps_submit_change(
     }
 
     crm_customer_gps_change_invalidate_header();
+
+    try {
+        require_once app_path('includes/sys_user_inbox.php');
+        sys_user_inbox_push_gps_pending($pdo, [
+            'id' => $id,
+            'customer_id' => $customerId,
+            'sales_rep_id' => $salesRepId,
+            'requested_by' => $userId,
+            'clear_gps' => $clear ? 1 : 0,
+        ]);
+    } catch (Throwable $e) {
+        error_log('gps pending inbox: ' . $e->getMessage());
+    }
 
     return [
         'ok' => true,

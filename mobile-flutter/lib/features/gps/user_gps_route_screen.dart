@@ -117,9 +117,13 @@ class _UserGpsRouteScreenState extends State<UserGpsRouteScreen> {
               ))
           .where((u) => u.id > 0)
           .toList();
+      final cleanTiles = GpsMapTiles.sanitize(
+        mapProvider: (mapCfg['map_provider'] ?? 'osm').toString(),
+        tileUrl: tile,
+      );
       setState(() {
-        if (tile.isNotEmpty) _tileUrl = tile;
-        _mapProvider = (mapCfg['map_provider'] ?? 'esri').toString();
+        _tileUrl = cleanTiles.tileUrl ?? GpsMapTiles.osmUrl;
+        _mapProvider = cleanTiles.provider;
         _users = users;
         _loading = false;
       });

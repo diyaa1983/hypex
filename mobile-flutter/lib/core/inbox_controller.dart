@@ -43,6 +43,16 @@ class InboxItem {
   bool get isApproved => isGpsApproved || isCheckoutApproved;
   bool get isRejected =>
       kind == 'gps_change_rejected' || kind == 'visit_checkout_rejected';
+  bool get isCheckoutPending => kind == 'visit_checkout_pending';
+  bool get isGpsPending => kind == 'gps_change_pending';
+  bool get isPendingApproval => isCheckoutPending || isGpsPending;
+
+  /// مسار شاشة الاعتماد عند النقر على إشعار طلب موافقة.
+  String? get approveRoute {
+    if (isCheckoutPending) return '/approvals/visit-checkout';
+    if (isGpsPending) return '/approvals/customer-gps';
+    return null;
+  }
 
   factory InboxItem.fromJson(Map<String, dynamic> m) {
     double? numOrNull(dynamic v) {

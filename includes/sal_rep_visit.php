@@ -1143,6 +1143,18 @@ function sal_rep_visit_checkout(
             if (function_exists('header_check_notifications_invalidate_cache')) {
                 header_check_notifications_invalidate_cache();
             }
+            try {
+                require_once app_path('includes/sys_user_inbox.php');
+                sys_user_inbox_push_checkout_pending($pdo, [
+                    'id' => $reqId,
+                    'customer_id' => $customerId,
+                    'sales_rep_id' => $salesRepId,
+                    'requested_by' => (int) ($userId ?? 0),
+                    'reason' => $reason,
+                ]);
+            } catch (Throwable $e) {
+                error_log('checkout pending inbox: ' . $e->getMessage());
+            }
             return [
                 'ok' => true,
                 'message' => 'طلب الخروج اليدوي أُرسل للمسؤول. لن يُغلق الدخول إلا بعد الموافقة.',
@@ -1233,7 +1245,9 @@ function sal_rep_visit_notify_checkout_decision(PDO $pdo, array $req, bool $appr
 
 function sal_rep_visit_checkout_notifications_user_can_see(): bool
 {
-    return user_can('sales_rep_visit_checkout_approve') || user_is_system_admin();
+    return user_can('sales_rep_visit_checkout_approve')
+        || user_can('m_visit_checkout_approve')
+        || user_is_system_admin();
 }
 
 function sal_rep_visit_pending_checkout_count(PDO $pdo): int

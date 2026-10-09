@@ -176,7 +176,11 @@ async function collectCustomerOrders(user) {
 }
 
 async function collectVisitCheckout(user) {
-  if (!userCan(user, 'sales_rep_visit_checkout_approve') && !user.is_admin) {
+  if (
+    !userCan(user, 'sales_rep_visit_checkout_approve') &&
+    !userCan(user, 'm_visit_checkout_approve') &&
+    !user.is_admin
+  ) {
     return { items: [], count: 0 };
   }
   if (!(await tableExists('sal_rep_visit_checkout_request'))) return { items: [], count: 0 };
@@ -209,7 +213,11 @@ async function collectVisitCheckout(user) {
 }
 
 async function collectGpsChange(user) {
-  if (!userCan(user, 'crm_customer_gps_approve') && !user.is_admin) {
+  if (
+    !userCan(user, 'crm_customer_gps_approve') &&
+    !userCan(user, 'm_customer_gps_approve') &&
+    !user.is_admin
+  ) {
     return { items: [], count: 0 };
   }
   if (!(await tableExists('crm_customer_gps_change'))) return { items: [], count: 0 };
@@ -558,7 +566,9 @@ function userCanSeeBell(user) {
       'sales_delivery',
       'sales_customer_orders_approve',
       'sales_rep_visit_checkout_approve',
+      'm_visit_checkout_approve',
       'crm_customer_gps_approve',
+      'm_customer_gps_approve',
       'fin_checks',
     ]) || !!user.is_admin
   );

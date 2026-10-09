@@ -115,4 +115,10 @@ class AppConfig {
   static const String userLocationPingPath = 'api/user_location_ping.php';
   static const String userGpsTrackerLivePath = 'api/user_gps_tracker_live.php';
   static const String userGpsTrackDayPath = 'api/user_gps_track_day.php';
+
+  static const String visitCheckoutApprovePath =
+      'api/visit_checkout_approve.php';
+  static const String customerGpsApprovePath =
+      'api/crm_customer_gps_change_approve.php';
+  static const String repToursManagePath = 'api/mobile_rep_tours_manage.php';
 }

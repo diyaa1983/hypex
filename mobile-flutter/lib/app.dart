@@ -36,7 +36,10 @@ import 'features/rep/rep_transfer_screen.dart';
 import 'features/returns/return_form_screen.dart';
 import 'features/returns/return_list_screen.dart';
 import 'features/returns/return_view_screen.dart';
+import 'features/approvals/customer_gps_approve_screen.dart';
+import 'features/approvals/visit_checkout_approve_screen.dart';
 import 'features/offline/data_sync_screen.dart';
+import 'features/rep/rep_tours_manage_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/shell/main_shell.dart';
 
@@ -277,6 +280,18 @@ class NammaApp extends StatelessWidget {
         GoRoute(
           path: '/gps/route',
           builder: (_, __) => const UserGpsRouteScreen(),
+        ),
+        GoRoute(
+          path: '/approvals/visit-checkout',
+          builder: (_, __) => const VisitCheckoutApproveScreen(),
+        ),
+        GoRoute(
+          path: '/approvals/customer-gps',
+          builder: (_, __) => const CustomerGpsApproveScreen(),
+        ),
+        GoRoute(
+          path: '/rep/tours-manage',
+          builder: (_, __) => const RepToursManageScreen(),
         ),
       ],
     );

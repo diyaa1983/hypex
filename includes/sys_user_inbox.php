@@ -16,6 +16,194 @@ function sys_user_inbox_ensure(PDO $pdo): void
     }
 }
 
+/**
+ * مستخدمو النظام الذين لديهم إحدى شاشات الاعتماد (سطح مكتب أو موبايل).
+ *
+ * @param list<string> $screenCodes
+ * @return list<int>
+ */
+function sys_user_inbox_users_with_screens(PDO $pdo, array $screenCodes): array
+{
+    $codes = [];
+    foreach ($screenCodes as $c) {
+        $c = trim((string) $c);
+        if ($c !== '') {
+            $codes[$c] = true;
+        }
+    }
+    $codes = array_keys($codes);
+    if ($codes === []) {
+        return [];
+    }
+    $ids = [];
+    try {
+        $ph = implode(',', array_fill(0, count($codes), '?'));
+        $st = $pdo->prepare(
+            "SELECT DISTINCT ug.user_id
+             FROM sys_user_group ug
+             INNER JOIN sys_group_permission gp ON gp.group_id = ug.group_id AND gp.allowed = 1
+             INNER JOIN sys_screen s ON s.id = gp.screen_id
+             INNER JOIN sys_user u ON u.id = ug.user_id AND u.is_active = 1
+             WHERE s.code IN ({$ph})"
+        );
+        $st->execute($codes);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) ?: [] as $uid) {
+            $u = (int) $uid;
+            if ($u > 0) {
+                $ids[$u] = true;
+            }
+        }
+        $admins = $pdo->query(
+            "SELECT DISTINCT ug.user_id
+             FROM sys_user_group ug
+             INNER JOIN sys_group g ON g.id = ug.group_id AND g.code = 'ADMINS'
+             INNER JOIN sys_user u ON u.id = ug.user_id AND u.is_active = 1"
+        );
+        foreach (($admins ? $admins->fetchAll(PDO::FETCH_COLUMN) : []) ?: [] as $uid) {
+            $u = (int) $uid;
+            if ($u > 0) {
+                $ids[$u] = true;
+            }
+        }
+    } catch (Throwable $e) {
+        error_log('sys_user_inbox_users_with_screens: ' . $e->getMessage());
+    }
+
+    return array_map('intval', array_keys($ids));
+}
+
+/** إشعار مديري المبيعات بطلب خروج يدوي بانتظار الموافقة. */
+function sys_user_inbox_push_checkout_pending(PDO $pdo, array $reqRow): void
+{
+    $customerId = (int) ($reqRow['customer_id'] ?? 0);
+    $name = (string) ($reqRow['customer_name'] ?? '');
+    $code = (string) ($reqRow['customer_code'] ?? '');
+    $repName = (string) ($reqRow['sales_rep_name'] ?? '');
+    if ($name === '' && $customerId > 0) {
+        try {
+            $st = $pdo->prepare('SELECT name_ar, code FROM crm_customer WHERE id = ? LIMIT 1');
+            $st->execute([$customerId]);
+            $c = $st->fetch(PDO::FETCH_ASSOC);
+            if (is_array($c)) {
+                $name = (string) ($c['name_ar'] ?? '');
+                $code = (string) ($c['code'] ?? '');
+            }
+        } catch (Throwable $e) {
+        }
+    }
+    if ($repName === '') {
+        $repId = (int) ($reqRow['sales_rep_id'] ?? 0);
+        if ($repId > 0) {
+            try {
+                $st = $pdo->prepare('SELECT name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+                $st->execute([$repId]);
+                $repName = (string) ($st->fetchColumn() ?: '');
+            } catch (Throwable $e) {
+            }
+        }
+    }
+    $who = $name !== '' ? '«' . $name . '»' : 'عميل';
+    if ($code !== '') {
+        $who .= ' (' . $code . ')';
+    }
+    $title = 'طلب خروج يدوي بانتظار الموافقة';
+    $body = ($repName !== '' ? $repName . ' — ' : '') . 'خروج يدوي من زيارة ' . $who;
+    $payload = [
+        'customer_name' => $name,
+        'customer_code' => $code,
+        'sales_rep_name' => $repName,
+        'route' => '/approvals/visit-checkout',
+    ];
+    $exclude = (int) ($reqRow['requested_by'] ?? 0);
+    foreach (
+        sys_user_inbox_users_with_screens($pdo, [
+            'sales_rep_visit_checkout_approve',
+            'm_visit_checkout_approve',
+        ]) as $uid
+    ) {
+        if ($uid === $exclude) {
+            continue;
+        }
+        try {
+            sys_user_inbox_push($pdo, $uid, 'visit_checkout_pending', $title, $body, [
+                'ref_type' => 'sal_rep_visit_checkout_request',
+                'ref_id' => (int) ($reqRow['id'] ?? 0),
+                'customer_id' => $customerId,
+                'payload' => $payload,
+            ]);
+        } catch (Throwable $e) {
+        }
+    }
+}
+
+/** إشعار مديري المبيعات بطلب تعديل موقع عميل بانتظار الموافقة. */
+function sys_user_inbox_push_gps_pending(PDO $pdo, array $changeRow): void
+{
+    $customerId = (int) ($changeRow['customer_id'] ?? 0);
+    $name = (string) ($changeRow['customer_name'] ?? '');
+    $code = (string) ($changeRow['customer_code'] ?? '');
+    $repName = (string) ($changeRow['sales_rep_name'] ?? '');
+    if ($name === '' && $customerId > 0) {
+        try {
+            $st = $pdo->prepare('SELECT name_ar, code FROM crm_customer WHERE id = ? LIMIT 1');
+            $st->execute([$customerId]);
+            $c = $st->fetch(PDO::FETCH_ASSOC);
+            if (is_array($c)) {
+                $name = (string) ($c['name_ar'] ?? '');
+                $code = (string) ($c['code'] ?? '');
+            }
+        } catch (Throwable $e) {
+        }
+    }
+    if ($repName === '') {
+        $repId = (int) ($changeRow['sales_rep_id'] ?? 0);
+        if ($repId > 0) {
+            try {
+                $st = $pdo->prepare('SELECT name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+                $st->execute([$repId]);
+                $repName = (string) ($st->fetchColumn() ?: '');
+            } catch (Throwable $e) {
+            }
+        }
+    }
+    $who = $name !== '' ? '«' . $name . '»' : 'عميل';
+    if ($code !== '') {
+        $who .= ' (' . $code . ')';
+    }
+    $clear = !empty($changeRow['clear_gps']);
+    $title = 'طلب تعديل موقع عميل بانتظار الموافقة';
+    $body = ($repName !== '' ? $repName . ' — ' : '')
+        . ($clear ? 'طلب مسح موقع ' : 'طلب تعديل موقع ')
+        . $who;
+    $payload = [
+        'customer_name' => $name,
+        'customer_code' => $code,
+        'sales_rep_name' => $repName,
+        'clear_gps' => $clear,
+        'route' => '/approvals/customer-gps',
+    ];
+    $exclude = (int) ($changeRow['requested_by'] ?? 0);
+    foreach (
+        sys_user_inbox_users_with_screens($pdo, [
+            'crm_customer_gps_approve',
+            'm_customer_gps_approve',
+        ]) as $uid
+    ) {
+        if ($uid === $exclude) {
+            continue;
+        }
+        try {
+            sys_user_inbox_push($pdo, $uid, 'gps_change_pending', $title, $body, [
+                'ref_type' => 'crm_customer_gps_change',
+                'ref_id' => (int) ($changeRow['id'] ?? 0),
+                'customer_id' => $customerId,
+                'payload' => $payload,
+            ]);
+        } catch (Throwable $e) {
+        }
+    }
+}
+
 /** @return list<int> */
 function sys_user_inbox_recipient_ids(PDO $pdo, array $changeRow): array
 {

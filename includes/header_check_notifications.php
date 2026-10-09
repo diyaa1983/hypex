@@ -89,7 +89,9 @@ function header_check_notifications_user_can_see_cheap(): bool
         'journal_entries', 'warehouse_moves', 'inventory_stocktake',
         'sales_delivery', 'sales_customer_orders_approve',
         'sales_rep_visit_checkout_approve',
+        'm_visit_checkout_approve',
         'crm_customer_gps_approve',
+        'm_customer_gps_approve',
         'sales_einvoice', 'm_sales_einvoice',
     ];
     foreach ($codes as $code) {

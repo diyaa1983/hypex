@@ -57,6 +57,19 @@ class _Marker {
     final b = parts[1].isNotEmpty ? parts[1].substring(0, 1) : '';
     return '$a$b';
   }
+
+  /// اسم قصير تحت الدبوس على الخريطة.
+  String get shortName {
+    final parts =
+        label.trim().split(RegExp(r'\s+')).where((e) => e.isNotEmpty).toList();
+    if (parts.isEmpty) return 'مندوب';
+    if (parts.length >= 2) {
+      final two = '${parts[0]} ${parts[1]}';
+      return two.length > 18 ? '${two.substring(0, 17)}…' : two;
+    }
+    final s = parts.first;
+    return s.length > 16 ? '${s.substring(0, 15)}…' : s;
+  }
 }
 
 /// خريطة تتبّع حية للأجهزة المتصلة (مثل تتبّع السيارات).
@@ -74,8 +87,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   Timer? _animTimer;
   bool _loading = true;
   String? _error;
-  String _tileUrl = GpsMapTiles.esriUrl;
-  String _mapProvider = 'esri';
+  String? _tileUrl;
+  String _mapProvider = 'osm';
   double _mapZoom = 8;
   List<_Marker> _markers = [];
   final Map<int, List<LatLng>> _trails = {};
@@ -123,6 +136,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
           'online_seconds': 60,
           'stale_seconds': 60,
           'include_stale': 0,
+          'include_day_reps': 1,
           'q': _search.text.trim(),
         },
       );
@@ -135,10 +149,14 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
           .map((e) => _Marker(e.cast<String, dynamic>()))
           .where((m) => m.lat != 0 || m.lng != 0)
           .toList();
+      final cleanTiles = GpsMapTiles.sanitize(
+        mapProvider: (mapCfg['map_provider'] ?? 'osm').toString(),
+        tileUrl: tile,
+      );
 
       setState(() {
-        if (tile.isNotEmpty) _tileUrl = tile;
-        _mapProvider = (mapCfg['map_provider'] ?? 'esri').toString();
+        _tileUrl = cleanTiles.tileUrl;
+        _mapProvider = cleanTiles.provider;
         _markers = rows;
         for (final m in rows) {
           _appendTrailPoint(m.userId, m.point);
@@ -412,13 +430,14 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                     for (final m in _markers)
                       Marker(
                         point: _pointFor(m),
-                        width: 48,
-                        height: 56,
+                        width: 104,
+                        height: 78,
                         alignment: Alignment.bottomCenter,
                         child: GestureDetector(
                           onTap: () => _select(m),
                           child: _MapPin(
                             label: m.initials,
+                            name: m.shortName,
                             color: m.color,
                             selected: m.userId == _selectedId,
                             heading: _headingFor(m),
@@ -531,6 +550,7 @@ class _MoveAnim {
 class _MapPin extends StatelessWidget {
   const _MapPin({
     required this.label,
+    required this.name,
     required this.color,
     required this.selected,
     this.heading = 0,
@@ -538,6 +558,7 @@ class _MapPin extends StatelessWidget {
   });
 
   final String label;
+  final String name;
   final Color color;
   final bool selected;
   final double heading;
@@ -546,7 +567,7 @@ class _MapPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AnimatedScale(
-      scale: selected ? 1.15 : 1,
+      scale: selected ? 1.12 : 1,
       duration: const Duration(milliseconds: 150),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -561,8 +582,8 @@ class _MapPin extends StatelessWidget {
           ),
           const SizedBox(height: 2),
           Container(
-            width: 38,
-            height: 38,
+            width: 36,
+            height: 36,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: color,
@@ -588,6 +609,34 @@ class _MapPin extends StatelessWidget {
                 color: Colors.white,
                 fontSize: 11,
                 fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            constraints: const BoxConstraints(maxWidth: 96),
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xE00F172A),
+              borderRadius: BorderRadius.circular(4),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 3,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                height: 1.2,
               ),
             ),
           ),

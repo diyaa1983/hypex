@@ -70,6 +70,18 @@
     return a + b;
   }
 
+  /** اسم قصير يظهر تحت الدبوس على الخريطة */
+  function shortDisplayName(name) {
+    var s = String(name || '').trim().replace(/\s+/g, ' ');
+    if (!s) return 'مندوب';
+    var parts = s.split(' ').filter(Boolean);
+    if (parts.length >= 2) {
+      var two = parts[0] + ' ' + parts[1];
+      return two.length > 18 ? two.slice(0, 17) + '…' : two;
+    }
+    return s.length > 16 ? s.slice(0, 15) + '…' : s;
+  }
+
   var USER_COLORS = [
     '#13a05c',
     '#2563eb',
@@ -203,6 +215,7 @@
         num: idx + 1,
         short: short,
         mapLabel: String(idx + 1),
+        name: shortDisplayName(r.user_label),
         color: userMarkerColor(id),
       };
     });
@@ -218,6 +231,7 @@
       num: '?',
       short: '?',
       mapLabel: '?',
+      name: 'مندوب',
       color: '#13a05c',
     };
   };
@@ -669,6 +683,7 @@
     var meta = this.getMarkerMeta(row.user_id);
     var status = row.status || (row.is_online ? 'online' : 'offline');
     var label = meta.mapLabel;
+    var name = meta.name || shortDisplayName(row.user_label);
     var heading = bearing != null && isFinite(bearing) ? Math.round(bearing) : 0;
     var html =
       '<div class="ugt-mover" style="--ugt-heading:' +
@@ -683,13 +698,18 @@
       '"><span>' +
       esc(label) +
       '</span></div>' +
+      '<div class="ugt-pin-name" title="' +
+      esc(row.user_label || name) +
+      '">' +
+      esc(name) +
+      '</div>' +
       '</div>';
     return global.L.divIcon({
       className: 'ugt-marker',
       html: html,
-      iconSize: [40, 48],
-      iconAnchor: [20, 42],
-      popupAnchor: [0, -36],
+      iconSize: [96, 68],
+      iconAnchor: [48, 58],
+      popupAnchor: [0, -52],
     });
   };
 

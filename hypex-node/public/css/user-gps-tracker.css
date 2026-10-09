@@ -560,6 +560,27 @@
   display: none !important;
 }
 
+.ugt-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #d5dbe6;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #334155;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.ugt-check input {
+  margin: 0;
+  accent-color: #0b63ce;
+}
+
 .ugt-marker {
   background: transparent;
   border: 0;
@@ -567,8 +588,8 @@
 
 .ugt-mover {
   position: relative;
-  width: 40px;
-  height: 48px;
+  width: 96px;
+  min-height: 68px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -679,6 +700,24 @@
 .ugt-pin--away,
 .ugt-pin--offline {
   background: #6b7a90;
+}
+
+.ugt-pin-name {
+  margin-top: 2px;
+  max-width: 92px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.88);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
 }
 
 .ugt-popup {

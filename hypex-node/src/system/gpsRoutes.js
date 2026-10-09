@@ -434,7 +434,7 @@ router.get('/system/gps-settings', async (req, res) => {
           </label>
           <label>مزوّد البلاط
             <select class="si-field" name="gps_map_provider">
-              ${['esri', 'carto', 'osm', 'google']
+              ${['esri', 'osm', 'google']
                 .map(
                   (p) =>
                     `<option value="${p}" ${s.map_provider === p ? 'selected' : ''}>${p}</option>`

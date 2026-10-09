@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../core/inbox_controller.dart';
@@ -102,69 +103,91 @@ class NotificationBellButton extends StatelessWidget {
                               itemBuilder: (_, i) {
                                 final it = box.items[i];
                                 final approved = it.isApproved;
+                                final pending = it.isPendingApproval;
                                 final color = approved
                                     ? AppTheme.success
                                     : (it.isRejected
                                         ? AppTheme.danger
-                                        : AppTheme.primary);
+                                        : (pending
+                                            ? AppTheme.amber
+                                            : AppTheme.primary));
+                                final route = it.approveRoute;
                                 return Material(
                                   color: it.isRead
                                       ? Colors.white
                                       : color.withValues(alpha: 0.08),
                                   borderRadius: BorderRadius.circular(14),
-                                  child: Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        12, 12, 12, 12),
-                                    child: Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Icon(
-                                          approved
-                                              ? Icons.check_circle_rounded
-                                              : (it.isRejected
-                                                  ? Icons.cancel_rounded
-                                                  : Icons
-                                                      .notifications_rounded),
-                                          color: color,
-                                          size: 26,
-                                        ),
-                                        const SizedBox(width: 10),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                it.title,
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.w800,
-                                                  fontSize: 14.5,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 4),
-                                              Text(
-                                                it.body,
-                                                style: const TextStyle(
-                                                  fontSize: 13,
-                                                  height: 1.35,
-                                                  color: AppTheme.textSoft,
-                                                ),
-                                              ),
-                                              if (it.createdAt.isNotEmpty) ...[
-                                                const SizedBox(height: 6),
+                                  child: InkWell(
+                                    borderRadius: BorderRadius.circular(14),
+                                    onTap: route == null
+                                        ? null
+                                        : () {
+                                            Navigator.pop(ctx);
+                                            context.push(route);
+                                          },
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                          12, 12, 12, 12),
+                                      child: Row(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Icon(
+                                            approved
+                                                ? Icons.check_circle_rounded
+                                                : (it.isRejected
+                                                    ? Icons.cancel_rounded
+                                                    : (pending
+                                                        ? Icons
+                                                            .pending_actions_rounded
+                                                        : Icons
+                                                            .notifications_rounded)),
+                                            color: color,
+                                            size: 26,
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
                                                 Text(
-                                                  _when(it.createdAt),
+                                                  it.title,
                                                   style: const TextStyle(
-                                                    fontSize: 11.5,
-                                                    color: Color(0xFF9AA8BC),
+                                                    fontWeight: FontWeight.w800,
+                                                    fontSize: 14.5,
                                                   ),
                                                 ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  it.body,
+                                                  style: const TextStyle(
+                                                    fontSize: 13,
+                                                    height: 1.35,
+                                                    color: AppTheme.textSoft,
+                                                  ),
+                                                ),
+                                                if (it.createdAt
+                                                    .isNotEmpty) ...[
+                                                  const SizedBox(height: 6),
+                                                  Text(
+                                                    _when(it.createdAt),
+                                                    style: const TextStyle(
+                                                      fontSize: 11.5,
+                                                      color: Color(0xFF9AA8BC),
+                                                    ),
+                                                  ),
+                                                ],
                                               ],
-                                            ],
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                          if (route != null)
+                                            const Icon(
+                                              Icons.chevron_left_rounded,
+                                              color: Color(0xFF9AA8BC),
+                                            ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 );
