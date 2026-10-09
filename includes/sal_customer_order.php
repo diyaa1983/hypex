@@ -199,8 +199,8 @@ function sal_customer_order_ensure_schema(PDO $pdo): bool
 
 /**
  * توليد رقم طلب عميل.
- * - بدون مندوب (ويندوز/مكتب): YYYY-N
- * - مع مندوب موبايل ($salesRepId): {رمز_المندوب}-N  مثال: 20-1 ثم 20-2
+ * - مع مندوب: {رمز_المندوب}-N  مثال: 20-1 ثم 20-2 (موبايل ومكتب)
+ * - بدون مندوب (قديم): YYYY-N
  */
 function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate, ?int $salesRepId = null): string
 {
@@ -248,7 +248,7 @@ function sal_customer_order_generate_next_no(PDO $pdo, string $orderDate, ?int $
 
 /**
  * تسلسل مستقل لكل مندوب: {رمز_المندوب}-{تسلسل}
- * يُستخدم لمسار الموبايل فقط.
+ * يُستخدم للموبايل وسطح المكتب عند اختيار مندوب.
  */
 function sal_customer_order_generate_next_no_for_rep(PDO $pdo, int $salesRepId): string
 {
@@ -871,10 +871,12 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
                 )->execute($params);
             }
         } else {
-            // الموبايل يمرّر $forceRepId → رقم الطلب = رمز_المندوب-التسلسل
-            // الويندوز/المكتب بدون forceRepId → يبقى YYYY-N
+            // رقم الطلب دائماً برمز المندوب-التسلسل (موبايل ومكتب) مثل 20-1
             $rep = $forceRepId ?? ($salesRepInput > 0 ? $salesRepInput : null);
-            $no = sal_customer_order_generate_next_no($pdo, $date, $forceRepId);
+            if ($rep === null || (int) $rep < 1) {
+                throw new RuntimeException('اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.');
+            }
+            $no = sal_customer_order_generate_next_no($pdo, $date, (int) $rep);
             if ($hasPricing) {
                 $payCol = $hasPay ? 'payment_type,' : '';
                 $payQ = $hasPay ? '?,' : '';

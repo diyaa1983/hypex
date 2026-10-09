@@ -94,6 +94,33 @@ async function nextOrderNo(orderDate) {
   return `${year}-${maxSeq + 1}`;
 }
 
+/** رقم الطلب مثل الموبايل: {رمز_المندوب}-{تسلسل} */
+async function nextOrderNoForRep(salesRepId, conn = null) {
+  const repId = Number(salesRepId) || 0;
+  if (repId < 1) throw new Error('مندوب غير صالح لتوليد رقم الطلب.');
+  const q = conn
+    ? async (sql, params) => {
+        const [rows] = await conn.execute(sql, params);
+        return rows;
+      }
+    : (sql, params) => db.query(sql, params);
+  const reps = await q(`SELECT code FROM crm_sales_rep WHERE id = ? LIMIT 1`, [repId]);
+  const rawCode = String((reps[0] && reps[0].code) || '').trim();
+  let code = rawCode.replace(/[^A-Za-z0-9\-_]/g, '');
+  if (!code) code = 'R' + repId;
+  const prefix = code + '-';
+  const rows = await q(`SELECT order_no FROM sal_customer_order WHERE order_no LIKE ? FOR UPDATE`, [
+    prefix + '%',
+  ]);
+  let maxSeq = 0;
+  const re = new RegExp(`^${code.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}-(\\d+)$`);
+  for (const row of rows) {
+    const m = String(row.order_no || '').match(re);
+    if (m) maxSeq = Math.max(maxSeq, Number(m[1]));
+  }
+  return prefix + String(maxSeq + 1);
+}
+
 async function getOrder(id) {
   await ensurePaymentTypeColumn();
   await ensureDeliveryDateColumn();
@@ -334,6 +361,9 @@ async function saveOrder(payload, userId) {
 
   const orderDate = parseDateToIso(payload.order_date || todayIso());
   const salesRepId = payload.sales_rep_id ? Number(payload.sales_rep_id) : null;
+  if (!(salesRepId > 0)) {
+    return { ok: false, error: 'اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.' };
+  }
   const paymentType = normalizePaymentType(payload.payment_type);
   const notes = String(payload.notes || '').trim() || null;
   const deliveryRaw = String(payload.delivery_date || '').trim();
@@ -432,7 +462,7 @@ async function saveOrder(payload, userId) {
         await conn.rollback();
         return { ok: false, error: 'لا يمكن تعديل طلب معتمد. فك الاعتماد أولاً.' };
       }
-      const repToStore = salesRepId > 0 ? salesRepId : old.sales_rep_id || null;
+      const repToStore = salesRepId;
       try {
         if (hasDelivery) {
           await conn.execute(
@@ -521,7 +551,7 @@ async function saveOrder(payload, userId) {
       return { ok: true, id: orderId, order_no: ord?.order_no || payload.order_no || '', order: ord };
     }
 
-    const orderNo = await nextOrderNo(orderDate);
+    const orderNo = await nextOrderNoForRep(salesRepId, conn);
     let newId;
     try {
       if (hasDelivery) {
@@ -534,7 +564,7 @@ async function saveOrder(payload, userId) {
             orderNo,
             orderDate,
             customerId,
-            salesRepId > 0 ? salesRepId : null,
+            salesRepId,
             warehouseId,
             paymentType,
             notes,
@@ -559,7 +589,7 @@ async function saveOrder(payload, userId) {
             orderNo,
             orderDate,
             customerId,
-            salesRepId > 0 ? salesRepId : null,
+            salesRepId,
             warehouseId,
             paymentType,
             notes,
@@ -584,7 +614,7 @@ async function saveOrder(payload, userId) {
             orderNo,
             orderDate,
             customerId,
-            salesRepId > 0 ? salesRepId : null,
+            salesRepId,
             warehouseId,
             notes,
             deliveryDate,
@@ -602,7 +632,7 @@ async function saveOrder(payload, userId) {
             orderNo,
             orderDate,
             customerId,
-            salesRepId > 0 ? salesRepId : null,
+            salesRepId,
             warehouseId,
             notes,
             userId || null,
@@ -1223,6 +1253,7 @@ module.exports = {
   setApproved,
   deleteOrder,
   nextOrderNo,
+  nextOrderNoForRep,
   lookups,
   browseNeighbors,
   findOrderIdByNo,

@@ -2474,6 +2474,15 @@
       hxAlert('اختر العميل.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
+    if (!payload.sales_rep_id) {
+      hxAlert('اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.', {
+        title: 'تنبيه',
+        kind: 'warning',
+      });
+      var repEl = document.getElementById('co_rep');
+      if (repEl) repEl.focus();
+      return Promise.resolve(null);
+    }
     if (!payload.warehouse_id) {
       hxAlert('اختر المستودع.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);

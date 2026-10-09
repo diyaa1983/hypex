@@ -365,12 +365,13 @@ async function renderForm(req, res, orderId) {
     .join('');
 
   const repOpts =
-    `<option value="">—</option>` +
+    `<option value="">— اختر المندوب —</option>` +
     (lookups.sales_reps || [])
-      .map(
-        (r) =>
-          `<option value="${r.id}"${Number(initial.sales_rep_id) === Number(r.id) ? ' selected' : ''}>${esc(r.name_ar)}</option>`
-      )
+      .map((r) => {
+        const code = String(r.code || '').trim();
+        const label = code ? `${code} — ${r.name_ar || ''}` : r.name_ar || '';
+        return `<option value="${r.id}"${Number(initial.sales_rep_id) === Number(r.id) ? ' selected' : ''}>${esc(label)}</option>`;
+      })
       .join('');
 
   const badge = locked
@@ -426,8 +427,8 @@ async function renderForm(req, res, orderId) {
             </select>
           </label>
           <label class="si-f si-f--rep">
-            <span class="si-f-head">المندوب</span>
-            <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''} data-nav="1">${repOpts}</select>
+            <span class="si-f-head">المندوب *</span>
+            <select class="si-field" id="co_rep" ${locked ? 'disabled' : ''} required data-nav="1">${repOpts}</select>
           </label>
           <label class="si-f si-f--wh">
             <span class="si-f-head">المستودع</span>

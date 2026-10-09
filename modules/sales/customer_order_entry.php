@@ -49,7 +49,7 @@ if ($warehouses === []) {
 
 $defaultWarehouseId = inv_default_warehouse_id($pdo);
 $salesReps = $pdo->query(
-    'SELECT id, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
+    'SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $customers = $pdo->query(
     'SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
@@ -234,12 +234,17 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
                         </select>
                     </div>
                     <div class="oracle-rec-field">
-                        <label class="oracle-rec-label" for="co_sales_rep">المندوب</label>
-                        <select class="oracle-rec-input input" id="co_sales_rep" name="sales_rep_id">
-                            <option value="">— بدون مندوب —</option>
-                            <?php foreach ($salesReps as $rep): ?>
+                        <label class="oracle-rec-label" for="co_sales_rep">المندوب *</label>
+                        <select class="oracle-rec-input input" id="co_sales_rep" name="sales_rep_id" required>
+                            <option value="">— اختر المندوب —</option>
+                            <?php foreach ($salesReps as $rep):
+                                $repCode = trim((string) ($rep['code'] ?? ''));
+                                $repLabel = $repCode !== ''
+                                    ? $repCode . ' — ' . (string) ($rep['name_ar'] ?? '')
+                                    : (string) ($rep['name_ar'] ?? '');
+                                ?>
                                 <option value="<?= (int) $rep['id'] ?>" <?= $salesRepSel === (int) $rep['id'] ? 'selected' : '' ?>>
-                                    <?= esc((string) $rep['name_ar']) ?>
+                                    <?= esc($repLabel) ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -617,6 +622,7 @@ customer_picker_json_script($customers, 'co-entry-customers-json');
   function validate(data) {
     if (!data.order_date) return 'أدخل تاريخ الطلب بشكل صحيح.';
     if (!(data.customer_id > 0)) return 'اختر العميل.';
+    if (!(data.sales_rep_id > 0)) return 'اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.';
     if (!(data.warehouse_id > 0)) return 'اختر المستودع.';
     if (!data.lines.length) return 'أدخل بنداً واحداً على الأقل.';
     return '';
