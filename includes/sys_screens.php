@@ -152,10 +152,6 @@ function sys_sync_mobile_route_screens(PDO $pdo, int &$nextOrder): int
         'INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
          SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = ?'
     );
-    $grantMobile = $pdo->prepare(
-        'INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
-         SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = ?'
-    );
 
     foreach ($codes as $perm => $title) {
         $find->execute([$perm]);
@@ -166,8 +162,8 @@ function sys_sync_mobile_route_screens(PDO $pdo, int &$nextOrder): int
         $ins->execute([$perm, $title, $nextOrder]);
         $screenId = (int) $pdo->lastInsertId();
         $added++;
+        // ADMINS فقط — لا تُمنح تلقائياً لـ MOBILE حتى تُوزَّع حسب الدور من شاشة الصلاحيات
         $grantAdmins->execute([$screenId, 'ADMINS']);
-        $grantMobile->execute([$screenId, 'MOBILE']);
     }
 
     return $added;

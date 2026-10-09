@@ -49,6 +49,30 @@
   justify-content: space-between;
 }
 
+.perm-scope-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+}
+
+.perm-scope-hint {
+  margin-top: 8px;
+  padding: 6px 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: #333;
+  background: #e8f0fa;
+  border: 1px solid #a8c0e0;
+}
+
+.perm-scope-hint code {
+  font-size: 10px;
+  background: #fff;
+  border: 1px solid #c0bbb0;
+  padding: 0 3px;
+}
+
 .perm-ora-bar__field {
   display: flex;
   flex-direction: column;

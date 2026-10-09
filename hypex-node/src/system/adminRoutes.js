@@ -287,11 +287,13 @@ router.get('/system/permissions', async (req, res) => {
   const groupId = Number(req.query.group_id || 0) || 0;
   const flash = String(req.query.msg || '');
   const err = String(req.query.err || '');
-  let matrix = await svc.listPermissionsMatrix(groupId);
+  let scope = String(req.query.scope || 'desktop').toLowerCase() === 'mobile' ? 'mobile' : 'desktop';
+  let matrix = await svc.listPermissionsMatrix(groupId, { scope });
   const groups = matrix.groups;
   const gid = groupId > 0 ? groupId : groups[0] ? Number(groups[0].id) : 0;
-  if (gid !== groupId) matrix = await svc.listPermissionsMatrix(gid);
+  if (gid !== groupId) matrix = await svc.listPermissionsMatrix(gid, { scope });
   const { allowed, isMobile, panels, treeByDomain, firstPanelId } = matrix;
+  scope = matrix.scope === 'mobile' ? 'mobile' : 'desktop';
   const selectedGroup = groups.find((g) => Number(g.id) === Number(gid));
   const selectedGroupLabel = selectedGroup
     ? `(${selectedGroup.code}) ${selectedGroup.name_ar}`
@@ -401,15 +403,27 @@ router.get('/system/permissions', async (req, res) => {
     })
     .join('');
 
+  const mobileHint =
+    scope === 'mobile'
+      ? `<div class="perm-scope-hint">
+          <strong>وضع صلاحيات الموبايل:</strong>
+          اختر المجموعة (مثل مدير المبيعات أو المندوبين) ثم فعّل شاشات التطبيق لها فقط.
+          الدخول للتطبيق يتطلب مجموعة <code>MOBILE</code>، وشاشات الهاتف تُجمَع من <em>كل</em> مجموعات المستخدم.
+          مثال: امنح شاشة لمدير المبيعات ولا تفعّلها لمجموعة المندوبين.
+        </div>`
+      : `<div class="perm-scope-hint">
+          لصلاحيات تطبيق الهاتف حسب الدور: اختر <strong>تطبيق الموبايل</strong> ثم حدّد المجموعة.
+        </div>`;
+
   const body = `
     <div class="si-stage perm-ora12-page perm-ora-workspace" data-exit-guard-root>
       ${ui.hero({
         mark: 'Pm',
         kicker: KICKER,
-        title: 'صلاحيات القوائم والشاشات',
+        title: scope === 'mobile' ? 'صلاحيات تطبيق الموبايل' : 'صلاحيات القوائم والشاشات',
         subtitle: selectedGroupLabel
-          ? `تعديل صلاحيات المجموعة: ${selectedGroupLabel}`
-          : 'اختر مجموعة ثم فعّل الشاشات والتقارير من المستكشف',
+          ? `${scope === 'mobile' ? 'شاشات الموبايل للمجموعة' : 'تعديل صلاحيات المجموعة'}: ${selectedGroupLabel}`
+          : 'اختر نوع الصلاحيات ثم المجموعة',
         actions: [
           { label: 'المجموعات', href: '/system/groups' },
           { label: 'لوحة النظام', href: HUB },
@@ -418,22 +432,33 @@ router.get('/system/permissions', async (req, res) => {
       ${flashHtml(flash, err)}
       <div class="perm-ora-bar">
         <div class="perm-ora-bar__row">
-          <form method="get" action="/system/permissions" id="permissions-group-form" data-nav-mode="node">
-            <label class="perm-ora-bar__field">تعديل صلاحيات المجموعة
+          <form method="get" action="/system/permissions" id="permissions-group-form" data-nav-mode="node"
+                class="perm-scope-form">
+            <label class="perm-ora-bar__field">نوع الصلاحيات
+              <select name="scope" id="permissions-scope-select" class="si-field">
+                <option value="desktop" ${scope === 'desktop' ? 'selected' : ''}>سطح المكتب</option>
+                <option value="mobile" ${scope === 'mobile' ? 'selected' : ''}>تطبيق الموبايل</option>
+              </select>
+            </label>
+            <label class="perm-ora-bar__field">المجموعة
               <select name="group_id" id="permissions-group-select" class="si-field">${opts}</select>
             </label>
           </form>
           <div class="perm-ora-stats">
-            <span class="perm-ora-stat">مسموح <strong dir="ltr">${allowedCount}</strong> / ${totalScreens}</span>
+            <span class="perm-ora-stat">${
+              scope === 'mobile' ? 'شاشات موبايل' : 'شاشات'
+            } مسموح <strong dir="ltr">${allowedCount}</strong> / ${totalScreens}</span>
             ${
               isMobile
-                ? '<span class="perm-ora-stat">مجموعة هاتف — شاشات التطبيق فقط</span>'
+                ? '<span class="perm-ora-stat">مجموعة MOBILE — بوابة دخول التطبيق</span>'
                 : ''
             }
           </div>
         </div>
+        ${mobileHint}
         <form method="post" action="/system/permissions/gps-track-groups" class="perm-gps-block">
           <input type="hidden" name="group_id" value="${gid || ''}">
+          <input type="hidden" name="scope" value="${scope}">
           <div class="perm-ora-bar__row">
             <div style="flex:1;min-width:14rem">
               <strong>تتبع مواقع المندوبين — المجموعات</strong>
@@ -443,20 +468,18 @@ router.get('/system/permissions', async (req, res) => {
             <button class="si-btn si-btn--primary" type="submit">حفظ مجموعات التتبع</button>
           </div>
         </form>
-        ${
-          isMobile
-            ? '<p class="perm-mobile-group-note">مجموعة <strong>هاتف (MOBILE)</strong>: شاشات التطبيق فقط.</p>'
-            : ''
-        }
       </div>
       ${
         gid
           ? `<form method="post" action="/system/permissions" class="perm-ora12-form" id="permissions-form"
                data-initial-panel="${esc(String(initialPanel))}">
           <input type="hidden" name="group_id" value="${gid}">
+          <input type="hidden" name="scope" value="${scope}">
           <div class="perm-split">
             <aside class="perm-tree-pane" aria-label="القوائم">
-              <div class="perm-pane-head">القوائم <span>${Object.keys(treeByDomain || {}).length} مجال</span></div>
+              <div class="perm-pane-head">${
+                scope === 'mobile' ? 'شاشات الموبايل' : 'القوائم'
+              } <span>${Object.keys(treeByDomain || {}).length} مجال</span></div>
               <div class="perm-tree-body">
                 <div class="perm-tree-search-row">
                   <input class="si-field" type="search" id="perm-tree-search"
@@ -470,7 +493,7 @@ router.get('/system/permissions', async (req, res) => {
               <div class="perm-pane-head">
                 <span id="perm-detail-title">${esc(
                   (panels.find((p) => String(p.id) === String(initialPanel)) || {}).title ||
-                    'الشاشات / التقارير'
+                    (scope === 'mobile' ? 'شاشات التطبيق' : 'الشاشات / التقارير')
                 )}</span>
                 <span id="perm-panel-count"></span>
               </div>
@@ -482,8 +505,12 @@ router.get('/system/permissions', async (req, res) => {
                     <span class="perm-type-filters-label">النوع:</span>
                     <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="all" checked> الكل</label>
                     <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="screen"> شاشة</label>
-                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="report"> تقرير</label>
-                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="action"> إجراء</label>
+                    ${
+                      scope === 'mobile'
+                        ? ''
+                        : `<label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="report"> تقرير</label>
+                    <label class="perm-type-opt"><input type="radio" name="perm_type_filter" value="action"> إجراء</label>`
+                    }
                   </div>
                   <div class="perm-bulk-actions">
                     <button type="button" class="si-btn" id="perm-select-all">تحديد الكل</button>
@@ -499,7 +526,9 @@ router.get('/system/permissions', async (req, res) => {
           </div>
           <div class="perm-ora-foot">
             <div class="perm-ora-foot__actions">
-              <button class="si-btn si-btn--primary" type="submit">حفظ الصلاحيات</button>
+              <button class="si-btn si-btn--primary" type="submit">${
+                scope === 'mobile' ? 'حفظ صلاحيات الموبايل' : 'حفظ الصلاحيات'
+              }</button>
               <a class="si-btn" href="/system/groups">المجموعات</a>
             </div>
             <span class="muted" id="perm-visible-label"></span>
@@ -526,9 +555,12 @@ router.post('/system/permissions/gps-track-groups', async (req, res) => {
   const ids = Array.isArray(raw) ? raw : raw != null && raw !== '' ? [raw] : [];
   const result = await gpsSvc.saveGpsTrackGroups(ids);
   const gid = Number(req.query.group_id || req.body.group_id || 0);
+  const scope = String(req.body.scope || req.query.scope || 'desktop');
   res.redirect(
     '/system/permissions?group_id=' +
       (gid > 0 ? gid : '') +
+      '&scope=' +
+      encodeURIComponent(scope === 'mobile' ? 'mobile' : 'desktop') +
       '&msg=' +
       encodeURIComponent(result.message || 'تم الحفظ')
   );
@@ -537,11 +569,15 @@ router.post('/system/permissions/gps-track-groups', async (req, res) => {
 router.post('/system/permissions', async (req, res) => {
   if (!can(req.session.user, 'permissions')) return forbid(res);
   const gid = Number(req.body.group_id || 0);
-  const result = await svc.savePermissions(gid, req.body.screens);
+  const scope = String(req.body.scope || 'desktop').toLowerCase() === 'mobile' ? 'mobile' : 'desktop';
+  const result = await svc.savePermissions(gid, req.body.screens, { scope });
+  const q =
+    '/system/permissions?group_id=' +
+    gid +
+    '&scope=' +
+    encodeURIComponent(scope);
   if (!result.ok) {
-    return res.redirect(
-      '/system/permissions?group_id=' + gid + '&err=' + encodeURIComponent(result.error)
-    );
+    return res.redirect(q + '&err=' + encodeURIComponent(result.error));
   }
   try {
     // إعادة تحميل صلاحيات الجلسة الحالية فوراً بعد الحفظ
@@ -549,9 +585,7 @@ router.post('/system/permissions', async (req, res) => {
   } catch (_) {
     /* ignore */
   }
-  res.redirect(
-    '/system/permissions?group_id=' + gid + '&msg=' + encodeURIComponent(result.message)
-  );
+  res.redirect(q + '&msg=' + encodeURIComponent(result.message));
 });
 
 /* ═══════════ SESSIONS ═══════════ */

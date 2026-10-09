@@ -259,7 +259,7 @@ async function ensureReportCustomerOrdersDetailedScreen() {
   return true;
 }
 
-async function listPermissionsMatrix(groupId = 0) {
+async function listPermissionsMatrix(groupId = 0, opts = {}) {
   try {
     await syncActionPermissions();
   } catch (e) {
@@ -275,6 +275,7 @@ async function listPermissionsMatrix(groupId = 0) {
   } catch (e) {
     console.error('ensureReportCustomerOrdersDetailedScreen', e.message || e);
   }
+  const scope = String(opts.scope || 'desktop').toLowerCase() === 'mobile' ? 'mobile' : 'desktop';
   const groups = await listGroups();
   const screens = await q(
     `SELECT id, code, name_ar, screen_type, sort_order FROM sys_screen ORDER BY sort_order, id`
@@ -288,12 +289,23 @@ async function listPermissionsMatrix(groupId = 0) {
     allowed = new Set(rows.map((r) => Number(r.screen_id)));
   }
   const gMeta = groups.find((g) => Number(g.id) === Number(groupId));
-  const isMobile = String(gMeta?.code || '').toUpperCase() === 'MOBILE';
-  const tree = permissionsNav.buildPermissionPanels(screens, { isMobile });
-  return { groups, screens, allowed, isMobile, ...tree };
+  const isMobileGroup = String(gMeta?.code || '').toUpperCase() === 'MOBILE';
+  const mobileOnly = scope === 'mobile' || isMobileGroup;
+  const tree = permissionsNav.buildPermissionPanels(screens, {
+    isMobile: isMobileGroup,
+    mobileOnly,
+  });
+  return {
+    groups,
+    screens,
+    allowed,
+    isMobile: isMobileGroup,
+    scope: mobileOnly ? 'mobile' : 'desktop',
+    ...tree,
+  };
 }
 
-async function savePermissions(groupId, screenIds) {
+async function savePermissions(groupId, screenIds, opts = {}) {
   const gid = Number(groupId);
   if (gid < 1) return { ok: false, error: 'مجموعة غير صالحة.' };
   const g = await getGroup(gid);
@@ -305,7 +317,9 @@ async function savePermissions(groupId, screenIds) {
       .map(Number)
       .filter((n) => n > 0)
   );
-  const isMobile = String(g.code || '').toUpperCase() === 'MOBILE';
+  const isMobileGroup = String(g.code || '').toUpperCase() === 'MOBILE';
+  const scope =
+    String(opts.scope || '').toLowerCase() === 'mobile' || isMobileGroup ? 'mobile' : 'desktop';
 
   const pool = db.getPool();
   const conn = await pool.getConnection();
@@ -330,7 +344,7 @@ async function savePermissions(groupId, screenIds) {
     }
 
     // عند منح شاشة أصل: أضف إجراءاتها المرتبطة (inherit_from) تلقائياً
-    if (!isMobile) {
+    if (scope !== 'mobile') {
       const selectedCodes = new Set(
         [...selected].map((id) => codeById[id]).filter(Boolean)
       );
@@ -347,9 +361,18 @@ async function savePermissions(groupId, screenIds) {
       }
     }
 
-    if (isMobile) {
-      // مجموعة الهاتف: استبدال كامل — شاشات m_ المحددة فقط (بدون بقايا سطح المكتب)
-      await conn.execute(`DELETE FROM sys_group_permission WHERE group_id = ?`, [gid]);
+    if (scope === 'mobile') {
+      // حفظ شاشات الموبايل فقط — لا تُمس صلاحيات سطح المكتب للمجموعة
+      const mobileIds = allScreens
+        .filter((s) => String(s.code).startsWith('m_'))
+        .map((s) => Number(s.id));
+      if (mobileIds.length) {
+        await conn.execute(
+          `DELETE FROM sys_group_permission
+           WHERE group_id = ? AND screen_id IN (${mobileIds.map(() => '?').join(',')})`,
+          [gid, ...mobileIds]
+        );
+      }
       for (const s of allScreens) {
         if (!String(s.code).startsWith('m_')) continue;
         if (selected.has(Number(s.id))) {
@@ -379,7 +402,13 @@ async function savePermissions(groupId, screenIds) {
     } catch (e) {
       console.error('post-savePermissions sync', e.message || e);
     }
-    return { ok: true, message: 'تم حفظ الصلاحيات.' };
+    return {
+      ok: true,
+      message:
+        scope === 'mobile'
+          ? 'تم حفظ صلاحيات تطبيق الموبايل للمجموعة.'
+          : 'تم حفظ الصلاحيات.',
+    };
   } catch (e) {
     await conn.rollback();
     console.error('savePermissions', e.message);

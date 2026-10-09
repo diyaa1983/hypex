@@ -135,7 +135,8 @@ function typeLabelAr(kind) {
  * @param {{ isMobile?: boolean }} [opts]
  */
 function buildPermissionPanels(screens, opts = {}) {
-  const isMobile = !!opts.isMobile;
+  /** مجموعة MOBILE أو وضع «صلاحيات الموبايل» لأي مجموعة */
+  const isMobile = !!opts.isMobile || !!opts.mobileOnly;
   const idByCode = Object.create(null);
   const nameByCode = Object.create(null);
   const typeByCode = Object.create(null);

@@ -15,32 +15,44 @@
   var visibleLabel = document.getElementById('perm-visible-label');
   var panelCountLabel = document.getElementById('perm-panel-count');
 
+  var scopeSelect = document.getElementById('permissions-scope-select');
+
+  function navigatePermissionsForm() {
+    if (!groupForm) return;
+    var base = groupForm.getAttribute('action') || '';
+    var mode = groupForm.getAttribute('data-nav-mode') || 'php';
+    var url;
+    try {
+      url = new URL(base || window.location.href, window.location.href);
+    } catch (e) {
+      url = new URL(window.location.pathname, window.location.origin);
+    }
+    var scopeVal = scopeSelect ? String(scopeSelect.value || 'desktop') : 'desktop';
+    var groupVal = groupSelect ? String(groupSelect.value || '') : '';
+    if (mode === 'node') {
+      url.search = '';
+      if (groupVal) url.searchParams.set('group_id', groupVal);
+      url.searchParams.set('scope', scopeVal === 'mobile' ? 'mobile' : 'desktop');
+    } else {
+      url.searchParams.set('r', 'permissions');
+      if (groupVal) url.searchParams.set('group_id', groupVal);
+      url.searchParams.set('scope', scopeVal === 'mobile' ? 'mobile' : 'desktop');
+    }
+    if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
+      window.AppDesktopWindow.allowNextUnload();
+    }
+    window.__managerAllowUnload = true;
+    window.location.href = url.pathname + url.search;
+  }
+
   if (groupSelect && groupForm) {
-    groupSelect.addEventListener('change', function () {
-      var base = groupForm.getAttribute('action') || '';
-      var mode = groupForm.getAttribute('data-nav-mode') || 'php';
-      var url;
-      try {
-        url = new URL(base || window.location.href, window.location.href);
-      } catch (e) {
-        url = new URL(window.location.pathname, window.location.origin);
-      }
-      if (mode === 'node') {
-        url.search = '';
-        url.searchParams.set('group_id', groupSelect.value);
-      } else {
-        url.searchParams.set('r', 'permissions');
-        url.searchParams.set('group_id', groupSelect.value);
-      }
-      if (window.AppDesktopWindow && typeof window.AppDesktopWindow.allowNextUnload === 'function') {
-        window.AppDesktopWindow.allowNextUnload();
-      }
-      window.__managerAllowUnload = true;
-      window.location.href = url.pathname + url.search;
-    });
+    groupSelect.addEventListener('change', navigatePermissionsForm);
     groupForm.addEventListener('submit', function (e) {
       e.preventDefault();
     });
+  }
+  if (scopeSelect && groupForm) {
+    scopeSelect.addEventListener('change', navigatePermissionsForm);
   }
 
   if (!form) return;
