@@ -580,6 +580,8 @@ return [
                         ['r' => 'm_sales_returns', 'label' => 'مرتجع مبيعات', 'icon' => '↩'],
                         ['r' => 'm_user_gps_locations', 'label' => 'مواقع المستخدمين', 'icon' => '📍'],
                         ['r' => 'm_user_gps_tracker', 'label' => 'تتبع مواقع المندوبين', 'icon' => '📡'],
+                        ['r' => 'm_visit_checkout_approve', 'label' => 'اعتماد خروج يدوي', 'icon' => '🚪'],
+                        ['r' => 'm_customer_gps_approve', 'label' => 'اعتماد موقع العميل', 'icon' => '📍'],
                         ['r' => 'm_rep_visits', 'label' => 'تسجيل زيارة العميل', 'icon' => '🗺'],
                         ['r' => 'm_rep_tours_manage', 'label' => 'إدارة جولات المندوبين', 'icon' => '🗺'],
                         ['r' => 'm_manager_customer_orders', 'label' => 'طلبات شراء العملاء', 'icon' => '📝'],

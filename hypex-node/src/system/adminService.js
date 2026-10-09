@@ -259,6 +259,60 @@ async function ensureReportCustomerOrdersDetailedScreen() {
   return true;
 }
 
+/** ضمان شاشات موافقات المدير على الموبايل (خروج يدوي + موقع عميل). */
+async function ensureMobileManagerApprovalScreens() {
+  const specs = [
+    {
+      code: 'm_visit_checkout_approve',
+      nameAr: 'هاتف — اعتماد خروج يدوي',
+      fromDesktop: 'sales_rep_visit_checkout_approve',
+    },
+    {
+      code: 'm_customer_gps_approve',
+      nameAr: 'هاتف — اعتماد موقع العميل',
+      fromDesktop: 'crm_customer_gps_approve',
+    },
+  ];
+  const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+  let nextOrder = Math.max(Number(maxRows[0]?.m || 0), 9050);
+  for (const spec of specs) {
+    let rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [spec.code]);
+    let screenId = Number(rows[0]?.id || 0);
+    if (!screenId) {
+      nextOrder += 1;
+      await q(
+        `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'screen', ?)`,
+        [spec.code, spec.nameAr, nextOrder]
+      );
+      rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [spec.code]);
+      screenId = Number(rows[0]?.id || 0);
+    } else {
+      await q(`UPDATE sys_screen SET name_ar = ? WHERE id = ?`, [spec.nameAr, screenId]);
+    }
+    if (!screenId) continue;
+    await q(
+      `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+       SELECT g.id, ?, 1 FROM sys_group g WHERE g.code IN ('ADMINS', 'administrators', 'admin')`,
+      [screenId]
+    );
+    await q(
+      `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+       SELECT gp.group_id, ?, 1
+       FROM sys_group_permission gp
+       INNER JOIN sys_screen src ON src.id = gp.screen_id AND src.code = ?
+       WHERE gp.allowed = 1`,
+      [screenId, spec.fromDesktop]
+    );
+    // مجموعة مدير المبيعات إن وُجدت
+    await q(
+      `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+       SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = 'SUPERVISOR'`,
+      [screenId]
+    );
+  }
+  return true;
+}
+
 async function listPermissionsMatrix(groupId = 0, opts = {}) {
   try {
     await syncActionPermissions();
@@ -274,6 +328,11 @@ async function listPermissionsMatrix(groupId = 0, opts = {}) {
     await ensureReportCustomerOrdersDetailedScreen();
   } catch (e) {
     console.error('ensureReportCustomerOrdersDetailedScreen', e.message || e);
+  }
+  try {
+    await ensureMobileManagerApprovalScreens();
+  } catch (e) {
+    console.error('ensureMobileManagerApprovalScreens', e.message || e);
   }
   const scope = String(opts.scope || 'desktop').toLowerCase() === 'mobile' ? 'mobile' : 'desktop';
   const groups = await listGroups();
