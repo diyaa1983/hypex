@@ -72,17 +72,8 @@ class OfflineController extends ChangeNotifier {
     final results = await Connectivity().checkConnectivity();
     _applyConnectivity(results, notify: false);
     _sub?.cancel();
-    _sub = Connectivity().onConnectivityChanged.listen((r) {
-      final wasOnline = online;
-      _applyConnectivity(r);
-      if (!wasOnline && online) {
-        _scheduleReconnectFlush();
-      }
-    });
-    _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(const Duration(seconds: 12), (_) {
-      unawaited(_recoverConnection());
-    });
+    _sub = Connectivity().onConnectivityChanged.listen(_onConnectivityChanged);
+    _armPingTimer();
     _autoFlushTimer?.cancel();
     _autoFlushTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (info.pendingOutbox > 0 || info.errorOutbox > 0) {
@@ -92,7 +83,17 @@ class OfflineController extends ChangeNotifier {
     unawaited(_recoverConnection(initial: true));
   }
 
+  void _armPingTimer() {
+    _pingTimer?.cancel();
+    final every = serverReachable ? pingWhenOnline : pingWhenOffline;
+    _pingTimer = Timer.periodic(every, (_) {
+      unawaited(_recoverConnection());
+    });
+  }
+
   void _onHttpSuccess() {
+    _reachFailStreak = 0;
+    _lastReachOkAt = DateTime.now();
     final was = serverReachable;
     if (!was) {
       _setReachable(true);
@@ -123,6 +124,27 @@ class OfflineController extends ChangeNotifier {
     flushScheduledAt = null;
   }
 
+  void _onConnectivityChanged(List<ConnectivityResult> results) {
+    final hasLink = results.isEmpty ||
+        results.any((r) => r != ConnectivityResult.none);
+    _connectivityDebounce?.cancel();
+    if (hasLink) {
+      // عودة الشبكة فوراً
+      final wasOnline = online;
+      _applyConnectivity(results);
+      if (!wasOnline && online) {
+        _scheduleReconnectFlush();
+      }
+      return;
+    }
+    // انقطاع ظاهري من Android — انتظر؛ إن عاد الرابط نتجاهل.
+    _connectivityDebounce = Timer(connectivityDropGrace, () {
+      _applyConnectivity(const [ConnectivityResult.none]);
+      // لا نُسقط serverReachable هنا — فحص ping يتولّى بعد تأكيد الفشل.
+      unawaited(_recoverConnection());
+    });
+  }
+
   void _applyConnectivity(List<ConnectivityResult> results,
       {bool notify = true}) {
     // قائمة فارغة = غير معروف؛ لا نعتبرها انقطاعاً.
@@ -132,14 +154,21 @@ class OfflineController extends ChangeNotifier {
     online = next;
     if (!online) {
       statusMessage = 'وضع Offline — يعمل من البيانات المحلية';
-    } else {
+    } else if (!serverReachable) {
       statusMessage = 'متصل بالشبكة — جاري التحقق من السيرفر…';
     }
     if (notify) notifyListeners();
   }
 
   void _setReachable(bool ok) {
-    if (serverReachable == ok) return;
+    if (ok) {
+      _reachFailStreak = 0;
+      _lastReachOkAt = DateTime.now();
+    }
+    if (serverReachable == ok) {
+      if (ok) _armPingTimer();
+      return;
+    }
     serverReachable = ok;
     if (ok) {
       online = true;
@@ -149,13 +178,15 @@ class OfflineController extends ChangeNotifier {
         : (online
             ? 'لا يوجد اتصال بالسيرفر'
             : 'وضع Offline — يعمل من البيانات المحلية');
+    _armPingTimer();
     notifyListeners();
   }
 
   Future<bool> _pingServer() async {
     if (api.base.isEmpty) return false;
     try {
-      return await api.ping();
+      // مهلة أقصر من الطلبات العادية — مع إعادة المحاولة في _recoverConnection.
+      return await api.ping(timeout: const Duration(seconds: 6));
     } catch (_) {
       return false;
     }
@@ -166,35 +197,49 @@ class OfflineController extends ChangeNotifier {
     _probing = true;
     try {
       final attempts = initial ? 3 : 2;
+      var ok = false;
       for (var i = 0; i < attempts; i++) {
-        final ok = await _pingServer();
-        final was = serverReachable;
-        _setReachable(ok);
-        if (ok) {
-          if (!was || initial) {
-            await refreshInfo();
-            if (sessionReauth != null) {
-              await sessionReauth!();
-            }
-            // عند عودة الاتصال: ترحيل طابور العمليات فقط
-            // (حفظ + ترحيل صرّح به المندوب). لا تُرسل طلبات «محفوظة فقط» تلقائياً.
-            if (info.flushableOutbox > 0) {
-              await flushAndAutoPost();
-            } else {
-              await store.cleanupOutbox();
-              await refreshInfo();
-            }
-          } else if (info.flushableOutbox > 0) {
-            if (sessionReauth != null) {
-              await sessionReauth!();
-            }
-            await flushAndAutoPost();
-          }
-          return;
-        }
+        ok = await _pingServer();
+        if (ok) break;
         if (i < attempts - 1) {
-          await Future<void>.delayed(const Duration(seconds: 2));
+          await Future<void>.delayed(Duration(milliseconds: 800 + i * 400));
         }
+      }
+
+      final was = serverReachable;
+      if (ok) {
+        _setReachable(true);
+        if (!was || initial) {
+          await refreshInfo();
+          if (sessionReauth != null) {
+            await sessionReauth!();
+          }
+          // عند عودة الاتصال: ترحيل طابور العمليات فقط
+          // (حفظ + ترحيل صرّح به المندوب). لا تُرسل طلبات «محفوظة فقط» تلقائياً.
+          if (info.flushableOutbox > 0) {
+            await flushAndAutoPost();
+          } else {
+            await store.cleanupOutbox();
+            await refreshInfo();
+          }
+        } else if (info.flushableOutbox > 0) {
+          if (sessionReauth != null) {
+            await sessionReauth!();
+          }
+          await flushAndAutoPost();
+        }
+        return;
+      }
+
+      // لا نعلن Offline من أول فشل — نحتاج سلسلة فشل متتالية.
+      _reachFailStreak++;
+      final recentlyOk = _lastReachOkAt != null &&
+          DateTime.now().difference(_lastReachOkAt!).inSeconds < 45;
+      if (_reachFailStreak >= offlineAfterFails && !recentlyOk) {
+        _setReachable(false);
+      } else if (_reachFailStreak >= offlineAfterFails + 1) {
+        // حتى مع نجاح حديث: بعد فشل أوضح نعلن الانقطاع.
+        _setReachable(false);
       }
     } finally {
       _probing = false;
@@ -497,7 +542,10 @@ class OfflineController extends ChangeNotifier {
         } on ApiException catch (e) {
           if (e.message.contains('تعذر الاتصال') ||
               e.message.contains('الإنترنت')) {
-            _setReachable(false);
+            _reachFailStreak++;
+            if (_reachFailStreak >= offlineAfterFails) {
+              _setReachable(false);
+            }
             lastError = e.message;
             break;
           }
@@ -660,6 +708,7 @@ class OfflineController extends ChangeNotifier {
     _sub?.cancel();
     _pingTimer?.cancel();
     _autoFlushTimer?.cancel();
+    _connectivityDebounce?.cancel();
     _cancelReconnectFlush();
     api.onHttpSuccess = null;
     super.dispose();
