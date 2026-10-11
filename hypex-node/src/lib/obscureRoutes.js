@@ -12,22 +12,20 @@ const crypto = require('crypto');
 const config = require('../config');
 
 const PREFIX = '/n/';
-const enabled = !!config.obscureRoutes;
 
-const key = crypto
-  .createHash('sha256')
-  .update(String(config.sessionSecret || 'hypex') + '|obscure-v1')
-  .digest();
+function isEnabled() {
+  return !!config.obscureRoutes;
+}
 
-/** مفتاح مختصر للعميل (جلسات مسجّلة) — لتشفير روابط JS */
-const clientKeyB64 = key.subarray(0, 32).toString('base64');
+function cryptoKey() {
+  return crypto
+    .createHash('sha256')
+    .update(String(config.sessionSecret || 'hypex') + '|obscure-v1')
+    .digest();
+}
 
 const encodeCache = new Map();
 const DECODE_CACHE_MAX = 4000;
-
-function isEnabled() {
-  return enabled;
-}
 
 function pathOnly(urlPath) {
   const s = String(urlPath || '/');
@@ -43,7 +41,7 @@ function queryOf(urlPath) {
 
 /** مسارات لا تُشفَّر (API، أصول، دخول…) */
 function shouldObscure(urlPath) {
-  if (!enabled) return false;
+  if (!isEnabled()) return false;
   let p = pathOnly(urlPath);
   if (!p.startsWith('/')) p = '/' + p;
   if (p === '/' || p === '/app') return false;
@@ -82,12 +80,13 @@ function fromB64url(s) {
 }
 
 function encode(urlPath) {
-  if (!enabled) return urlPath;
+  if (!isEnabled()) return urlPath;
   const raw = String(urlPath || '/');
   if (!shouldObscure(raw)) return raw;
   const cached = encodeCache.get(raw);
   if (cached) return cached;
 
+  const key = cryptoKey();
   // IV ثابت من المسار — نفس الشاشة = نفس الرمز (أسهل للتخزين المؤقت)
   const iv = crypto.createHash('sha256').update('iv|' + raw).digest().subarray(0, 12);
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
@@ -108,7 +107,7 @@ function decodeToken(token) {
     const iv = buf.subarray(0, 12);
     const tag = buf.subarray(12, 28);
     const data = buf.subarray(28);
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', cryptoKey(), iv);
     decipher.setAuthTag(tag);
     const plain = Buffer.concat([decipher.update(data), decipher.final()]).toString(
       'utf8'
@@ -138,14 +137,14 @@ function decodeRequestUrl(reqUrl) {
 }
 
 function obscureHref(href) {
-  if (!enabled || typeof href !== 'string') return href;
+  if (!isEnabled() || typeof href !== 'string') return href;
   if (!href.startsWith('/') || href.startsWith('//')) return href;
   if (href.startsWith(PREFIX)) return href;
   return encode(href);
 }
 
 function rewriteHtml(html) {
-  if (!enabled || typeof html !== 'string') return html;
+  if (!isEnabled() || typeof html !== 'string') return html;
   return html.replace(
     /\b(href|action|formaction)=("|')(\/[^"']*)\2/gi,
     (full, attr, q, path) => {
@@ -158,7 +157,7 @@ function rewriteHtml(html) {
 }
 
 function rewriteJs(code) {
-  if (!enabled || typeof code !== 'string') return code;
+  if (!isEnabled() || typeof code !== 'string') return code;
   // مسارات صفحات شائعة داخل نصوص JS — لا نلمس /api و /assets
   return code.replace(
     /(['"`])(\/(?!\/)(?:hub|sales|purchases|customers|sales-reps|suppliers|accounting|inventory|hr|system|mobile|main|menu|app|embed)(?:\/[^'"`?]*)?(?:\?[^'"`]*)?)\1/g,
@@ -170,7 +169,7 @@ function rewriteJs(code) {
 }
 
 function clientBootstrap(realPath) {
-  if (!enabled) return '';
+  if (!isEnabled()) return '';
   const p = pathOnly(realPath || '/');
   return (
     `<script>` +
@@ -189,7 +188,7 @@ function clientBootstrap(realPath) {
  */
 function middleware() {
   return function obscureRoutesMiddleware(req, res, next) {
-    if (!enabled) return next();
+    if (!isEnabled()) return next();
 
     const decoded = decodeRequestUrl(req.url || '/');
     if (decoded) {
@@ -241,5 +240,4 @@ module.exports = {
   middleware,
   pathOnly,
   queryOf,
-  clientKeyB64,
 };
