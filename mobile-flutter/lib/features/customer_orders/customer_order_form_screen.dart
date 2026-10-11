@@ -656,23 +656,23 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   /// بناء جسم الحفظ للإرسال لاحقاً عند الترحيل فقط.
   Future<Map<String, dynamic>> _buildSaveBody() async {
-    final session = context.read<SessionController>();
-    final body = <String, dynamic>{
+      final session = context.read<SessionController>();
+      final body = <String, dynamic>{
       'id': _id > 0 ? _id : 0,
-      'customer_id': _customer!.id,
-      'warehouse_id': _warehouseId,
+        'customer_id': _customer!.id,
+        'warehouse_id': _warehouseId,
       'payment_type': _paymentType,
       'delivery_date': _deliveryDate,
       'notes': _notesCtrl.text.trim(),
-      'lines': _lines.map((l) => l.toJson()).toList(),
-    };
+        'lines': _lines.map((l) => l.toJson()).toList(),
+      };
     final visitLine = widget.visitRouteLineId ?? 0;
     if (visitLine > 0) {
       body['visit_route_line_id'] = visitLine;
     } else if (visitLine < 0) {
       body['offline_visit'] = true;
     }
-    if (session.gpsConfig.repVisitGeofence) {
+      if (session.gpsConfig.repVisitGeofence) {
       final offline = context.read<OfflineController>();
       if (offline.online) {
         final gps = await LocationService.requirePosition();
@@ -733,8 +733,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       if (visitLine != 0) 'visit_route_line_id': visitLine,
       if (visitLine < 0) 'offline_visit': true,
     });
-    if (mounted) {
-      setState(() {
+      if (mounted) {
+        setState(() {
         _id = localId;
         _orderNo = orderNo;
         _isSent = false;
@@ -779,7 +779,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       final ln = _lines[i];
       if (ln.qty <= 0 && ln.qtyExtra <= 0) {
         showSnack(
-          context,
+            context,
           'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
           error: true,
         );
@@ -1566,7 +1566,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
+                                Text(
           'تاريخ التسليم',
           style: TextStyle(
             fontSize: labelSize,
@@ -2510,9 +2510,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                           ),
                         )
                       : const SizedBox.shrink(),
-                ),
-              ),
-            ]),
+                          ),
+                        ),
+                      ]),
         ],
       ),
     );
@@ -2601,8 +2601,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                         child: _orderHeaderCustomer(),
                       ),
                     ],
-              ],
-            )),
+                    ],
+                  )),
             const SizedBox(height: 8),
             AppCard(
               child: Column(
@@ -2639,7 +2639,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                const SizedBox(height: 12),
                   const Text(
                     'ملاحظات',
                     style: TextStyle(
@@ -2720,8 +2720,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                                   _arSummary,
                                 ),
                               ),
-                            ],
-                          )),
+              ],
+            )),
               ),
             ],
             const DocumentSectionDivider('بنود الطلب'),

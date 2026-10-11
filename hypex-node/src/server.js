@@ -57,6 +57,7 @@ const menuAll = require('./menuAllRoutes');
 const hubRoutes = require('./hubRoutes');
 const notifications = require('./notifications/routes');
 const basePath = require('./lib/basePath');
+const obscureRoutes = require('./lib/obscureRoutes');
 const fs = require('fs');
 const { createSessionMiddleware } = require('./sessionStore');
 const { warmPrintBrand, ensurePrintBrand, getPrintBrand } = require('./lib/printBrand');
@@ -69,6 +70,8 @@ app.set('trust proxy', 1);
 
 // توحيد المسار /hypex قبل كل شيء
 app.use(basePath.middleware());
+// إخفاء أسماء الشاشات من شريط العنوان (اختياري عبر APP_OBSCURE_ROUTES=1)
+app.use(obscureRoutes.middleware());
 app.use((req, res, next) => {
   setRequestPath(req.path || '', req.query && req.query.embed);
   next();
@@ -193,11 +196,13 @@ function sendPublicFile(req, res, next) {
   if (!file.startsWith(nodePublic) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
     return next();
   }
-  if (/\.js$/i.test(file) && basePath.hasBase()) {
+  if (/\.js$/i.test(file) && (basePath.hasBase() || obscureRoutes.isEnabled())) {
     try {
-      const code = fs.readFileSync(file, 'utf8');
+      let code = fs.readFileSync(file, 'utf8');
+      if (obscureRoutes.isEnabled()) code = obscureRoutes.rewriteJs(code);
+      if (basePath.hasBase()) code = basePath.rewriteJs(code);
       res.type('application/javascript');
-      return res.send(basePath.rewriteJs(code));
+      return res.send(code);
     } catch (e) {
       return next(e);
     }
@@ -535,6 +540,7 @@ function renderLogin({ error, username, brand }) {
     }
   })()}
   <script>window.__HYPEX_BASE__=${JSON.stringify(basePath.basePath || '')};</script>
+  ${obscureRoutes.clientBootstrap('/login')}
   <script src="/assets/js/base-path.js"></script>
   <link rel="stylesheet" href="/assets/css/app-font.css">
   <link rel="stylesheet" href="/assets/css/login-pro.css">

@@ -195,11 +195,18 @@
     });
   }
 
-  /** تمييز القسم النشط من المسار الحالي */
+  /** تمييز القسم النشط من المسار الحالي (أو المسار الحقيقي عند إخفاء الروابط) */
   var base = typeof window.__HYPEX_BASE__ === 'string' ? window.__HYPEX_BASE__ : '';
   if (base && base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
-  var path = window.location.pathname || '';
-  if (base && (path === base || path.indexOf(base + '/') === 0)) {
+  var path =
+    typeof window.__HYPEX_PATH__ === 'string' && window.__HYPEX_PATH__
+      ? window.__HYPEX_PATH__
+      : window.location.pathname || '';
+  if (
+    !(typeof window.__HYPEX_PATH__ === 'string' && window.__HYPEX_PATH__) &&
+    base &&
+    (path === base || path.indexOf(base + '/') === 0)
+  ) {
     path = path.slice(base.length) || '/';
   }
   var sidebar = root || document.querySelector('.sidebar--2027');

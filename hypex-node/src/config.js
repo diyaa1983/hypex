@@ -28,4 +28,11 @@ module.exports = {
   // صور QR المنشأة بواسطة Oracle Forms للفواتير المرسلة إلى الفوترة
   oracleInvoiceQrDir: env('ORACLE_INVOICE_QR_DIR', 'D:\\taqwa\\Invoice_QR_Images\\1'),
   sessionSecret: env('SESSION_SECRET', 'hypex-node-dev-change-me'),
+  /**
+   * إخفاء مسارات الشاشات في شريط العنوان (/hr/... → /n/رمز).
+   * فعّل بـ APP_OBSCURE_ROUTES=1 — لا يغني عن HTTPS.
+   */
+  obscureRoutes:
+    String(env('APP_OBSCURE_ROUTES', '0')).trim() === '1' ||
+    String(env('APP_OBSCURE_ROUTES', '0')).trim().toLowerCase() === 'true',
 };

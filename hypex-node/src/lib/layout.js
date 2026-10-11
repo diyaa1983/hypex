@@ -5,6 +5,7 @@ const nav = require('../nav');
 const { esc } = require('./html');
 const { iconFor, isPathActive } = require('./navIcons');
 const basePath = require('./basePath');
+const obscureRoutes = require('./obscureRoutes');
 const { resolvePath } = require('./screenMap');
 const {
   getFavoritesContext,
@@ -432,6 +433,7 @@ function renderApp({
   <title>${esc(title)} · ${esc(getPrintBrand().companyName || 'Hypex')}</title>
   ${faviconLinksHtml()}
   <script>window.__HYPEX_BASE__=${JSON.stringify(base)};</script>
+  ${obscureRoutes.clientBootstrap(path || '/')}
   ${decimalsScript}
   <script src="/assets/js/base-path.js"></script>
   <link rel="stylesheet" href="/assets/css/shell.css?v=${assetVersion('css/shell.css')}">
