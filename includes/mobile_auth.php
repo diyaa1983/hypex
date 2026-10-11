@@ -80,14 +80,33 @@ function load_user_mobile_permissions(int $userId): array
         return $codes ?: ['m_home'];
     }
 
+    $pdo = db();
+
+    // هل للمستخدم مجموعة دور غير MOBILE؟ (مدير مبيعات / مندوب…)
+    $hasRole = $pdo->prepare(
+        'SELECT 1 FROM sys_user_group ug
+         INNER JOIN sys_group g ON g.id = ug.group_id AND UPPER(g.code) <> ?
+         WHERE ug.user_id = ? LIMIT 1'
+    );
+    $hasRole->execute([MOBILE_GROUP_CODE, $userId]);
+    $useRoleGroups = (bool) $hasRole->fetchColumn();
+
+    // مجموعة MOBILE = بوابة دخول فقط عند وجود مجموعة دور.
+    // الشاشات تُؤخذ من مجموعات الدور حتى لا تظهر شاشات ممنوحة قديماً على MOBILE.
     $sql = 'SELECT DISTINCT s.code
             FROM sys_user_group ug
+            INNER JOIN sys_group g ON g.id = ug.group_id
             INNER JOIN sys_group_permission gp ON gp.group_id = ug.group_id AND gp.allowed = 1
             INNER JOIN sys_screen s ON s.id = gp.screen_id
-            WHERE ug.user_id = ? AND s.code LIKE ?
-            ORDER BY s.code';
-    $st = db()->prepare($sql);
-    $st->execute([$userId, 'm_%']);
+            WHERE ug.user_id = ? AND s.code LIKE ?';
+    if ($useRoleGroups) {
+        $sql .= ' AND UPPER(g.code) <> ?';
+    } else {
+        $sql .= ' AND UPPER(g.code) = ?';
+    }
+    $sql .= ' ORDER BY s.code';
+    $st = $pdo->prepare($sql);
+    $st->execute([$userId, 'm_%', MOBILE_GROUP_CODE]);
 
     return $st->fetchAll(PDO::FETCH_COLUMN) ?: [];
 }

@@ -871,8 +871,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   bool get _isSaved => _id != 0;
 
-  /// الترحيل يعمل فقط بعد حفظ الطلب وبدون تعديلات معلّقة.
-  bool get _canPost => _isSaved && !isDirty && !_isSent && !_approved;
+  /// الترحيل متاح طالما الطلب قابل للتعديل وفيه مواد ولم يُرحَّل بعد.
+  /// عند الضغط: يُحفظ محلياً أولاً ثم يُرسل — الحفظ وحده لا يرسل للنظام.
+  bool get _canPost =>
+      _editable && !_isSent && !_approved && _lines.isNotEmpty;
 
   bool get _canStartNew => _isSaved && !_busy;
 
@@ -915,16 +917,42 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   Future<void> _post() async {
     if (_busy) return;
-    if (!_isSaved || isDirty) {
-      showSnack(context, 'احفظ الطلب أولاً ثم اضغط ترحيل.', error: true);
+    if (!_canPost) {
+      if (_lines.isEmpty) {
+        showSnack(context, 'أضف مادة واحدةً على الأقل قبل الترحيل.', error: true);
+      }
       return;
     }
-    if (!_canPost) return;
     if (_isSent) return;
+    if (_customer == null || _warehouseId == 0) {
+      showSnack(context, 'اختر العميل والمستودع قبل الترحيل.', error: true);
+      return;
+    }
+    for (var i = 0; i < _lines.length; i++) {
+      final ln = _lines[i];
+      if (ln.qty <= 0 && ln.qtyExtra <= 0) {
+        showSnack(
+          context,
+          'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
+          error: true,
+        );
+        return;
+      }
+    }
     setState(() => _busy = true);
     final offline = context.read<OfflineController>();
     final session = context.read<SessionController>();
     try {
+      // احفظ على الجهاز أولاً (بدون إرسال) ثم رحّل — حتى لو كان الطلب جديداً أو معدّلاً.
+      if (!_isSaved || isDirty) {
+        final draftBody = await _buildSaveBody();
+        final savedId = await _persistLocalDraft(draftBody);
+        if (!mounted) return;
+        if (savedId == 0) {
+          showSnack(context, 'تعذر حفظ الطلب قبل الترحيل.', error: true);
+          return;
+        }
+      }
       final body = await _resolveSaveBodyForPost();
       if (!mounted) return;
 

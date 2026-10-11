@@ -44,6 +44,10 @@ android {
             // TODO: Add your own release keystore for Play Store.
             // Uses a project-local debug keystore (avoids broken %USERPROFILE%\.android).
             signingConfig = signingConfigs.getByName("hypexDebug")
+            // تجنّب فشل extractReleaseNativeSymbolTables على Windows (ملفات temp محذوفة/مقفلة)
+            ndk {
+                debugSymbolLevel = "NONE"
+            }
         }
         debug {
             signingConfig = signingConfigs.getByName("hypexDebug")

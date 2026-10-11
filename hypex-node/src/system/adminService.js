@@ -290,23 +290,11 @@ async function ensureMobileManagerApprovalScreens() {
       await q(`UPDATE sys_screen SET name_ar = ? WHERE id = ?`, [spec.nameAr, screenId]);
     }
     if (!screenId) continue;
+    // ADMINS فقط تلقائياً. لا نمنح SUPERVISOR ولا ننسخ من سطح المكتب —
+    // تُضبط يدوياً من «صلاحيات تطبيق الموبايل».
     await q(
       `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
        SELECT g.id, ?, 1 FROM sys_group g WHERE g.code IN ('ADMINS', 'administrators', 'admin')`,
-      [screenId]
-    );
-    await q(
-      `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
-       SELECT gp.group_id, ?, 1
-       FROM sys_group_permission gp
-       INNER JOIN sys_screen src ON src.id = gp.screen_id AND src.code = ?
-       WHERE gp.allowed = 1`,
-      [screenId, spec.fromDesktop]
-    );
-    // مجموعة مدير المبيعات إن وُجدت
-    await q(
-      `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
-       SELECT g.id, ?, 1 FROM sys_group g WHERE g.code = 'SUPERVISOR'`,
       [screenId]
     );
   }

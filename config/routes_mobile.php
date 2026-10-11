@@ -167,7 +167,7 @@ return [
 
         'file' => 'modules/mobile/sales_invoice_gps_list.php',
 
-        'permission' => 'm_sales_invoices',
+        'permission' => 'm_sales_invoice_gps',
 
         'title' => 'إحداثيات مواقع فواتير البيع',
 

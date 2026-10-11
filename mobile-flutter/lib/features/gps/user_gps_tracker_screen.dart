@@ -93,23 +93,30 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   final Map<int, List<LatLng>> _trails = {};
   final Map<int, LatLng> _displayPos = {};
   final Map<int, _MoveAnim> _anims = {};
-  static const int _maxTrailPoints = 200;
-  static const double _minTrailMoveMeters = 12;
+  /// إزاحة دائرية للمندوبين في نفس النقطة (userId → نقطة العرض).
+  final Map<int, LatLng> _spreadPos = {};
+  /// نقطة الموقع الحقيقي لرسم خط الربط عند التفريق.
+  final Map<int, LatLng> _truePos = {};
+  static const int _maxTrailPoints = 60;
+  static const double _minTrailMoveMeters = 20;
   static const double _maxTrailJumpMeters = 800;
-  static const int _smoothMoveMs = 3500;
+  static const int _smoothMoveMs = 1800;
+  /// تجميع من هم أقرب من هذه المسافة (متر) كـ«نفس الموقع».
+  static const double _sameSpotMeters = 28;
   int _online = 0;
   int? _selectedId;
   bool _fitOnce = true;
   bool _listOpen = false;
+  DateTime? _lastAnimFrame;
 
   @override
   void initState() {
     super.initState();
     _load();
     _poll =
-        Timer.periodic(const Duration(seconds: 8), (_) => _load(silent: true));
+        Timer.periodic(const Duration(seconds: 12), (_) => _load(silent: true));
     _animTimer =
-        Timer.periodic(const Duration(milliseconds: 100), (_) => _tickAnims());
+        Timer.periodic(const Duration(milliseconds: 220), (_) => _tickAnims());
   }
 
   @override
@@ -155,10 +162,13 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         final alive = rows.map((m) => m.userId).toSet();
         _displayPos.removeWhere((id, _) => !alive.contains(id));
         _anims.removeWhere((id, _) => !alive.contains(id));
+        _spreadPos.removeWhere((id, _) => !alive.contains(id));
+        _truePos.removeWhere((id, _) => !alive.contains(id));
         _online = (counts['online'] as num?)?.toInt() ??
             rows.where((m) => m.online).length;
         _loading = false;
         _error = null;
+        _recomputeSpread();
       });
 
       if (_fitOnce && rows.isNotEmpty && _mapReady) {
@@ -271,6 +281,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
   void _tickAnims() {
     if (_anims.isEmpty || !mounted || !_mapReady) return;
     final now = DateTime.now();
+    // حدّ أقصى لإعادة الرسم حتى تبقى الخريطة سلسة على التابلت.
+    if (_lastAnimFrame != null &&
+        now.difference(_lastAnimFrame!).inMilliseconds < 180) {
+      return;
+    }
+    _lastAnimFrame = now;
     var changed = false;
     final done = <int>[];
     double? followZoom;
@@ -282,7 +298,7 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
     }
     final canFollow = followZoom != null &&
         (_lastFollowMove == null ||
-            now.difference(_lastFollowMove!).inMilliseconds >= 280);
+            now.difference(_lastFollowMove!).inMilliseconds >= 400);
     _anims.forEach((id, anim) {
       final elapsed = now.difference(anim.start).inMilliseconds /
           anim.duration.inMilliseconds;
@@ -293,7 +309,8 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         changed = true;
         if (anim.follow && canFollow) {
           _lastFollowMove = now;
-          _safeMapMove(anim.to, followZoom!);
+          final show = _spreadPos[id] ?? anim.to;
+          _safeMapMove(show, followZoom!);
         }
         return;
       }
@@ -304,20 +321,79 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
           anim.from.longitude + (anim.to.longitude - anim.from.longitude) * e;
       final pos = LatLng(lat, lng);
       _displayPos[id] = pos;
-      if (elapsed > 0.2 && elapsed < 0.9) {
-        _appendTrailPoint(id, pos);
-      }
       if (anim.follow && canFollow) {
         _lastFollowMove = now;
-        _safeMapMove(pos, followZoom!);
+        final show = _spreadPos[id] ?? pos;
+        _safeMapMove(show, followZoom!);
       }
       changed = true;
     });
     for (final id in done) {
       _anims.remove(id);
     }
-    if (changed) setState(() {});
+    if (changed) {
+      _recomputeSpread();
+      setState(() {});
+    }
   }
+
+  /// يفرّق المندوبين المتطابقين/القريبين جداً على دائرة حول الموقع الحقيقي.
+  void _recomputeSpread() {
+    _spreadPos.clear();
+    _truePos.clear();
+    if (_markers.isEmpty) return;
+
+    final used = <int>{};
+    for (var i = 0; i < _markers.length; i++) {
+      final a = _markers[i];
+      if (used.contains(a.userId)) continue;
+      final aPos = _displayPos[a.userId] ?? a.point;
+      final group = <_Marker>[a];
+      for (var j = i + 1; j < _markers.length; j++) {
+        final b = _markers[j];
+        if (used.contains(b.userId)) continue;
+        final bPos = _displayPos[b.userId] ?? b.point;
+        if (_haversineMeters(aPos, bPos) <= _sameSpotMeters) {
+          group.add(b);
+        }
+      }
+      for (final m in group) {
+        used.add(m.userId);
+      }
+      if (group.length == 1) {
+        final p = _displayPos[a.userId] ?? a.point;
+        _spreadPos[a.userId] = p;
+        _truePos[a.userId] = p;
+        continue;
+      }
+      // مركز المجموعة
+      var latSum = 0.0;
+      var lngSum = 0.0;
+      for (final m in group) {
+        final p = _displayPos[m.userId] ?? m.point;
+        latSum += p.latitude;
+        lngSum += p.longitude;
+      }
+      final center = LatLng(latSum / group.length, lngSum / group.length);
+      final n = group.length;
+      // نصف قطر يتسع مع عدد المندوبين ويُكبَّر عند التصغير.
+      final meters = (26.0 + (n - 1) * 10.0) *
+          math.pow(2.0, (14.5 - _mapZoom).clamp(-1.5, 3.5));
+      final cosLat = math.cos(center.latitude * math.pi / 180).abs().clamp(0.2, 1.0);
+      for (var k = 0; k < n; k++) {
+        final m = group[k];
+        final angle = (2 * math.pi * k / n) - (math.pi / 2);
+        final dLat = (meters * math.cos(angle)) / 111320.0;
+        final dLng = (meters * math.sin(angle)) / (111320.0 * cosLat);
+        final show = LatLng(center.latitude + dLat, center.longitude + dLng);
+        _spreadPos[m.userId] = show;
+        _truePos[m.userId] = center;
+      }
+    }
+  }
+
+  LatLng _showPointFor(_Marker m) =>
+      _spreadPos[m.userId] ?? _displayPos[m.userId] ?? m.point;
 
   void _clearTrails() {
     setState(() => _trails.clear());
@@ -331,10 +407,21 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
       final selected = userId == _selectedId;
       lines.add(Polyline(
         points: List<LatLng>.from(pts),
-        strokeWidth: selected ? 5 : 4,
+        strokeWidth: selected ? 4 : 3,
         color: selected
             ? const Color(0xFFDC2626)
-            : const Color(0xFF2563EB).withValues(alpha: 0.85),
+            : const Color(0xFF2563EB).withValues(alpha: 0.75),
+      ));
+    });
+    // خطوط ربط من الموقع الحقيقي إلى الدبوس المفرَّق
+    _spreadPos.forEach((userId, show) {
+      final truePt = _truePos[userId];
+      if (truePt == null) return;
+      if (_haversineMeters(truePt, show) < 3) return;
+      lines.add(Polyline(
+        points: [truePt, show],
+        strokeWidth: 1.6,
+        color: const Color(0xFF64748B).withValues(alpha: 0.75),
       ));
     });
     return lines;
@@ -371,7 +458,72 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
         _anims[m.userId] = anim.copyWith(follow: true);
       }
     });
-    _safeMapMove(_pointFor(m), 15);
+    _safeMapMove(_showPointFor(m), 15);
+  }
+
+  List<_Marker> _matesNear(_Marker m) {
+    final p = _pointFor(m);
+    return _markers
+        .where((o) => _haversineMeters(p, _pointFor(o)) <= _sameSpotMeters)
+        .toList();
+  }
+
+  Future<void> _onPinTap(_Marker m) async {
+    final mates = _matesNear(m);
+    if (mates.length <= 1) {
+      _select(m);
+      return;
+    }
+    // عدة مندوبين في نفس الموقع — اختيار من قائمة
+    final picked = await showModalBottomSheet<_Marker>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(ctx).size.height * 0.55,
+          ),
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(bottom: 12),
+            itemCount: mates.length + 1,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, i) {
+              if (i == 0) {
+                return const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 4, 16, 10),
+                  child: Text(
+                    'مندوبون في نفس الموقع',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                  ),
+                );
+              }
+              final row = mates[i - 1];
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: row.color,
+                  child: Text(
+                    row.initials,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                title: Text(row.label),
+                subtitle: Text(
+                  '${row.statusLabel} · ${row.ageLabel}',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                onTap: () => Navigator.pop(ctx, row),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    if (picked != null && mounted) _select(picked);
   }
 
   @override
@@ -435,8 +587,11 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                 },
                 onPositionChanged: (camera, _) {
                   final z = camera.zoom;
-                  if ((z - _mapZoom).abs() > 0.25 && mounted) {
-                    setState(() => _mapZoom = z);
+                  if ((z - _mapZoom).abs() > 0.35 && mounted) {
+                    setState(() {
+                      _mapZoom = z;
+                      _recomputeSpread();
+                    });
                   }
                 },
                 onTap: (_, __) => setState(() => _selectedId = null),
@@ -451,12 +606,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                   markers: [
                     for (final m in _markers)
                       Marker(
-                        point: _pointFor(m),
-                        width: 104,
-                        height: 78,
+                        point: _showPointFor(m),
+                        width: 96,
+                        height: 70,
                         alignment: Alignment.bottomCenter,
                         child: GestureDetector(
-                          onTap: () => _select(m),
+                          onTap: () => _onPinTap(m),
                           child: _MapPin(
                             label: m.initials,
                             name: m.shortName,
@@ -464,6 +619,12 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                             selected: m.userId == _selectedId,
                             heading: _headingFor(m),
                             moving: _anims.containsKey(m.userId),
+                            stacked: (_truePos[m.userId] != null) &&
+                                _haversineMeters(
+                                      _truePos[m.userId]!,
+                                      _showPointFor(m),
+                                    ) >
+                                    3,
                           ),
                         ),
                       ),
@@ -523,7 +684,9 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
                     _LegendDot(AppTheme.success),
                     Text(' متصل · ', style: TextStyle(fontSize: 11.5)),
                     _LegendLine(Color(0xFF2563EB)),
-                    Text(' خط حي · حركة سلسة مثل الخرائط  ',
+                    Text(' خط حي · ', style: TextStyle(fontSize: 11.5)),
+                    _LegendLine(Color(0xFF64748B)),
+                    Text(' تفريق نفس الموقع  ',
                         style: TextStyle(fontSize: 11.5)),
                   ],
                 ),
@@ -592,6 +755,7 @@ class _MapPin extends StatelessWidget {
     required this.selected,
     this.heading = 0,
     this.moving = false,
+    this.stacked = false,
   });
 
   final String label;
@@ -600,85 +764,73 @@ class _MapPin extends StatelessWidget {
   final bool selected;
   final double heading;
   final bool moving;
+  final bool stacked;
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedScale(
-      scale: selected ? 1.12 : 1,
-      duration: const Duration(milliseconds: 150),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+    final size = selected ? 38.0 : 34.0;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (moving || selected)
           Transform.rotate(
             angle: heading * math.pi / 180,
             child: Icon(
               Icons.navigation_rounded,
-              size: 16,
+              size: 14,
               color: moving ? const Color(0xFF2563EB) : const Color(0xFF0F172A),
             ),
           ),
-          const SizedBox(height: 2),
-          Container(
-            width: 36,
-            height: 36,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2.5),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.35),
-                  blurRadius: moving ? 14 : 10,
-                  offset: const Offset(0, 3),
-                ),
-                if (moving)
-                  BoxShadow(
-                    color: const Color(0xFF2563EB).withValues(alpha: 0.25),
-                    blurRadius: 12,
-                    spreadRadius: 1,
-                  ),
-              ],
+        Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: stacked ? const Color(0xFFF59E0B) : Colors.white,
+              width: stacked ? 3 : 2.2,
             ),
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.22),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
+            ],
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 2),
-          Container(
-            constraints: const BoxConstraints(maxWidth: 96),
-            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-            decoration: BoxDecoration(
-              color: const Color(0xE00F172A),
-              borderRadius: BorderRadius.circular(4),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x40000000),
-                  blurRadius: 3,
-                  offset: Offset(0, 1),
-                ),
-              ],
-            ),
-            child: Text(
-              name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                height: 1.2,
-              ),
+        ),
+        const SizedBox(height: 2),
+        Container(
+          constraints: const BoxConstraints(maxWidth: 90),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(
+            color: const Color(0xE00F172A),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              height: 1.15,
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
