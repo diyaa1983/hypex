@@ -271,7 +271,17 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _onTaskData(Object data) => _refreshTracking();
+  DateTime? _lastTrackingUiAt;
+
+  void _onTaskData(Object data) {
+    // نبضات التتبّع كل ~10ث — لا نُعد رسم الشاشة إلا عند تغيّر ظاهر أو كل دقيقة.
+    final now = DateTime.now();
+    if (_lastTrackingUiAt != null &&
+        now.difference(_lastTrackingUiAt!).inSeconds < 55) {
+      return;
+    }
+    _refreshTracking();
+  }
 
   Future<void> _refreshTracking() async {
     final on = await LocationTrackingService.isRunning;
@@ -288,9 +298,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ? 'التتبّع يعمل لكن: ${st.lastStatus}'
                 : 'تتبّع الموقع يعمل — بانتظار أول إرسال');
     if (!mounted) return;
+    final nextOk = on && recent && okText;
+    if (_tracking == on &&
+        _trackingOk == nextOk &&
+        _trackingLabel == label) {
+      return;
+    }
+    _lastTrackingUiAt = DateTime.now();
     setState(() {
       _tracking = on;
-      _trackingOk = on && recent && okText;
+      _trackingOk = nextOk;
       _trackingLabel = label;
     });
   }
@@ -756,17 +773,23 @@ class _OfflineHomeBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final off = context.watch<OfflineController>();
-    final pending = off.info.pendingOutbox;
-    // نعتمد وصول السيرفر — وجود واي فاي وحده لا يعني مزامنة.
-    final connected = off.serverConnected;
-    if (connected && off.catalogReady && pending < 1) {
+    // select فقط — لا نُعد البناء عند كل نبضة Offline لا تغيّر هذه القيم.
+    final connected = context.select<OfflineController, bool>(
+      (o) => o.serverConnected,
+    );
+    final catalogReady = context.select<OfflineController, bool>(
+      (o) => o.catalogReady,
+    );
+    final pending = context.select<OfflineController, int>(
+      (o) => o.info.pendingOutbox,
+    );
+    if (connected && catalogReady && pending < 1) {
       return const SizedBox.shrink();
     }
     final Color bg;
     final Color fg;
     final String text;
-    if (!connected && off.catalogReady) {
+    if (!connected && catalogReady) {
       bg = const Color(0xFFFFF7E6);
       fg = const Color(0xFF9A6700);
       text = pending > 0
@@ -776,7 +799,7 @@ class _OfflineHomeBanner extends StatelessWidget {
       bg = const Color(0xFFFEECEC);
       fg = AppTheme.danger;
       text = 'Offline بدون بيانات — افتح «تحديث البيانات» عند الاتصال';
-    } else if (!off.catalogReady) {
+    } else if (!catalogReady) {
       bg = const Color(0xFFEEF3FA);
       fg = AppTheme.primary;
       text = 'فعّل Offline من بلاطة «تحديث البيانات»';

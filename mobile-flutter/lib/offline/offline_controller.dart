@@ -28,6 +28,7 @@ class OfflineController extends ChangeNotifier {
   Timer? _reconnectFlushTimer;
   Timer? _pingTimer;
   Timer? _autoFlushTimer;
+  Timer? _connectivityDebounce;
   bool _probing = false;
   bool online = true;
   /// نتيجة فحص السيرفر (`m/ping.php`) وليس مجرد وجود شبكة.
@@ -41,6 +42,9 @@ class OfflineController extends ChangeNotifier {
   OfflineSyncInfo info = const OfflineSyncInfo(hasData: false);
   double pullProgress = 0;
   DateTime? flushScheduledAt;
+  /// فشل متتالٍ لفحص السيرفر قبل إعلان Offline (يتجنّب الوميض على الشبكة الضعيفة).
+  int _reachFailStreak = 0;
+  DateTime? _lastReachOkAt;
 
   bool get canWorkOffline => catalogReady;
 
@@ -48,6 +52,12 @@ class OfflineController extends ChangeNotifier {
   bool get serverConnected => serverReachable;
 
   static const reconnectFlushDelay = Duration(seconds: 2);
+  /// كم فشل متتالٍ قبل إعلان انقطاع السيرفر.
+  static const int offlineAfterFails = 3;
+  /// لا نصدّق «لا شبكة» من النظام إلا بعد هذا التأخير (Android يومض كثيراً).
+  static const Duration connectivityDropGrace = Duration(seconds: 8);
+  static const Duration pingWhenOnline = Duration(seconds: 30);
+  static const Duration pingWhenOffline = Duration(seconds: 12);
 
   /// يتجنّب ترحيل الطلب المفتوح إذا كان قيد التعديل (تُضبطه شاشة الطلب).
   int? Function()? skipDirtyOrderId;

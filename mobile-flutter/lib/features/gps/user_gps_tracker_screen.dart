@@ -153,23 +153,34 @@ class _UserGpsTrackerScreenState extends State<UserGpsTrackerScreen> {
           .map((e) => _Marker(e.cast<String, dynamic>()))
           .where((m) => m.lat != 0 || m.lng != 0)
           .toList();
-      setState(() {
-        _markers = rows;
-        for (final m in rows) {
-          _appendTrailPoint(m.userId, m.point);
-          _animateTo(m.userId, m.point);
-        }
-        final alive = rows.map((m) => m.userId).toSet();
-        _displayPos.removeWhere((id, _) => !alive.contains(id));
-        _anims.removeWhere((id, _) => !alive.contains(id));
-        _spreadPos.removeWhere((id, _) => !alive.contains(id));
-        _truePos.removeWhere((id, _) => !alive.contains(id));
-        _online = (counts['online'] as num?)?.toInt() ??
-            rows.where((m) => m.online).length;
-        _loading = false;
-        _error = null;
-        _recomputeSpread();
-      });
+      final nextOnline = (counts['online'] as num?)?.toInt() ??
+          rows.where((m) => m.online).length;
+      final prevIds = _markers.map((m) => m.userId).toSet();
+      final nextIds = rows.map((m) => m.userId).toSet();
+      final rosterChanged = prevIds.length != nextIds.length ||
+          !prevIds.containsAll(nextIds) ||
+          _online != nextOnline;
+
+      for (final m in rows) {
+        _appendTrailPoint(m.userId, m.point);
+        _animateTo(m.userId, m.point);
+      }
+      final alive = nextIds;
+      _displayPos.removeWhere((id, _) => !alive.contains(id));
+      _anims.removeWhere((id, _) => !alive.contains(id));
+      _spreadPos.removeWhere((id, _) => !alive.contains(id));
+      _truePos.removeWhere((id, _) => !alive.contains(id));
+      _markers = rows;
+      _online = nextOnline;
+      _loading = false;
+      _error = null;
+      _recomputeSpread();
+
+      // صامت بدون تغيّر القائمة: لا نُعد رسم الشاشة كاملة (يومض كل ~10ث).
+      // مؤقّت الحركة يحدّث الدبابيس بهدوء عند وجود حركة.
+      if (!silent || rosterChanged) {
+        setState(() {});
+      }
 
       if (_fitOnce && rows.isNotEmpty && _mapReady) {
         _fitOnce = false;

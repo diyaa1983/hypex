@@ -56,12 +56,20 @@ class _UserGpsScreenState extends State<UserGpsScreen> {
   Future<void> _refreshTracking() async {
     final on = await LocationTrackingService.isRunning;
     final st = await LocationTrackingService.status();
-    if (mounted) {
-      setState(() {
-        _tracking = on;
-        _status = st;
-      });
-    }
+    if (!mounted) return;
+    final prev = _status;
+    final same = _tracking == on &&
+        prev != null &&
+        prev.running == st.running &&
+        prev.sentCount == st.sentCount &&
+        prev.lastStatus == st.lastStatus &&
+        prev.lastPing?.millisecondsSinceEpoch ==
+            st.lastPing?.millisecondsSinceEpoch;
+    if (same) return;
+    setState(() {
+      _tracking = on;
+      _status = st;
+    });
   }
 
   Future<void> _load() async {
