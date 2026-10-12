@@ -1382,9 +1382,13 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
     )
       .map((v) => Number(v) || 0)
       .filter((n, i, arr) => n > 0 && arr.indexOf(n) === i);
-    const categoryId = Number(req.query.category_id || 0) || 0;
-    const customerId = Number(req.query.customer_id || 0) || 0;
-    const itemId = Number(req.query.item_id || 0) || 0;
+    const pickedIds = (value) =>
+      (Array.isArray(value) ? value : value ? [value] : [])
+        .map((v) => Number(v) || 0)
+        .filter((n, i, arr) => n > 0 && arr.indexOf(n) === i);
+    const categoryIds = pickedIds(req.query.category_id);
+    const customerIds = pickedIds(req.query.customer_id);
+    const itemIds = pickedIds(req.query.item_id);
     const status = String(req.query.status || 'all').toLowerCase();
     let err = '';
     let data = {
@@ -1398,10 +1402,11 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       q.listRepsSimple(),
       q.listCategoriesSimple(),
       q.listCustomersForReps(salesRepIds),
-      q.listItemsForCategory(categoryId),
+      q.listItemsForCategory(categoryIds),
     ]);
-    const customerFilter = customers.some((c) => Number(c.id) === customerId) ? customerId : 0;
-    const itemFilter = items.some((it) => Number(it.id) === itemId) ? itemId : 0;
+    const categoryFilter = categoryIds.filter((id) => categories.some((c) => Number(c.id) === id));
+    const customerFilter = customerIds.filter((id) => customers.some((c) => Number(c.id) === id));
+    const itemFilter = itemIds.filter((id) => items.some((it) => Number(it.id) === id));
 
     if (run) {
       try {
@@ -1411,9 +1416,9 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           days,
           on_date: onDate,
           sales_rep_ids: salesRepIds,
-          category_id: categoryId,
-          customer_id: customerFilter,
-          item_id: itemFilter,
+          category_ids: categoryFilter,
+          customer_ids: customerFilter,
+          item_ids: itemFilter,
           status,
         });
       } catch (e) {
@@ -1433,6 +1438,16 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       `<label><input type="checkbox" name="${name}" value="${value}" ${
         selected ? 'checked' : ''
       }> ${label}</label>`;
+    const menu = (id, title, panelClass, checks) => `<div class="co-ms" id="${id}">
+        <button type="button" class="co-ms__btn" aria-expanded="false">
+          <span class="co-ms__label">${title}</span>
+          <span class="co-ms__value">الكل</span>
+        </button>
+        <div class="co-ms__panel${panelClass ? ' ' + panelClass : ''}" hidden>
+          <label class="co-ms__all"><input type="checkbox" data-all> اختيار الكل</label>
+          <div class="co-ms__list">${checks}</div>
+        </div>
+      </div>`;
     const yearChecks = yearValues
       .map((y) => check('year', y, String(y), years.includes(y)))
       .join('');
@@ -1448,36 +1463,32 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         const id = Number(r.id);
         const label =
           ui.esc(r.name_ar || '') + (r.code ? ' (' + ui.esc(r.code) + ')' : '');
-        return `<label><input type="checkbox" name="sales_rep_id" value="${id}" ${
-          salesRepIds.includes(id) ? 'checked' : ''
-        }> ${label}</label>`;
+        return check('sales_rep_id', id, label, salesRepIds.includes(id));
       })
       .join('');
-    const catOpts = categories
-      .map(
-        (c) =>
-          `<option value="${c.id}" ${categoryId === Number(c.id) ? 'selected' : ''}>${ui.esc(
-            c.name_ar || ''
-          )}</option>`
-      )
+    const catChecks = categories
+      .map((c) => check('category_id', c.id, ui.esc(c.name_ar || ''), categoryFilter.includes(Number(c.id))))
       .join('');
-    const custOpts = customers
-      .map(
-        (c) =>
-          `<option value="${c.id}" ${customerFilter === Number(c.id) ? 'selected' : ''}>${ui.esc(
-            c.name_ar || ''
-          )}${c.code ? ' (' + ui.esc(c.code) + ')' : ''}</option>`
-      )
+    const custChecks = customers
+      .map((c) => {
+        const label = ui.esc(c.name_ar || '') + (c.code ? ' (' + ui.esc(c.code) + ')' : '');
+        return check('customer_id', c.id, label, customerFilter.includes(Number(c.id)));
+      })
       .join('');
-    const itemOpts = items
+    const itemChecks = items
       .map((it) => {
         const code = it.barcode || it.sku || '';
-        const lab = (code ? code + ' — ' : '') + (it.name_ar || '');
-        return `<option value="${it.id}" ${
-          itemFilter === Number(it.id) ? 'selected' : ''
-        }>${ui.esc(lab)}</option>`;
+        const lab = ui.esc((code ? code + ' — ' : '') + (it.name_ar || ''));
+        return check('item_id', it.id, lab, itemFilter.includes(Number(it.id)));
       })
       .join('');
+    const yearMenu = menu('co-det-years', 'السنة', '', yearChecks);
+    const monthMenu = menu('co-det-months', 'الشهر', '', monthChecks);
+    const dayMenu = menu('co-det-days', 'أيام الشهر', 'co-ms__panel--days', dayChecks);
+    const repMenu = menu('co-det-reps', 'المندوب', '', repChecks);
+    const custMenu = menu('co-det-customer', 'العميل', '', custChecks);
+    const catMenu = menu('co-det-category', 'الفئة', '', catChecks);
+    const itemMenu = menu('co-det-item', 'المادة', '', itemChecks);
 
     const colCount = 7;
     function sumGross(rows) {
@@ -1612,44 +1623,16 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         <div class="si-rail no-print">
           <form method="get" action="/sales/reports/customer-orders-detailed" id="co-det-form" class="co-det-filters">
             <input type="hidden" name="run" value="1">
-            <label>السنة
-              <div class="co-det-reps co-det-years" id="co-det-years">${yearChecks}</div>
-              <span class="co-det-hint">أكثر من سنة. بدون تحديد: كل السنوات.</span>
-            </label>
-            <label>الشهر
-              <div class="co-det-reps co-det-months" id="co-det-months">${monthChecks}</div>
-              <span class="co-det-hint">أكثر من شهر. بدون تحديد: كل الأشهر.</span>
-            </label>
-            <label>أيام الشهر
-              <div class="co-det-reps co-det-days" id="co-det-days">${dayChecks}</div>
-              <span class="co-det-hint">أكثر من يوم. بدون تحديد: كل الأيام.</span>
-            </label>
+            ${yearMenu}
+            ${monthMenu}
+            ${dayMenu}
             <label>التاريخ
               <input class="si-field" type="date" name="on_date" id="co-det-date" value="${ui.esc(onDate)}" dir="ltr">
             </label>
-            <label>المندوب
-              <div class="co-det-reps" id="co-det-reps">${repChecks}</div>
-              <span class="co-det-hint">بدون تحديد: كل المندوبين. يمكن اختيار أكثر من مندوب.</span>
-            </label>
-            <label>العميل
-              <select class="si-field" name="customer_id" id="co-det-customer">
-                <option value="0">— كل العملاء —</option>
-                ${custOpts}
-              </select>
-              <span class="co-det-hint">عملاء المندوب المحدد فقط</span>
-            </label>
-            <label>الفئة
-              <select class="si-field" name="category_id" id="co-det-category">
-                <option value="0">— كل الفئات —</option>
-                ${catOpts}
-              </select>
-            </label>
-            <label>المادة
-              <select class="si-field" name="item_id" id="co-det-item" ${categoryId ? '' : 'disabled'}>
-                <option value="0">${categoryId ? '— كل مواد الفئة —' : '— اختر الفئة أولاً —'}</option>
-                ${itemOpts}
-              </select>
-            </label>
+            ${repMenu}
+            ${custMenu}
+            ${catMenu}
+            ${itemMenu}
             <label>الحالة
               <select class="si-field" name="status">
                 <option value="all" ${status === 'all' ? 'selected' : ''}>الكل</option>
@@ -1704,34 +1687,102 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         var monthBox = document.getElementById('co-det-months');
         var dayBox = document.getElementById('co-det-days');
         var dateEl = document.getElementById('co-det-date');
-        if (!form || !cust || !cat || !item) return;
+        if (!form) return;
         function esc(s) {
           return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
         }
-        function selectedReps() {
-          if (!repBox) return [];
+        function namedInputs(box) {
+          return box ? box.querySelectorAll('input[name]') : [];
+        }
+        function summary(box) {
+          if (!box) return;
+          var valueEl = box.querySelector('.co-ms__value');
+          var all = box.querySelector('[data-all]');
+          var inputs = Array.prototype.filter.call(namedInputs(box), function (el) { return !el.disabled; });
+          var checked = inputs.filter(function (el) { return el.checked; });
+          if (all) all.checked = inputs.length > 0 && checked.length === inputs.length;
+          if (!valueEl) return;
+          if (!inputs.length) valueEl.textContent = 'اختر الفئة';
+          else if (!checked.length || (all && all.checked)) valueEl.textContent = 'الكل';
+          else if (checked.length <= 2) {
+            valueEl.textContent = checked.map(function (el) {
+              return (el.parentNode.textContent || '').trim();
+            }).join('، ');
+          } else valueEl.textContent = checked.length + ' محدد';
+        }
+        function closeAll(except) {
+          document.querySelectorAll('.co-ms.is-open').forEach(function (el) {
+            if (el === except) return;
+            el.classList.remove('is-open');
+            var panel = el.querySelector('.co-ms__panel');
+            var btn = el.querySelector('.co-ms__btn');
+            if (panel) panel.hidden = true;
+            if (btn) btn.setAttribute('aria-expanded', 'false');
+          });
+        }
+        function bindMenu(box) {
+          if (!box || box.getAttribute('data-bound') === '1') return;
+          box.setAttribute('data-bound', '1');
+          var btn = box.querySelector('.co-ms__btn');
+          var panel = box.querySelector('.co-ms__panel');
+          if (btn && panel) {
+            btn.addEventListener('click', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              var willOpen = panel.hidden;
+              closeAll(box);
+              panel.hidden = !willOpen;
+              box.classList.toggle('is-open', willOpen);
+              btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            });
+            panel.addEventListener('click', function (e) { e.stopPropagation(); });
+          }
+          box.addEventListener('change', function (e) {
+            var t = e.target;
+            if (!t || t.tagName !== 'INPUT') return;
+            if (t.hasAttribute('data-all')) {
+              namedInputs(box).forEach(function (el) {
+                if (!el.disabled) el.checked = t.checked;
+              });
+            }
+            summary(box);
+            box.dispatchEvent(new CustomEvent('co-change'));
+          });
+          summary(box);
+        }
+        function checkedVals(box, name) {
+          if (!box) return [];
           return Array.prototype.map.call(
-            repBox.querySelectorAll('input[name="sales_rep_id"]:checked'),
+            box.querySelectorAll('input[name="' + name + '"]:checked:not(:disabled)'),
             function (el) { return el.value; }
           );
         }
-        function checkedNums(box, name) {
-          if (!box) return [];
-          return Array.prototype.map.call(
-            box.querySelectorAll('input[name="' + name + '"]:checked'),
-            function (el) { return Number(el.value); }
-          );
+        function setChecks(box, name, rows, labelOf, keep) {
+          var list = box.querySelector('.co-ms__list');
+          if (!list) return;
+          if (!rows.length) {
+            list.innerHTML = '<p class="co-ms__empty">اختر الفئة أولاً</p>';
+            summary(box);
+            return;
+          }
+          list.innerHTML = rows.map(function (row) {
+            var id = String(row.id);
+            var on = keep.indexOf(id) !== -1 ? ' checked' : '';
+            return '<label><input type="checkbox" name="' + name + '" value="' + id + '"' + on + '> ' + esc(labelOf(row)) + '</label>';
+          }).join('');
+          summary(box);
         }
         function setOnly(box, name, value) {
           if (!box) return;
           box.querySelectorAll('input[name="' + name + '"]').forEach(function (el) {
             el.checked = String(el.value) === String(value);
           });
+          summary(box);
         }
         function syncDays() {
           if (!dayBox) return;
-          var ys = checkedNums(yearBox, 'year');
-          var ms = checkedNums(monthBox, 'month');
+          var ys = checkedVals(yearBox, 'year').map(Number);
+          var ms = checkedVals(monthBox, 'month').map(Number);
           var max = 31;
           if (ms.length) {
             max = 0;
@@ -1748,66 +1799,54 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             if (el.parentNode) el.parentNode.style.display = hide ? 'none' : '';
             if (hide) el.checked = false;
           });
+          summary(dayBox);
         }
         function optionsUrl(query) {
           var action = (form.getAttribute('action') || '').replace(/\/$/, '');
           return action + '/options?' + query;
         }
         function loadCustomers() {
-          var ids = selectedReps();
-          var keep = cust.value;
+          var ids = checkedVals(repBox, 'sales_rep_id');
+          var keep = checkedVals(cust, 'customer_id');
+          var all = cust && cust.querySelector('[data-all]');
+          if (all && all.checked) keep = [];
           var q = ids.map(function (id) { return 'sales_rep_id=' + encodeURIComponent(id); }).join('&');
           fetch(optionsUrl('kind=customers' + (q ? '&' + q : '')), { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) {
-              var rows = (j && j.rows) || [];
-              var html = '<option value="0">— كل العملاء —</option>';
-              var found = false;
-              rows.forEach(function (c) {
-                var id = String(c.id);
-                if (id === keep) found = true;
-                var lab = (c.name_ar || '') + (c.code ? ' (' + c.code + ')' : '');
-                html += '<option value="' + id + '"' + (id === keep ? ' selected' : '') + '>' + esc(lab) + '</option>';
-              });
-              cust.innerHTML = html;
-              if (!found) cust.value = '0';
+              setChecks(cust, 'customer_id', (j && j.rows) || [], function (c) {
+                return (c.name_ar || '') + (c.code ? ' (' + c.code + ')' : '');
+              }, keep);
             })
             .catch(function () {});
         }
         function loadItems() {
-          var categoryId = Number(cat.value || 0);
-          var keep = item.value;
-          if (categoryId < 1) {
-            item.disabled = true;
-            item.innerHTML = '<option value="0">— اختر الفئة أولاً —</option>';
-            item.value = '0';
+          var ids = checkedVals(cat, 'category_id');
+          var keep = checkedVals(item, 'item_id');
+          var all = item && item.querySelector('[data-all]');
+          if (all && all.checked) keep = [];
+          if (!ids.length) {
+            setChecks(item, 'item_id', [], function () { return ''; }, []);
             return;
           }
-          item.disabled = false;
-          fetch(optionsUrl('kind=items&category_id=' + categoryId), { credentials: 'same-origin' })
+          var q = ids.map(function (id) { return 'category_id=' + encodeURIComponent(id); }).join('&');
+          fetch(optionsUrl('kind=items&' + q), { credentials: 'same-origin' })
             .then(function (r) { return r.json(); })
             .then(function (j) {
-              var rows = (j && j.rows) || [];
-              var html = '<option value="0">— كل مواد الفئة —</option>';
-              rows.forEach(function (it) {
-                var id = String(it.id);
+              setChecks(item, 'item_id', (j && j.rows) || [], function (it) {
                 var code = it.barcode || it.sku || '';
-                var lab = (code ? code + ' — ' : '') + (it.name_ar || '');
-                html += '<option value="' + id + '"' + (id === keep ? ' selected' : '') + '>' + esc(lab) + '</option>';
-              });
-              item.innerHTML = html;
-              item.value = item.querySelector('option[value="' + keep + '"]') ? keep : '0';
+                return (code ? code + ' — ' : '') + (it.name_ar || '');
+              }, keep);
             })
             .catch(function () {});
         }
-        function clearDate() {
-          if (dateEl) dateEl.value = '';
-        }
-        if (repBox) repBox.addEventListener('change', loadCustomers);
-        cat.addEventListener('change', loadItems);
-        if (yearBox) yearBox.addEventListener('change', function () { clearDate(); syncDays(); });
-        if (monthBox) monthBox.addEventListener('change', function () { clearDate(); syncDays(); });
-        if (dayBox) dayBox.addEventListener('change', clearDate);
+        document.querySelectorAll('.co-ms').forEach(bindMenu);
+        document.addEventListener('click', function () { closeAll(null); });
+        if (yearBox) yearBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; syncDays(); });
+        if (monthBox) monthBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; syncDays(); });
+        if (dayBox) dayBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; });
+        if (repBox) repBox.addEventListener('co-change', loadCustomers);
+        if (cat) cat.addEventListener('co-change', loadItems);
         if (dateEl) dateEl.addEventListener('change', function () {
           if (!dateEl.value) return;
           var p = dateEl.value.split('-');
@@ -1818,8 +1857,14 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           setOnly(dayBox, 'day', Number(p[2]));
         });
         syncDays();
-        if (form) form.addEventListener('submit', function () {
-          if (item.disabled) item.disabled = false;
+        if (!checkedVals(cat, 'category_id').length) setChecks(item, 'item_id', [], function () { return ''; }, []);
+        form.addEventListener('submit', function () {
+          document.querySelectorAll('.co-ms').forEach(function (box) {
+            var all = box.querySelector('[data-all]');
+            if (all && all.checked) {
+              namedInputs(box).forEach(function (el) { el.disabled = true; });
+            }
+          });
         });
       })();
       </script>`;

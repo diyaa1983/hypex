@@ -166,6 +166,114 @@
   min-width: 8.5rem;
 }
 
+.co-det-page .co-ms {
+  position: relative;
+  min-width: 11rem;
+  flex: 1 1 11rem;
+}
+
+.co-det-page .co-ms__btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 2.35rem;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid #d5dbe6;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+  text-align: start;
+}
+
+.co-det-page .co-ms__btn::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-inline-start: 2px solid #64748b;
+  border-bottom: 2px solid #64748b;
+  transform: rotate(-45deg);
+  margin-bottom: 0.2rem;
+  flex: 0 0 auto;
+}
+
+.co-det-page .co-ms.is-open .co-ms__btn::after {
+  transform: rotate(135deg);
+  margin-bottom: 0;
+}
+
+.co-det-page .co-ms__label {
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.co-det-page .co-ms__value {
+  flex: 1;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.co-det-page .co-ms__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  inset-inline-start: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: 20rem;
+  max-height: 18rem;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #d5dbe6;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  padding: 0.3rem;
+}
+
+.co-det-page .co-ms__panel label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.32rem 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1e293b;
+  min-width: 0;
+}
+
+.co-det-page .co-ms__all {
+  position: sticky;
+  top: 0;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 800;
+  z-index: 1;
+}
+
+.co-det-page .co-ms__panel--days {
+  width: 17rem;
+}
+
+.co-det-page .co-ms__panel--days .co-ms__list {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.co-det-page .co-ms__empty {
+  margin: 0.4rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
 .co-det-page .co-det-reps {
   max-height: 9.5rem;
   overflow: auto;

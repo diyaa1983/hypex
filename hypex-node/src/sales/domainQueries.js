@@ -934,18 +934,18 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
   };
   if (!period.from || !period.to) return empty;
 
-  const customerId = Number(filters.customer_id || 0) || 0;
+  const customerIds = idList(filters.customer_ids != null ? filters.customer_ids : filters.customer_id);
   const salesRepIds = idList(filters.sales_rep_ids != null ? filters.sales_rep_ids : filters.sales_rep_id);
-  const categoryId = Number(filters.category_id || 0) || 0;
-  const itemId = Number(filters.item_id || 0) || 0;
+  const categoryIds = idList(filters.category_ids != null ? filters.category_ids : filters.category_id);
+  const itemIds = idList(filters.item_ids != null ? filters.item_ids : filters.item_id);
   const status = String(filters.status || 'all').toLowerCase();
   const approvedOnly = String(filters.posted_only || '') === '1' || filters.posted_only === true;
 
   const where = [period.sql, 'IFNULL(o.is_sent, 1) = 1'];
   const params = period.params.slice();
-  if (customerId > 0) {
-    where.push('o.customer_id = ?');
-    params.push(customerId);
+  if (customerIds.length) {
+    where.push(`o.customer_id IN (${customerIds.map(() => '?').join(',')})`);
+    params.push(...customerIds);
   }
   if (salesRepIds.length) {
     where.push(
@@ -953,13 +953,13 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
     );
     params.push(...salesRepIds);
   }
-  if (categoryId > 0) {
-    where.push('it.category_id = ?');
-    params.push(categoryId);
+  if (categoryIds.length) {
+    where.push(`it.category_id IN (${categoryIds.map(() => '?').join(',')})`);
+    params.push(...categoryIds);
   }
-  if (itemId > 0) {
-    where.push('l.item_id = ?');
-    params.push(itemId);
+  if (itemIds.length) {
+    where.push(`l.item_id IN (${itemIds.map(() => '?').join(',')})`);
+    params.push(...itemIds);
   }
   if (status === 'draft' || status === 'approved') {
     where.push('o.status = ?');
@@ -1283,15 +1283,16 @@ async function listCustomersForReps(repIds) {
 }
 
 async function listItemsForCategory(categoryId) {
-  const id = Number(categoryId || 0) || 0;
-  if (id < 1) return [];
+  const ids = idList(categoryId);
+  if (!ids.length) return [];
+  const ph = ids.map(() => '?').join(',');
   return safeQuery(
     `SELECT id, sku, barcode, name_ar
      FROM inv_item
-     WHERE is_active = 1 AND category_id = ?
+     WHERE is_active = 1 AND category_id IN (${ph})
      ORDER BY name_ar
      LIMIT 2000`,
-    [id]
+    ids
   );
 }
 
