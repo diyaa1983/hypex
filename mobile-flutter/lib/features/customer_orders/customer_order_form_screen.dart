@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/device_layout.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
@@ -83,8 +84,10 @@ class _OrderLine {
   }
 
   final PickedItem item;
-  int qty = 0;
-  int qtyExtra = 0;
+  int qtyPiece = 0;
+  int qtyCarton = 0;
+  int extraPiece = 0;
+  int extraCarton = 0;
   int unitId = 0;
   String unitName = '';
   double unitFactor = 1;
@@ -96,24 +99,96 @@ class _OrderLine {
 
   String get barcode => item.barcode;
 
-  double get lineBase => qty * unitPrice;
+  ItemUnitOpt? get pieceUnit {
+    ItemUnitOpt? base;
+    for (final u in item.units) {
+      if (!(u.isBase || u.factor <= 1.001)) continue;
+      if (base == null || (u.isBase && !base.isBase) || u.factor < base.factor) {
+        base = u;
+      }
+    }
+    return base;
+  }
+
+  ItemUnitOpt? get cartonUnit {
+    final piece = pieceUnit;
+    ItemUnitOpt? box;
+    for (final u in item.units) {
+      if (piece != null && u.unitId == piece.unitId) continue;
+      final name = u.name;
+      final looksBox = name.contains('كرتون') || u.factor > 1.001;
+      if (!looksBox && u.factor <= 1.001) continue;
+      if (box == null || u.factor > box.factor) box = u;
+    }
+    return box;
+  }
+
+  double _priceOf(ItemUnitOpt? u) {
+    final f = (u == null || u.factor <= 0) ? 1.0 : u.factor;
+    return basePrice * f;
+  }
+
+  double get piecePrice => _priceOf(pieceUnit);
+  double get cartonPrice => cartonUnit == null ? 0 : _priceOf(cartonUnit);
+
+  bool get hasQty =>
+      qtyPiece > 0 || qtyCarton > 0 || extraPiece > 0 || extraCarton > 0;
+
+  double get lineBase => qtyPiece * piecePrice + qtyCarton * cartonPrice;
   double get discountAmount =>
       discountPct <= 0 ? 0 : lineBase * (discountPct.clamp(0, 100) / 100);
   double get lineTotal => (lineBase - discountAmount).clamp(0, double.infinity);
   double get taxAmount => lineTotal * taxRatePercent / 100;
   double get lineGross => lineTotal + taxAmount;
-  double get unitPriceInclusive => unitPrice * (1 + taxRatePercent / 100);
+  double get unitPriceInclusive => piecePrice * (1 + taxRatePercent / 100);
+  double get cartonPriceInclusive => cartonPrice * (1 + taxRatePercent / 100);
+
+  Map<String, dynamic> _saveMap(ItemUnitOpt? u, int qty, int extra) {
+    final factor = (u == null || u.factor <= 0) ? 1.0 : u.factor;
+    final price = basePrice * factor;
+    return {
+      'item_id': item.id,
+      'item_name': item.name,
+      'unit_id': u?.unitId ?? 0,
+      'unit_name': u?.name ?? 'قطعة',
+      'unit_factor': factor,
+      'qty': qty,
+      'qty_extra': extra,
+      'qty_base': (qty + extra) * factor,
+      'unit_price': price,
+      'tax_rate_id': taxRateId,
+      'tax_rate_percent': taxRatePercent,
+      'discount_pct': discountPct,
+      'line_discount_input':
+          discountPct > 0 ? '${Fmt.trimNum(discountPct)}%' : '',
+    };
+  }
+
+  /// سطر لكل وحدة فيها كمية: كرتونة ثم قطعة.
+  List<Map<String, dynamic>> toSaveLines() {
+    final out = <Map<String, dynamic>>[];
+    if (qtyCarton > 0 || extraCarton > 0) {
+      out.add(_saveMap(cartonUnit, qtyCarton, extraCarton));
+    }
+    if (qtyPiece > 0 || extraPiece > 0) {
+      out.add(_saveMap(pieceUnit, qtyPiece, extraPiece));
+    }
+    return out;
+  }
 
   Map<String, dynamic> toJson() => {
         'item_id': item.id,
         'item_name': item.name,
-        'unit_id': unitId,
-        'unit_name': unitName,
-        'unit_factor': unitFactor <= 0 ? 1 : unitFactor,
-        'qty': qty,
-        'qty_extra': qtyExtra,
-        'qty_base': (qty + qtyExtra) * (unitFactor <= 0 ? 1 : unitFactor),
-        'unit_price': unitPrice,
+        'unit_id': pieceUnit?.unitId ?? unitId,
+        'unit_name': pieceUnit?.name ?? unitName,
+        'unit_factor': pieceUnit?.factor ?? unitFactor,
+        'qty': qtyPiece,
+        'qty_carton': qtyCarton,
+        'qty_extra': extraPiece,
+        'qty_extra_carton': extraCarton,
+        'qty_base': (qtyPiece + extraPiece) * (pieceUnit?.factor ?? 1) +
+            (qtyCarton + extraCarton) * (cartonUnit?.factor ?? 1),
+        'unit_price': piecePrice,
         'tax_rate_id': taxRateId,
         'tax_rate_percent': taxRatePercent,
         'discount_pct': discountPct,
@@ -207,9 +282,9 @@ class _LineTableMetrics {
     final w = weights.map((x) => inner * x / sum).toList();
     return _LineTableMetrics(
       item: w[0],
-      unit: w[1],
-      qty: w[2],
-      extra: w[3],
+      unit: 0,
+      qty: w[1] + w[2],
+      extra: w[1] + w[3],
       price: w[4],
       priceInc: w[5],
       tax: w[6],
@@ -228,8 +303,8 @@ class _LineTableMetrics {
     return _LineTableMetrics(
       item: 160,
       unit: 92,
-      qty: 58,
-      extra: 58,
+      qty: 118,
+      extra: 118,
       price: 86,
       priceInc: 86,
       tax: compact ? 90 : 120,
@@ -283,7 +358,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String _fingerprint() {
     final lines = _lines
         .map((l) =>
-            '${l.item.id}:${l.qty}:${l.qtyExtra}:${l.unitId}:${l.unitPrice}:${l.discountPct}:${l.taxRateId}')
+            '${l.item.id}:${l.qtyPiece}:${l.qtyCarton}:${l.extraPiece}:${l.extraCarton}:${l.discountPct}:${l.taxRateId}')
         .join('|');
     return '${_customer?.id}|$_warehouseId|$_paymentType|$_deliveryDate|${_notesCtrl.text.trim()}|$lines';
   }
@@ -511,8 +586,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           taxRateId: lineTaxId,
           taxRatePercent: lineTax,
         )
-          ..qty = Fmt.toDouble(m['qty']).round().clamp(0, 999999999)
-          ..qtyExtra = Fmt.toDouble(m['qty_extra']).round().clamp(0, 999999999)
+          ..qtyPiece = 0
+          ..qtyCarton = 0
+          ..extraPiece = 0
+          ..extraCarton = 0
           ..unitId = Fmt.toInt(m['unit_id'])
           ..unitName = Fmt.str(m['unit_name'] ?? m['unit'])
           ..unitFactor = Fmt.toDouble(m['unit_factor'] ?? 1)
@@ -533,7 +610,38 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             line.unitPrice = line.basePrice * line.unitFactor;
           }
         }
-        loaded.add(line);
+        final storedCarton = m.containsKey('qty_carton') ||
+            m.containsKey('qty_extra_carton');
+        final factor = line.unitFactor <= 0 ? 1.0 : line.unitFactor;
+        final name = line.unitName;
+        final isCarton = !storedCarton &&
+            (factor > 1.001 || name.contains('كرتون'));
+        final q = Fmt.toDouble(m['qty']).round().clamp(0, 999999999);
+        final e = Fmt.toDouble(m['qty_extra']).round().clamp(0, 999999999);
+        if (storedCarton) {
+          line.qtyPiece = q;
+          line.qtyCarton =
+              Fmt.toDouble(m['qty_carton']).round().clamp(0, 999999999);
+          line.extraPiece = e;
+          line.extraCarton = Fmt.toDouble(m['qty_extra_carton'])
+              .round()
+              .clamp(0, 999999999);
+        } else if (isCarton) {
+          line.qtyCarton = q;
+          line.extraCarton = e;
+        } else {
+          line.qtyPiece = q;
+          line.extraPiece = e;
+        }
+        if (loaded.isNotEmpty && loaded.last.item.id == line.item.id) {
+          final prev = loaded.last;
+          prev.qtyPiece += line.qtyPiece;
+          prev.qtyCarton += line.qtyCarton;
+          prev.extraPiece += line.extraPiece;
+          prev.extraCarton += line.extraCarton;
+        } else {
+          loaded.add(line);
+        }
       }
       setState(() {
         _warehouses = ws;
@@ -666,16 +774,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     final item = await pickItem(context, warehouseId: _warehouseId);
     if (item == null || !mounted) return;
-    final qtyStr = await showNumericKeypadDialog(
-      context,
-      title: 'الكمية المطلوبة',
-      initial: '1',
-      decimal: false,
-    );
-    if (qtyStr == null || !mounted) return;
-    final qty = int.tryParse(qtyStr.trim()) ?? 0;
-    if (qty <= 0) {
-      showSnack(context, 'أدخل كمية صحيحة أكبر من صفر.', error: true);
+    final split = await _askQtySplit();
+    if (split == null || !mounted) return;
+    if (split.$1 <= 0 && split.$2 <= 0) {
+      showSnack(context, 'أدخل كمية الكرتونة أو القطعة.', error: true);
       return;
     }
     setState(() => _lines.add(
@@ -683,7 +785,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             item,
             taxRateId: _defaultTaxRateId,
             taxRatePercent: _defaultTaxPercent,
-          )..qty = qty,
+          )
+            ..qtyCarton = split.$1
+            ..qtyPiece = split.$2,
         ));
   }
 
@@ -722,7 +826,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       'payment_type': _paymentType,
       'delivery_date': _deliveryDate,
       'notes': _notesCtrl.text.trim(),
-        'lines': _lines.map((l) => l.toJson()).toList(),
+        'lines': _lines.expand((l) => l.toSaveLines()).toList(),
       };
     final visitLine = widget.visitRouteLineId ?? 0;
     if (visitLine > 0) {
@@ -764,7 +868,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final saveBody = Map<String, dynamic>.from(body);
     saveBody['id'] = localId > 0 ? localId : 0;
     saveBody['local_order_id'] = localId;
-    final lines = _lines.map((l) => l.toJson()).toList();
+    final lines = _lines.expand((l) => l.toSaveLines()).toList();
     final prev = await OfflineStore.instance.getOrderById(localId);
     final keepPending = prev != null &&
         (prev['pending_send'] == true ||
@@ -835,7 +939,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     for (var i = 0; i < _lines.length; i++) {
       final ln = _lines[i];
-      if (ln.qty <= 0 && ln.qtyExtra <= 0) {
+      if (!ln.hasQty) {
         showSnack(
             context,
           'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
@@ -843,7 +947,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         );
         return 0;
       }
-      if (ln.qty > 0 && ln.unitPrice <= 0) {
+      if ((ln.qtyPiece > 0 || ln.qtyCarton > 0) && ln.basePrice <= 0) {
         showSnack(
           context,
           'سعر المادة في البطاقة صفر. عدّله من شاشة تعديل الأسعار.',
@@ -908,9 +1012,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             .map((l) => {
                   'item_name': l.item.name,
                   'unit_name': l.unitName,
-                  'qty': l.qty,
-                  'qty_extra': l.qtyExtra,
-                  'unit_price': l.unitPrice,
+                  'qty': l.qtyPiece + l.qtyCarton,
+                  'qty_piece': l.qtyPiece,
+                  'qty_carton': l.qtyCarton,
+                  'qty_extra': l.extraPiece + l.extraCarton,
+                  'unit_price': l.piecePrice,
                   'unit_price_inclusive': l.unitPriceInclusive,
                   'tax_rate_percent': l.taxRatePercent,
                   'tax_amount': l.taxAmount,
@@ -993,7 +1099,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     for (var i = 0; i < _lines.length; i++) {
       final ln = _lines[i];
-      if (ln.qty <= 0 && ln.qtyExtra <= 0) {
+      if (!ln.hasQty) {
         showSnack(
           context,
           'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
@@ -1525,8 +1631,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   bool _useWideOrderLayout(BuildContext context) {
-    final s = MediaQuery.sizeOf(context);
-    return s.shortestSide >= 550 || s.width >= 900;
+    return DeviceLayout.isTablet(context);
   }
 
   double get _orderGross =>
@@ -2346,6 +2451,105 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
+  Future<(int, int)?> _askQtySplit() async {
+    final cartonCtrl = TextEditingController();
+    final pieceCtrl = TextEditingController();
+    final result = await showDialog<(int, int)>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('الكمية'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: cartonCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(labelText: 'كرتونة'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: pieceCtrl,
+              keyboardType: TextInputType.number,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(labelText: 'قطعة'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final c = int.tryParse(cartonCtrl.text.trim()) ?? 0;
+              final p = int.tryParse(pieceCtrl.text.trim()) ?? 0;
+              Navigator.pop(ctx, (c, p));
+            },
+            child: const Text('موافق'),
+          ),
+        ],
+      ),
+    );
+    cartonCtrl.dispose();
+    pieceCtrl.dispose();
+    return result;
+  }
+
+  Widget _qtyPair({
+    required double width,
+    required int carton,
+    required int piece,
+    required bool cartonEnabled,
+    required TextStyle style,
+    required _LineTableMetrics m,
+    required void Function(int value)? onCarton,
+    required void Function(int value)? onPiece,
+  }) {
+    Widget field(String label, int value, void Function(int value)? onTap) {
+      return Expanded(
+        child: InkWell(
+          onTap: onTap == null
+              ? null
+              : () => _editLineNumber(
+                    title: label,
+                    initial: value > 0 ? '$value' : '',
+                    decimal: false,
+                    apply: (v) {
+                      onTap(int.tryParse(v)?.clamp(0, 999999999) ?? 0);
+                    },
+                  ),
+          child: InputDecorator(
+            decoration: _lineFieldDecoration(m).copyWith(
+              labelText: label,
+              labelStyle: TextStyle(fontSize: m.font - 1),
+              isDense: true,
+            ),
+            child: Text(
+              value > 0 ? '$value' : '',
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.ltr,
+              style: style,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: width,
+      child: Row(
+        children: [
+          field('كرتونة', carton, cartonEnabled ? onCarton : null),
+          const SizedBox(width: 4),
+          field('قطعة', piece, onPiece),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editLineNumber({
     required String title,
     required String initial,
@@ -2408,8 +2612,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       style: cellStyle,
       child: DataTable(
         headingRowHeight: compact ? 32 : 42,
-        dataRowMinHeight: compact ? 36 : 50,
-        dataRowMaxHeight: compact ? 40 : 54,
+        dataRowMinHeight: compact ? 64 : 72,
+        dataRowMaxHeight: compact ? 78 : 86,
         columnSpacing: m.colSpacing,
         horizontalMargin: m.hMargin,
         headingTextStyle: TextStyle(
@@ -2420,9 +2624,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         dataTextStyle: cellStyle,
         columns: [
           DataColumn(label: _tableHead('المادة', m.item, m.heading)),
-          DataColumn(label: _tableHead('الوحدة', m.unit, m.heading)),
           DataColumn(label: _tableHead('الكمية', m.qty, m.heading)),
-          DataColumn(label: _tableHead('إضافية', m.extra, m.heading)),
+          DataColumn(label: _tableHead('إضافي', m.extra, m.heading)),
           DataColumn(label: _tableHead('السعر غ ش*', m.price, m.heading)),
           DataColumn(label: _tableHead('السعر ش', m.priceInc, m.heading)),
           DataColumn(label: _tableHead('الضريبة', m.tax, m.heading)),
@@ -2449,104 +2652,45 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                 ),
               ),
               DataCell(
-                SizedBox(
-                  width: m.unit,
-                          child: DropdownButtonFormField<int>(
-                    key: ValueKey(
-                        'unit-${_lines[i].item.id}-$i-${_lines[i].unitId}'),
-                    isExpanded: true,
-                    isDense: true,
-                    style: cellStyle,
-                            initialValue: _lines[i].unitId == 0
-                                ? (_lines[i].item.units.isEmpty
-                                    ? null
-                                    : _lines[i].item.units.first.unitId)
-                                : _lines[i].unitId,
-                    decoration: _lineFieldDecoration(m),
-                            items: [
-                              for (final u in _lines[i].item.units)
-                                DropdownMenuItem(
-                                  value: u.unitId,
-                          child: Text(
-                            u.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: m.font),
-                          ),
-                                ),
-                              if (_lines[i].item.units.isEmpty &&
-                                  _lines[i].unitName.isNotEmpty)
-                                DropdownMenuItem(
-                                  value: _lines[i].unitId,
-                          child: Text(
-                            _lines[i].unitName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: m.font),
-                          ),
-                                ),
-                            ],
-                            onChanged: !_editable
-                                ? null
-                                : (v) {
-                                    final u = _lines[i]
-                                        .item
-                                        .units
-                                        .where((x) => x.unitId == v)
-                                        .cast<ItemUnitOpt?>()
-                                        .followedBy([null]).first;
-                                    setState(() {
-                              _lines[i].applyUnit(u, unitIdOverride: v);
-                                    });
-                                  },
-                          ),
-                        ),
-              ),
-              DataCell(
-                _numPadField(
+                _qtyPair(
                   width: m.qty,
-                  text: _lines[i].qty > 0 ? '${_lines[i].qty}' : '',
+                  carton: _lines[i].qtyCarton,
+                  piece: _lines[i].qtyPiece,
+                  cartonEnabled: _lines[i].cartonUnit != null,
                   style: cellStyle,
                   m: m,
-                  onTap: !_editable
+                  onCarton: !_editable
                       ? null
-                      : () => _editLineNumber(
-                            title: 'الكمية',
-                            initial:
-                                _lines[i].qty > 0 ? '${_lines[i].qty}' : '',
-                            decimal: false,
-                            apply: (v) {
-                              _lines[i].qty =
-                                  int.tryParse(v)?.clamp(0, 999999999) ?? 0;
-                            },
-                          ),
+                      : (v) => setState(() => _lines[i].qtyCarton = v),
+                  onPiece: !_editable
+                      ? null
+                      : (v) => setState(() => _lines[i].qtyPiece = v),
                 ),
               ),
               DataCell(
-                _numPadField(
+                _qtyPair(
                   width: m.extra,
-                  text: '${_lines[i].qtyExtra}',
+                  carton: _lines[i].extraCarton,
+                  piece: _lines[i].extraPiece,
+                  cartonEnabled: _lines[i].cartonUnit != null,
                   style: cellStyle,
                   m: m,
-                  onTap: !_editable
+                  onCarton: !_editable
                       ? null
-                      : () => _editLineNumber(
-                            title: 'كمية إضافية',
-                            initial: '${_lines[i].qtyExtra}',
-                            decimal: false,
-                            apply: (v) {
-                              _lines[i].qtyExtra =
-                                  int.tryParse(v)?.clamp(0, 999999999) ?? 0;
-                            },
-                          ),
+                      : (v) => setState(() => _lines[i].extraCarton = v),
+                  onPiece: !_editable
+                      ? null
+                      : (v) => setState(() => _lines[i].extraPiece = v),
                 ),
               ),
               DataCell(
                 SizedBox(
                   width: m.price,
                   child: Text(
-                    Fmt.trimNum(_lines[i].unitPrice),
-                    maxLines: 1,
+                    _lines[i].cartonUnit == null
+                        ? Fmt.trimNum(_lines[i].piecePrice)
+                        : 'ق ${Fmt.trimNum(_lines[i].piecePrice)}\nك ${Fmt.trimNum(_lines[i].cartonPrice)}',
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
                     textAlign: TextAlign.center,

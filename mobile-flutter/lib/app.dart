@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
+import 'core/device_layout.dart';
 import 'core/session.dart';
 import 'core/theme.dart';
 import 'widgets/fullscreen_binder.dart';
@@ -64,12 +65,20 @@ class NammaApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      builder: (context, child) => FullscreenBinder(
-        child: Directionality(
-          textDirection: TextDirection.rtl,
-          child: child ?? const SizedBox.shrink(),
-        ),
-      ),
+      builder: (context, child) {
+        final mq = MediaQuery.of(context);
+        final phone = !DeviceLayout.isTabletSize(mq.size);
+        final scale = mq.textScaler.scale(1).clamp(0.85, phone ? 1.0 : 1.15);
+        return MediaQuery(
+          data: mq.copyWith(textScaler: TextScaler.linear(scale)),
+          child: FullscreenBinder(
+            child: Directionality(
+              textDirection: TextDirection.rtl,
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+        );
+      },
     );
   }
 

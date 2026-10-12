@@ -3,7 +3,7 @@ class AppConfig {
   AppConfig._();
 
   /// إصدار التطبيق الظاهر في ترويسة الرئيسية — يُحدَّث مع `version` في pubspec.yaml.
-  static const String appVersion = '1.0.6';
+  static const String appVersion = '1.0.7';
 
   /// عنوان السيرفر الافتراضي (يمكن للمستخدم تغييره من شاشة الإعداد).
   static const String defaultServerBase = 'http://176.29.176.192/hypex';

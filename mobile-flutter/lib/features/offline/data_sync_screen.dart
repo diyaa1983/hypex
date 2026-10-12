@@ -69,7 +69,7 @@ class _DataSyncScreenState extends State<DataSyncScreen> {
     final size = MediaQuery.sizeOf(context);
     final pad = MediaQuery.paddingOf(context);
     final tablet = size.shortestSide >= 600;
-    final wide = size.width >= 900;
+    final wide = tablet && size.width >= 900;
     final compact = size.height < 780 && !tablet;
     final gap = tablet ? 10.0 : 12.0;
     final stats = _statRows(off, info);

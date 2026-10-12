@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/device_layout.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
@@ -65,9 +66,7 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
   /// تخطيط BlueStacks (قائمة + تفاصيل) على التاب وأي شاشة عرضية كافية.
   bool _useSplitLayout(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    return size.shortestSide >= 550 ||
-        size.width >= 900 ||
-        (size.width > size.height && size.shortestSide >= 500);
+    return DeviceLayout.isTabletSize(size);
   }
 
   void _selectTourCustomer(Map<String, dynamic> v) {

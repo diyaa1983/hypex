@@ -629,7 +629,7 @@ class _TileGrid extends StatelessWidget {
         // تابلت: أعمدة أقل → بلاطات أكبر وأوضح.
         final cols = tablet
             ? (box.maxWidth / 190).floor().clamp(3, 5)
-            : (box.maxWidth / 125).floor().clamp(3, 6);
+            : (box.maxWidth / 108).floor().clamp(3, 4);
         final rows = (n / cols).ceil().clamp(1, 20);
         final padH = tablet ? 16.0 : 8.0;
         final padV = tablet ? 12.0 : 10.0;
@@ -702,7 +702,7 @@ class _TileButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 168 : 112),
+            constraints: BoxConstraints(maxWidth: compact ? 168 : 96),
             child: Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: 2,
@@ -712,8 +712,8 @@ class _TileButton extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    height: compact ? 88 : 68,
-                    width: compact ? 88 : 68,
+                    height: compact ? 88 : 46,
+                    width: compact ? 88 : 46,
                     child: art != null
                         ? Image.asset(
                             art,
@@ -734,7 +734,7 @@ class _TileButton extends StatelessWidget {
                             ).createShader(rect),
                             child: Icon(
                               icon,
-                              size: compact ? 76 : 60,
+                              size: compact ? 76 : 40,
                               color: Colors.white,
                               shadows: const [
                                 Shadow(
@@ -753,7 +753,7 @@ class _TileButton extends StatelessWidget {
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: compact ? 14.5 : 12.5,
+                      fontSize: compact ? 14.5 : 11,
                       height: 1.15,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textMain,

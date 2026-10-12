@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/device_layout.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/payment_period.dart';
@@ -1398,7 +1399,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   Widget build(BuildContext context) {
     final screen = _displayLogicalSize(context);
     final imeOpen = MediaQuery.viewInsetsOf(context).bottom > 80;
-    final wide = screen.shortestSide >= 550 || screen.width >= 900;
+    final wide = DeviceLayout.isTabletSize(screen);
     final visitOpen = _selectedId != null &&
         _customer != null &&
         (_selectedIsOpen ||
