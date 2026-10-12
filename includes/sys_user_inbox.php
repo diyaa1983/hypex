@@ -136,6 +136,82 @@ function sys_user_inbox_push_checkout_pending(PDO $pdo, array $reqRow): void
     }
 }
 
+/**
+ * إشعار مديري المبيعات (صلاحية شاشة اعتماد طلبات الشراء على التابلت)
+ * عند ترحيل/إرسال طلب شراء من المندوب.
+ *
+ * @param array{id?:int,order_no?:string,customer_id?:int,customer_name?:string,customer_code?:string,sales_rep_id?:int,sales_rep_name?:string,total?:float|int|string,sent_by?:int} $orderRow
+ */
+function sys_user_inbox_push_customer_order_sent(PDO $pdo, array $orderRow): void
+{
+    $orderId = (int) ($orderRow['id'] ?? 0);
+    if ($orderId < 1) {
+        return;
+    }
+    $orderNo = trim((string) ($orderRow['order_no'] ?? ''));
+    $customerId = (int) ($orderRow['customer_id'] ?? 0);
+    $name = (string) ($orderRow['customer_name'] ?? '');
+    $code = (string) ($orderRow['customer_code'] ?? '');
+    $repName = (string) ($orderRow['sales_rep_name'] ?? '');
+    $repId = (int) ($orderRow['sales_rep_id'] ?? 0);
+    if ($name === '' && $customerId > 0) {
+        try {
+            $st = $pdo->prepare('SELECT name_ar, code FROM crm_customer WHERE id = ? LIMIT 1');
+            $st->execute([$customerId]);
+            $c = $st->fetch(PDO::FETCH_ASSOC);
+            if (is_array($c)) {
+                $name = (string) ($c['name_ar'] ?? '');
+                $code = (string) ($c['code'] ?? '');
+            }
+        } catch (Throwable $e) {
+        }
+    }
+    if ($repName === '' && $repId > 0) {
+        try {
+            $st = $pdo->prepare('SELECT name_ar FROM crm_sales_rep WHERE id = ? LIMIT 1');
+            $st->execute([$repId]);
+            $repName = (string) ($st->fetchColumn() ?: '');
+        } catch (Throwable $e) {
+        }
+    }
+    $who = $name !== '' ? '«' . $name . '»' : 'عميل';
+    if ($code !== '') {
+        $who .= ' (' . $code . ')';
+    }
+    $orderLabel = $orderNo !== '' ? $orderNo : ('#' . $orderId);
+    $title = 'طلب شراء بانتظار الاعتماد';
+    $body = ($repName !== '' ? $repName . ' — ' : '')
+        . 'طلب ' . $orderLabel . ' للعميل ' . $who;
+    $payload = [
+        'order_id' => $orderId,
+        'order_no' => $orderNo,
+        'customer_name' => $name,
+        'customer_code' => $code,
+        'sales_rep_id' => $repId,
+        'sales_rep_name' => $repName,
+        'route' => '/manager/customer-orders',
+    ];
+    $exclude = (int) ($orderRow['sent_by'] ?? 0);
+    foreach (
+        sys_user_inbox_users_with_screens($pdo, [
+            'm_manager_customer_orders',
+        ]) as $uid
+    ) {
+        if ($uid === $exclude) {
+            continue;
+        }
+        try {
+            sys_user_inbox_push($pdo, $uid, 'customer_order_pending', $title, $body, [
+                'ref_type' => 'sal_customer_order',
+                'ref_id' => $orderId,
+                'customer_id' => $customerId,
+                'payload' => $payload,
+            ]);
+        } catch (Throwable $e) {
+        }
+    }
+}
+
 /** إشعار مديري المبيعات بطلب تعديل موقع عميل بانتظار الموافقة. */
 function sys_user_inbox_push_gps_pending(PDO $pdo, array $changeRow): void
 {

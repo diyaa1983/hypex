@@ -8,6 +8,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/sal_customer_order.php');
 require_once app_path('includes/crm_sales_rep_schema.php');
+require_once app_path('includes/sys_user_inbox.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -54,7 +55,16 @@ try {
     $sent = 0;
     $now = date('Y-m-d H:i:s');
     foreach ($ids as $id) {
-        $st = $pdo->prepare('SELECT id, status, sales_rep_id, IFNULL(is_sent,1) AS is_sent FROM sal_customer_order WHERE id=? LIMIT 1');
+        $st = $pdo->prepare(
+            'SELECT o.id, o.order_no, o.status, o.sales_rep_id, o.customer_id,
+                    IFNULL(o.is_sent,1) AS is_sent,
+                    c.name_ar AS customer_name, c.code AS customer_code,
+                    COALESCE(r.name_ar, \'\') AS sales_rep_name
+             FROM sal_customer_order o
+             LEFT JOIN crm_customer c ON c.id = o.customer_id
+             LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
+             WHERE o.id=? LIMIT 1'
+        );
         $st->execute([$id]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
@@ -70,6 +80,19 @@ try {
             'UPDATE sal_customer_order SET is_sent=1, sent_at=?, sent_by=?, updated_by=? WHERE id=?'
         )->execute([$now, $uid, $uid, $id]);
         $sent++;
+        try {
+            sys_user_inbox_push_customer_order_sent($pdo, [
+                'id' => (int) $row['id'],
+                'order_no' => (string) ($row['order_no'] ?? ''),
+                'customer_id' => (int) ($row['customer_id'] ?? 0),
+                'customer_name' => (string) ($row['customer_name'] ?? ''),
+                'customer_code' => (string) ($row['customer_code'] ?? ''),
+                'sales_rep_id' => (int) ($row['sales_rep_id'] ?? 0),
+                'sales_rep_name' => (string) ($row['sales_rep_name'] ?? ''),
+                'sent_by' => $uid,
+            ]);
+        } catch (Throwable $e) {
+        }
     }
     if ($sent > 0) {
         require_once app_path('includes/header_check_notifications.php');

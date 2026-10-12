@@ -45,12 +45,15 @@ class InboxItem {
       kind == 'gps_change_rejected' || kind == 'visit_checkout_rejected';
   bool get isCheckoutPending => kind == 'visit_checkout_pending';
   bool get isGpsPending => kind == 'gps_change_pending';
-  bool get isPendingApproval => isCheckoutPending || isGpsPending;
+  bool get isCustomerOrderPending => kind == 'customer_order_pending';
+  bool get isPendingApproval =>
+      isCheckoutPending || isGpsPending || isCustomerOrderPending;
 
   /// مسار شاشة الاعتماد عند النقر على إشعار طلب موافقة.
   String? get approveRoute {
     if (isCheckoutPending) return '/approvals/visit-checkout';
     if (isGpsPending) return '/approvals/customer-gps';
+    if (isCustomerOrderPending) return '/manager/customer-orders';
     return null;
   }
 
