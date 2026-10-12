@@ -626,19 +626,20 @@ class _TileGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final n = tiles.isEmpty ? 1 : tiles.length;
+        // تابلت: أعمدة أقل → بلاطات أكبر وأوضح.
         final cols = tablet
-            ? (box.maxWidth / 148).floor().clamp(5, 8)
+            ? (box.maxWidth / 190).floor().clamp(3, 5)
             : (box.maxWidth / 125).floor().clamp(3, 6);
         final rows = (n / cols).ceil().clamp(1, 20);
-        final padH = tablet ? 12.0 : 8.0;
-        final padV = tablet ? 8.0 : 10.0;
+        final padH = tablet ? 16.0 : 8.0;
+        final padV = tablet ? 12.0 : 10.0;
         final availW = (box.maxWidth - padH * 2).clamp(1.0, 4000.0);
         final availH = (box.maxHeight - padV * 2).clamp(1.0, 4000.0);
         final cellW = availW / cols;
         final cellH = availH / rows;
-        final minCellH = tablet ? 88.0 : 96.0;
+        final minCellH = tablet ? 120.0 : 96.0;
         final fit = tablet && cellH >= minCellH;
-        final aspect = fit ? (cellW / cellH) : 0.9;
+        final aspect = fit ? (cellW / cellH) : (tablet ? 0.85 : 0.9);
         return GridView.builder(
           physics: fit
               ? const NeverScrollableScrollPhysics()
@@ -646,24 +647,24 @@ class _TileGrid extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(padH, padV, padH, padV),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: cols,
-            mainAxisSpacing: tablet ? 4 : 8,
-            crossAxisSpacing: tablet ? 4 : 4,
+            mainAxisSpacing: tablet ? 12 : 8,
+            crossAxisSpacing: tablet ? 10 : 4,
             childAspectRatio: aspect,
           ),
           itemCount: tiles.length,
           itemBuilder: (_, i) {
             final t = tiles[i];
-            return FittedBox(
-              fit: BoxFit.scaleDown,
-              child: _TileButton(
-                label: t.label,
-                icon: t.spec.icon,
-                color: t.spec.color,
-                asset: t.spec.asset,
-                compact: tablet,
-                onTap: () => context.push(t.spec.route),
-              ),
+            final btn = _TileButton(
+              label: t.label,
+              icon: t.spec.icon,
+              color: t.spec.color,
+              asset: t.spec.asset,
+              compact: tablet,
+              onTap: () => context.push(t.spec.route),
             );
+            // على التابلت لا نُصغّر بـ FittedBox حتى تبقى الأيقونات كبيرة.
+            if (tablet) return btn;
+            return FittedBox(fit: BoxFit.scaleDown, child: btn);
           },
         );
       },
@@ -701,24 +702,24 @@ class _TileButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           onTap: onTap,
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 128 : 112),
+            constraints: BoxConstraints(maxWidth: compact ? 168 : 112),
             child: Padding(
               padding: EdgeInsets.symmetric(
                 horizontal: 2,
-                vertical: compact ? 4 : 6,
+                vertical: compact ? 8 : 6,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox(
-                    height: compact ? 58 : 68,
-                    width: compact ? 58 : 68,
+                    height: compact ? 88 : 68,
+                    width: compact ? 88 : 68,
                     child: art != null
                         ? Image.asset(
                             art,
                             fit: BoxFit.contain,
-                            filterQuality: FilterQuality.low,
-                            cacheWidth: compact ? 128 : 160,
+                            filterQuality: FilterQuality.medium,
+                            cacheWidth: compact ? 220 : 160,
                           )
                         : ShaderMask(
                             shaderCallback: (rect) => LinearGradient(
@@ -733,7 +734,7 @@ class _TileButton extends StatelessWidget {
                             ).createShader(rect),
                             child: Icon(
                               icon,
-                              size: compact ? 50 : 60,
+                              size: compact ? 76 : 60,
                               color: Colors.white,
                               shadows: const [
                                 Shadow(
@@ -745,14 +746,14 @@ class _TileButton extends StatelessWidget {
                             ),
                           ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: compact ? 8 : 6),
                   Text(
                     label,
                     textAlign: TextAlign.center,
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: compact ? 12 : 12.5,
+                      fontSize: compact ? 14.5 : 12.5,
                       height: 1.15,
                       fontWeight: FontWeight.w700,
                       color: AppTheme.textMain,

@@ -19,10 +19,14 @@ class LocationService {
   static const _lastKnownFresh = Duration(minutes: 5);
   static const _cacheFresh = Duration(minutes: 2);
 
+  /// عند طلب موقع «الآن» نرفض قراءة أقدم من هذا العمر (Fused قد يعيد كاشاً).
+  static const _freshFixMaxAge = Duration(seconds: 30);
+
   /// إعدادات مناسبة للتتبّع المستمر (خلفية على iOS/Android).
   static LocationSettings trackingSettings({
     Duration timeLimit = const Duration(seconds: 20),
     LocationAccuracy accuracy = LocationAccuracy.high,
+    bool forFreshFix = false,
   }) {
     if (!kIsWeb && Platform.isIOS) {
       return AppleSettings(
@@ -32,20 +36,35 @@ class LocationService {
         pauseLocationUpdatesAutomatically: false,
         showBackgroundLocationIndicator: true,
         timeLimit: timeLimit,
+        distanceFilter: forFreshFix ? 0 : 0,
       );
     }
     if (!kIsWeb && Platform.isAndroid) {
       return AndroidSettings(
         accuracy: accuracy,
-        intervalDuration: const Duration(seconds: 2),
+        distanceFilter: 0,
+        intervalDuration: Duration(seconds: forFreshFix ? 1 : 2),
         timeLimit: timeLimit,
       );
     }
-    return LocationSettings(accuracy: accuracy, timeLimit: timeLimit);
+    return LocationSettings(
+      accuracy: accuracy,
+      timeLimit: timeLimit,
+      distanceFilter: 0,
+    );
   }
 
   static bool _isFresh(DateTime? at, Duration maxAge) {
     return at != null && DateTime.now().difference(at) <= maxAge;
+  }
+
+  static bool _positionAgeOk(Position pos, {required bool requireFresh}) {
+    if (!requireFresh) return true;
+    try {
+      return DateTime.now().difference(pos.timestamp) <= _freshFixMaxAge;
+    } catch (_) {
+      return true;
+    }
   }
 
   static void _remember(Position pos) {
@@ -93,14 +112,19 @@ class LocationService {
   static Future<Position?> _read({
     required LocationAccuracy accuracy,
     required Duration timeLimit,
+    bool requireFresh = false,
   }) async {
     try {
       final pos = await Geolocator.getCurrentPosition(
         locationSettings: trackingSettings(
           accuracy: accuracy,
           timeLimit: timeLimit,
+          forFreshFix: requireFresh,
         ),
       ).timeout(timeLimit + const Duration(seconds: 2));
+      if (!_positionAgeOk(pos, requireFresh: requireFresh)) {
+        return null;
+      }
       _remember(pos);
       return pos;
     } catch (_) {
@@ -108,22 +132,39 @@ class LocationService {
     }
   }
 
-  /// أول قراءة من تدفّق الموقع — أكثر موثوقية على بعض الأجهزة اللوحية.
+  /// أول قراءة حديثة من تدفّق الموقع — أكثر موثوقية على بعض الأجهزة اللوحية.
   static Future<Position?> _firstFromStream({
     required LocationAccuracy accuracy,
     required Duration timeLimit,
+    bool requireFresh = false,
   }) async {
+    StreamSubscription<Position>? sub;
     try {
-      final pos = await Geolocator.getPositionStream(
+      final completer = Completer<Position?>();
+      final stream = Geolocator.getPositionStream(
         locationSettings: trackingSettings(
           accuracy: accuracy,
           timeLimit: timeLimit,
+          forFreshFix: requireFresh,
         ),
-      ).first.timeout(timeLimit);
-      _remember(pos);
+      );
+      sub = stream.listen(
+        (pos) {
+          if (!_positionAgeOk(pos, requireFresh: requireFresh)) return;
+          if (!completer.isCompleted) completer.complete(pos);
+        },
+        onError: (_) {
+          if (!completer.isCompleted) completer.complete(null);
+        },
+        cancelOnError: true,
+      );
+      final pos = await completer.future.timeout(timeLimit, onTimeout: () => null);
+      if (pos != null) _remember(pos);
       return pos;
     } catch (_) {
       return null;
+    } finally {
+      await sub?.cancel();
     }
   }
 
@@ -176,7 +217,7 @@ class LocationService {
   /// طلب الإذن صراحةً وإرجاع الموقع أو رمي رسالة عربية.
   ///
   /// [fresh]: عند الضغط على «موقعي الحالي» — يتجاهل الذاكرة وآخر موقع معروف
-  /// ويقرأ موقعاً جديداً من الجهاز الآن.
+  /// ويرفض قراءات Fused ذات timestamp أقدم من ~30 ثانية.
   ///
   /// التدرّج الاعتيادي: ذاكرة الجلسة ← دقة متوسطة ← دقة عالية ← تدفّق ← آخر معروف.
   static Future<Position> requirePosition({bool fresh = false}) async {
@@ -193,6 +234,7 @@ class LocationService {
     var pos = await _read(
       accuracy: LocationAccuracy.medium,
       timeLimit: Duration(seconds: fresh ? 15 : 12),
+      requireFresh: fresh,
     );
     if (pos != null) return pos;
 
@@ -200,13 +242,15 @@ class LocationService {
     pos = await _read(
       accuracy: LocationAccuracy.high,
       timeLimit: Duration(seconds: fresh ? 20 : 15),
+      requireFresh: fresh,
     );
     if (pos != null) return pos;
 
-    // تدفّق الموقع — قراءة حيّة وليست lastKnown.
+    // تدفّق الموقع — انتظار أول fix بعمر مقبول عند fresh.
     pos = await _firstFromStream(
       accuracy: fresh ? LocationAccuracy.high : LocationAccuracy.low,
-      timeLimit: Duration(seconds: fresh ? 15 : 12),
+      timeLimit: Duration(seconds: fresh ? 20 : 12),
+      requireFresh: fresh,
     );
     if (pos != null) return pos;
 

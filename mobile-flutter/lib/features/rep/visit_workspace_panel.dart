@@ -65,8 +65,9 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
   @override
   void initState() {
     super.initState();
-    // لا نفتح طلباً قديماً تلقائياً — نموذج فارغ + قائمة غير المرسلة.
-    _orderId = null;
+    _orderId = (widget.orderId != null && widget.orderId != 0)
+        ? widget.orderId
+        : null;
     _tabs = TabController(length: 5, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging && mounted) setState(() {});
@@ -74,7 +75,8 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     _loadCustomer();
     _loadOrders();
     _loadInvoices();
-    _loadUnsentLocal();
+    // افتح آخر مسودة غير مرحّلة لاستكمال الترحيل/التعديل/الحذف.
+    _loadUnsentLocal(autoSelectIfEmpty: true);
   }
 
   @override
@@ -92,7 +94,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
       _loadCustomer();
       _loadOrders();
       _loadInvoices();
-      _loadUnsentLocal();
+      _loadUnsentLocal(autoSelectIfEmpty: true);
     } else if (oldWidget.orderId != widget.orderId &&
         widget.orderId != null &&
         widget.orderId != 0) {
@@ -101,12 +103,36 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     }
   }
 
-  Future<void> _loadUnsentLocal() async {
+  Future<void> _loadUnsentLocal({bool autoSelectIfEmpty = false}) async {
     final rows = await OfflineStore.instance.listUnsentOrdersForCustomer(
       widget.customerId,
     );
     if (!mounted) return;
-    setState(() => _unsentLocal = rows);
+    int? nextId = _orderId;
+    if (autoSelectIfEmpty &&
+        (nextId == null || nextId == 0) &&
+        rows.isNotEmpty) {
+      final visit = widget.visitRouteLineId;
+      Map<String, dynamic>? match;
+      if (visit != 0) {
+        for (final o in rows) {
+          final vid = (o['visit_route_line_id'] as num?)?.toInt() ??
+              int.tryParse('${o['visit_route_line_id'] ?? ''}') ??
+              0;
+          if (vid == visit) {
+            match = o;
+            break;
+          }
+        }
+      }
+      match ??= rows.first;
+      nextId = (match['id'] as num?)?.toInt() ??
+          int.tryParse('${match['id'] ?? ''}');
+    }
+    setState(() {
+      _unsentLocal = rows;
+      _orderId = (nextId == null || nextId == 0) ? null : nextId;
+    });
   }
 
   String _iso(DateTime d) =>

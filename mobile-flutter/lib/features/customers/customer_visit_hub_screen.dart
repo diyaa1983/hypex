@@ -2772,26 +2772,54 @@ class _PurchaseOrderTab extends StatefulWidget {
   State<_PurchaseOrderTab> createState() => _PurchaseOrderTabState();
 }
 
-class _PurchaseOrderTabState extends State<_PurchaseOrderTab> {
+class _PurchaseOrderTabState extends State<_PurchaseOrderTab>
+    with AutomaticKeepAliveClientMixin {
   int? _orderId;
   List<Map<String, dynamic>> _unsent = [];
 
   @override
+  bool get wantKeepAlive => true;
+
+  @override
   void initState() {
     super.initState();
-    _orderId = null;
-    _loadUnsent();
+    _orderId = widget.orderId;
+    // عند فتح التبويب/العودة: افتح آخر مسودة غير مرحّلة إن وُجدت.
+    _loadUnsent(autoSelectIfEmpty: true);
   }
 
-  Future<void> _loadUnsent() async {
+  Future<void> _loadUnsent({bool autoSelectIfEmpty = false}) async {
     final cid = Fmt.toInt(widget.customer['id']);
     final rows = await OfflineStore.instance.listUnsentOrdersForCustomer(cid);
     if (!mounted) return;
-    setState(() => _unsent = rows);
+    int? nextId = _orderId;
+    if (autoSelectIfEmpty && (nextId == null || nextId == 0) && rows.isNotEmpty) {
+      final visit = widget.visitRouteLineId;
+      Map<String, dynamic>? match;
+      if (visit != 0) {
+        for (final o in rows) {
+          final vid = (o['visit_route_line_id'] as num?)?.toInt() ??
+              int.tryParse('${o['visit_route_line_id'] ?? ''}') ??
+              0;
+          if (vid == visit) {
+            match = o;
+            break;
+          }
+        }
+      }
+      match ??= rows.first;
+      nextId = (match['id'] as num?)?.toInt() ??
+          int.tryParse('${match['id'] ?? ''}');
+    }
+    setState(() {
+      _unsent = rows;
+      _orderId = (nextId == null || nextId == 0) ? null : nextId;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     // Offline: route_line_id سالب مقبول طالما الزيارة مفتوحة محلياً
     final canOrder = widget.visitOpen && (widget.visitRouteLineId != 0);
     if (!canOrder) {

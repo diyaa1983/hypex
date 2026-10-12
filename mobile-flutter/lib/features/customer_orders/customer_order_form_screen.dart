@@ -407,7 +407,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       }
       Map<String, dynamic> order = {};
       if (_id != 0) {
-        if (!offline.online) {
+        // مسودات الجهاز (id سالب) تُقرأ محلياً دائماً — لا تُطلب من السيرفر.
+        if (_id < 0 || !offline.online) {
           final local = await OfflineStore.instance.getOrderById(_id);
           if (local == null) {
             throw ApiException(
@@ -665,12 +666,24 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     final item = await pickItem(context, warehouseId: _warehouseId);
     if (item == null || !mounted) return;
+    final qtyStr = await showNumericKeypadDialog(
+      context,
+      title: 'الكمية المطلوبة',
+      initial: '1',
+      decimal: false,
+    );
+    if (qtyStr == null || !mounted) return;
+    final qty = int.tryParse(qtyStr.trim()) ?? 0;
+    if (qty <= 0) {
+      showSnack(context, 'أدخل كمية صحيحة أكبر من صفر.', error: true);
+      return;
+    }
     setState(() => _lines.add(
           _OrderLine(
             item,
             taxRateId: _defaultTaxRateId,
             taxRatePercent: _defaultTaxPercent,
-          ),
+          )..qty = qty,
         ));
   }
 
@@ -1483,12 +1496,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         builder: (context, constraints) {
           final h = constraints.maxHeight;
           final tight = !h.isFinite || h < 520;
-          final fieldH = tight ? 32.0 : 36.0;
-          final gap = tight ? 4.0 : 6.0;
+          // حقول وأزرار أوضح على التابلت — الأيقونات كانت 14–18 وتُصغَّر أكثر بـ FittedBox.
+          final fieldH = tight ? 40.0 : 46.0;
+          final gap = tight ? 5.0 : 8.0;
           final pad = tight ? 6.0 : 8.0;
-          final labelSize = tight ? 11.0 : 11.5;
-          final btnH = tight ? 32.0 : 36.0;
-          final docH = tight ? 30.0 : 34.0;
+          final labelSize = tight ? 12.0 : 13.0;
+          final btnH = tight ? 42.0 : 48.0;
+          final docH = tight ? 40.0 : 46.0;
           final body = Column(
             mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1561,13 +1575,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   onPressed: _busy || !_editable ? null : _addLine,
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF2196F3),
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    visualDensity: VisualDensity.standard,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                   ),
-                  icon: const Icon(Icons.add_rounded, size: 16),
+                  icon: const Icon(Icons.add_rounded, size: 26),
                   label: const Text(
                     'إضافة مادة',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -1690,12 +1704,12 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   ),
                   suffixIcon: Icon(
                     Icons.event_rounded,
-                    size: 18,
+                    size: 26,
                     color: AppTheme.textSoft,
                   ),
                   suffixIconConstraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
+                    minWidth: 40,
+                    minHeight: 40,
                   ),
                 ),
                 child: Text(
@@ -1703,7 +1717,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: _deliveryDate.isEmpty
                         ? AppTheme.textSoft
@@ -1762,12 +1776,12 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   ),
                   suffixIcon: Icon(
                     _editable ? Icons.edit_note_rounded : Icons.notes_rounded,
-                    size: 18,
+                    size: 26,
                     color: AppTheme.textSoft,
                   ),
                   suffixIconConstraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
+                    minWidth: 40,
+                    minHeight: 40,
                   ),
                 ),
                 child: Text(
@@ -1777,7 +1791,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: text.isEmpty ? AppTheme.textSoft : AppTheme.textMain,
                   ),
@@ -1881,10 +1895,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  suffixIcon: const Icon(Icons.search_rounded, size: 18),
+                  suffixIcon: const Icon(Icons.search_rounded, size: 26),
                   suffixIconConstraints: const BoxConstraints(
-                    minWidth: 28,
-                    minHeight: 28,
+                    minWidth: 40,
+                    minHeight: 40,
                   ),
                 ),
                 child: Text(
@@ -1895,7 +1909,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   overflow: TextOverflow.ellipsis,
                   textDirection: TextDirection.ltr,
                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: 14,
                                     fontWeight: FontWeight.w700,
                     color: _orderNoCtrl.text.isEmpty
                         ? AppTheme.textSoft
@@ -1914,27 +1928,27 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     String label,
     IconData icon,
     VoidCallback? onPressed, {
-    double height = 34,
+    double height = 46,
   }) {
     return SizedBox(
       height: height,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          visualDensity: VisualDensity.compact,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          visualDensity: VisualDensity.standard,
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 14),
-            const SizedBox(width: 3),
+            Icon(icon, size: 24),
+            const SizedBox(width: 6),
             Flexible(
               child: Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
               ),
             ),
           ],
@@ -1975,7 +1989,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           ),
         ),
       ],
@@ -2952,14 +2966,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           value: _warehouseId == 0 ? null : _warehouseId,
           hint: const Text(
             '—',
-            style: TextStyle(fontSize: 12, color: AppTheme.textSoft),
+            style: TextStyle(fontSize: 14, color: AppTheme.textSoft),
           ),
           style: const TextStyle(
-            fontSize: 12,
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: AppTheme.textMain,
           ),
-          icon: const Icon(Icons.expand_more_rounded, size: 18),
+          icon: const Icon(Icons.expand_more_rounded, size: 26),
           items: _warehouses
               .map(
                 (w) => DropdownMenuItem(
@@ -2967,7 +2981,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   child: Text(
                     Fmt.str(w['name'] ?? w['name_ar']),
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: 14),
                   ),
                 ),
               )
@@ -2996,7 +3010,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                     color: _customer == null
                         ? AppTheme.textSoft
@@ -3007,7 +3021,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               if (canPick)
                 const Icon(
                   Icons.chevron_left_rounded,
-                  size: 16,
+                  size: 24,
                   color: AppTheme.textSoft,
                 ),
             ],

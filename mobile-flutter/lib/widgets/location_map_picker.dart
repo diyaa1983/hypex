@@ -19,7 +19,7 @@ Future<LatLng?> pickLocationOnMap(
     MaterialPageRoute(
       builder: (_) => LocationMapPickerScreen(
         initial: start,
-        hasInitialLocation: hasInitialLocation || initial != null,
+        hasInitialLocation: hasInitialLocation,
       ),
     ),
   );
