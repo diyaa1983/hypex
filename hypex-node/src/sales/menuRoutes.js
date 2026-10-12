@@ -1710,6 +1710,26 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             }).join('، ');
           } else valueEl.textContent = checked.length + ' محدد';
         }
+        function place(box) {
+          var btn = box.querySelector('.co-ms__btn');
+          var panel = box.querySelector('.co-ms__panel');
+          if (!btn || !panel) return;
+          var r = btn.getBoundingClientRect();
+          var width = Math.max(r.width, 220);
+          panel.style.position = 'fixed';
+          panel.style.zIndex = '4000';
+          panel.style.minWidth = width + 'px';
+          panel.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
+          panel.style.left = 'auto';
+          var spaceBelow = window.innerHeight - r.bottom;
+          if (spaceBelow < 220 && r.top > spaceBelow) {
+            panel.style.top = 'auto';
+            panel.style.bottom = (window.innerHeight - r.top + 4) + 'px';
+          } else {
+            panel.style.bottom = 'auto';
+            panel.style.top = (r.bottom + 4) + 'px';
+          }
+        }
         function closeAll(except) {
           document.querySelectorAll('.co-ms.is-open').forEach(function (el) {
             if (el === except) return;
@@ -1731,10 +1751,12 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
               e.stopPropagation();
               var willOpen = panel.hidden;
               closeAll(box);
+              if (willOpen) place(box);
               panel.hidden = !willOpen;
               box.classList.toggle('is-open', willOpen);
               btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
             });
+            panel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
             panel.addEventListener('click', function (e) { e.stopPropagation(); });
           }
           box.addEventListener('change', function (e) {
@@ -1842,6 +1864,12 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         }
         document.querySelectorAll('.co-ms').forEach(bindMenu);
         document.addEventListener('click', function () { closeAll(null); });
+        window.addEventListener('resize', function () {
+          document.querySelectorAll('.co-ms.is-open').forEach(place);
+        });
+        window.addEventListener('scroll', function () {
+          document.querySelectorAll('.co-ms.is-open').forEach(place);
+        }, true);
         if (yearBox) yearBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; syncDays(); });
         if (monthBox) monthBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; syncDays(); });
         if (dayBox) dayBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; });

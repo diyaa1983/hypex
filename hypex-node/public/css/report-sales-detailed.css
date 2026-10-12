@@ -166,10 +166,26 @@
   min-width: 8.5rem;
 }
 
+.co-det-page .si-rail {
+  overflow: visible !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-radius: 8px !important;
+  align-items: flex-start !important;
+  height: auto !important;
+}
+
+.co-det-page .co-det-filters {
+  overflow: visible;
+  position: relative;
+  z-index: 6;
+}
+
 .co-det-page .co-ms {
   position: relative;
   min-width: 11rem;
   flex: 1 1 11rem;
+  overflow: visible;
 }
 
 .co-det-page .co-ms__btn {
