@@ -1044,18 +1044,36 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       }
 
       // أونلاين: حفظ على السيرفر ثم ترحيل (is_sent=1).
-      final saveRes = await context.read<ApiClient>().postJson(
-            AppConfig.customerOrderSavePath,
-            csrf: session.csrf,
-            body: {
-              ...body,
-              'id': _id > 0 ? _id : 0,
-              'local_order_id': _id,
-            },
-          );
+      // إن كان المعرّف المحلي يشير لطلب حُذف من السيرفر نُنشئ طلباً جديداً.
+      Map<String, dynamic> saveRes;
+      try {
+        saveRes = await context.read<ApiClient>().postJson(
+              AppConfig.customerOrderSavePath,
+              csrf: session.csrf,
+              body: {
+                ...body,
+                'id': _id > 0 ? _id : 0,
+                'local_order_id': _id,
+              },
+            );
+      } on ApiException catch (e) {
+        final missing = e.message.contains('الطلب غير موجود');
+        if (!missing || _id <= 0) rethrow;
+        final visitLine = widget.visitRouteLineId ?? 0;
+        saveRes = await context.read<ApiClient>().postJson(
+              AppConfig.customerOrderSavePath,
+              csrf: session.csrf,
+              body: {
+                ...body,
+                'id': 0,
+                'local_order_id': _id,
+                if (visitLine > 0) 'visit_route_line_id': visitLine,
+              },
+            );
+      }
       final serverId = Fmt.toInt(saveRes['order_id'] ?? saveRes['id']);
       final localId = _id;
-      if (localId < 0 && serverId > 0) {
+      if (localId != 0 && serverId > 0 && localId != serverId) {
         await OfflineStore.instance.rewriteLocalOrderId(
           localId: localId,
           serverId: serverId,
@@ -1072,7 +1090,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             csrf: session.csrf,
           );
       await OfflineStore.instance.markOrderSent([sendId]);
-      if (localId < 0 && serverId > 0) {
+      if (localId != 0 && localId != sendId) {
         await OfflineStore.instance.markOrderSent([localId]);
       }
       if (!mounted) return;
@@ -1133,14 +1151,23 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
     if (ok != true || !mounted) return;
     if (_id < 1) {
+      if (_id < 0) {
+        await OfflineStore.instance.deleteLocalOrder(_id);
+      }
+      if (!mounted) return;
       setState(() {
+        _id = 0;
         _lines.clear();
         _orderNo = '';
         _orderNoCtrl.clear();
         _deliveryDate = '';
         _notesCtrl.clear();
+        _isSent = false;
+        _approved = false;
       });
       _markClean();
+      widget.onDeleted?.call();
+      showSnack(context, 'تم حذف الطلب من الجهاز.');
       return;
     }
     setState(() => _busy = true);
@@ -1166,6 +1193,25 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       });
       _markClean();
     } on ApiException catch (e) {
+      final missing = e.message.contains('الطلب غير موجود');
+      if (missing && _id != 0) {
+        await OfflineStore.instance.deleteLocalOrder(_id);
+        if (!mounted) return;
+        showSnack(context, 'الطلب غير موجود على النظام — حُذف من الجهاز.');
+        widget.onDeleted?.call();
+        setState(() {
+          _id = 0;
+          _orderNo = '';
+          _orderNoCtrl.clear();
+          _deliveryDate = '';
+          _notesCtrl.clear();
+          _lines.clear();
+          _isSent = false;
+          _approved = false;
+        });
+        _markClean();
+        return;
+      }
       if (mounted) showSnack(context, e.message, error: true);
     } finally {
       if (mounted) setState(() => _busy = false);

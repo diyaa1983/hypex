@@ -1635,7 +1635,7 @@ class OfflineStore {
     required int serverId,
     String? orderNo,
   }) async {
-    if (localId >= 0 || serverId < 1) return;
+    if (localId == 0 || serverId < 1 || localId == serverId) return;
     final db = await _db;
     await db.transaction((txn) async {
       final rows = await txn.query(

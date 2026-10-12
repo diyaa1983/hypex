@@ -51,5 +51,5 @@ if ($LASTEXITCODE -ne 0) {
 
 $apk = Join-Path $root "build\app\outputs\flutter-apk\app-release.apk"
 Write-Host ""
-Write-Host "تم البناء: $apk"
+Write-Host "APK ready: $apk"
 exit 0
