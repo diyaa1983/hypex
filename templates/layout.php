@@ -200,6 +200,20 @@ $appHeaderUiJsV = is_file(app_path('assets/js/app-header-ui.js'))
             'fraction_units' => (int) ($appCurrency['fraction_units'] ?? 100),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
     </script>
+    <script>
+    (function () {
+      try {
+        var t = sessionStorage.getItem('hypex:nav-busy');
+        if (!t) return;
+        var age = Date.now() - Number(t);
+        if (!(age >= 0 && age < 20000)) {
+          sessionStorage.removeItem('hypex:nav-busy');
+          return;
+        }
+        document.documentElement.classList.add('hypex-nav-busy');
+      } catch (e) {}
+    })();
+    </script>
     <script src="<?= esc(app_url('assets/js/app-busy.js')) ?><?= $appBusyJsV !== '' ? '?v=' . esc($appBusyJsV) : '' ?>" defer></script>
 </head>
 <?php

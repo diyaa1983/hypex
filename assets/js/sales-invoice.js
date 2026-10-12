@@ -667,7 +667,7 @@
     });
   }
 
-  function setBusy(on) {
+  function setBusy(on, message) {
     busy = !!on;
     ['si-save', 'si-post', 'si-unpost', 'si-delete', 'si-einvoice', 'si-add-line', 'si-print', 'si-pdf', 'si-excel', 'si-email', 'si-archive'].forEach(
       function (id) {
@@ -679,10 +679,20 @@
           }
           el.disabled = true;
         } else {
-          delete el.dataset.hxBusyPrev;
+          if (el.dataset.hxBusyPrev != null) {
+            el.disabled = el.dataset.hxBusyPrev === '1';
+            delete el.dataset.hxBusyPrev;
+          }
         }
       }
     );
+    if (window.AppBusy) {
+      if (on && typeof window.AppBusy.show === 'function') {
+        window.AppBusy.show(message || 'جاري التنفيذ…');
+      } else if (!on && typeof window.AppBusy.hide === 'function') {
+        window.AppBusy.hide(true);
+      }
+    }
     // بعد انتهاء العملية أعد الحالة الصحيحة (طباعة/حذف… حسب وجود id)
     if (!on) applyToolbarState();
   }

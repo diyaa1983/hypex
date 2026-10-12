@@ -83,6 +83,22 @@
         if (saveBtn) {
             saveBtn.disabled = !!busy;
         }
+        // أزرار شريط مستندات المبيعات (طلب شراء / فاتورة)
+        document.querySelectorAll('#co-doc-bar .si-tb, #si-doc-bar .si-tb').forEach(function (btn) {
+            if (!btn) return;
+            if (busy) {
+                if (!btn.hasAttribute('data-app-busy-was')) {
+                    btn.setAttribute('data-app-busy-was', btn.disabled ? '1' : '0');
+                }
+                btn.disabled = true;
+            } else {
+                var was = btn.getAttribute('data-app-busy-was');
+                if (was != null) {
+                    btn.disabled = was === '1';
+                    btn.removeAttribute('data-app-busy-was');
+                }
+            }
+        });
         if (busy) {
             show(message || 'جاري الحفظ...');
         } else {

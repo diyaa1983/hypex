@@ -21,6 +21,19 @@ body.app-is-busy .app-busy {
     display: none !important;
 }
 
+/* أثناء الانتقال بين صفحات القائمة — أظهر الطبقة فور رسم الجسم */
+html.hypex-nav-busy #app-busy {
+    display: flex !important;
+}
+
+html.hypex-nav-busy body {
+    pointer-events: none;
+}
+
+html.hypex-nav-busy body .app-busy {
+    pointer-events: auto;
+}
+
 .app-busy-panel {
     min-width: min(20rem, 92vw);
     max-width: 26rem;

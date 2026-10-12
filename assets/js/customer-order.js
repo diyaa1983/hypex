@@ -587,7 +587,7 @@
     msgEl.className = 'si-msg' + (type === 'error' ? ' is-error' : type === 'ok' ? ' is-ok' : '');
   }
 
-  function setBusy(on) {
+  function setBusy(on, message) {
     busy = !!on;
     document.querySelectorAll('#co-doc-bar .si-tb').forEach(function (btn) {
       if (!btn) return;
@@ -604,6 +604,13 @@
         }
       }
     });
+    if (window.AppBusy) {
+      if (on && typeof window.AppBusy.show === 'function') {
+        window.AppBusy.show(message || 'جاري التنفيذ…');
+      } else if (!on && typeof window.AppBusy.hide === 'function') {
+        window.AppBusy.hide(true);
+      }
+    }
   }
 
   function hxAlert(msg, opts) {

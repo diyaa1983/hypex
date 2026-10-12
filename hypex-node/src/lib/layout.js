@@ -366,6 +366,13 @@ function renderApp({
       const hasBellJs = allJs.some((j) => String(j).indexOf('header-notifications.js') !== -1);
       if (!hasBellJs) allJs.push('/assets/js/header-notifications.js');
     }
+    // طبقة انتظار مركزية + شريط تقدّم عند التنقّل بين القوائم
+    const hasBusyCss = allCss.some((c) => String(c).indexOf('app-busy.css') !== -1);
+    if (!hasBusyCss) allCss.push('/assets/css/app-busy.css');
+    const hasBusyJs = allJs.some((j) => String(j).indexOf('app-busy.js') !== -1);
+    if (!hasBusyJs) allJs.unshift('/assets/js/app-busy.js');
+    const hasNavPrefetch = allJs.some((j) => String(j).indexOf('nav-prefetch.js') !== -1);
+    if (!hasNavPrefetch) allJs.push('/assets/js/nav-prefetch.js');
   }
 
   const cssLinks = allCss
@@ -438,9 +445,30 @@ function renderApp({
   <script src="/assets/js/base-path.js"></script>
   <link rel="stylesheet" href="/assets/css/shell.css?v=${assetVersion('css/shell.css')}">
   ${cssLinks}
+  <script>
+  (function () {
+    try {
+      var t = sessionStorage.getItem('hypex:nav-busy');
+      if (!t) return;
+      var age = Date.now() - Number(t);
+      if (!(age >= 0 && age < 20000)) {
+        sessionStorage.removeItem('hypex:nav-busy');
+        return;
+      }
+      document.documentElement.classList.add('hypex-nav-busy');
+    } catch (e) {}
+  })();
+  </script>
   ${extraHead}
 </head>
 <body class="${esc(bodyCls)}"${printAttrs}${favAttrs}>
+  <div id="app-busy" class="app-busy no-print" hidden aria-live="polite" aria-busy="true">
+    <div class="app-busy-panel" role="status">
+      <div class="app-busy-spinner" aria-hidden="true"></div>
+      <p class="app-busy-msg" id="app-busy-msg">جاري التحميل…</p>
+      <p class="app-busy-hint">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
+    </div>
+  </div>
   <div class="app-shell">
     ${user ? renderSidebar(user, activePath, bellHtml, title) : ''}
     <main class="${esc(mainCls)}">
