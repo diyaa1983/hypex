@@ -694,8 +694,24 @@ function sal_rep_visit_has_order(PDO $pdo, int $routeLineId): bool
              LIMIT 1'
         );
         $st->execute([$routeLineId]);
+        if ((bool) $st->fetchColumn()) {
+            return true;
+        }
+        // مسودات حُفظت دون ربط صريح بسطر الزيارة — أي طلب لنفس العميل/المندوب بعد الدخول.
+        $st2 = $pdo->prepare(
+            'SELECT 1
+             FROM sal_customer_order o
+             INNER JOIN sal_rep_route_line l ON l.id = ?
+             INNER JOIN sal_rep_route r ON r.id = l.route_id
+             WHERE o.customer_id = l.customer_id
+               AND o.sales_rep_id = r.sales_rep_id
+               AND l.visit_checkin_at IS NOT NULL
+               AND o.created_at >= l.visit_checkin_at
+             LIMIT 1'
+        );
+        $st2->execute([$routeLineId]);
 
-        return (bool) $st->fetchColumn();
+        return (bool) $st2->fetchColumn();
     } catch (Throwable $e) {
         return false;
     }

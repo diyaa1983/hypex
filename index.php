@@ -213,6 +213,7 @@ $appBootMigrations = [
     'database/migrations/293_mobile_rep_tours_manage.sql',
     'database/migrations/294_mobile_manager_customer_orders.sql',
     'database/migrations/295_action_delete_user.sql',
+    'database/migrations/296_mobile_manager_customer_orders_approve.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

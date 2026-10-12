@@ -284,6 +284,55 @@ class OfflineController extends ChangeNotifier {
     _flushing = false;
   }
 
+  /// يحفظ مسودات OFF المحلية للعميل على السيرفر (بدون ترحيل) لتمرير فحص الطلب عند الخروج.
+  Future<int> pushUnsentDraftsForCustomer({
+    required int customerId,
+    required String csrf,
+    int visitRouteLineId = 0,
+    int maxCount = 8,
+  }) async {
+    if (customerId == 0 || !serverReachable) return 0;
+    final drafts = await store.listUnsentOrdersForCustomer(customerId);
+    var saved = 0;
+    for (final o in drafts) {
+      if (saved >= maxCount) break;
+      final id = (o['id'] as num?)?.toInt() ?? 0;
+      if (id > 0) {
+        // موجود على السيرفر وغير مُرحَّل — يكفي لـ has_order إن رُبط بسطر الزيارة.
+        saved++;
+        continue;
+      }
+      if (id >= 0) continue;
+      final body = store.buildOrderSaveBody(
+        o,
+        visitRouteLineId: visitRouteLineId,
+      );
+      if (body == null) continue;
+      try {
+        final res = await api.postJson(
+          AppConfig.customerOrderSavePath,
+          body: body,
+          csrf: csrf,
+        );
+        final serverId = (res['order_id'] as num?)?.toInt() ??
+            (res['id'] as num?)?.toInt() ??
+            0;
+        final orderNo = (res['order_no'] ?? '').toString();
+        if (serverId > 0) {
+          await store.rewriteLocalOrderId(
+            localId: id,
+            serverId: serverId,
+            orderNo: orderNo,
+          );
+          saved++;
+        }
+      } on ApiException {
+        // جرّب المسودة التالية (مثلاً طلب بلا بنود).
+      } catch (_) {}
+    }
+    return saved;
+  }
+
   /// فقط الطلبات التي عليها pending_send=1 (ضغط المندوب ترحيل وهو أوفلاين).
   Future<int> _queueExplicitPendingSends() async {
     if (!serverReachable) return 0;

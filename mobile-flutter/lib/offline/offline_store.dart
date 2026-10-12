@@ -1379,6 +1379,37 @@ class OfflineStore {
         .toList();
   }
 
+  /// جسم حفظ جاهز للإرسال من مسودة محلية (OFF-*).
+  Map<String, dynamic>? buildOrderSaveBody(
+    Map<String, dynamic> order, {
+    int visitRouteLineId = 0,
+  }) {
+    final id = _orderIdOf(order);
+    if (id == 0) return null;
+    Map<String, dynamic> body;
+    final pending = order['pending_save_body'];
+    if (pending is Map) {
+      body = Map<String, dynamic>.from(pending.cast<String, dynamic>());
+    } else {
+      final visitLine = (order['visit_route_line_id'] as num?)?.toInt() ?? 0;
+      body = {
+        'customer_id': (order['customer_id'] as num?)?.toInt() ?? 0,
+        'warehouse_id': (order['warehouse_id'] as num?)?.toInt() ?? 0,
+        'payment_type': order['payment_type'] ?? 'credit',
+        'delivery_date': order['delivery_date'] ?? '',
+        'notes': order['notes'] ?? '',
+        'lines': order['lines'] is List ? order['lines'] : const [],
+        if (visitLine != 0) 'visit_route_line_id': visitLine,
+      };
+    }
+    body['local_order_id'] = id;
+    body['id'] = id > 0 ? id : 0;
+    if (visitRouteLineId > 0) {
+      body['visit_route_line_id'] = visitRouteLineId;
+    }
+    return body;
+  }
+
   /// أي طلب مرتبط بالزيارة أو محفوظ محلياً لنفس العميل (بما فيه معلّق بالـ outbox).
   Future<int> visitRelatedOrderId({
     required int customerId,

@@ -218,9 +218,9 @@ const Map<String, TileSpec> kTileSpecs = {
   ),
   'm_manager_customer_orders': TileSpec(
     '/manager/customer-orders',
-    Icons.receipt_long_rounded,
-    AppTheme.primary,
-    'الإدارة',
+    Icons.fact_check_rounded,
+    AppTheme.success,
+    'الموافقات',
   ),
 };
 

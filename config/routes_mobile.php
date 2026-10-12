@@ -351,9 +351,9 @@ return [
     'm_manager_customer_orders' => [
         'file' => 'modules/mobile/manager_customer_orders.php',
         'permission' => 'm_manager_customer_orders',
-        'title' => 'طلبات شراء العملاء',
-        'home_label' => 'طلبات شراء العملاء',
-        'icon' => 'list',
+        'title' => 'اعتماد طلبات شراء المندوبين',
+        'home_label' => 'اعتماد طلبات الشراء',
+        'icon' => 'check',
         'tile_kind' => 'list',
         'home_tile' => true,
     ],

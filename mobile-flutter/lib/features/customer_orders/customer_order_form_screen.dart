@@ -266,13 +266,19 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String? _arError;
   bool _autoSendOrders = false;
   bool _isSent = false;
+  bool _managerMode = false;
   final _orderNoCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   String _cleanFingerprint = '';
 
-  bool get _editable => !_approved && !_isSent;
+  /// المدير يعدّل الطلب بعد ترحيل المندوب وقبل الاعتماد.
+  bool get _editable => !_approved && (!_isSent || _managerMode);
 
-  bool get _canDelete => !_isSent && !_approved && (_id > 0 || _lines.isNotEmpty);
+  bool get _canDelete =>
+      !_approved && (!_isSent || _managerMode) && (_id > 0 || _lines.isNotEmpty);
+
+  bool get _canManagerApprove =>
+      _managerMode && _id > 0 && _isSent && !_approved;
 
   String _fingerprint() {
     final lines = _lines
@@ -312,6 +318,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _managerMode =
+        context.read<SessionController>().can('m_manager_customer_orders');
     if (_autoSendBound) return;
     _autoSendBound = true;
     _offline = context.read<OfflineController>();
@@ -322,6 +330,43 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _afterPostedClear();
       }
     };
+  }
+
+  Future<void> _approveAsManager() async {
+    if (!_canManagerApprove || _busy) return;
+    if (isDirty) {
+      final savedId = await _save();
+      if (savedId == 0) return;
+    }
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'اعتماد الطلب',
+      message: 'اعتماد هذا الطلب ليظهر في النظام وكشف الحساب؟',
+      confirmLabel: 'اعتماد',
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final csrf = await context.read<SessionController>().ensureCsrf();
+      final res = await context.read<ApiClient>().postJson(
+            AppConfig.managerCustomerOrderApprovePath,
+            body: {'id': _id, 'approve': true},
+            csrf: csrf,
+          );
+      if (!mounted) return;
+      showSnack(
+        context,
+        Fmt.str(res['message']).isEmpty
+            ? 'تم اعتماد الطلب.'
+            : Fmt.str(res['message']),
+      );
+      setState(() => _approved = true);
+      _markClean();
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -873,8 +918,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   /// الترحيل متاح طالما الطلب قابل للتعديل وفيه مواد ولم يُرحَّل بعد.
   /// عند الضغط: يُحفظ محلياً أولاً ثم يُرسل — الحفظ وحده لا يرسل للنظام.
+  /// المدير يعتمد بعد الترحيل ولا يعيد «ترحيل».
   bool get _canPost =>
-      _editable && !_isSent && !_approved && _lines.isNotEmpty;
+      !_managerMode &&
+      _editable &&
+      !_isSent &&
+      !_approved &&
+      _lines.isNotEmpty;
 
   bool get _canStartNew => _isSaved && !_busy;
 
@@ -1184,19 +1234,30 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             onPressed: _busy || !_editable ? null : _save,
           ),
           const SizedBox(width: 8),
-          _actionBtn(
-            label: 'ترحيل',
-            icon: Icons.send_rounded,
-            filled: true,
-            color: AppTheme.teal,
-            onPressed: _busy || !_canPost ? null : _post,
-          ),
-          const SizedBox(width: 8),
-          _actionBtn(
-            label: 'طلب جديد',
-            icon: Icons.note_add_outlined,
-            onPressed: _canStartNew ? _startNewOrder : null,
-          ),
+          if (_canManagerApprove)
+            _actionBtn(
+              label: 'اعتماد',
+              icon: Icons.verified_rounded,
+              filled: true,
+              color: AppTheme.success,
+              onPressed: _busy ? null : _approveAsManager,
+            )
+          else if (!_managerMode)
+            _actionBtn(
+              label: 'ترحيل',
+              icon: Icons.send_rounded,
+              filled: true,
+              color: AppTheme.teal,
+              onPressed: _busy || !_canPost ? null : _post,
+            ),
+          if (!_managerMode) ...[
+            const SizedBox(width: 8),
+            _actionBtn(
+              label: 'طلب جديد',
+              icon: Icons.note_add_outlined,
+              onPressed: _canStartNew ? _startNewOrder : null,
+            ),
+          ],
           const SizedBox(width: 8),
           _actionBtn(
             label: 'طباعة',
@@ -2078,37 +2139,56 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 38,
-              child: FilledButton(
-                onPressed: _busy || !_canPost ? null : _post,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+          if (_canManagerApprove)
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: FilledButton(
+                  onPressed: _busy ? null : _approveAsManager,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.success,
+                  ),
+                  child: const Text(
+                    'اعتماد',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
                 ),
-                child: const Text(
-                  'ترحيل',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+            )
+          else if (!_managerMode)
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: FilledButton(
+                  onPressed: _busy || !_canPost ? null : _post,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF4CAF50),
+                  ),
+                  child: const Text(
+                    'ترحيل',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: SizedBox(
-              height: 38,
-              child: FilledButton(
-                onPressed: _canStartNew ? _startNewOrder : null,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppTheme.primary,
-                ),
-                child: const Text(
-                  'طلب جديد',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          if (!_managerMode) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: SizedBox(
+                height: 38,
+                child: FilledButton(
+                  onPressed: _canStartNew ? _startNewOrder : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppTheme.primary,
+                  ),
+                  child: const Text(
+                    'طلب جديد',
+                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

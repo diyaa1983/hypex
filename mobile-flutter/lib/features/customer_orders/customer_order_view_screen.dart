@@ -100,9 +100,43 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       _order['is_sent'] == 1 ||
       Fmt.toInt(_order['is_sent']) == 1;
 
-  bool get _canDeleteOrEdit => !_approved && !_sent;
+  bool get _managerMode =>
+      context.read<SessionController>().can('m_manager_customer_orders');
+
+  bool get _canDeleteOrEdit => !_approved && (!_sent || _managerMode);
+
+  bool get _canApprove => _managerMode && _sent && !_approved;
 
   bool get _oraclePosted => Fmt.toInt(_order['oracle_v_num']) > 0;
+
+  Future<void> _approveAsManager() async {
+    if (!_canApprove) return;
+    final ok = await showAppConfirmDialog(
+      context,
+      title: 'اعتماد الطلب',
+      message: 'اعتماد هذا الطلب ليظهر في النظام وكشف الحساب؟',
+      confirmLabel: 'اعتماد',
+    );
+    if (ok != true || !mounted) return;
+    try {
+      final csrf = await context.read<SessionController>().ensureCsrf();
+      final res = await context.read<ApiClient>().postJson(
+            AppConfig.managerCustomerOrderApprovePath,
+            body: {'id': widget.orderId, 'approve': true},
+            csrf: csrf,
+          );
+      if (!mounted) return;
+      showSnack(
+        context,
+        Fmt.str(res['message']).isEmpty
+            ? 'تم اعتماد الطلب.'
+            : Fmt.str(res['message']),
+      );
+      await _load();
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    }
+  }
 
   ({String label, Color color, String hint}) get _workflowStatus {
     if (_approved) {
@@ -390,13 +424,24 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
                             icon: const Icon(Icons.edit_outlined),
                             label: const Text('تعديل'))),
                   if (_canDeleteOrEdit) const SizedBox(width: 8),
-                  if (_canDeleteOrEdit)
+                  if (_canApprove)
+                    Expanded(
+                        child: FilledButton.icon(
+                            onPressed: _approveAsManager,
+                            icon: const Icon(Icons.verified_rounded),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: AppTheme.success,
+                            ),
+                            label: const Text('اعتماد'))),
+                  if (_canApprove) const SizedBox(width: 8),
+                  if (_canDeleteOrEdit && !_managerMode)
                     Expanded(
                         child: OutlinedButton.icon(
                             onPressed: _delete,
                             icon: const Icon(Icons.delete_outline_rounded),
                             label: const Text('حذف'))),
-                  if (_canDeleteOrEdit) const SizedBox(width: 8),
+                  if (_canDeleteOrEdit && !_managerMode)
+                    const SizedBox(width: 8),
                   Expanded(
                       child: FilledButton.icon(
                           onPressed: _preview,

@@ -92,7 +92,21 @@ if (array_key_exists('is_sent', $_GET)) {
     }
 }
 
-$total = sal_customer_order_list_count($pdo, $q, $salesRepId, null, null, $isSent, $dateFrom, $dateTo);
+$status = trim((string) ($_GET['status'] ?? ''));
+if ($status !== '' && !in_array($status, ['draft', 'approved'], true)) {
+    $status = '';
+}
+$statusFilter = $status !== '' ? $status : null;
+
+// pending_approval = مرحّل من المندوب وبانتظار اعتماد المدير
+$pendingApproval = isset($_GET['pending_approval'])
+    && ($_GET['pending_approval'] === '1' || $_GET['pending_approval'] === 1 || $_GET['pending_approval'] === true || $_GET['pending_approval'] === 'true');
+if ($pendingApproval) {
+    $isSent = 1;
+    $statusFilter = 'draft';
+}
+
+$total = sal_customer_order_list_count($pdo, $q, $salesRepId, $statusFilter, null, $isSent, $dateFrom, $dateTo);
 $pager = mobile_list_pager_from_request($pdo, $total);
 $rows = [];
 if ($total > 0) {
@@ -100,7 +114,7 @@ if ($total > 0) {
         $pdo,
         $q,
         $salesRepId,
-        null,
+        $statusFilter,
         null,
         (int) $pager['limit'],
         (int) $pager['offset'],

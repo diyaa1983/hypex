@@ -235,7 +235,7 @@ class _CustomerAddScreenState extends State<CustomerAddScreen> {
   Future<void> _pickLocation() async {
     setState(() => _locating = true);
     try {
-      final pos = await LocationService.requirePosition();
+      final pos = await LocationService.requirePosition(fresh: true);
       if (!mounted) return;
       setState(() {
         _latitude = pos.latitude;

@@ -69,13 +69,10 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   Future<void> _goToCurrent() async {
     setState(() => _locating = true);
     try {
-      final quick = await LocationService.instantPosition();
-      if (mounted && quick != null) {
-        _moveTo(LatLng(quick.latitude, quick.longitude), zoom: 16);
-      }
-      final pos = await LocationService.requirePosition();
+      // قراءة جديدة فقط — لا نعرض موقعاً قديماً من الذاكرة/lastKnown.
+      final pos = await LocationService.requirePosition(fresh: true);
       if (!mounted) return;
-      _moveTo(LatLng(pos.latitude, pos.longitude));
+      _moveTo(LatLng(pos.latitude, pos.longitude), zoom: 16);
     } catch (e) {
       if (!mounted) return;
       showSnack(context, LocationService.friendlyError(e), error: true);

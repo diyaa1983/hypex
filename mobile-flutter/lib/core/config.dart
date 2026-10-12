@@ -123,4 +123,6 @@ class AppConfig {
   static const String repToursManagePath = 'api/mobile_rep_tours_manage.php';
   static const String managerCustomerOrdersPath =
       'api/mobile_manager_customer_orders.php';
+  static const String managerCustomerOrderApprovePath =
+      'api/mobile_manager_customer_order_approve.php';
 }

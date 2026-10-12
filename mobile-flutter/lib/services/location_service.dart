@@ -136,15 +136,17 @@ class LocationService {
   }
 
   /// موقع فوري إن وُجد (ذاكرة الجلسة أو آخر موقع معروف) — بلا انتظار.
+  /// لا يُرجع موقعاً قديماً خارج مدة الصلاحية.
   static Future<Position?> instantPosition() async {
     if (_cached != null && _isFresh(_cachedAt, _cacheFresh)) {
       return _cached;
     }
     final last = await _lastKnown();
-    if (last != null && DateTime.now().difference(last.timestamp) <= _lastKnownFresh) {
+    if (last != null &&
+        DateTime.now().difference(last.timestamp) <= _lastKnownFresh) {
       return last;
     }
-    return last;
+    return null;
   }
 
   /// محاولة الحصول على الموقع الحالي؛ تُرجع null بصمت عند التعذر.
@@ -163,45 +165,58 @@ class LocationService {
       timeLimit: const Duration(seconds: 10),
     );
     if (pos != null) return pos;
-    return _lastKnown();
+    final last = await _lastKnown();
+    if (last != null &&
+        DateTime.now().difference(last.timestamp) <= _lastKnownFresh) {
+      return last;
+    }
+    return null;
   }
 
   /// طلب الإذن صراحةً وإرجاع الموقع أو رمي رسالة عربية.
   ///
-  /// التدرّج: ذاكرة الجلسة ← دقة متوسطة (شبكة/Wi‑Fi، سريعة) ←
-  /// دقة عالية (GPS) ← تدفّق الموقع ← آخر موقع معروف.
-  static Future<Position> requirePosition() async {
+  /// [fresh]: عند الضغط على «موقعي الحالي» — يتجاهل الذاكرة وآخر موقع معروف
+  /// ويقرأ موقعاً جديداً من الجهاز الآن.
+  ///
+  /// التدرّج الاعتيادي: ذاكرة الجلسة ← دقة متوسطة ← دقة عالية ← تدفّق ← آخر معروف.
+  static Future<Position> requirePosition({bool fresh = false}) async {
     await _ensurePermission();
 
-    if (_cached != null && _isFresh(_cachedAt, _cacheFresh)) {
+    if (fresh) {
+      _cached = null;
+      _cachedAt = null;
+    } else if (_cached != null && _isFresh(_cachedAt, _cacheFresh)) {
       return _cached!;
     }
 
     // دقة متوسطة أولاً: تعمل عبر الشبكة/Wi‑Fi وتنجح على الأجهزة بلا GPS.
     var pos = await _read(
       accuracy: LocationAccuracy.medium,
-      timeLimit: const Duration(seconds: 12),
+      timeLimit: Duration(seconds: fresh ? 15 : 12),
     );
     if (pos != null) return pos;
 
     // دقة عالية: GPS للأجهزة التي تدعمه.
     pos = await _read(
       accuracy: LocationAccuracy.high,
-      timeLimit: const Duration(seconds: 15),
+      timeLimit: Duration(seconds: fresh ? 20 : 15),
     );
     if (pos != null) return pos;
 
-    // تدفّق الموقع كبديل أخير قبل الاستسلام.
+    // تدفّق الموقع — قراءة حيّة وليست lastKnown.
     pos = await _firstFromStream(
-      accuracy: LocationAccuracy.low,
-      timeLimit: const Duration(seconds: 12),
+      accuracy: fresh ? LocationAccuracy.high : LocationAccuracy.low,
+      timeLimit: Duration(seconds: fresh ? 15 : 12),
     );
     if (pos != null) return pos;
 
-    final last = await _lastKnown();
-    if (last != null) return last;
+    // عند طلب موقع «الآن» لا نُرجع موقعاً قديماً — أفضل رسالة خطأ من موقع خاطئ.
+    if (!fresh) {
+      final last = await _lastKnown();
+      if (last != null) return last;
+    }
 
-    throw 'تعذّر تحديد الموقع. تأكد من تفعيل الموقع والاتصال بالإنترنت، '
-        'أو حدّد الموقع يدوياً على الخريطة.';
+    throw 'تعذّر تحديد الموقع الحالي الآن. تأكد من تفعيل الموقع والاتصال بالإنترنت، '
+        'ثم أعد المحاولة أو حدّد الموقع يدوياً على الخريطة.';
   }
 }

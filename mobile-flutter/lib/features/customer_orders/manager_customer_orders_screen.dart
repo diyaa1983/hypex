@@ -5,13 +5,15 @@ import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
+import '../../core/session.dart';
 import '../../core/theme.dart';
+import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
 import '../../widgets/ui_kit.dart';
 
-/// طلبات شراء العملاء — مدير المبيعات حسب المندوب (اطلاع).
+/// اعتماد طلبات شراء المندوبين — قائمة حسب المندوب + تعديل + اعتماد.
 class ManagerCustomerOrdersScreen extends StatefulWidget {
   const ManagerCustomerOrdersScreen({super.key});
 
@@ -24,13 +26,15 @@ class _ManagerCustomerOrdersScreenState
     extends State<ManagerCustomerOrdersScreen> {
   bool _loading = true;
   bool _loadingOrders = false;
+  bool _busy = false;
   String? _error;
   List<Map<String, dynamic>> _reps = [];
   List<Map<String, dynamic>> _orders = [];
   Map<String, dynamic>? _pager;
   int _repId = 0;
   int _page = 1;
-  String? _sentFilter; // null = الكل، '1' مرسلة، '0' غير مرسلة
+  /// pending | approved | all
+  String _filter = 'pending';
   DateTime _from = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _to = DateTime.now();
   final _search = TextEditingController();
@@ -98,7 +102,12 @@ class _ManagerCustomerOrdersScreenState
         'to': _toIso,
         'q': _search.text.trim(),
       };
-      if (_sentFilter != null) query['is_sent'] = _sentFilter;
+      if (_filter == 'pending') {
+        query['pending_approval'] = '1';
+      } else if (_filter == 'approved') {
+        query['status'] = 'approved';
+        query['is_sent'] = '1';
+      }
       final res = await context.read<ApiClient>().getJson(
             AppConfig.managerCustomerOrdersPath,
             query: query,
@@ -162,15 +171,68 @@ class _ManagerCustomerOrdersScreenState
     return v == true || v == 1 || '$v' == '1';
   }
 
+  bool _isApproved(Map<String, dynamic> o) {
+    return o['approved'] == true ||
+        o['is_approved'] == true ||
+        Fmt.str(o['status']) == 'approved';
+  }
+
+  bool _canApprove(Map<String, dynamic> o) =>
+      _isSent(o) && !_isApproved(o);
+
+  Future<void> _approveOrder(Map<String, dynamic> o, {bool approve = true}) async {
+    final id = Fmt.toInt(o['id']);
+    if (id < 1 || _busy) return;
+    final ok = await showAppConfirmDialog(
+      context,
+      title: approve ? 'اعتماد الطلب' : 'فك الاعتماد',
+      message: approve
+          ? 'اعتماد طلب ${Fmt.str(o['order_no']).isEmpty ? '#$id' : Fmt.str(o['order_no'])} للعميل ${Fmt.str(o['customer_name'])}؟'
+          : 'فك اعتماد الطلب وإعادته لمسودة؟',
+      confirmLabel: approve ? 'اعتماد' : 'فك الاعتماد',
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final csrf = await context.read<SessionController>().ensureCsrf();
+      final res = await context.read<ApiClient>().postJson(
+            AppConfig.managerCustomerOrderApprovePath,
+            body: {'id': id, 'approve': approve},
+            csrf: csrf,
+          );
+      if (!mounted) return;
+      showSnack(
+        context,
+        Fmt.str(res['message']).isEmpty
+            ? (approve ? 'تم اعتماد الطلب.' : 'تم فك الاعتماد.')
+            : Fmt.str(res['message']),
+      );
+      await _loadOrders();
+    } on ApiException catch (e) {
+      if (mounted) showSnack(context, e.message, error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openOrder(Map<String, dynamic> o, {required bool edit}) async {
+    final id = Fmt.toInt(o['id']);
+    if (id < 1) return;
+    await context.push(
+      edit ? '/customer-orders/$id/edit' : '/customer-orders/$id',
+    );
+    if (mounted) _loadOrders();
+  }
+
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
-      title: const Text('طلبات شراء العملاء'),
+      title: const Text('اعتماد طلبات الشراء'),
       backgroundColor: const Color(0xFFF0F4F8),
       actions: [
         IconButton(
           tooltip: 'تحديث',
-          onPressed: _loading || _loadingOrders
+          onPressed: _loading || _loadingOrders || _busy
               ? null
               : () {
                   if (_repId > 0) {
@@ -213,7 +275,7 @@ class _ManagerCustomerOrdersScreenState
                           ),
                         ),
                     ],
-                    onChanged: _loadingOrders
+                    onChanged: _loadingOrders || _busy
                         ? null
                         : (v) {
                             if (v == null || v == _repId) return;
@@ -253,18 +315,19 @@ class _ManagerCustomerOrdersScreenState
                       filled: true,
                       fillColor: Colors.white,
                       prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _search.text.isEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.search_rounded),
-                              onPressed: _resetAndLoad,
-                            )
-                          : IconButton(
-                              icon: const Icon(Icons.close_rounded),
-                              onPressed: () {
-                                _search.clear();
-                                _resetAndLoad();
-                              },
-                            ),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _search.text.isEmpty
+                              ? Icons.search_rounded
+                              : Icons.close_rounded,
+                        ),
+                        onPressed: () {
+                          if (_search.text.isNotEmpty) {
+                            _search.clear();
+                          }
+                          _resetAndLoad();
+                        },
+                      ),
                       border: const OutlineInputBorder(),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 12,
@@ -279,21 +342,21 @@ class _ManagerCustomerOrdersScreenState
                     child: Row(
                       children: [
                         for (final e in const [
-                          (null, 'الكل'),
-                          ('1', 'مرسلة'),
-                          ('0', 'غير مرسلة'),
+                          ('pending', 'بانتظار الاعتماد'),
+                          ('approved', 'معتمدة'),
+                          ('all', 'الكل'),
                         ]) ...[
                           Padding(
                             padding: const EdgeInsets.only(left: 6),
                             child: ChoiceChip(
                               label: Text(e.$2),
-                              selected: _sentFilter == e.$1,
-                              onSelected: _loadingOrders
+                              selected: _filter == e.$1,
+                              onSelected: _loadingOrders || _busy
                                   ? null
                                   : (_) {
-                                      if (_sentFilter == e.$1) return;
+                                      if (_filter == e.$1) return;
                                       setState(() {
-                                        _sentFilter = e.$1;
+                                        _filter = e.$1;
                                         _page = 1;
                                       });
                                       _loadOrders();
@@ -322,11 +385,13 @@ class _ManagerCustomerOrdersScreenState
                       ? const Center(child: CircularProgressIndicator())
                       : _orders.isEmpty
                           ? ListView(
-                              children: const [
-                                SizedBox(height: 70),
+                              children: [
+                                const SizedBox(height: 70),
                                 EmptyState(
-                                  message: 'لا توجد طلبات لهذا المندوب.',
-                                  icon: Icons.receipt_long_rounded,
+                                  message: _filter == 'pending'
+                                      ? 'لا توجد طلبات بانتظار الاعتماد لهذا المندوب.'
+                                      : 'لا توجد طلبات لهذا المندوب.',
+                                  icon: Icons.fact_check_rounded,
                                 ),
                               ],
                             )
@@ -338,69 +403,138 @@ class _ManagerCustomerOrdersScreenState
                                 itemCount: _orders.length,
                                 itemBuilder: (_, i) {
                                   final o = _orders[i];
+                                  final approved = _isApproved(o);
+                                  final canApprove = _canApprove(o);
                                   final sent = _isSent(o);
                                   return Padding(
                                     padding: const EdgeInsets.only(bottom: 10),
                                     child: AppCard(
-                                      onTap: () async {
-                                        await context.push(
-                                          '/customer-orders/${Fmt.toInt(o['id'])}',
-                                        );
-                                        if (mounted) _loadOrders();
-                                      },
-                                      child: Row(
+                                      onTap: () => _openOrder(o, edit: false),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
                                         children: [
-                                          MiniIcon(
-                                            sent
-                                                ? Icons.mark_email_read_rounded
-                                                : Icons.outbox_rounded,
-                                            color: sent
-                                                ? AppTheme.success
-                                                : AppTheme.amber,
+                                          Row(
+                                            children: [
+                                              MiniIcon(
+                                                approved
+                                                    ? Icons.verified_rounded
+                                                    : sent
+                                                        ? Icons.pending_actions_rounded
+                                                        : Icons.outbox_rounded,
+                                                color: approved
+                                                    ? AppTheme.success
+                                                    : AppTheme.warn,
+                                              ),
+                                              const SizedBox(width: 10),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment:
+                                                      CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(
+                                                      Fmt.str(o['order_no'])
+                                                              .isEmpty
+                                                          ? '#${Fmt.toInt(o['id'])}'
+                                                          : Fmt.str(
+                                                              o['order_no']),
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 3),
+                                                    Text(
+                                                      '${Fmt.str(o['customer_name'])}  •  ${Fmt.dmy(Fmt.str(o['order_date']))}',
+                                                      style: const TextStyle(
+                                                        color: AppTheme.textSoft,
+                                                        fontSize: 12.5,
+                                                      ),
+                                                    ),
+                                                    Text(
+                                                      'الإجمالي: ${Fmt.money(Fmt.toDouble(o['total']))}',
+                                                      style: const TextStyle(
+                                                        color: AppTheme.textSoft,
+                                                        fontSize: 12.5,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              StatusPill(
+                                                text: approved
+                                                    ? 'معتمد'
+                                                    : sent
+                                                        ? 'بانتظار الاعتماد'
+                                                        : 'غير مرسل',
+                                                color: approved
+                                                    ? AppTheme.success
+                                                    : AppTheme.warn,
+                                              ),
+                                            ],
                                           ),
-                                          const SizedBox(width: 10),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  Fmt.str(o['order_no'])
-                                                          .isEmpty
-                                                      ? '#${Fmt.toInt(o['id'])}'
-                                                      : Fmt.str(o['order_no']),
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.w800,
+                                          const SizedBox(height: 10),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: OutlinedButton.icon(
+                                                  onPressed: _busy
+                                                      ? null
+                                                      : () => _openOrder(
+                                                            o,
+                                                            edit: !approved,
+                                                          ),
+                                                  icon: Icon(
+                                                    approved
+                                                        ? Icons.visibility_outlined
+                                                        : Icons.edit_outlined,
+                                                    size: 18,
+                                                  ),
+                                                  label: Text(
+                                                    approved ? 'عرض' : 'تعديل',
                                                   ),
                                                 ),
-                                                const SizedBox(height: 3),
-                                                Text(
-                                                  '${Fmt.str(o['customer_name'])}  •  ${Fmt.dmy(Fmt.str(o['order_date']))}',
-                                                  style: const TextStyle(
-                                                    color: AppTheme.textSoft,
-                                                    fontSize: 12.5,
-                                                  ),
-                                                ),
-                                                Text(
-                                                  'الإجمالي: ${Fmt.money(Fmt.toDouble(o['total']))}',
-                                                  style: const TextStyle(
-                                                    color: AppTheme.textSoft,
-                                                    fontSize: 12.5,
+                                              ),
+                                              if (canApprove) ...[
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: FilledButton.icon(
+                                                    onPressed: _busy
+                                                        ? null
+                                                        : () =>
+                                                            _approveOrder(o),
+                                                    icon: const Icon(
+                                                      Icons.check_circle_outline,
+                                                      size: 18,
+                                                    ),
+                                                    label: const Text('اعتماد'),
+                                                    style: FilledButton.styleFrom(
+                                                      backgroundColor:
+                                                          AppTheme.success,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
-                                            ),
-                                          ),
-                                          StatusPill(
-                                            text: sent ? 'مرسل' : 'غير مرسل',
-                                            color: sent
-                                                ? AppTheme.success
-                                                : AppTheme.amber,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          const Icon(
-                                            Icons.chevron_left_rounded,
-                                            color: AppTheme.textSoft,
+                                              if (approved) ...[
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: OutlinedButton.icon(
+                                                    onPressed: _busy
+                                                        ? null
+                                                        : () => _approveOrder(
+                                                              o,
+                                                              approve: false,
+                                                            ),
+                                                    icon: const Icon(
+                                                      Icons.undo_rounded,
+                                                      size: 18,
+                                                    ),
+                                                    label:
+                                                        const Text('فك الاعتماد'),
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
                                           ),
                                         ],
                                       ),

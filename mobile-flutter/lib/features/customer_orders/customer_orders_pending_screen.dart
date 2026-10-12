@@ -155,6 +155,46 @@ class _CustomerOrdersPendingScreenState
     });
   }
 
+  Future<void> _queueLocalSaveThenSend(
+    OfflineController offline,
+    List<int> localIds,
+  ) async {
+    final store = OfflineStore.instance;
+    for (final id in localIds) {
+      if (id >= 0) continue;
+      final order = await store.getOrderById(id);
+      if (order == null) continue;
+      final body = store.buildOrderSaveBody(order);
+      if (body == null) continue;
+      await offline.enqueue(
+        kind: 'customer_order_save',
+        path: AppConfig.customerOrderSavePath,
+        body: body,
+      );
+      await store.markOrderSendRequested(id);
+      await offline.enqueue(
+        kind: 'customer_order_send',
+        path: AppConfig.customerOrderSendPath,
+        body: {'ids': [id]},
+      );
+    }
+  }
+
+  Future<void> _queueServerSend(
+    OfflineController offline,
+    List<int> serverIds,
+  ) async {
+    if (serverIds.isEmpty) return;
+    for (final id in serverIds) {
+      await OfflineStore.instance.markOrderSendRequested(id);
+    }
+    await offline.enqueue(
+      kind: 'customer_order_send',
+      path: AppConfig.customerOrderSendPath,
+      body: {'ids': serverIds},
+    );
+  }
+
   Future<void> _sendSelected() async {
     if (_selected.isEmpty) {
       showSnack(context, 'اختر طلباً واحداً على الأقل.', error: true);
@@ -162,27 +202,26 @@ class _CustomerOrdersPendingScreenState
     }
     setState(() => _busy = true);
     final offline = context.read<OfflineController>();
+    final api = context.read<ApiClient>();
+    final csrf = context.read<SessionController>().csrf;
+    final store = OfflineStore.instance;
     try {
-      final serverIds =
-          _selected.where((id) => id > 0).toList();
-      final localIds =
-          _selected.where((id) => id < 0).toList();
-
-      Future<void> queueSend(List<int> ids) async {
-        if (ids.isEmpty) return;
-        for (final id in ids) {
-          await OfflineStore.instance.markOrderSendRequested(id);
+      final serverIds = _selected.where((id) => id > 0).toList();
+      final localIds = _selected.where((id) => id < 0).toList();
+      if (serverIds.isEmpty && localIds.isEmpty) {
+        if (mounted) {
+          showSnack(context, 'اختر طلباً واحداً على الأقل.', error: true);
         }
-        await offline.enqueue(
-          kind: 'customer_order_send',
-          path: AppConfig.customerOrderSendPath,
-          body: {'ids': ids},
-        );
+        return;
+      }
+
+      Future<void> queueAll() async {
+        await _queueLocalSaveThenSend(offline, localIds);
+        await _queueServerSend(offline, serverIds);
       }
 
       if (!offline.online && offline.catalogReady) {
-        // طلبات محلية غير مُرحَّلة: send بعد save عبر ترتيب الطابور
-        await queueSend([...serverIds, ...localIds]);
+        await queueAll();
         if (!mounted) return;
         showSnack(
           context,
@@ -192,12 +231,41 @@ class _CustomerOrdersPendingScreenState
         await _load();
         return;
       }
+
       try {
-        final res = await context.read<ApiClient>().postJson(
-              AppConfig.customerOrderSendPath,
-              body: {'ids': _selected.toList()},
-              csrf: context.read<SessionController>().csrf,
+        final toSend = <int>[...serverIds];
+        for (final localId in localIds) {
+          final order = await store.getOrderById(localId);
+          if (order == null) continue;
+          final body = store.buildOrderSaveBody(order);
+          if (body == null) continue;
+          final saveRes = await api.postJson(
+            AppConfig.customerOrderSavePath,
+            body: body,
+            csrf: csrf,
+          );
+          final serverId = Fmt.toInt(saveRes['order_id'] ?? saveRes['id']);
+          if (serverId > 0) {
+            await store.rewriteLocalOrderId(
+              localId: localId,
+              serverId: serverId,
+              orderNo: Fmt.str(saveRes['order_no']),
             );
+            toSend.add(serverId);
+          }
+        }
+        if (toSend.isEmpty) {
+          if (mounted) {
+            showSnack(context, 'اختر طلباً واحداً على الأقل.', error: true);
+          }
+          return;
+        }
+        final res = await api.postJson(
+          AppConfig.customerOrderSendPath,
+          body: {'ids': toSend},
+          csrf: csrf,
+        );
+        await store.markOrderSent(toSend);
         if (!mounted) return;
         showSnack(
           context,
@@ -211,7 +279,7 @@ class _CustomerOrdersPendingScreenState
         if (offline.catalogReady &&
             (e.message.contains('تعذر الاتصال') ||
                 e.message.contains('الإنترنت'))) {
-          await queueSend(_selected.toList());
+          await queueAll();
           if (!mounted) return;
           showSnack(
             context,

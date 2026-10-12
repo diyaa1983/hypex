@@ -795,25 +795,24 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
     if (v == null) return;
     final name = Fmt.str(v['name']);
     List<int> noOrderReasonIds = [];
-    if (!_visitHasOrder(v)) {
-      // Offline: طلب محلي/معلّق لنفس العميل أو مرتبط بسطر الزيارة
-      // (حتى لو لم يُرحَّل بعد بسبب فقد الاتصال — لا تُطلب أسباب عدم الطلب).
-      final lineId = Fmt.toInt(v['route_line_id']);
-      final localOid = await OfflineStore.instance.visitRelatedOrderId(
-        customerId: keepCid,
-        routeLineId: lineId,
-      );
-      if (localOid != 0) {
-        setState(() {
-          _selected = Map<String, dynamic>.from(v)
-            ..['has_order'] = true
-            ..['order_id'] = localOid;
-        });
-      } else {
-        final picked = await _pickNoOrderReasons();
-        if (picked == null || picked.isEmpty) return;
-        noOrderReasonIds = picked;
-      }
+    final lineId = Fmt.toInt(v['route_line_id']);
+    final localOid = await OfflineStore.instance.visitRelatedOrderId(
+      customerId: keepCid,
+      routeLineId: lineId,
+    );
+    final localUnsent =
+        await OfflineStore.instance.listUnsentOrdersForCustomer(keepCid);
+    final hasLocalDraft = localOid != 0 || localUnsent.isNotEmpty;
+    if (hasLocalDraft) {
+      setState(() {
+        _selected = Map<String, dynamic>.from(v)
+          ..['has_order'] = true
+          ..['order_id'] = localOid != 0 ? localOid : Fmt.toInt(v['order_id']);
+      });
+    } else if (!_visitHasOrder(v)) {
+      final picked = await _pickNoOrderReasons();
+      if (picked == null || picked.isEmpty) return;
+      noOrderReasonIds = picked;
     }
     final matchedManual =
         manual && VisitStatus.isManualMethod(v['checkin_method']);
@@ -900,6 +899,13 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
         await localCheckout();
         return;
       }
+      if (hasLocalDraft) {
+        await offline.pushUnsentDraftsForCustomer(
+          customerId: customerId,
+          csrf: csrf,
+          visitRouteLineId: lineId > 0 ? lineId : 0,
+        );
+      }
       try {
         final res = await api.postJson(
           AppConfig.repVisitCheckoutPath,
@@ -926,6 +932,37 @@ class _RepVisitsScreenState extends State<RepVisitsScreen> {
             (e.message.contains('تعذر الاتصال') ||
                 e.message.contains('الإنترنت'))) {
           await localCheckout();
+        } else if (hasLocalDraft &&
+            (e.message.contains('عدم الطلب') ||
+                e.message.contains('لم تُسجّل طلبية') ||
+                e.message.contains('لم تسجل طلبية'))) {
+          await offline.pushUnsentDraftsForCustomer(
+            customerId: customerId,
+            csrf: csrf,
+            visitRouteLineId: lineId > 0 ? lineId : 0,
+          );
+          try {
+            final res = await api.postJson(
+              AppConfig.repVisitCheckoutPath,
+              body: body,
+              csrf: csrf,
+            );
+            if (!mounted) return;
+            showSnack(
+              context,
+              Fmt.str(res['message']).isEmpty
+                  ? 'تم تسجيل الخروج وإغلاق الزيارة'
+                  : Fmt.str(res['message']),
+            );
+            await OfflineStore.instance.clearOpenVisit();
+            await _load();
+          } on ApiException catch (e2) {
+            if (offline.catalogReady) {
+              await localCheckout();
+            } else if (mounted) {
+              showSnack(context, e2.message, error: true);
+            }
+          }
         } else {
           if (!mounted) return;
           showSnack(context, e.message, error: true);

@@ -11,16 +11,33 @@ $body=json_decode((string)file_get_contents('php://input'),true); $body=is_array
 if (!verify_csrf($_SERVER['HTTP_X_CSRF_TOKEN'] ?? ($body['_csrf'] ?? null))) { http_response_code(403); echo json_encode(['ok'=>false,'message'=>'انتهت صلاحية الجلسة.'],JSON_UNESCAPED_UNICODE); exit; }
 try {
  $pdo=db(); sal_customer_order_ensure_schema($pdo); $uid=(int)(current_user()['id']??0); $rep=crm_sales_rep_id_for_user($pdo,$uid);
- if ($rep===null && !user_is_system_admin()) throw new RuntimeException('حسابك غير مربوط بمندوب مبيعات.');
+ $managerBrowse = mobile_can_manage_customer_orders();
+ if ($rep===null && !$managerBrowse && !user_is_system_admin()) throw new RuntimeException('حسابك غير مربوط بمندوب مبيعات.');
  $id=(int)($body['id']??0);
- if ($id>0) { $old=sal_customer_order_fetch($pdo,$id); if (!$old || ($rep!==null && (int)$old['sales_rep_id']!==$rep)) throw new RuntimeException('الطلب غير موجود.'); }
+ $old=null;
+ if ($id>0) {
+     $old=sal_customer_order_fetch($pdo,$id);
+     if (!$old) throw new RuntimeException('الطلب غير موجود.');
+     if (!$managerBrowse && $rep!==null && (int)$old['sales_rep_id']!==$rep) {
+         throw new RuntimeException('الطلب غير موجود.');
+     }
+     if ($managerBrowse && (string)($old['status'] ?? '') !== 'draft') {
+         throw new RuntimeException('لا يمكن تعديل طلب معتمد. فك الاعتماد أولاً.');
+     }
+ }
+ // المدير يعدّل طلبات المندوبين فقط — لا ينشئ طلبات جديدة من هذا المسار.
+ if ($id < 1 && $managerBrowse && $rep === null) {
+     throw new RuntimeException('إنشاء طلب جديد للمندوب يتم من حساب المندوب.');
+ }
  $customerId=(int)($body['customer_id']??0);
- if ($rep!==null && $customerId>0 && !crm_customer_is_linked_to_sales_rep($pdo,$customerId,$rep)) {
+ if (!$managerBrowse && $rep!==null && $customerId>0 && !crm_customer_is_linked_to_sales_rep($pdo,$customerId,$rep)) {
      throw new RuntimeException('هذا العميل غير مربوط بمندوبك.');
  }
- sal_rep_visit_assert_allowed($pdo, $customerId, $body, $rep);
+ if (!$managerBrowse) {
+     sal_rep_visit_assert_allowed($pdo, $customerId, $body, $rep);
+ }
  $visitLineId=(int)($body['visit_route_line_id']??0);
- if ($id < 1 && $rep !== null) {
+ if ($id < 1 && $rep !== null && !$managerBrowse) {
      if ($visitLineId < 1) throw new RuntimeException('يجب تسجيل الدخول عند العميل قبل إنشاء الطلبية.');
      $vst=$pdo->prepare(
          'SELECT l.id FROM sal_rep_route_line l
@@ -34,7 +51,14 @@ try {
          throw new RuntimeException('لا توجد زيارة مفتوحة لهذا العميل. سجّل الدخول أولاً.');
      }
  }
- $warehouse=(int)($body['warehouse_id']??0); if (!wh_access_can_issue($pdo,$warehouse)) throw new RuntimeException(wh_access_deny_issue_message());
+ $warehouse=(int)($body['warehouse_id']??0);
+ if (!$managerBrowse && !wh_access_can_issue($pdo,$warehouse)) {
+     throw new RuntimeException(wh_access_deny_issue_message());
+ }
+ if ($managerBrowse && $warehouse < 1 && is_array($old)) {
+     $warehouse = (int) ($old['warehouse_id'] ?? 0);
+     $body['warehouse_id'] = $warehouse;
+ }
  $saved=sal_customer_order_save($pdo,$body,is_array($body['lines']??null)?$body['lines']:[],$uid,$id>0?null:$rep);
  if ($visitLineId > 0) {
      $pdo->prepare(

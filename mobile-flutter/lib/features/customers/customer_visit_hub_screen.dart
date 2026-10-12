@@ -1161,40 +1161,45 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
     await _selectCustomer(id);
     if (!mounted) return;
 
+    final lineId = Fmt.toInt(_visit?['route_line_id']);
+    // مسودات OFF-* المحلية أو طلب غير مُرحَّل = طلبية مسجّلة لهذه الزيارة.
+    final localOid = await OfflineStore.instance.visitRelatedOrderId(
+      customerId: id,
+      routeLineId: lineId,
+    );
+    final localUnsent =
+        await OfflineStore.instance.listUnsentOrdersForCustomer(id);
+    final hasLocalDraft = localOid != 0 || localUnsent.isNotEmpty;
+
     final hasOrder = () {
       final h = _visit?['has_order'];
       if (h == true || h == 1 || '$h' == '1') return true;
       if (_visitOrderId != 0) return true;
-      return Fmt.toInt(_visit?['order_id']) != 0;
+      if (Fmt.toInt(_visit?['order_id']) != 0) return true;
+      return hasLocalDraft;
     }();
 
+    if (hasLocalDraft && localOid != 0) {
+      setState(() {
+        _visitOrderId = localOid;
+        if (_visit != null) {
+          _visit = Map<String, dynamic>.from(_visit!)
+            ..['has_order'] = true
+            ..['order_id'] = localOid;
+        }
+      });
+    }
+
     if (!hasOrder) {
-      final lineId = Fmt.toInt(_visit?['route_line_id']);
-      // يشمل طلبات الأوفلاين المعلّقة التي لم تُرحَّل بعد بسبب فقد الاتصال
-      final localOid = await OfflineStore.instance.visitRelatedOrderId(
-        customerId: id,
-        routeLineId: lineId,
-      );
-      if (localOid != 0) {
-        setState(() {
-          _visitOrderId = localOid;
-          if (_visit != null) {
-            _visit = Map<String, dynamic>.from(_visit!)
-              ..['has_order'] = true
-              ..['order_id'] = localOid;
-          }
-        });
-      } else {
-        final picked = await _pickNoOrderReasons();
-        if (picked == null || picked.isEmpty) return;
-        noOrderReasonIds = picked.where((rid) => rid > 0).toList();
-        final names = _noOrderReasons
-            .where((r) => picked.contains(Fmt.toInt(r['id'])))
-            .map((r) => Fmt.str(r['name_ar']))
-            .where((s) => s.isNotEmpty)
-            .join('، ');
-        if (names.isNotEmpty) offlineReasonNames = names;
-      }
+      final picked = await _pickNoOrderReasons();
+      if (picked == null || picked.isEmpty) return;
+      noOrderReasonIds = picked.where((rid) => rid > 0).toList();
+      final names = _noOrderReasons
+          .where((r) => picked.contains(Fmt.toInt(r['id'])))
+          .map((r) => Fmt.str(r['name_ar']))
+          .where((s) => s.isNotEmpty)
+          .join('، ');
+      if (names.isNotEmpty) offlineReasonNames = names;
     }
     final matchedManual = manual && _openVisitWasManual;
     final ok = await _confirm(
@@ -1278,36 +1283,83 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         return;
       }
 
+      // مسودات محلية: احفظها على السيرفر أولاً حتى يمرّ فحص «وجود طلبية».
+      if (hasLocalDraft) {
+        await offline.pushUnsentDraftsForCustomer(
+          customerId: id,
+          csrf: csrf,
+          visitRouteLineId: lineId > 0 ? lineId : 0,
+        );
+      }
+
       try {
         final res = await api.postJson(
           AppConfig.repVisitCheckoutPath,
           body: body,
-        csrf: csrf,
-      );
-      if (!mounted) return;
-      final msg = Fmt.str(res['message']);
-      final needsApproval = res['requires_approval'] == true;
-      showSnack(
-        context,
-        msg.isEmpty
-            ? (needsApproval
-                ? 'بانتظار موافقة المدير'
-                : 'تم تسجيل الخروج وإغلاق الزيارة')
-            : msg,
-      );
-      if (!needsApproval) {
-        setState(() {
-          _openVisitCustomerId = 0;
-          _openVisitCheckinAt = '';
+          csrf: csrf,
+        );
+        if (!mounted) return;
+        final msg = Fmt.str(res['message']);
+        final needsApproval = res['requires_approval'] == true;
+        showSnack(
+          context,
+          msg.isEmpty
+              ? (needsApproval
+                  ? 'بانتظار موافقة المدير'
+                  : 'تم تسجيل الخروج وإغلاق الزيارة')
+              : msg,
+        );
+        if (!needsApproval) {
+          setState(() {
+            _openVisitCustomerId = 0;
+            _openVisitCheckinAt = '';
             _visitOrderId = 0;
-        });
+          });
           await OfflineStore.instance.clearOpenVisit();
-      }
-      await _refreshOpenVisit();
-      await _selectCustomer(id);
+        }
+        await _refreshOpenVisit();
+        await _selectCustomer(id);
       } on ApiException catch (e) {
         if (offline.catalogReady && _isNetworkFail(e)) {
           await applyLocalCheckout();
+        } else if (hasLocalDraft &&
+            (e.message.contains('عدم الطلب') ||
+                e.message.contains('لم تُسجّل طلبية') ||
+                e.message.contains('لم تسجل طلبية'))) {
+          // إعادة دفع المسودات ثم محاولة أخيرة، وإلا طابور محلي.
+          await offline.pushUnsentDraftsForCustomer(
+            customerId: id,
+            csrf: csrf,
+            visitRouteLineId: lineId > 0 ? lineId : 0,
+          );
+          try {
+            final res = await api.postJson(
+              AppConfig.repVisitCheckoutPath,
+              body: body,
+              csrf: csrf,
+            );
+            if (!mounted) return;
+            showSnack(
+              context,
+              Fmt.str(res['message']).isEmpty
+                  ? 'تم تسجيل الخروج وإغلاق الزيارة'
+                  : Fmt.str(res['message']),
+            );
+            setState(() {
+              _openVisitCustomerId = 0;
+              _openVisitCheckinAt = '';
+              _visitOrderId = 0;
+            });
+            await OfflineStore.instance.clearOpenVisit();
+            await _refreshOpenVisit();
+            await _selectCustomer(id);
+          } on ApiException {
+            if (offline.catalogReady) {
+              await applyLocalCheckout();
+            } else {
+              rethrow;
+            }
+          }
         } else {
           rethrow;
         }
@@ -2200,7 +2252,7 @@ class _InfoTabState extends State<_InfoTab> {
   Future<void> _useCurrentLocation() async {
     setState(() => _locating = true);
     try {
-      final pos = await LocationService.requirePosition();
+      final pos = await LocationService.requirePosition(fresh: true);
       if (!mounted) return;
       setState(() {
         _lat = pos.latitude;
