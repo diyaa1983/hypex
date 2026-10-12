@@ -838,39 +838,128 @@ function tagSalesDetails(details) {
   return details.map((d) => ({ ...d, doc_type: 'sales', doc_label: 'فاتورة' }));
 }
 
+function idList(value) {
+  const raw = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
+  const out = [];
+  for (const v of raw) {
+    const n = Number(v) || 0;
+    if (n > 0 && !out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/** فترة التقرير: تاريخ محدد، أو سنة + شهر + أيام الشهر. */
+function reportOrderPeriod(filters = {}) {
+  const onDate = parseDateToIso(String(filters.on_date || ''), '');
+  if (onDate) {
+    const [ys, ms, ds] = onDate.split('-').map(Number);
+    return {
+      on_date: onDate,
+      year: ys,
+      month: ms,
+      day_from: ds,
+      day_to: ds,
+      from: onDate,
+      to: onDate,
+      sql: 'o.order_date = ?',
+      params: [onDate],
+    };
+  }
+  const now = new Date();
+  let year = Number(filters.year || 0);
+  if (!(year >= 1900 && year <= 2100)) {
+    const r = dateRange(filters.from, filters.to);
+    return {
+      on_date: '',
+      year: Number(String(r.from).slice(0, 4)) || now.getFullYear(),
+      month: 0,
+      day_from: 1,
+      day_to: 31,
+      from: r.from,
+      to: r.to,
+      sql: 'o.order_date BETWEEN ? AND ?',
+      params: [r.from, r.to],
+    };
+  }
+  let month = Number(filters.month || 0);
+  if (month < 0 || month > 12) month = 0;
+  let dayFrom = Number(filters.day_from || 1);
+  let dayTo = Number(filters.day_to || 31);
+  if (!Number.isFinite(dayFrom) || dayFrom < 1) dayFrom = 1;
+  if (!Number.isFinite(dayTo) || dayTo < 1) dayTo = 31;
+  dayFrom = Math.min(31, Math.floor(dayFrom));
+  dayTo = Math.min(31, Math.floor(dayTo));
+  if (dayFrom > dayTo) {
+    const swap = dayFrom;
+    dayFrom = dayTo;
+    dayTo = swap;
+  }
+  const sql = ['YEAR(o.order_date) = ?'];
+  const params = [year];
+  if (month >= 1) {
+    sql.push('MONTH(o.order_date) = ?');
+    params.push(month);
+  }
+  if (dayFrom !== 1 || dayTo !== 31) {
+    sql.push('DAY(o.order_date) BETWEEN ? AND ?');
+    params.push(dayFrom, dayTo);
+  }
+  const fromMonth = month || 1;
+  const toMonth = month || 12;
+  return {
+    on_date: '',
+    year,
+    month,
+    day_from: dayFrom,
+    day_to: dayTo,
+    from: `${year}-${String(fromMonth).padStart(2, '0')}-${String(dayFrom).padStart(2, '0')}`,
+    to: `${year}-${String(toMonth).padStart(2, '0')}-${String(dayTo).padStart(2, '0')}`,
+    sql: sql.join(' AND '),
+    params,
+  };
+}
+
 /**
  * تقرير تفصيلي لطلبات الشراء — مجمّع حسب المندوب ثم فئة المادة.
  */
 async function reportCustomerOrdersByRepCategory(filters = {}) {
-  const r = dateRange(filters.from, filters.to);
+  const period = reportOrderPeriod(filters);
   const empty = {
     groups: [],
     details: [],
     totals: computeDetailedTotals([]),
-    from: r.from,
-    to: r.to,
+    from: period.from,
+    to: period.to,
+    period,
   };
-  if (!r.from || !r.to) return empty;
+  if (!period.from || !period.to) return empty;
 
   const customerId = Number(filters.customer_id || 0) || 0;
-  const salesRepId = Number(filters.sales_rep_id || 0) || 0;
+  const salesRepIds = idList(filters.sales_rep_ids != null ? filters.sales_rep_ids : filters.sales_rep_id);
   const categoryId = Number(filters.category_id || 0) || 0;
+  const itemId = Number(filters.item_id || 0) || 0;
   const status = String(filters.status || 'all').toLowerCase();
   const approvedOnly = String(filters.posted_only || '') === '1' || filters.posted_only === true;
 
-  const where = ['o.order_date BETWEEN ? AND ?', 'IFNULL(o.is_sent, 1) = 1'];
-  const params = [r.from, r.to];
+  const where = [period.sql, 'IFNULL(o.is_sent, 1) = 1'];
+  const params = period.params.slice();
   if (customerId > 0) {
     where.push('o.customer_id = ?');
     params.push(customerId);
   }
-  if (salesRepId > 0) {
-    where.push('COALESCE(o.sales_rep_id, c.sales_rep_id) = ?');
-    params.push(salesRepId);
+  if (salesRepIds.length) {
+    where.push(
+      `COALESCE(o.sales_rep_id, c.sales_rep_id) IN (${salesRepIds.map(() => '?').join(',')})`
+    );
+    params.push(...salesRepIds);
   }
   if (categoryId > 0) {
     where.push('it.category_id = ?');
     params.push(categoryId);
+  }
+  if (itemId > 0) {
+    where.push('l.item_id = ?');
+    params.push(itemId);
   }
   if (status === 'draft' || status === 'approved') {
     where.push('o.status = ?');
@@ -879,16 +968,8 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
     where.push(`o.status IN ('approved','posted')`);
   }
 
-  const groupByEarly =
-    String(filters.group_by || 'rep_category').toLowerCase() === 'category_rep'
-      ? 'category_rep'
-      : 'rep_category';
-  const orderSql =
-    groupByEarly === 'category_rep'
-      ? `category_name ASC, category_id ASC, sales_rep_name ASC, sales_rep_id ASC,
-         o.order_date ASC, o.id ASC, l.line_no ASC`
-      : `sales_rep_name ASC, sales_rep_id ASC, category_name ASC, category_id ASC,
-         o.order_date ASC, o.id ASC, l.line_no ASC`;
+  const orderSql = `sales_rep_name ASC, sales_rep_id ASC, category_name ASC, category_id ASC,
+         item_name ASC, it.id ASC, o.order_date ASC, o.id ASC, l.line_no ASC`;
 
   const limit = Math.min(8000, Math.max(100, Number(filters.limit || 5000)));
   let rows = [];
@@ -1121,8 +1202,9 @@ async function reportCustomerOrdersByRepCategory(filters = {}) {
     matrix,
     details,
     totals: computeDetailedTotals(details),
-    from: r.from,
-    to: r.to,
+    from: period.from,
+    to: period.to,
+    period,
   };
 }
 
@@ -1160,6 +1242,56 @@ async function reportCombinedDetailed(filters = {}) {
 async function listCustomersSimple() {
   return safeQuery(
     `SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 800`
+  );
+}
+
+/** عملاء المندوب: البطاقة الأساسية أو جدول الربط. بدون مندوب = كل العملاء النشطين. */
+async function listCustomersForReps(repIds) {
+  const ids = idList(repIds);
+  if (!ids.length) {
+    return safeQuery(
+      `SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 3000`
+    );
+  }
+  const ph = ids.map(() => '?').join(',');
+  try {
+    const rows = await db.query(
+      `SELECT DISTINCT c.id, c.code, c.name_ar
+       FROM crm_customer c
+       WHERE c.is_active = 1
+         AND (
+           c.sales_rep_id IN (${ph})
+           OR EXISTS (
+             SELECT 1 FROM crm_customer_sales_rep csr
+             WHERE csr.customer_id = c.id AND csr.sales_rep_id IN (${ph})
+           )
+         )
+       ORDER BY c.name_ar
+       LIMIT 3000`,
+      [...ids, ...ids]
+    );
+    return rows || [];
+  } catch (e) {
+    return safeQuery(
+      `SELECT id, code, name_ar FROM crm_customer
+       WHERE is_active = 1 AND sales_rep_id IN (${ph})
+       ORDER BY name_ar
+       LIMIT 3000`,
+      ids
+    );
+  }
+}
+
+async function listItemsForCategory(categoryId) {
+  const id = Number(categoryId || 0) || 0;
+  if (id < 1) return [];
+  return safeQuery(
+    `SELECT id, sku, barcode, name_ar
+     FROM inv_item
+     WHERE is_active = 1 AND category_id = ?
+     ORDER BY name_ar
+     LIMIT 2000`,
+    [id]
   );
 }
 
@@ -1203,5 +1335,7 @@ module.exports = {
   listCategoriesSimple,
   listWarehousesSimple,
   listCustomersSimple,
+  listCustomersForReps,
+  listItemsForCategory,
   dateRange,
 };

@@ -1296,6 +1296,28 @@ router.get('/sales/reports/customer-orders-by-item', guard('report_customer_orde
   }
 });
 
+router.get('/sales/reports/customer-orders-detailed/options', async (req, res) => {
+  const u = req.session && req.session.user;
+  if (!u || (!can(u, 'report_customer_orders_detailed') && !u.is_admin)) {
+    return res.status(403).json({ ok: false, rows: [] });
+  }
+  try {
+    const kind = String(req.query.kind || '');
+    if (kind === 'customers') {
+      const rows = await q.listCustomersForReps(req.query.sales_rep_id);
+      return res.json({ ok: true, rows });
+    }
+    if (kind === 'items') {
+      const rows = await q.listItemsForCategory(req.query.category_id);
+      return res.json({ ok: true, rows });
+    }
+    return res.json({ ok: false, rows: [] });
+  } catch (e) {
+    console.error('customer-orders-detailed options', e);
+    return res.status(500).json({ ok: false, rows: [] });
+  }
+});
+
 router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
   const u = req.session.user;
   if (!can(u, 'report_customer_orders_detailed') && !u.is_admin) {
@@ -1312,47 +1334,99 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
   }
 
   try {
-    const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
-    const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+    const MONTHS = [
+      '',
+      'يناير',
+      'فبراير',
+      'مارس',
+      'أبريل',
+      'مايو',
+      'يونيو',
+      'يوليو',
+      'أغسطس',
+      'سبتمبر',
+      'أكتوبر',
+      'نوفمبر',
+      'ديسمبر',
+    ];
+    const now = new Date();
+    const run = String(req.query.run || '') === '1';
+    const onRaw = String(req.query.on_date || '').trim();
+    let onDate = /^\d{4}-\d{2}-\d{2}$/.test(onRaw) ? onRaw : '';
+    let year = Number(req.query.year || 0);
+    if (!(year >= 1900 && year <= 2100)) year = now.getFullYear();
+    let month;
+    if (onDate) {
+      year = Number(onDate.slice(0, 4));
+      month = Number(onDate.slice(5, 7));
+    } else if (req.query.month == null || req.query.month === '') {
+      month = run ? 0 : now.getMonth() + 1;
+    } else {
+      month = Math.min(12, Math.max(0, Number(req.query.month) || 0));
+    }
+    const maxDay = month >= 1 && month <= 12 ? new Date(year, month, 0).getDate() : 31;
+    let dayFrom = Math.min(maxDay, Math.max(1, Number(req.query.day_from || 1) || 1));
+    let dayTo =
+      req.query.day_to != null && String(req.query.day_to) !== ''
+        ? Math.min(maxDay, Math.max(1, Number(req.query.day_to) || 1))
+        : maxDay;
+    if (onDate) {
+      dayFrom = Number(onDate.slice(8, 10));
+      dayTo = dayFrom;
+    }
+    if (dayFrom > dayTo) {
+      const swap = dayFrom;
+      dayFrom = dayTo;
+      dayTo = swap;
+    }
+    const salesRepIds = (Array.isArray(req.query.sales_rep_id)
+      ? req.query.sales_rep_id
+      : req.query.sales_rep_id
+        ? [req.query.sales_rep_id]
+        : []
+    )
+      .map((v) => Number(v) || 0)
+      .filter((n, i, arr) => n > 0 && arr.indexOf(n) === i);
     const categoryId = Number(req.query.category_id || 0) || 0;
     const customerId = Number(req.query.customer_id || 0) || 0;
+    const itemId = Number(req.query.item_id || 0) || 0;
     const status = String(req.query.status || 'all').toLowerCase();
-    const groupBy =
-      String(req.query.group_by || 'rep_category').toLowerCase() === 'category_rep'
-        ? 'category_rep'
-        : 'rep_category';
-    const run = String(req.query.run || '') === '1';
     let err = '';
     let data = {
       groups: [],
-      matrix: [],
-      group_by: groupBy,
       details: [],
       totals: { qty: 0, line_gross: 0, line_count: 0, order_count: 0 },
+      period: { year, month, day_from: dayFrom, day_to: dayTo, on_date: onDate },
     };
+
+    const [reps, categories, customers, items] = await Promise.all([
+      q.listRepsSimple(),
+      q.listCategoriesSimple(),
+      q.listCustomersForReps(salesRepIds),
+      q.listItemsForCategory(categoryId),
+    ]);
+    const customerFilter = customers.some((c) => Number(c.id) === customerId) ? customerId : 0;
+    const itemFilter = items.some((it) => Number(it.id) === itemId) ? itemId : 0;
 
     if (run) {
       try {
         data = await q.reportCustomerOrdersByRepCategory({
-          from: range.from,
-          to: range.to,
-          sales_rep_id: salesRepId,
+          year,
+          month,
+          day_from: dayFrom,
+          day_to: dayTo,
+          on_date: onDate,
+          sales_rep_ids: salesRepIds,
           category_id: categoryId,
-          customer_id: customerId,
+          customer_id: customerFilter,
+          item_id: itemFilter,
           status,
-          group_by: groupBy,
         });
       } catch (e) {
         err = e.message || 'تعذر تحميل التقرير';
         console.error('customer-orders-detailed', e);
       }
     }
-
-    const [reps, categories, customers] = await Promise.all([
-      q.listRepsSimple(),
-      q.listCategoriesSimple(),
-      q.listCustomersSimple(),
-    ]);
 
     const repOpts = reps
       .map(
