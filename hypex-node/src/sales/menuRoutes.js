@@ -1351,33 +1351,28 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
     ];
     const now = new Date();
     const run = String(req.query.run || '') === '1';
+    const numList = (value, min, max) => {
+      const raw = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
+      const out = [];
+      for (const v of raw) {
+        const n = Number(v) || 0;
+        if (n >= min && n <= max && !out.includes(n)) out.push(n);
+      }
+      out.sort((a, b) => a - b);
+      return out;
+    };
     const onRaw = String(req.query.on_date || '').trim();
     let onDate = /^\d{4}-\d{2}-\d{2}$/.test(onRaw) ? onRaw : '';
-    let year = Number(req.query.year || 0);
-    if (!(year >= 1900 && year <= 2100)) year = now.getFullYear();
-    let month;
+    let years = numList(req.query.year, 1900, 2100);
+    let months = numList(req.query.month, 1, 12);
+    let days = numList(req.query.day, 1, 31);
     if (onDate) {
-      year = Number(onDate.slice(0, 4));
-      month = Number(onDate.slice(5, 7));
-    } else if (req.query.month == null || req.query.month === '') {
-      month = run ? 0 : now.getMonth() + 1;
-    } else {
-      month = Math.min(12, Math.max(0, Number(req.query.month) || 0));
-    }
-    const maxDay = month >= 1 && month <= 12 ? new Date(year, month, 0).getDate() : 31;
-    let dayFrom = Math.min(maxDay, Math.max(1, Number(req.query.day_from || 1) || 1));
-    let dayTo =
-      req.query.day_to != null && String(req.query.day_to) !== ''
-        ? Math.min(maxDay, Math.max(1, Number(req.query.day_to) || 1))
-        : maxDay;
-    if (onDate) {
-      dayFrom = Number(onDate.slice(8, 10));
-      dayTo = dayFrom;
-    }
-    if (dayFrom > dayTo) {
-      const swap = dayFrom;
-      dayFrom = dayTo;
-      dayTo = swap;
+      years = [Number(onDate.slice(0, 4))];
+      months = [Number(onDate.slice(5, 7))];
+      days = [Number(onDate.slice(8, 10))];
+    } else if (!run) {
+      if (!years.length) years = [now.getFullYear()];
+      if (!months.length) months = [now.getMonth() + 1];
     }
     const salesRepIds = (Array.isArray(req.query.sales_rep_id)
       ? req.query.sales_rep_id
@@ -1396,7 +1391,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       groups: [],
       details: [],
       totals: { qty: 0, line_gross: 0, line_count: 0, order_count: 0 },
-      period: { year, month, day_from: dayFrom, day_to: dayTo, on_date: onDate },
+      period: { years, months, days, on_date: onDate },
     };
 
     const [reps, categories, customers, items] = await Promise.all([
@@ -1411,10 +1406,9 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
     if (run) {
       try {
         data = await q.reportCustomerOrdersByRepCategory({
-          year,
-          month,
-          day_from: dayFrom,
-          day_to: dayTo,
+          years,
+          months,
+          days,
           on_date: onDate,
           sales_rep_ids: salesRepIds,
           category_id: categoryId,
@@ -1428,13 +1422,36 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       }
     }
 
-    const repOpts = reps
-      .map(
-        (r) =>
-          `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(
-            r.name_ar || ''
-          )}${r.code ? ' (' + ui.esc(r.code) + ')' : ''}</option>`
-      )
+    const yearNow = now.getFullYear();
+    const yearValues = [];
+    for (let y = yearNow + 1; y >= yearNow - 6; y -= 1) yearValues.push(y);
+    for (const y of years) {
+      if (!yearValues.includes(y)) yearValues.push(y);
+    }
+    yearValues.sort((a, b) => b - a);
+    const check = (name, value, label, selected) =>
+      `<label><input type="checkbox" name="${name}" value="${value}" ${
+        selected ? 'checked' : ''
+      }> ${label}</label>`;
+    const yearChecks = yearValues
+      .map((y) => check('year', y, String(y), years.includes(y)))
+      .join('');
+    const monthChecks = MONTHS.slice(1)
+      .map((name, i) => check('month', i + 1, name, months.includes(i + 1)))
+      .join('');
+    let dayChecks = '';
+    for (let d = 1; d <= 31; d += 1) {
+      dayChecks += check('day', d, String(d), days.includes(d));
+    }
+    const repChecks = reps
+      .map((r) => {
+        const id = Number(r.id);
+        const label =
+          ui.esc(r.name_ar || '') + (r.code ? ' (' + ui.esc(r.code) + ')' : '');
+        return `<label><input type="checkbox" name="sales_rep_id" value="${id}" ${
+          salesRepIds.includes(id) ? 'checked' : ''
+        }> ${label}</label>`;
+      })
       .join('');
     const catOpts = categories
       .map(
@@ -1447,156 +1464,144 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
     const custOpts = customers
       .map(
         (c) =>
-          `<option value="${c.id}" ${customerId === Number(c.id) ? 'selected' : ''}>${ui.esc(
+          `<option value="${c.id}" ${customerFilter === Number(c.id) ? 'selected' : ''}>${ui.esc(
             c.name_ar || ''
           )}${c.code ? ' (' + ui.esc(c.code) + ')' : ''}</option>`
       )
       .join('');
+    const itemOpts = items
+      .map((it) => {
+        const code = it.barcode || it.sku || '';
+        const lab = (code ? code + ' — ' : '') + (it.name_ar || '');
+        return `<option value="${it.id}" ${
+          itemFilter === Number(it.id) ? 'selected' : ''
+        }>${ui.esc(lab)}</option>`;
+      })
+      .join('');
 
-    const colCount = 11;
-    function totalsTr(label, t, cls) {
-      return `<tr class="${cls || 'co-det-totals'}">
-        <td colspan="6"><strong>${ui.esc(label)}</strong></td>
-        <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(t.qty || 0))}</strong></td>
-        <td colspan="2"></td>
-        <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(t.line_gross || 0))}</strong></td>
-        <td></td>
-      </tr>`;
+    const colCount = 7;
+    function sumGross(rows) {
+      let n = 0;
+      for (const r of rows || []) n += Number(r.line_gross || 0);
+      return n;
     }
-
-    function detailRowHtml(r, seq) {
+    function totalRow(label, amount, cls) {
+      return `<tr class="${cls}"><td colspan="6"><strong>${ui.esc(label)}</strong></td>
+        <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(amount || 0))}</strong></td></tr>`;
+    }
+    function detailRowHtml(r) {
+      const repTitle =
+        (r.sales_rep_code ? r.sales_rep_code + ' — ' : '') + (r.sales_rep_name || '—');
       return `<tr>
-        <td class="si-num" dir="ltr">${seq}</td>
-        <td class="si-num" dir="ltr">${ui.esc(r.order_no || '')}</td>
-        <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
-        <td class="si-num" dir="ltr">${
-          r.delivery_date ? ui.esc(ui.isoToDmy(r.delivery_date)) : '—'
-        }</td>
         <td>${ui.esc(r.customer_name || '—')}</td>
+        <td>${ui.esc(repTitle)}</td>
+        <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
+        <td class="si-num" dir="ltr">${ui.esc(r.order_no || '')}</td>
+        <td>${ui.esc(r.category_name || '—')}</td>
         <td>${ui.esc(r.item_name || '')}${
           r.item_sku ? ` <span class="muted" dir="ltr">(${ui.esc(r.item_sku)})</span>` : ''
         }</td>
-        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.qty_total != null ? r.qty_total : r.qty))}</td>
-        <td>${ui.esc(r.unit_name || '—')}</td>
-        <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.unit_price))}</td>
         <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(r.line_gross))}</td>
-        <td>${ui.esc(r.status_label || '—')}</td>
       </tr>`;
     }
 
     let rowsHtml = '';
     if (!run) {
-      rowsHtml = ui.emptyRow(colCount, 'حدّد الفترة ثم اعرض التقرير');
+      rowsHtml = ui.emptyRow(colCount, 'حدّد الفلاتر ثم اعرض التقرير');
     } else if (err) {
       rowsHtml = ui.emptyRow(colCount, err);
-    } else if (!(data.groups || []).length) {
+    } else if (!(data.details || []).length) {
       rowsHtml = ui.emptyRow(colCount, 'لا توجد بنود طلبات شراء في الفترة المحددة');
     } else {
-      let seq = 0;
-      if (groupBy === 'category_rep') {
-        for (const g of data.groups) {
-          rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>فئة المادة: ${ui.esc(
-            g.category_name || '—'
-          )}</strong> · ${Number(g.totals.order_count || 0)} طلب · إجمالي ${ui.esc(
-            ui.fmtAmt(g.totals.line_gross || 0)
-          )}</td></tr>`;
-          for (const rep of g.reps || []) {
-            const repTitle =
-              (rep.sales_rep_code ? rep.sales_rep_code + ' — ' : '') +
-              (rep.sales_rep_name || 'مندوب');
-            rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">المندوب: <strong>${ui.esc(
-              repTitle
-            )}</strong> · ${Number((rep.rows || []).length)} بند</td></tr>`;
-            for (const r of rep.rows || []) {
-              seq += 1;
-              rowsHtml += detailRowHtml(r, seq);
-            }
-            rowsHtml += totalsTr(
-              'مجموع المندوب ضمن الفئة · ' + (rep.sales_rep_name || ''),
-              rep.totals,
-              'co-det-cat-tot'
-            );
-          }
-          rowsHtml += totalsTr(
-            'مجموع الفئة · ' + (g.category_name || ''),
-            g.totals,
-            'co-det-rep-tot'
-          );
+      const repMap = new Map();
+      const repBlocks = [];
+      for (const row of data.details) {
+        const rk = String(row.sales_rep_id);
+        let rep = repMap.get(rk);
+        if (!rep) {
+          rep = {
+            sales_rep_name: row.sales_rep_name,
+            sales_rep_code: row.sales_rep_code,
+            categories: [],
+            catMap: new Map(),
+            rows: [],
+          };
+          repMap.set(rk, rep);
+          repBlocks.push(rep);
         }
-      } else {
-        for (const g of data.groups) {
-          const repTitle =
-            (g.sales_rep_code ? g.sales_rep_code + ' — ' : '') + (g.sales_rep_name || 'مندوب');
-          rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>المندوب: ${ui.esc(
-            repTitle
-          )}</strong> · ${Number(g.totals.order_count || 0)} طلب · إجمالي ${ui.esc(
-            ui.fmtAmt(g.totals.line_gross || 0)
-          )}</td></tr>`;
-          for (const cat of g.categories || []) {
-            rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">فئة المادة: <strong>${ui.esc(
-              cat.category_name || '—'
-            )}</strong> · ${Number((cat.rows || []).length)} بند</td></tr>`;
-            for (const r of cat.rows || []) {
-              seq += 1;
-              rowsHtml += detailRowHtml(r, seq);
-            }
-            rowsHtml += totalsTr(
-              'مجموع الفئة · ' + (cat.category_name || ''),
-              cat.totals,
-              'co-det-cat-tot'
-            );
-          }
-          rowsHtml += totalsTr(
-            'مجموع المندوب · ' + (g.sales_rep_name || ''),
-            g.totals,
-            'co-det-rep-tot'
-          );
+        rep.rows.push(row);
+        const ck = String(row.category_id);
+        let cat = rep.catMap.get(ck);
+        if (!cat) {
+          cat = {
+            category_name: row.category_name,
+            items: [],
+            itemMap: new Map(),
+            rows: [],
+          };
+          rep.catMap.set(ck, cat);
+          rep.categories.push(cat);
         }
+        cat.rows.push(row);
+        const ik = String(row.item_id);
+        let item = cat.itemMap.get(ik);
+        if (!item) {
+          item = { item_name: row.item_name, rows: [] };
+          cat.itemMap.set(ik, item);
+          cat.items.push(item);
+        }
+        item.rows.push(row);
       }
-      rowsHtml += totalsTr('الإجمالي النهائي', data.totals, 'co-det-grand');
+      for (const rep of repBlocks) {
+        const repTitle =
+          (rep.sales_rep_code ? rep.sales_rep_code + ' — ' : '') + (rep.sales_rep_name || 'مندوب');
+        rowsHtml += `<tr class="co-det-rep"><td colspan="${colCount}"><strong>${ui.esc(
+          repTitle
+        )}</strong></td></tr>`;
+        for (const cat of rep.categories) {
+          rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">الفئة: <strong>${ui.esc(
+            cat.category_name || '—'
+          )}</strong></td></tr>`;
+          for (const item of cat.items) {
+            for (const r of item.rows) rowsHtml += detailRowHtml(r);
+            rowsHtml += totalRow(
+              'مجموع المادة · ' + (item.item_name || ''),
+              sumGross(item.rows),
+              'co-det-item-tot'
+            );
+          }
+          rowsHtml += totalRow(
+            'مجموع الفئة · ' + (cat.category_name || ''),
+            sumGross(cat.rows),
+            'co-det-cat-tot'
+          );
+        }
+        rowsHtml += totalRow(
+          'مجموع المندوب · ' + (rep.sales_rep_name || ''),
+          sumGross(rep.rows),
+          'co-det-rep-tot'
+        );
+      }
+      rowsHtml += totalRow('الإجمالي', data.totals.line_gross, 'co-det-grand');
     }
 
-    let matrixHtml = '';
-    if (run && !err && (data.matrix || []).length) {
-      matrixHtml = `
-        <div class="si-print-area" style="margin-bottom:1rem">
-          ${ui.tableSurface(
-            'ملخص حسب فئة المادة والمندوب',
-            `${data.matrix.length} مجموعة`,
-            ['فئة المادة', 'المندوب', 'عدد البنود', 'عدد الطلبات', 'الكمية', 'الإجمالي'],
-            data.matrix
-              .map(
-                (m) => `<tr>
-              <td>${ui.esc(m.category_name || '—')}</td>
-              <td>${ui.esc(
-                (m.sales_rep_code ? m.sales_rep_code + ' — ' : '') + (m.sales_rep_name || '—')
-              )}</td>
-              <td class="si-num" dir="ltr">${Number(m.totals.line_count || 0)}</td>
-              <td class="si-num" dir="ltr">${Number(m.totals.order_count || 0)}</td>
-              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(m.totals.qty || 0))}</td>
-              <td class="si-num" dir="ltr">${ui.esc(ui.fmtAmt(m.totals.line_gross || 0))}</td>
-            </tr>`
-              )
-              .join('')
-          )}
-        </div>`;
-    }
+    const periodText = onDate
+      ? `التاريخ ${ui.isoToDmy(onDate)}`
+      : `السنوات: ${years.length ? years.join('، ') : 'الكل'} · الأشهر: ${
+          months.length ? months.map((m) => MONTHS[m]).join('، ') : 'الكل'
+        } · الأيام: ${days.length ? days.join('، ') : 'الكل'}`;
 
     const body = `
-      <div class="si-stage si-report-page" data-hx-print-landscape="1">
+      <div class="si-stage si-report-page co-det-page" data-hx-print-landscape="1">
         ${ui.hero({
           mark: '📑',
           kicker: 'Hypex Sales · Node',
           title: 'تقرير تفصيلي لطلبات الشراء',
           subtitle: run
-            ? `من ${ui.esc(ui.isoToDmy(range.from))} إلى ${ui.esc(ui.isoToDmy(range.to))} · ${
-                data.details.length
-              } بند · ${Number(data.totals.order_count || 0)} طلب · ${
-                groupBy === 'category_rep'
-                  ? 'مجمّع حسب فئة المادة ثم المندوب'
-                  : 'مجمّع حسب المندوب ثم فئة المادة'
-              }`
-            : 'تفصيل بنود الطلبات حسب كل فئة مادة وكل مندوب',
+            ? `${ui.esc(periodText)} · ${data.details.length} بند · ${Number(
+                data.totals.order_count || 0
+              )} طلب`
+            : 'السنة، ثم الشهر وأيامه، ثم التاريخ، المندوب، عملاؤه، الفئة، ثم المادة',
           actions: [
             ui.printAction(),
             { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
@@ -1605,40 +1610,47 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         })}
         ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${ui.esc(err)}</p>` : ''}
         <div class="si-rail no-print">
-          <form method="get" action="/sales/reports/customer-orders-detailed" class="si-search"
-                style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:flex-end;max-width:100%">
+          <form method="get" action="/sales/reports/customer-orders-detailed" id="co-det-form" class="co-det-filters">
             <input type="hidden" name="run" value="1">
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
-              <input class="si-field" type="date" name="from" value="${ui.esc(range.from)}" required dir="ltr">
+            <label>السنة
+              <div class="co-det-reps co-det-years" id="co-det-years">${yearChecks}</div>
+              <span class="co-det-hint">أكثر من سنة. بدون تحديد: كل السنوات.</span>
             </label>
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
-              <input class="si-field" type="date" name="to" value="${ui.esc(range.to)}" required dir="ltr">
+            <label>الشهر
+              <div class="co-det-reps co-det-months" id="co-det-months">${monthChecks}</div>
+              <span class="co-det-hint">أكثر من شهر. بدون تحديد: كل الأشهر.</span>
             </label>
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">طريقة التجميع
-              <select class="si-field" name="group_by">
-                <option value="rep_category" ${groupBy === 'rep_category' ? 'selected' : ''}>مندوب ← فئة المادة</option>
-                <option value="category_rep" ${groupBy === 'category_rep' ? 'selected' : ''}>فئة المادة ← مندوب</option>
+            <label>أيام الشهر
+              <div class="co-det-reps co-det-days" id="co-det-days">${dayChecks}</div>
+              <span class="co-det-hint">أكثر من يوم. بدون تحديد: كل الأيام.</span>
+            </label>
+            <label>التاريخ
+              <input class="si-field" type="date" name="on_date" id="co-det-date" value="${ui.esc(onDate)}" dir="ltr">
+            </label>
+            <label>المندوب
+              <div class="co-det-reps" id="co-det-reps">${repChecks}</div>
+              <span class="co-det-hint">بدون تحديد: كل المندوبين. يمكن اختيار أكثر من مندوب.</span>
+            </label>
+            <label>العميل
+              <select class="si-field" name="customer_id" id="co-det-customer">
+                <option value="0">— كل العملاء —</option>
+                ${custOpts}
               </select>
+              <span class="co-det-hint">عملاء المندوب المحدد فقط</span>
             </label>
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">المندوب
-              <select class="si-field" name="sales_rep_id">
-                <option value="0">— كل المندوبين —</option>
-                ${repOpts}
-              </select>
-            </label>
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">فئة المادة
-              <select class="si-field" name="category_id">
+            <label>الفئة
+              <select class="si-field" name="category_id" id="co-det-category">
                 <option value="0">— كل الفئات —</option>
                 ${catOpts}
               </select>
             </label>
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">العميل
-              <select class="si-field" name="customer_id">
-                <option value="0">— كل العملاء —</option>
-                ${custOpts}
+            <label>المادة
+              <select class="si-field" name="item_id" id="co-det-item" ${categoryId ? '' : 'disabled'}>
+                <option value="0">${categoryId ? '— كل مواد الفئة —' : '— اختر الفئة أولاً —'}</option>
+                ${itemOpts}
               </select>
             </label>
-            <label style="font-size:.8rem;font-weight:700;color:#5c6578">الحالة
+            <label>الحالة
               <select class="si-field" name="status">
                 <option value="all" ${status === 'all' ? 'selected' : ''}>الكل</option>
                 <option value="draft" ${status === 'draft' ? 'selected' : ''}>مسودة</option>
@@ -1657,47 +1669,160 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           <div class="sd-kpi"><span>الطلبات</span><strong dir="ltr">${Number(
             data.totals.order_count || 0
           )}</strong></div>
-          <div class="sd-kpi"><span>الكمية</span><strong dir="ltr">${ui.esc(
-            ui.fmtAmt(data.totals.qty || 0)
-          )}</strong></div>
-          <div class="sd-kpi sd-kpi--accent"><span>الإجمالي</span><strong dir="ltr">${ui.esc(
+          <div class="sd-kpi sd-kpi--accent"><span>المبيعات</span><strong dir="ltr">${ui.esc(
             ui.fmtAmt(data.totals.line_gross || 0)
           )}</strong></div>
         </div>`
             : ''
         }
-        ${matrixHtml}
         <div class="si-print-area">
           <style>
             .co-det-rep td{background:#1e3a5f;color:#fff;font-weight:800;padding:.55rem .65rem !important}
             .co-det-cat td{background:#e8eef7;color:#1e3a5f;font-weight:700;padding:.4rem .65rem !important}
-            .co-det-cat-tot td{background:#f8fafc;border-top:1px dashed #cbd5e1}
+            .co-det-item-tot td{background:#f8fafc;font-weight:700}
+            .co-det-cat-tot td{background:#eef6ff;font-weight:800;border-top:1px dashed #cbd5e1}
             .co-det-rep-tot td{background:#dbeafe;font-weight:800}
             .co-det-grand td{background:#1e3a5f;color:#fff;font-weight:800}
             .co-det-grand td strong{color:#fff}
           </style>
           ${ui.tableSurface(
-            groupBy === 'category_rep'
-              ? 'تفصيل الطلبات حسب فئة المادة ثم المندوب'
-              : 'تفصيل الطلبات حسب المندوب ثم فئة المادة',
+            'تفصيل طلبات الشراء حسب المندوب والفئة والمادة',
             run ? `${data.details.length} سطر` : '—',
-            [
-              '#',
-              'رقم الطلب',
-              'التاريخ',
-              'تاريخ التسليم',
-              'العميل',
-              'المادة',
-              'الكمية',
-              'الوحدة',
-              'السعر',
-              'الإجمالي',
-              'الحالة',
-            ],
+            ['العميل', 'المندوب', 'تاريخ الطلبية', 'رقم الطلبية', 'الفئة', 'المادة', 'المبيعات'],
             rowsHtml
           )}
         </div>
-      </div>`;
+      </div>
+      <script>
+      (function () {
+        var form = document.getElementById('co-det-form');
+        var repBox = document.getElementById('co-det-reps');
+        var cust = document.getElementById('co-det-customer');
+        var cat = document.getElementById('co-det-category');
+        var item = document.getElementById('co-det-item');
+        var yearBox = document.getElementById('co-det-years');
+        var monthBox = document.getElementById('co-det-months');
+        var dayBox = document.getElementById('co-det-days');
+        var dateEl = document.getElementById('co-det-date');
+        if (!form || !cust || !cat || !item) return;
+        function esc(s) {
+          return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        }
+        function selectedReps() {
+          if (!repBox) return [];
+          return Array.prototype.map.call(
+            repBox.querySelectorAll('input[name="sales_rep_id"]:checked'),
+            function (el) { return el.value; }
+          );
+        }
+        function checkedNums(box, name) {
+          if (!box) return [];
+          return Array.prototype.map.call(
+            box.querySelectorAll('input[name="' + name + '"]:checked'),
+            function (el) { return Number(el.value); }
+          );
+        }
+        function setOnly(box, name, value) {
+          if (!box) return;
+          box.querySelectorAll('input[name="' + name + '"]').forEach(function (el) {
+            el.checked = String(el.value) === String(value);
+          });
+        }
+        function syncDays() {
+          if (!dayBox) return;
+          var ys = checkedNums(yearBox, 'year');
+          var ms = checkedNums(monthBox, 'month');
+          var max = 31;
+          if (ms.length) {
+            max = 0;
+            var years = ys.length ? ys : [new Date().getFullYear()];
+            ms.forEach(function (m) {
+              years.forEach(function (y) {
+                max = Math.max(max, new Date(y, m, 0).getDate());
+              });
+            });
+          }
+          dayBox.querySelectorAll('input[name="day"]').forEach(function (el) {
+            var hide = Number(el.value) > max;
+            el.disabled = hide;
+            if (el.parentNode) el.parentNode.style.display = hide ? 'none' : '';
+            if (hide) el.checked = false;
+          });
+        }
+        function optionsUrl(query) {
+          var action = (form.getAttribute('action') || '').replace(/\/$/, '');
+          return action + '/options?' + query;
+        }
+        function loadCustomers() {
+          var ids = selectedReps();
+          var keep = cust.value;
+          var q = ids.map(function (id) { return 'sales_rep_id=' + encodeURIComponent(id); }).join('&');
+          fetch(optionsUrl('kind=customers' + (q ? '&' + q : '')), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              var rows = (j && j.rows) || [];
+              var html = '<option value="0">— كل العملاء —</option>';
+              var found = false;
+              rows.forEach(function (c) {
+                var id = String(c.id);
+                if (id === keep) found = true;
+                var lab = (c.name_ar || '') + (c.code ? ' (' + c.code + ')' : '');
+                html += '<option value="' + id + '"' + (id === keep ? ' selected' : '') + '>' + esc(lab) + '</option>';
+              });
+              cust.innerHTML = html;
+              if (!found) cust.value = '0';
+            })
+            .catch(function () {});
+        }
+        function loadItems() {
+          var categoryId = Number(cat.value || 0);
+          var keep = item.value;
+          if (categoryId < 1) {
+            item.disabled = true;
+            item.innerHTML = '<option value="0">— اختر الفئة أولاً —</option>';
+            item.value = '0';
+            return;
+          }
+          item.disabled = false;
+          fetch(optionsUrl('kind=items&category_id=' + categoryId), { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (j) {
+              var rows = (j && j.rows) || [];
+              var html = '<option value="0">— كل مواد الفئة —</option>';
+              rows.forEach(function (it) {
+                var id = String(it.id);
+                var code = it.barcode || it.sku || '';
+                var lab = (code ? code + ' — ' : '') + (it.name_ar || '');
+                html += '<option value="' + id + '"' + (id === keep ? ' selected' : '') + '>' + esc(lab) + '</option>';
+              });
+              item.innerHTML = html;
+              item.value = item.querySelector('option[value="' + keep + '"]') ? keep : '0';
+            })
+            .catch(function () {});
+        }
+        function clearDate() {
+          if (dateEl) dateEl.value = '';
+        }
+        if (repBox) repBox.addEventListener('change', loadCustomers);
+        cat.addEventListener('change', loadItems);
+        if (yearBox) yearBox.addEventListener('change', function () { clearDate(); syncDays(); });
+        if (monthBox) monthBox.addEventListener('change', function () { clearDate(); syncDays(); });
+        if (dayBox) dayBox.addEventListener('change', clearDate);
+        if (dateEl) dateEl.addEventListener('change', function () {
+          if (!dateEl.value) return;
+          var p = dateEl.value.split('-');
+          if (p.length !== 3) return;
+          setOnly(yearBox, 'year', Number(p[0]));
+          setOnly(monthBox, 'month', Number(p[1]));
+          syncDays();
+          setOnly(dayBox, 'day', Number(p[2]));
+        });
+        syncDays();
+        if (form) form.addEventListener('submit', function () {
+          if (item.disabled) item.disabled = false;
+        });
+      })();
+      </script>`;
 
     res.send(
       ui.salesPage({

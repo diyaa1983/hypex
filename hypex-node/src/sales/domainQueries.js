@@ -848,17 +848,27 @@ function idList(value) {
   return out;
 }
 
-/** فترة التقرير: تاريخ محدد، أو سنة + شهر + أيام الشهر. */
+function numList(value, min, max) {
+  const raw = Array.isArray(value) ? value : value == null || value === '' ? [] : [value];
+  const out = [];
+  for (const v of raw) {
+    const n = Number(v) || 0;
+    if (n >= min && n <= max && !out.includes(n)) out.push(n);
+  }
+  out.sort((a, b) => a - b);
+  return out;
+}
+
+/** فترة التقرير: تاريخ محدد، أو عدة سنوات وأشهر وأيام. */
 function reportOrderPeriod(filters = {}) {
   const onDate = parseDateToIso(String(filters.on_date || ''), '');
   if (onDate) {
     const [ys, ms, ds] = onDate.split('-').map(Number);
     return {
       on_date: onDate,
-      year: ys,
-      month: ms,
-      day_from: ds,
-      day_to: ds,
+      years: [ys],
+      months: [ms],
+      days: [ds],
       from: onDate,
       to: onDate,
       sql: 'o.order_date = ?',
@@ -866,54 +876,44 @@ function reportOrderPeriod(filters = {}) {
     };
   }
   const now = new Date();
-  let year = Number(filters.year || 0);
-  if (!(year >= 1900 && year <= 2100)) {
-    const r = dateRange(filters.from, filters.to);
-    return {
-      on_date: '',
-      year: Number(String(r.from).slice(0, 4)) || now.getFullYear(),
-      month: 0,
-      day_from: 1,
-      day_to: 31,
-      from: r.from,
-      to: r.to,
-      sql: 'o.order_date BETWEEN ? AND ?',
-      params: [r.from, r.to],
-    };
+  const years =
+    filters.years != null ? numList(filters.years, 1900, 2100) : numList(filters.year, 1900, 2100);
+  const months =
+    filters.months != null ? numList(filters.months, 1, 12) : numList(filters.month, 1, 12);
+  const days = filters.days != null ? numList(filters.days, 1, 31) : numList(filters.day, 1, 31);
+  const sql = [];
+  const params = [];
+  if (years.length) {
+    sql.push(`YEAR(o.order_date) IN (${years.map(() => '?').join(',')})`);
+    params.push(...years);
   }
-  let month = Number(filters.month || 0);
-  if (month < 0 || month > 12) month = 0;
-  let dayFrom = Number(filters.day_from || 1);
-  let dayTo = Number(filters.day_to || 31);
-  if (!Number.isFinite(dayFrom) || dayFrom < 1) dayFrom = 1;
-  if (!Number.isFinite(dayTo) || dayTo < 1) dayTo = 31;
-  dayFrom = Math.min(31, Math.floor(dayFrom));
-  dayTo = Math.min(31, Math.floor(dayTo));
-  if (dayFrom > dayTo) {
-    const swap = dayFrom;
-    dayFrom = dayTo;
-    dayTo = swap;
+  if (months.length) {
+    sql.push(`MONTH(o.order_date) IN (${months.map(() => '?').join(',')})`);
+    params.push(...months);
   }
-  const sql = ['YEAR(o.order_date) = ?'];
-  const params = [year];
-  if (month >= 1) {
-    sql.push('MONTH(o.order_date) = ?');
-    params.push(month);
+  if (days.length) {
+    sql.push(`DAY(o.order_date) IN (${days.map(() => '?').join(',')})`);
+    params.push(...days);
   }
-  if (dayFrom !== 1 || dayTo !== 31) {
-    sql.push('DAY(o.order_date) BETWEEN ? AND ?');
-    params.push(dayFrom, dayTo);
+  if (!sql.length) {
+    const year = now.getFullYear();
+    sql.push('YEAR(o.order_date) = ?');
+    params.push(year);
+    years.push(year);
   }
-  const fromMonth = month || 1;
-  const toMonth = month || 12;
+  const y0 = years[0] || now.getFullYear();
+  const y1 = years[years.length - 1] || y0;
+  const m0 = months[0] || 1;
+  const m1 = months[months.length - 1] || 12;
+  const d0 = days[0] || 1;
+  const d1 = days[days.length - 1] || 31;
   return {
     on_date: '',
-    year,
-    month,
-    day_from: dayFrom,
-    day_to: dayTo,
-    from: `${year}-${String(fromMonth).padStart(2, '0')}-${String(dayFrom).padStart(2, '0')}`,
-    to: `${year}-${String(toMonth).padStart(2, '0')}-${String(dayTo).padStart(2, '0')}`,
+    years,
+    months,
+    days,
+    from: `${y0}-${String(m0).padStart(2, '0')}-${String(d0).padStart(2, '0')}`,
+    to: `${y1}-${String(m1).padStart(2, '0')}-${String(d1).padStart(2, '0')}`,
     sql: sql.join(' AND '),
     params,
   };
