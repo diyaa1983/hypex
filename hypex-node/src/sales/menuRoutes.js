@@ -1438,15 +1438,22 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       `<label><input type="checkbox" name="${name}" value="${value}" ${
         selected ? 'checked' : ''
       }> ${label}</label>`;
-    const menu = (id, title, panelClass, checks) => `<div class="co-ms" id="${id}">
-        <button type="button" class="co-ms__btn" aria-expanded="false">
-          <span class="co-ms__label">${title}</span>
-          <span class="co-ms__value">الكل</span>
-        </button>
-        <div class="co-ms__panel${panelClass ? ' ' + panelClass : ''}" hidden>
-          <label class="co-ms__all"><input type="checkbox" data-all> اختيار الكل</label>
-          <div class="co-ms__list">${checks}</div>
-        </div>
+    const pickedText = (labels, total) => {
+      if (!labels.length || (total > 0 && labels.length >= total)) return 'الكل';
+      if (labels.length <= 2) return labels.join('، ');
+      return labels.length + ' محدد';
+    };
+    const menu = (id, title, panelClass, checks, valueText) => `<div class="co-ms-wrap">
+        <details class="co-ms" id="${id}">
+          <summary class="co-ms__btn">
+            <span class="co-ms__label">${title}</span>
+            <span class="co-ms__value">${ui.esc(valueText || 'الكل')}</span>
+          </summary>
+          <div class="co-ms__panel${panelClass ? ' ' + panelClass : ''}">
+            <label class="co-ms__all"><input type="checkbox" data-all> اختيار الكل</label>
+            <div class="co-ms__list">${checks}</div>
+          </div>
+        </details>
       </div>`;
     const yearChecks = yearValues
       .map((y) => check('year', y, String(y), years.includes(y)))
@@ -1482,13 +1489,75 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         return check('item_id', it.id, lab, itemFilter.includes(Number(it.id)));
       })
       .join('');
-    const yearMenu = menu('co-det-years', 'السنة', '', yearChecks);
-    const monthMenu = menu('co-det-months', 'الشهر', '', monthChecks);
-    const dayMenu = menu('co-det-days', 'أيام الشهر', 'co-ms__panel--days', dayChecks);
-    const repMenu = menu('co-det-reps', 'المندوب', '', repChecks);
-    const custMenu = menu('co-det-customer', 'العميل', '', custChecks);
-    const catMenu = menu('co-det-category', 'الفئة', '', catChecks);
-    const itemMenu = menu('co-det-item', 'المادة', '', itemChecks);
+    const yearMenu = menu(
+      'co-det-years',
+      'السنة',
+      '',
+      yearChecks,
+      pickedText(
+        yearValues.filter((y) => years.includes(y)).map(String),
+        yearValues.length
+      )
+    );
+    const monthMenu = menu(
+      'co-det-months',
+      'الشهر',
+      '',
+      monthChecks,
+      pickedText(
+        MONTHS.slice(1).filter((_, i) => months.includes(i + 1)),
+        12
+      )
+    );
+    const dayMenu = menu(
+      'co-det-days',
+      'أيام الشهر',
+      'co-ms__panel--days',
+      dayChecks,
+      pickedText(days.map(String), 31)
+    );
+    const repMenu = menu(
+      'co-det-reps',
+      'المندوب',
+      '',
+      repChecks,
+      pickedText(
+        reps.filter((r) => salesRepIds.includes(Number(r.id))).map((r) => r.name_ar || ''),
+        reps.length
+      )
+    );
+    const custMenu = menu(
+      'co-det-customer',
+      'العميل',
+      '',
+      custChecks,
+      pickedText(
+        customers.filter((c) => customerFilter.includes(Number(c.id))).map((c) => c.name_ar || ''),
+        customers.length
+      )
+    );
+    const catMenu = menu(
+      'co-det-category',
+      'الفئة',
+      '',
+      catChecks,
+      pickedText(
+        categories.filter((c) => categoryFilter.includes(Number(c.id))).map((c) => c.name_ar || ''),
+        categories.length
+      )
+    );
+    const itemMenu = menu(
+      'co-det-item',
+      'المادة',
+      '',
+      itemChecks,
+      categoryFilter.length
+        ? pickedText(
+            items.filter((it) => itemFilter.includes(Number(it.id))).map((it) => it.name_ar || ''),
+            items.length
+          )
+        : 'اختر الفئة'
+    );
 
     const colCount = 7;
     function sumGross(rows) {
@@ -1612,7 +1681,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             ? `${ui.esc(periodText)} · ${data.details.length} بند · ${Number(
                 data.totals.order_count || 0
               )} طلب`
-            : 'السنة، ثم الشهر وأيامه، ثم التاريخ، المندوب، عملاؤه، الفئة، ثم المادة',
+            : 'السنة، ثم الشهر وأيامه، ثم المندوب، عملاؤه، الفئة، ثم المادة',
           actions: [
             ui.printAction(),
             { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
@@ -1626,9 +1695,6 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             ${yearMenu}
             ${monthMenu}
             ${dayMenu}
-            <label>التاريخ
-              <input class="si-field" type="date" name="on_date" id="co-det-date" value="${ui.esc(onDate)}" dir="ltr">
-            </label>
             ${repMenu}
             ${custMenu}
             ${catMenu}
@@ -1676,226 +1742,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           )}
         </div>
       </div>
-      <script>
-      (function () {
-        var form = document.getElementById('co-det-form');
-        var repBox = document.getElementById('co-det-reps');
-        var cust = document.getElementById('co-det-customer');
-        var cat = document.getElementById('co-det-category');
-        var item = document.getElementById('co-det-item');
-        var yearBox = document.getElementById('co-det-years');
-        var monthBox = document.getElementById('co-det-months');
-        var dayBox = document.getElementById('co-det-days');
-        var dateEl = document.getElementById('co-det-date');
-        if (!form) return;
-        function esc(s) {
-          return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
-        }
-        function namedInputs(box) {
-          return box ? box.querySelectorAll('input[name]') : [];
-        }
-        function summary(box) {
-          if (!box) return;
-          var valueEl = box.querySelector('.co-ms__value');
-          var all = box.querySelector('[data-all]');
-          var inputs = Array.prototype.filter.call(namedInputs(box), function (el) { return !el.disabled; });
-          var checked = inputs.filter(function (el) { return el.checked; });
-          if (all) all.checked = inputs.length > 0 && checked.length === inputs.length;
-          if (!valueEl) return;
-          if (!inputs.length) valueEl.textContent = 'اختر الفئة';
-          else if (!checked.length || (all && all.checked)) valueEl.textContent = 'الكل';
-          else if (checked.length <= 2) {
-            valueEl.textContent = checked.map(function (el) {
-              return (el.parentNode.textContent || '').trim();
-            }).join('، ');
-          } else valueEl.textContent = checked.length + ' محدد';
-        }
-        function place(box) {
-          var btn = box.querySelector('.co-ms__btn');
-          var panel = box.querySelector('.co-ms__panel');
-          if (!btn || !panel) return;
-          var r = btn.getBoundingClientRect();
-          var width = Math.max(r.width, 220);
-          panel.style.position = 'fixed';
-          panel.style.zIndex = '4000';
-          panel.style.minWidth = width + 'px';
-          panel.style.right = Math.max(8, window.innerWidth - r.right) + 'px';
-          panel.style.left = 'auto';
-          var spaceBelow = window.innerHeight - r.bottom;
-          if (spaceBelow < 220 && r.top > spaceBelow) {
-            panel.style.top = 'auto';
-            panel.style.bottom = (window.innerHeight - r.top + 4) + 'px';
-          } else {
-            panel.style.bottom = 'auto';
-            panel.style.top = (r.bottom + 4) + 'px';
-          }
-        }
-        function closeAll(except) {
-          document.querySelectorAll('.co-ms.is-open').forEach(function (el) {
-            if (el === except) return;
-            el.classList.remove('is-open');
-            var panel = el.querySelector('.co-ms__panel');
-            var btn = el.querySelector('.co-ms__btn');
-            if (panel) panel.hidden = true;
-            if (btn) btn.setAttribute('aria-expanded', 'false');
-          });
-        }
-        function bindMenu(box) {
-          if (!box || box.getAttribute('data-bound') === '1') return;
-          box.setAttribute('data-bound', '1');
-          var btn = box.querySelector('.co-ms__btn');
-          var panel = box.querySelector('.co-ms__panel');
-          if (btn && panel) {
-            btn.addEventListener('click', function (e) {
-              e.preventDefault();
-              e.stopPropagation();
-              var willOpen = panel.hidden;
-              closeAll(box);
-              if (willOpen) place(box);
-              panel.hidden = !willOpen;
-              box.classList.toggle('is-open', willOpen);
-              btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-            });
-            panel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-            panel.addEventListener('click', function (e) { e.stopPropagation(); });
-          }
-          box.addEventListener('change', function (e) {
-            var t = e.target;
-            if (!t || t.tagName !== 'INPUT') return;
-            if (t.hasAttribute('data-all')) {
-              namedInputs(box).forEach(function (el) {
-                if (!el.disabled) el.checked = t.checked;
-              });
-            }
-            summary(box);
-            box.dispatchEvent(new CustomEvent('co-change'));
-          });
-          summary(box);
-        }
-        function checkedVals(box, name) {
-          if (!box) return [];
-          return Array.prototype.map.call(
-            box.querySelectorAll('input[name="' + name + '"]:checked:not(:disabled)'),
-            function (el) { return el.value; }
-          );
-        }
-        function setChecks(box, name, rows, labelOf, keep) {
-          var list = box.querySelector('.co-ms__list');
-          if (!list) return;
-          if (!rows.length) {
-            list.innerHTML = '<p class="co-ms__empty">اختر الفئة أولاً</p>';
-            summary(box);
-            return;
-          }
-          list.innerHTML = rows.map(function (row) {
-            var id = String(row.id);
-            var on = keep.indexOf(id) !== -1 ? ' checked' : '';
-            return '<label><input type="checkbox" name="' + name + '" value="' + id + '"' + on + '> ' + esc(labelOf(row)) + '</label>';
-          }).join('');
-          summary(box);
-        }
-        function setOnly(box, name, value) {
-          if (!box) return;
-          box.querySelectorAll('input[name="' + name + '"]').forEach(function (el) {
-            el.checked = String(el.value) === String(value);
-          });
-          summary(box);
-        }
-        function syncDays() {
-          if (!dayBox) return;
-          var ys = checkedVals(yearBox, 'year').map(Number);
-          var ms = checkedVals(monthBox, 'month').map(Number);
-          var max = 31;
-          if (ms.length) {
-            max = 0;
-            var years = ys.length ? ys : [new Date().getFullYear()];
-            ms.forEach(function (m) {
-              years.forEach(function (y) {
-                max = Math.max(max, new Date(y, m, 0).getDate());
-              });
-            });
-          }
-          dayBox.querySelectorAll('input[name="day"]').forEach(function (el) {
-            var hide = Number(el.value) > max;
-            el.disabled = hide;
-            if (el.parentNode) el.parentNode.style.display = hide ? 'none' : '';
-            if (hide) el.checked = false;
-          });
-          summary(dayBox);
-        }
-        function optionsUrl(query) {
-          var action = (form.getAttribute('action') || '').replace(/\/$/, '');
-          return action + '/options?' + query;
-        }
-        function loadCustomers() {
-          var ids = checkedVals(repBox, 'sales_rep_id');
-          var keep = checkedVals(cust, 'customer_id');
-          var all = cust && cust.querySelector('[data-all]');
-          if (all && all.checked) keep = [];
-          var q = ids.map(function (id) { return 'sales_rep_id=' + encodeURIComponent(id); }).join('&');
-          fetch(optionsUrl('kind=customers' + (q ? '&' + q : '')), { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              setChecks(cust, 'customer_id', (j && j.rows) || [], function (c) {
-                return (c.name_ar || '') + (c.code ? ' (' + c.code + ')' : '');
-              }, keep);
-            })
-            .catch(function () {});
-        }
-        function loadItems() {
-          var ids = checkedVals(cat, 'category_id');
-          var keep = checkedVals(item, 'item_id');
-          var all = item && item.querySelector('[data-all]');
-          if (all && all.checked) keep = [];
-          if (!ids.length) {
-            setChecks(item, 'item_id', [], function () { return ''; }, []);
-            return;
-          }
-          var q = ids.map(function (id) { return 'category_id=' + encodeURIComponent(id); }).join('&');
-          fetch(optionsUrl('kind=items&' + q), { credentials: 'same-origin' })
-            .then(function (r) { return r.json(); })
-            .then(function (j) {
-              setChecks(item, 'item_id', (j && j.rows) || [], function (it) {
-                var code = it.barcode || it.sku || '';
-                return (code ? code + ' — ' : '') + (it.name_ar || '');
-              }, keep);
-            })
-            .catch(function () {});
-        }
-        document.querySelectorAll('.co-ms').forEach(bindMenu);
-        document.addEventListener('click', function () { closeAll(null); });
-        window.addEventListener('resize', function () {
-          document.querySelectorAll('.co-ms.is-open').forEach(place);
-        });
-        window.addEventListener('scroll', function () {
-          document.querySelectorAll('.co-ms.is-open').forEach(place);
-        }, true);
-        if (yearBox) yearBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; syncDays(); });
-        if (monthBox) monthBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; syncDays(); });
-        if (dayBox) dayBox.addEventListener('co-change', function () { if (dateEl) dateEl.value = ''; });
-        if (repBox) repBox.addEventListener('co-change', loadCustomers);
-        if (cat) cat.addEventListener('co-change', loadItems);
-        if (dateEl) dateEl.addEventListener('change', function () {
-          if (!dateEl.value) return;
-          var p = dateEl.value.split('-');
-          if (p.length !== 3) return;
-          setOnly(yearBox, 'year', Number(p[0]));
-          setOnly(monthBox, 'month', Number(p[1]));
-          syncDays();
-          setOnly(dayBox, 'day', Number(p[2]));
-        });
-        syncDays();
-        if (!checkedVals(cat, 'category_id').length) setChecks(item, 'item_id', [], function () { return ''; }, []);
-        form.addEventListener('submit', function () {
-          document.querySelectorAll('.co-ms').forEach(function (box) {
-            var all = box.querySelector('[data-all]');
-            if (all && all.checked) {
-              namedInputs(box).forEach(function (el) { el.disabled = true; });
-            }
-          });
-        });
-      })();
-      </script>`;
+      `;
 
     res.send(
       ui.salesPage({
@@ -1903,7 +1750,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         title: 'تقرير تفصيلي لطلبات الشراء',
         bodyHtml: body,
         css: ['/assets/css/report-sales-detailed.css'],
-        js: ['/assets/js/sales-print.js'],
+        js: ['/assets/js/customer-orders-detailed-filters.js', '/assets/js/sales-print.js'],
         printTitle: 'تقرير تفصيلي لطلبات الشراء',
         activePath: '/sales/reports/customer-orders-detailed',
       })
