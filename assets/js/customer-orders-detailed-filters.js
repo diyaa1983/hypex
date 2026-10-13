@@ -7,14 +7,23 @@
     return box.querySelectorAll('.co-ms__list input[type="checkbox"]');
   }
 
+  function dayOff(el) {
+    return !el || el.disabled || (el.parentNode && el.parentNode.classList.contains('co-ms__day-off'));
+  }
+
+  function searchMiss(el) {
+    return el && el.parentNode && el.parentNode.classList.contains('co-ms__miss');
+  }
+
   function refresh(box) {
     var valueEl = box.querySelector('.co-ms__value');
     var all = box.querySelector('[data-all]');
     var inputs = Array.prototype.filter.call(listInputs(box), function (el) {
-      return !el.disabled && el.parentNode && el.parentNode.style.display !== 'none';
+      return !dayOff(el);
     });
+    var visible = inputs.filter(function (el) { return !searchMiss(el); });
     var checked = inputs.filter(function (el) { return el.checked; });
-    if (all) all.checked = inputs.length > 0 && checked.length === inputs.length;
+    if (all) all.checked = visible.length > 0 && visible.every(function (el) { return el.checked; });
     if (!valueEl) return;
     var text = 'الكل';
     if (!inputs.length) text = box.id === 'co-det-item' ? 'اختر الفئة' : 'الكل';
@@ -64,7 +73,48 @@
       var on = keep.indexOf(id) !== -1 ? ' checked' : '';
       return '<label><input type="checkbox" name="' + name + '" value="' + id + '"' + on + '> ' + esc(labelOf(row)) + '</label>';
     }).join('');
+    applyFind(box);
     refresh(box);
+  }
+
+  function applyFind(box) {
+    var input = box.querySelector('.co-ms__find input');
+    var q = input ? String(input.value || '').trim().toLowerCase() : '';
+    listInputs(box).forEach(function (el) {
+      var label = el.parentNode;
+      if (!label) return;
+      var miss = q && String(label.textContent || '').toLowerCase().indexOf(q) === -1;
+      label.classList.toggle('co-ms__miss', !!miss);
+    });
+  }
+
+  function ensureSearch(box) {
+    if (!box || box.querySelector('.co-ms__find')) return;
+    var panel = box.querySelector('.co-ms__panel');
+    if (!panel) return;
+    var head = document.createElement('div');
+    head.className = 'co-ms__head';
+    var find = document.createElement('div');
+    find.className = 'co-ms__find';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'بحث';
+    input.setAttribute('autocomplete', 'off');
+    input.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    input.addEventListener('click', function (e) { e.stopPropagation(); });
+    input.addEventListener('keydown', function (e) {
+      e.stopPropagation();
+      if (e.key === 'Enter') e.preventDefault();
+    });
+    input.addEventListener('input', function () {
+      applyFind(box);
+      refresh(box);
+    });
+    find.appendChild(input);
+    head.appendChild(find);
+    var all = panel.querySelector('.co-ms__all');
+    if (all) head.appendChild(all);
+    panel.insertBefore(head, panel.firstChild);
   }
 
   function syncDays(yearBox, monthBox, dayBox) {
@@ -83,7 +133,7 @@
     dayBox.querySelectorAll('input[name="day"]').forEach(function (el) {
       var hide = Number(el.value) > max;
       el.disabled = hide;
-      if (el.parentNode) el.parentNode.style.display = hide ? 'none' : '';
+      if (el.parentNode) el.parentNode.classList.toggle('co-ms__day-off', hide);
       if (hide) el.checked = false;
     });
     refresh(dayBox);
@@ -101,19 +151,23 @@
     var item = document.getElementById('co-det-item');
 
     boxes().forEach(function (box) {
+      ensureSearch(box);
       refresh(box);
       box.addEventListener('toggle', function () {
         if (!box.open) return;
         boxes().forEach(function (other) {
           if (other !== box) other.open = false;
         });
+        var find = box.querySelector('.co-ms__find input');
+        if (find) setTimeout(function () { find.focus(); find.select(); }, 0);
       });
       box.addEventListener('change', function (e) {
         var t = e.target;
         if (!t || t.type !== 'checkbox') return;
         if (t.hasAttribute('data-all')) {
           listInputs(box).forEach(function (el) {
-            if (!el.disabled && el.parentNode && el.parentNode.style.display !== 'none') el.checked = t.checked;
+            if (dayOff(el) || searchMiss(el)) return;
+            el.checked = t.checked;
           });
         }
         refresh(box);
@@ -143,6 +197,11 @@
       var keep = checkedVals(item, 'item_id');
       var all = item.querySelector('[data-all]');
       if (all && all.checked) keep = [];
+      if (!ids.length && cat) {
+        ids = Array.prototype.map.call(cat.querySelectorAll('input[name="category_id"]'), function (el) {
+          return el.value;
+        });
+      }
       if (!ids.length) {
         setChecks(item, 'item_id', [], function () { return ''; }, [], 'اختر الفئة أولاً');
         return;
@@ -178,13 +237,13 @@
     });
 
     syncDays(yearBox, monthBox, dayBox);
-    if (checkedVals(cat, 'category_id').length) loadItems();
+    loadItems();
 
     form.addEventListener('submit', function () {
       form.querySelectorAll('input[data-keep-all]').forEach(function (el) { el.remove(); });
       boxes().forEach(function (box) {
         var inputs = Array.prototype.filter.call(listInputs(box), function (el) {
-          return !el.disabled && el.parentNode && el.parentNode.style.display !== 'none';
+          return !dayOff(el);
         });
         var checked = inputs.filter(function (el) { return el.checked; });
         if (inputs.length > 60 && checked.length === inputs.length) {

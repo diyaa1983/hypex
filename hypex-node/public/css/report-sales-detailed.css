@@ -383,6 +383,41 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
   flex: 0 0 auto;
 }
 
+.co-det-page .co-ms__head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #fff;
+}
+
+.co-det-page .co-ms__find {
+  padding: 0.15rem 0.15rem 0.25rem;
+}
+
+.co-det-page .co-ms__find input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #c5d0de;
+  border-radius: 4px;
+  background: #f8fafc;
+  padding: 0.22rem 0.4rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.co-det-page .co-ms__find input:focus {
+  outline: none;
+  border-color: #1a4480;
+  background: #fff;
+}
+
+.co-det-page .co-ms__miss,
+.co-det-page .co-ms__day-off {
+  display: none !important;
+}
+
 .co-det-page .co-ms__all {
   position: sticky;
   top: 0;
