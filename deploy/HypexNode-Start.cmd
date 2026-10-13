@@ -52,6 +52,7 @@ if not errorlevel 1 (
   call :health
   if not errorlevel 1 (
     echo [OK] hypex-node already online and healthy.
+    call :apply_config
     set "NEED_START=0"
     goto :ok
   )
@@ -98,6 +99,8 @@ echo  Browser :  http://localhost/hypex
 echo  Direct  :  http://127.0.0.1:3000/hypex
 echo.
 echo  Need XAMPP Apache+MySQL for port 80
+echo  Saving files in src\ restarts the service by itself.
+echo  CSS and JS need Ctrl+F5 only.
 echo.
 pause
 exit /b 0
@@ -112,6 +115,19 @@ echo  Status : pm2 status
 echo.
 pause
 exit /b 1
+
+:apply_config
+set "STAMP=%TEMP%\hypex-ecosystem-applied.stamp"
+set "ECO=%NODE_DIR%\ecosystem.config.cjs"
+if not exist "%ECO%" exit /b 0
+powershell -NoProfile -Command "if (Test-Path $env:STAMP) { if ((Get-Item $env:ECO).LastWriteTime -le (Get-Item $env:STAMP).LastWriteTime) { exit 0 } }; exit 2"
+if not errorlevel 2 exit /b 0
+echo [2] Applying updated service settings...
+pm2 restart "%ECO%" --update-env
+if errorlevel 1 exit /b 0
+pm2 save --force >nul 2>nul
+copy /Y "%ECO%" "%STAMP%" >nul
+exit /b 0
 
 :health
 node -e "const h=require('http');const u='http://127.0.0.1:3000/hypex';const t=setTimeout(()=>process.exit(1),5000);h.get(u,r=>{clearTimeout(t);process.exit(r.statusCode&&r.statusCode<500?0:1);}).on('error',()=>{clearTimeout(t);process.exit(1);});"
