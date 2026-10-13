@@ -41,15 +41,21 @@
   }
 
   function optionsUrl(form, query) {
-    var action = (form.getAttribute('action') || '').replace(/\/$/, '');
+    var base = String(window.__HYPEX_BASE__ || '').replace(/\/$/, '');
+    var real = String(window.__HYPEX_PATH__ || '');
+    if (real.charAt(0) === '/') {
+      return base + real.replace(/\/$/, '') + '/options?' + query;
+    }
+    var action = (form.getAttribute('action') || '').split('?')[0].replace(/\/$/, '');
     return action + '/options?' + query;
   }
 
-  function setChecks(box, name, rows, labelOf, keep) {
+  function setChecks(box, name, rows, labelOf, keep, emptyText) {
     var list = box.querySelector('.co-ms__list');
     if (!list) return;
     if (!rows.length) {
-      list.innerHTML = '<p class="co-ms__empty">' + (box.id === 'co-det-item' ? 'اختر الفئة أولاً' : 'لا يوجد') + '</p>';
+      var msg = emptyText || (box.id === 'co-det-item' ? 'اختر الفئة أولاً' : 'لا يوجد');
+      list.innerHTML = '<p class="co-ms__empty">' + msg + '</p>';
       refresh(box);
       return;
     }
@@ -138,23 +144,32 @@
       var all = item.querySelector('[data-all]');
       if (all && all.checked) keep = [];
       if (!ids.length) {
-        setChecks(item, 'item_id', [], function () { return ''; }, []);
+        setChecks(item, 'item_id', [], function () { return ''; }, [], 'اختر الفئة أولاً');
         return;
       }
       var q = ids.map(function (id) { return 'category_id=' + encodeURIComponent(id); }).join('&');
       fetch(optionsUrl(form, 'kind=items&' + q), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          setChecks(item, 'item_id', (j && j.rows) || [], function (it) {
+          var rows = (j && j.rows) || [];
+          if (!rows.length && listInputs(item).length) return;
+          setChecks(item, 'item_id', rows, function (it) {
             var code = it.barcode || it.sku || '';
             return (code ? code + ' — ' : '') + (it.name_ar || '');
-          }, keep);
+          }, keep, 'لا توجد مواد لهذه الفئة');
         })
-        .catch(function () {});
+        .catch(function () {
+          if (!listInputs(item).length) {
+            setChecks(item, 'item_id', [], function () { return ''; }, [], 'تعذر تحميل المواد');
+          }
+        });
     }
 
     if (repBox) repBox.addEventListener('change', loadCustomers);
     if (cat) cat.addEventListener('change', loadItems);
+    if (item) item.addEventListener('toggle', function () {
+      if (item.open) loadItems();
+    });
     if (yearBox) yearBox.addEventListener('change', function () {
       syncDays(yearBox, monthBox, dayBox);
     });
@@ -163,15 +178,23 @@
     });
 
     syncDays(yearBox, monthBox, dayBox);
+    if (checkedVals(cat, 'category_id').length) loadItems();
 
     form.addEventListener('submit', function () {
+      form.querySelectorAll('input[data-keep-all]').forEach(function (el) { el.remove(); });
       boxes().forEach(function (box) {
         var inputs = Array.prototype.filter.call(listInputs(box), function (el) {
           return !el.disabled && el.parentNode && el.parentNode.style.display !== 'none';
         });
         var checked = inputs.filter(function (el) { return el.checked; });
-        if (inputs.length && checked.length === inputs.length) {
+        if (inputs.length > 60 && checked.length === inputs.length) {
           inputs.forEach(function (el) { el.disabled = true; });
+          var hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = inputs[0].name + '_all';
+          hidden.value = '1';
+          hidden.setAttribute('data-keep-all', '1');
+          form.appendChild(hidden);
         }
       });
     });

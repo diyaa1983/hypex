@@ -1389,6 +1389,14 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
     const categoryIds = pickedIds(req.query.category_id);
     const customerIds = pickedIds(req.query.customer_id);
     const itemIds = pickedIds(req.query.item_id);
+    const onAll = (key) => String(req.query[key] || '') === '1';
+    const yearAll = onAll('year_all');
+    const monthAll = onAll('month_all');
+    const dayAll = onAll('day_all');
+    const repAll = onAll('sales_rep_id_all');
+    const catAll = onAll('category_id_all');
+    const custAll = onAll('customer_id_all');
+    const itemAll = onAll('item_id_all');
     const status = String(req.query.status || 'all').toLowerCase();
     let err = '';
     let data = {
@@ -1398,15 +1406,30 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       period: { years, months, days, on_date: onDate },
     };
 
-    const [reps, categories, customers, items] = await Promise.all([
+    const [reps, categories, customers] = await Promise.all([
       q.listRepsSimple(),
       q.listCategoriesSimple(),
-      q.listCustomersForReps(salesRepIds),
-      q.listItemsForCategory(categoryIds),
+      q.listCustomersForReps(repAll ? [] : salesRepIds),
     ]);
-    const categoryFilter = categoryIds.filter((id) => categories.some((c) => Number(c.id) === id));
-    const customerFilter = customerIds.filter((id) => customers.some((c) => Number(c.id) === id));
-    const itemFilter = itemIds.filter((id) => items.some((it) => Number(it.id) === id));
+    const categoryFilter = catAll
+      ? []
+      : categoryIds.filter((id) => categories.some((c) => Number(c.id) === id));
+    const itemSourceIds = catAll ? categories.map((c) => Number(c.id)) : categoryFilter;
+    const items = await q.listItemsForCategory(itemSourceIds);
+    const customerFilter = custAll
+      ? []
+      : customerIds.filter((id) => customers.some((c) => Number(c.id) === id));
+    const itemFilter = itemAll ? [] : itemIds.filter((id) => items.some((it) => Number(it.id) === id));
+
+    if (yearAll) {
+      years = [];
+      for (let y = now.getFullYear() + 1; y >= now.getFullYear() - 6; y -= 1) years.push(y);
+    }
+    if (monthAll) months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    if (dayAll) {
+      days = [];
+      for (let d = 1; d <= 31; d += 1) days.push(d);
+    }
 
     if (run) {
       try {
@@ -1415,7 +1438,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           months,
           days,
           on_date: onDate,
-          sales_rep_ids: salesRepIds,
+          sales_rep_ids: repAll ? [] : salesRepIds,
           category_ids: categoryFilter,
           customer_ids: customerFilter,
           item_ids: itemFilter,
@@ -1456,37 +1479,39 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         </details>
       </div>`;
     const yearChecks = yearValues
-      .map((y) => check('year', y, String(y), years.includes(y)))
+      .map((y) => check('year', y, String(y), yearAll || years.includes(y)))
       .join('');
     const monthChecks = MONTHS.slice(1)
-      .map((name, i) => check('month', i + 1, name, months.includes(i + 1)))
+      .map((name, i) => check('month', i + 1, name, monthAll || months.includes(i + 1)))
       .join('');
     let dayChecks = '';
     for (let d = 1; d <= 31; d += 1) {
-      dayChecks += check('day', d, String(d), days.includes(d));
+      dayChecks += check('day', d, String(d), dayAll || days.includes(d));
     }
     const repChecks = reps
       .map((r) => {
         const id = Number(r.id);
         const label =
           ui.esc(r.name_ar || '') + (r.code ? ' (' + ui.esc(r.code) + ')' : '');
-        return check('sales_rep_id', id, label, salesRepIds.includes(id));
+        return check('sales_rep_id', id, label, repAll || salesRepIds.includes(id));
       })
       .join('');
     const catChecks = categories
-      .map((c) => check('category_id', c.id, ui.esc(c.name_ar || ''), categoryFilter.includes(Number(c.id))))
+      .map((c) =>
+        check('category_id', c.id, ui.esc(c.name_ar || ''), catAll || categoryIds.includes(Number(c.id)))
+      )
       .join('');
     const custChecks = customers
       .map((c) => {
         const label = ui.esc(c.name_ar || '') + (c.code ? ' (' + ui.esc(c.code) + ')' : '');
-        return check('customer_id', c.id, label, customerFilter.includes(Number(c.id)));
+        return check('customer_id', c.id, label, custAll || customerFilter.includes(Number(c.id)));
       })
       .join('');
     const itemChecks = items
       .map((it) => {
         const code = it.barcode || it.sku || '';
         const lab = ui.esc((code ? code + ' — ' : '') + (it.name_ar || ''));
-        return check('item_id', it.id, lab, itemFilter.includes(Number(it.id)));
+        return check('item_id', it.id, lab, itemAll || itemIds.includes(Number(it.id)));
       })
       .join('');
     const yearMenu = menu(
@@ -1551,9 +1576,11 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       'المادة',
       '',
       itemChecks,
-      categoryFilter.length
+      categoryIds.length || catAll
         ? pickedText(
-            items.filter((it) => itemFilter.includes(Number(it.id))).map((it) => it.name_ar || ''),
+            items
+              .filter((it) => itemAll || itemIds.includes(Number(it.id)))
+              .map((it) => it.name_ar || ''),
             items.length
           )
         : 'اختر الفئة'
