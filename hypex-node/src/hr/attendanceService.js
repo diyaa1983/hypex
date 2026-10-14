@@ -317,6 +317,117 @@ async function autoMap() {
   };
 }
 
+function parseDay(value) {
+  const d = String(value || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
+  return todayIso();
+}
+
+function parseClock(value) {
+  const m = String(value || '')
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (!m) return '';
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  const ss = Number(m[3] || 0);
+  if (hh > 23 || mm > 59 || ss > 59) return '';
+  return (
+    String(hh).padStart(2, '0') +
+    ':' +
+    String(mm).padStart(2, '0') +
+    ':' +
+    String(ss).padStart(2, '0')
+  );
+}
+
+function normalizePunchType(value) {
+  const t = String(value || '')
+    .trim()
+    .toUpperCase();
+  if (t === 'I' || t === 'O') return t;
+  return null;
+}
+
+async function employeePunchIdentity(employeeId) {
+  const eid = Number(employeeId) || 0;
+  if (!eid) return null;
+  const rows = await safe(
+    `SELECT e.id, e.emp_code, e.name_ar, m.zk_user_id, m.badge_number, m.zk_name
+     FROM hr_employee e
+     LEFT JOIN hr_att_employee_map m ON m.employee_id = e.id
+     WHERE e.id = ?
+     LIMIT 1`,
+    [eid]
+  );
+  return rows[0] || null;
+}
+
+async function listDayPunches(employeeId, day) {
+  const eid = Number(employeeId) || 0;
+  const d = parseDay(day);
+  if (!eid) return { day: d, rows: [] };
+  const rows = await safe(
+    `SELECT p.id, p.punch_time, p.punch_type, p.sensor_id, p.source_key
+     FROM hr_att_punch p
+     WHERE p.employee_id = ?
+       AND p.punch_time >= ?
+       AND p.punch_time < DATE_ADD(?, INTERVAL 1 DAY)
+     ORDER BY p.punch_time ASC, p.id ASC`,
+    [eid, d + ' 00:00:00', d]
+  );
+  return { day: d, rows };
+}
+
+async function addDayPunch(employeeId, day, clock, punchType) {
+  const emp = await employeePunchIdentity(employeeId);
+  if (!emp) return { ok: false, error: 'الموظف غير موجود.' };
+  const time = parseClock(clock);
+  if (!time) return { ok: false, error: 'أدخل وقتاً صحيحاً.' };
+  const d = parseDay(day);
+  const key = `m${emp.id}x${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  await q(
+    `INSERT INTO hr_att_punch
+      (employee_id, zk_user_id, badge_number, zk_name, punch_time, punch_type, sensor_id, source_key)
+     VALUES (?, ?, ?, ?, ?, ?, 'MANUAL', ?)`,
+    [
+      emp.id,
+      Number(emp.zk_user_id) || 0,
+      emp.badge_number || emp.emp_code || null,
+      emp.zk_name || emp.name_ar || null,
+      `${d} ${time}`,
+      normalizePunchType(punchType),
+      key,
+    ]
+  );
+  return { ok: true, message: 'تمت إضافة الوقت.' };
+}
+
+async function updateDayPunch(punchId, employeeId, day, clock, punchType) {
+  const id = Number(punchId) || 0;
+  const eid = Number(employeeId) || 0;
+  const time = parseClock(clock);
+  if (!id || !eid) return { ok: false, error: 'البصمة غير موجودة.' };
+  if (!time) return { ok: false, error: 'أدخل وقتاً صحيحاً.' };
+  const result = await q(
+    `UPDATE hr_att_punch
+     SET punch_time = ?, punch_type = ?
+     WHERE id = ? AND employee_id = ?`,
+    [`${parseDay(day)} ${time}`, normalizePunchType(punchType), id, eid]
+  );
+  if (!result || !result.affectedRows) return { ok: false, error: 'البصمة غير موجودة.' };
+  return { ok: true, message: 'تم تعديل الوقت.' };
+}
+
+async function deleteDayPunch(punchId, employeeId) {
+  const id = Number(punchId) || 0;
+  const eid = Number(employeeId) || 0;
+  if (!id || !eid) return { ok: false, error: 'البصمة غير موجودة.' };
+  const result = await q(`DELETE FROM hr_att_punch WHERE id = ? AND employee_id = ?`, [id, eid]);
+  if (!result || !result.affectedRows) return { ok: false, error: 'البصمة غير موجودة.' };
+  return { ok: true, message: 'تم حذف الوقت.' };
+}
+
 function badgeMatchesCode(badge, empCode) {
   const b = normalizeBadge(badge);
   const c = normalizeBadge(empCode);
@@ -342,4 +453,10 @@ module.exports = {
   unmap,
   autoMap,
   badgeMatchesCode,
+  parseDay,
+  parseClock,
+  listDayPunches,
+  addDayPunch,
+  updateDayPunch,
+  deleteDayPunch,
 };

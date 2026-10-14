@@ -189,3 +189,47 @@
 .att-meta--codes dd {
   margin-top: 0.25rem;
 }
+
+.att-day-pick,
+.att-day-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+
+.att-day-pick {
+  margin: 0.4rem 0 0.8rem;
+}
+
+.att-day-pick label,
+.att-day-line label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+  min-width: 10rem;
+}
+
+.att-day-time {
+  width: 8.5rem;
+  min-height: 2rem;
+}
+
+.att-day-type {
+  width: 7rem;
+  min-height: 2rem;
+}
+
+.att-day-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.att-day-table td {
+  background: #fff;
+}

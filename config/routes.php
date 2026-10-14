@@ -928,6 +928,12 @@ return [
         'title' => 'بصمات الموظفين',
         'hide_screen_title' => true,
     ],
+    'hr_attendance_day_edit' => [
+        'file' => 'modules/hr/attendance_day_edit.php',
+        'permission' => 'hr_employee_attendance',
+        'title' => 'تعديل بصمة موظف',
+        'hide_screen_title' => true,
+    ],
     'hr_attendance_sync_server' => [
         'file' => 'modules/hr/attendance_sync_server.php',
         'permission' => 'hr_employee_attendance',

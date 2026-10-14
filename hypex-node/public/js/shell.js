@@ -125,16 +125,6 @@
       }
     }
 
-    root.querySelectorAll('.hx-nav-item').forEach(function (item) {
-      item.addEventListener('mouseenter', function () {
-        closeMenus(item);
-        setItemOpen(item, true);
-      });
-      item.addEventListener('mouseleave', function () {
-        setItemOpen(item, false);
-      });
-    });
-
     root.querySelectorAll('[data-nav-menu]').forEach(function (btn) {
       btn.addEventListener('click', function (e) {
         e.preventDefault();
@@ -163,7 +153,6 @@
         placeFlyInView(fly);
       }
 
-      sub.addEventListener('mouseenter', openFly);
       subBtn.addEventListener('click', function (e) {
         e.preventDefault();
         e.stopPropagation();

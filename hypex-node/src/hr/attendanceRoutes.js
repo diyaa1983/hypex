@@ -205,6 +205,7 @@ router.get(BASE, async (req, res) => {
         title: 'بصمات الموظفين',
         subtitle: 'عرض وربط سجلات البصمة بعد المزامنة',
         actions: [
+          { label: 'تعديل بصمة موظف', href: '/hr/attendance/day' },
           { label: 'مزامنة السيرفر', href: '/hr/attendance/sync-server' },
           { label: 'مزامنة Windows', href: '/hr/attendance/sync-local' },
           { label: 'لوحة الموارد', href: HUB },
@@ -316,6 +317,7 @@ const config = require('../config');
 function attNavTabs(active) {
   const tabs = [
     { id: 'main', href: BASE, label: 'بصمات الموظفين' },
+    { id: 'day', href: BASE + '/day', label: 'تعديل بصمة موظف' },
     { id: 'server', href: BASE + '/sync-server', label: 'مزامنة السيرفر (ZKT)' },
     { id: 'local', href: BASE + '/sync-local', label: 'مزامنة Windows' },
   ];
@@ -503,6 +505,173 @@ router.post(BASE + '/sync-local/save', async (req, res) => {
       (result.ok ? 'msg=' : 'err=') +
       encodeURIComponent(result.message || result.error || '')
   );
+});
+
+function dayUrl(employeeId, day, extra = {}) {
+  const q = new URLSearchParams();
+  if (employeeId) q.set('employee_id', String(employeeId));
+  if (day) q.set('day', day);
+  for (const [k, v] of Object.entries(extra)) {
+    if (v != null && v !== '') q.set(k, String(v));
+  }
+  const s = q.toString();
+  return BASE + '/day' + (s ? '?' + s : '');
+}
+
+function clockOf(punchTime) {
+  const s = String(punchTime || '');
+  const m = s.match(/(\d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : '';
+}
+
+function typeOptions(current) {
+  const cur = String(current || '').toUpperCase();
+  const opts = [
+    ['', '—'],
+    ['I', 'دخول'],
+    ['O', 'خروج'],
+  ];
+  return opts
+    .map(
+      ([v, label]) =>
+        `<option value="${v}" ${cur === v ? 'selected' : ''}>${label}</option>`
+    )
+    .join('');
+}
+
+router.get(BASE + '/day', async (req, res) => {
+  if (!can(req.session.user)) return forbid(res);
+  const empId = Number(req.query.employee_id || 0) || 0;
+  const day = svc.parseDay(req.query.day || '');
+  const [employees, dayData] = await Promise.all([
+    svc.listEmployeesActive(),
+    empId ? svc.listDayPunches(empId, day) : Promise.resolve({ day, rows: [] }),
+  ]);
+  const empOpts = employees
+    .map((e) => {
+      const label = (e.emp_code ? e.emp_code + ' — ' : '') + (e.name_ar || '');
+      return `<option value="${e.id}" ${empId === Number(e.id) ? 'selected' : ''}>${esc(label)}</option>`;
+    })
+    .join('');
+  const rows = dayData.rows || [];
+  const rowsHtml = !empId
+    ? '<p class="att-empty">اختر الموظف والتاريخ ثم اعرض البصمات.</p>'
+    : rows.length
+      ? `<div class="si-table-wrap"><table class="si-table att-day-table">
+          <thead><tr><th>الوقت</th><th>النوع</th><th></th></tr></thead>
+          <tbody>${rows
+            .map((p) => {
+              const id = Number(p.id);
+              return `<tr>
+                <td colspan="3" class="att-day-edit">
+                  <form method="post" action="${BASE}/day/save" class="att-day-line">
+                    <input type="hidden" name="employee_id" value="${empId}">
+                    <input type="hidden" name="day" value="${esc(day)}">
+                    <input type="hidden" name="punch_id" value="${id}">
+                    <input class="si-field att-day-time" type="time" name="clock" step="1" required value="${esc(clockOf(p.punch_time))}">
+                    <select class="si-field att-day-type" name="punch_type">${typeOptions(p.punch_type)}</select>
+                    <button class="si-btn si-btn--primary" type="submit">تعديل</button>
+                  </form>
+                  <form method="post" action="${BASE}/day/delete" onsubmit="return confirm('حذف هذا الوقت؟');">
+                    <input type="hidden" name="employee_id" value="${empId}">
+                    <input type="hidden" name="day" value="${esc(day)}">
+                    <input type="hidden" name="punch_id" value="${id}">
+                    <button class="si-btn" type="submit">حذف</button>
+                  </form>
+                </td>
+              </tr>`;
+            })
+            .join('')}</tbody></table></div>`
+      : '<p class="att-empty">لا توجد بصمات لهذا الموظف في التاريخ المحدد. يمكنك إضافة وقت بالأسفل.</p>';
+
+  const addHtml = empId
+    ? `<section class="si-surface att-section">
+        <div class="si-surface-head"><h2>إضافة وقت</h2></div>
+        <div class="att-panel-body">
+          <form method="post" action="${BASE}/day/add" class="att-day-line">
+            <input type="hidden" name="employee_id" value="${empId}">
+            <input type="hidden" name="day" value="${esc(day)}">
+            <label>الوقت
+              <input class="si-field att-day-time" type="time" name="clock" step="1" required>
+            </label>
+            <label>النوع
+              <select class="si-field att-day-type" name="punch_type">${typeOptions('')}</select>
+            </label>
+            <button class="si-btn si-btn--primary" type="submit">إضافة</button>
+          </form>
+        </div>
+      </section>`
+    : '';
+
+  const body = `
+    <div class="si-stage att-page">
+      ${ui.hero({
+        mark: 'Hr',
+        kicker: KICKER,
+        title: 'تعديل بصمة موظف',
+        subtitle: 'اختر الموظف والتاريخ، ثم عدّل أو احذف أو أضف أي وقت',
+        actions: [
+          { label: 'بصمات الموظفين', href: BASE },
+          { label: 'لوحة الموارد', href: HUB },
+        ],
+      })}
+      ${flashHtml(req)}
+      ${attNavTabs('day')}
+      <form method="get" action="${BASE}/day" class="att-day-pick no-print">
+        <label>الموظف
+          <select class="si-field" name="employee_id" required>
+            <option value="">— اختر —</option>
+            ${empOpts}
+          </select>
+        </label>
+        <label>التاريخ
+          <input class="si-field" type="date" name="day" required value="${esc(day)}">
+        </label>
+        <button class="si-btn si-btn--primary" type="submit">عرض</button>
+      </form>
+      ${rowsHtml}
+      ${addHtml}
+    </div>`;
+
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تعديل بصمة موظف',
+      bodyHtml: body,
+      css: ['/assets/css/hr-attendance.css'],
+      activePath: BASE + '/day',
+    })
+  );
+});
+
+router.post(BASE + '/day/add', async (req, res) => {
+  if (!can(req.session.user)) return forbid(res);
+  const empId = Number(req.body?.employee_id || 0) || 0;
+  const day = svc.parseDay(req.body?.day || '');
+  const result = await svc.addDayPunch(empId, day, req.body?.clock, req.body?.punch_type);
+  res.redirect(dayUrl(empId, day, result.ok ? { msg: result.message } : { err: result.error }));
+});
+
+router.post(BASE + '/day/save', async (req, res) => {
+  if (!can(req.session.user)) return forbid(res);
+  const empId = Number(req.body?.employee_id || 0) || 0;
+  const day = svc.parseDay(req.body?.day || '');
+  const result = await svc.updateDayPunch(
+    req.body?.punch_id,
+    empId,
+    day,
+    req.body?.clock,
+    req.body?.punch_type
+  );
+  res.redirect(dayUrl(empId, day, result.ok ? { msg: result.message } : { err: result.error }));
+});
+
+router.post(BASE + '/day/delete', async (req, res) => {
+  if (!can(req.session.user)) return forbid(res);
+  const empId = Number(req.body?.employee_id || 0) || 0;
+  const day = svc.parseDay(req.body?.day || '');
+  const result = await svc.deleteDayPunch(req.body?.punch_id, empId);
+  res.redirect(dayUrl(empId, day, result.ok ? { msg: result.message } : { err: result.error }));
 });
 
 module.exports = router;

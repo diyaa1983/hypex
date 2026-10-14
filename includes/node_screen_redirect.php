@@ -48,7 +48,7 @@ function node_try_redirect_desktop_screen(string $routeCode): bool
 
     // مرّر فلاتر شائعة
     $keep = [];
-    foreach (['from', 'to', 'filter', 'q', 'status', 'sales_rep_id', 'method', 'customer_id', 'region_id', 'category_id', 'item_id', 'warehouse_id', 'payment_type', 'posted_only', 'group_by', 'tab', 'run'] as $k) {
+    foreach (['from', 'to', 'filter', 'q', 'status', 'sales_rep_id', 'method', 'customer_id', 'employee_id', 'day', 'region_id', 'category_id', 'item_id', 'warehouse_id', 'payment_type', 'posted_only', 'group_by', 'tab', 'run'] as $k) {
         if (isset($_GET[$k]) && (string) $_GET[$k] !== '') {
             $keep[$k] = (string) $_GET[$k];
         }
@@ -122,6 +122,7 @@ function node_desktop_screen_path_map(): array
         'account_mapping' => '/accounting/account-mapping',
         'hr_employees' => '/hr/employees',
         'hr_employee_attendance' => '/hr/attendance',
+        'hr_attendance_day_edit' => '/hr/attendance/day',
         'users' => '/system/users',
         'groups' => '/system/groups',
         'permissions' => '/system/permissions',

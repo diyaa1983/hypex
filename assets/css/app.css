@@ -784,7 +784,7 @@ body.has-topnav .hx-topnav__nav {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  align-items: stretch;
+  align-items: center;
   gap: 0;
   flex: 1 1 auto;
   overflow: visible;
@@ -840,7 +840,8 @@ body.has-topnav .hx-topnav__home {
 body.has-topnav .hx-nav-item {
   position: relative;
   display: inline-flex;
-  align-items: stretch;
+  align-items: center;
+  align-self: center;
 }
 
 body.has-topnav .hx-nav-drop,
@@ -890,10 +891,8 @@ html[dir='rtl'] body.has-topnav .hx-nav-fly {
   transform: translateX(-8px);
 }
 
-body.has-topnav .hx-nav-item:hover > .hx-nav-drop,
 body.has-topnav .hx-nav-item.is-open > .hx-nav-drop,
-body.has-topnav .hx-nav-sub.is-open > .hx-nav-fly,
-body.has-topnav .hx-nav-sub:hover > .hx-nav-fly {
+body.has-topnav .hx-nav-sub.is-open > .hx-nav-fly {
   visibility: visible;
   opacity: 1;
   pointer-events: auto;

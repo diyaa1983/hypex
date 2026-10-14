@@ -19,6 +19,7 @@ const hrCatalog = [
     title: 'بصمات الموظفين',
     items: [
       { r: 'hr_employee_attendance', label: 'بصمات الموظفين', icon: '👆', path: '/hr/attendance', kind: 'list' },
+      { r: 'hr_attendance_day_edit', label: 'تعديل بصمة موظف', icon: '✎', path: '/hr/attendance/day', kind: 'list' },
       { r: 'hr_attendance_sync_server', label: 'مزامنة السيرفر (ZKT)', icon: '🌐', path: '/hr/attendance/sync-server', kind: 'list' },
       { r: 'hr_attendance_sync_local', label: 'مزامنة Windows (محلي)', icon: '💻', path: '/hr/attendance/sync-local', kind: 'list' },
       { r: 'hr_employee_schedule', label: 'تعريف دوام الموظف', icon: '📅', path: '/hr/attendance/schedule', kind: 'list' },
