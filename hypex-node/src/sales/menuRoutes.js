@@ -1597,6 +1597,13 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       return `<tr class="${cls}${fold}"><td colspan="6"><strong>${ui.esc(label)}</strong></td>
         <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(amount || 0))}</strong></td></tr>`;
     }
+    function itemTotalRow(name, amount, foldKey) {
+      return `<tr class="co-det-item-tot co-det-fold" data-fold="${foldKey}">
+        <td></td><td></td><td></td><td></td><td></td>
+        <td><strong>مجموع المادة · ${ui.esc(name || '')}</strong></td>
+        <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(amount || 0))}</strong></td>
+      </tr>`;
+    }
     function detailRowHtml(r, foldKey) {
       const repTitle =
         (r.sales_rep_code ? r.sales_rep_code + ' — ' : '') + (r.sales_rep_name || '—');
@@ -1671,22 +1678,22 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           const foldKey = 'f' + ++foldSeq;
           const catName = cat.category_name || '—';
           rowsHtml += `<tr class="co-det-cat">
-            <td colspan="6">
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>
               <button type="button" class="co-det-twist" data-fold="${foldKey}" aria-expanded="false">
                 <span class="co-det-twist__icon" aria-hidden="true"></span>
-                <span>الفئة: <strong>${ui.esc(catName)}</strong></span>
+                <span>${ui.esc(catName)}</span>
               </button>
             </td>
+            <td class="co-det-cat__count">${cat.items.length} ${cat.items.length === 1 ? 'مادة' : 'مواد'}</td>
             <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(sumGross(cat.rows)))}</strong></td>
           </tr>`;
           for (const item of cat.items) {
             for (const r of item.rows) rowsHtml += detailRowHtml(r, foldKey);
-            rowsHtml += totalRow(
-              'مجموع المادة · ' + (item.item_name || ''),
-              sumGross(item.rows),
-              'co-det-item-tot',
-              foldKey
-            );
+            rowsHtml += itemTotalRow(item.item_name || '', sumGross(item.rows), foldKey);
           }
         }
         rowsHtml += totalRow(
@@ -1761,6 +1768,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           <style>
             .co-det-rep td{background:#1e3a5f;color:#fff;font-weight:800;padding:.55rem .65rem !important}
             .co-det-cat td{background:#e8eef7;color:#1e3a5f;font-weight:700;padding:.4rem .65rem !important}
+            .co-det-cat__count{font-weight:600;color:#64748b}
             .co-det-item-tot td{background:#f8fafc;font-weight:700}
             .co-det-cat-tot td{background:#eef6ff;font-weight:800;border-top:1px dashed #cbd5e1}
             .co-det-rep-tot td{background:#dbeafe;font-weight:800}

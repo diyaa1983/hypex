@@ -496,17 +496,26 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
 }
 
 .co-det-page .co-det-twist__icon {
-  width: 0;
-  height: 0;
-  border-style: solid;
-  border-width: 0.28rem 0.42rem 0.28rem 0;
-  border-color: transparent currentColor transparent transparent;
+  display: inline-block;
+  width: auto;
+  height: auto;
+  border: 0;
+  font-size: 0.72rem;
+  line-height: 1;
   flex: 0 0 auto;
 }
 
+.co-det-page .co-det-twist__icon::before {
+  content: "◂";
+}
+
 .co-det-page .co-det-twist[aria-expanded='true'] .co-det-twist__icon {
-  border-width: 0.42rem 0.28rem 0 0.28rem;
-  border-color: currentColor transparent transparent transparent;
+  transform: rotate(-90deg);
+}
+
+.co-det-page .co-det-cat__count {
+  font-weight: 600;
+  color: #64748b;
 }
 
 .co-det-page tr.co-det-fold {
