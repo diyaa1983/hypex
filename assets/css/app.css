@@ -891,7 +891,9 @@ html[dir='rtl'] body.has-topnav .hx-nav-fly {
   transform: translateX(-8px);
 }
 
+body.has-topnav .hx-nav-item:hover > .hx-nav-drop,
 body.has-topnav .hx-nav-item.is-open > .hx-nav-drop,
+body.has-topnav .hx-nav-sub:hover > .hx-nav-fly,
 body.has-topnav .hx-nav-sub.is-open > .hx-nav-fly {
   visibility: visible;
   opacity: 1;

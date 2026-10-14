@@ -125,15 +125,13 @@
       }
     }
 
-    root.querySelectorAll('[data-nav-menu]').forEach(function (btn) {
-      btn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var item = btn.closest('.hx-nav-item');
-        if (!item) return;
-        var open = item.classList.contains('is-open');
-        closeMenus(open ? null : item);
-        setItemOpen(item, !open);
+    root.querySelectorAll('.hx-nav-item').forEach(function (item) {
+      item.addEventListener('mouseenter', function () {
+        closeMenus(item);
+        setItemOpen(item, true);
+      });
+      item.addEventListener('mouseleave', function () {
+        setItemOpen(item, false);
       });
     });
 
@@ -153,22 +151,10 @@
         placeFlyInView(fly);
       }
 
-      subBtn.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        var open = sub.classList.contains('is-open');
-        root.querySelectorAll('.hx-nav-sub.is-open').forEach(function (other) {
-          if (other !== sub && !other.contains(sub)) {
-            other.classList.remove('is-open');
-            resetFlyPlace(other.querySelector('.hx-nav-fly'));
-          }
-        });
-        if (open) {
-          sub.classList.remove('is-open');
-          resetFlyPlace(fly);
-        } else {
-          openFly();
-        }
+      sub.addEventListener('mouseenter', openFly);
+      sub.addEventListener('mouseleave', function () {
+        sub.classList.remove('is-open');
+        resetFlyPlace(fly);
       });
     });
 

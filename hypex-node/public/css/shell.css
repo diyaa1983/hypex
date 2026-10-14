@@ -515,7 +515,9 @@ html[dir='rtl'] .hx-nav-fly {
   transform: translateX(-8px);
 }
 
+.hx-nav-item:hover > .hx-nav-drop,
 .hx-nav-item.is-open > .hx-nav-drop,
+.hx-nav-sub:hover > .hx-nav-fly,
 .hx-nav-sub.is-open > .hx-nav-fly {
   visibility: visible;
   opacity: 1;
