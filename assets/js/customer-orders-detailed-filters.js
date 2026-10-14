@@ -259,6 +259,26 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-  else boot();
+  function bootFolds() {
+    document.querySelectorAll('.co-det-twist').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-fold');
+        var open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        document.querySelectorAll('tr.co-det-fold[data-fold="' + key + '"]').forEach(function (row) {
+          row.classList.toggle('is-open', !open);
+        });
+      });
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function () {
+      boot();
+      bootFolds();
+    });
+  } else {
+    boot();
+    bootFolds();
+  }
 })();

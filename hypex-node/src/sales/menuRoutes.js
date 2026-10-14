@@ -1592,14 +1592,15 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       for (const r of rows || []) n += Number(r.line_gross || 0);
       return n;
     }
-    function totalRow(label, amount, cls) {
-      return `<tr class="${cls}"><td colspan="6"><strong>${ui.esc(label)}</strong></td>
+    function totalRow(label, amount, cls, foldKey) {
+      const fold = foldKey ? ` co-det-fold" data-fold="${foldKey}` : '';
+      return `<tr class="${cls}${fold}"><td colspan="6"><strong>${ui.esc(label)}</strong></td>
         <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(amount || 0))}</strong></td></tr>`;
     }
-    function detailRowHtml(r) {
+    function detailRowHtml(r, foldKey) {
       const repTitle =
         (r.sales_rep_code ? r.sales_rep_code + ' — ' : '') + (r.sales_rep_name || '—');
-      return `<tr>
+      return `<tr class="co-det-fold" data-fold="${foldKey}">
         <td>${ui.esc(r.customer_name || '—')}</td>
         <td>${ui.esc(repTitle)}</td>
         <td class="si-num" dir="ltr">${ui.esc(ui.isoToDmy(r.order_date))}</td>
@@ -1659,6 +1660,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
         }
         item.rows.push(row);
       }
+      let foldSeq = 0;
       for (const rep of repBlocks) {
         const repTitle =
           (rep.sales_rep_code ? rep.sales_rep_code + ' — ' : '') + (rep.sales_rep_name || 'مندوب');
@@ -1666,22 +1668,26 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
           repTitle
         )}</strong></td></tr>`;
         for (const cat of rep.categories) {
-          rowsHtml += `<tr class="co-det-cat"><td colspan="${colCount}">الفئة: <strong>${ui.esc(
-            cat.category_name || '—'
-          )}</strong></td></tr>`;
+          const foldKey = 'f' + ++foldSeq;
+          const catName = cat.category_name || '—';
+          rowsHtml += `<tr class="co-det-cat">
+            <td colspan="6">
+              <button type="button" class="co-det-twist" data-fold="${foldKey}" aria-expanded="false">
+                <span class="co-det-twist__icon" aria-hidden="true"></span>
+                <span>الفئة: <strong>${ui.esc(catName)}</strong></span>
+              </button>
+            </td>
+            <td class="si-num" dir="ltr"><strong>${ui.esc(ui.fmtAmt(sumGross(cat.rows)))}</strong></td>
+          </tr>`;
           for (const item of cat.items) {
-            for (const r of item.rows) rowsHtml += detailRowHtml(r);
+            for (const r of item.rows) rowsHtml += detailRowHtml(r, foldKey);
             rowsHtml += totalRow(
               'مجموع المادة · ' + (item.item_name || ''),
               sumGross(item.rows),
-              'co-det-item-tot'
+              'co-det-item-tot',
+              foldKey
             );
           }
-          rowsHtml += totalRow(
-            'مجموع الفئة · ' + (cat.category_name || ''),
-            sumGross(cat.rows),
-            'co-det-cat-tot'
-          );
         }
         rowsHtml += totalRow(
           'مجموع المندوب · ' + (rep.sales_rep_name || ''),

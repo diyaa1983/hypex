@@ -481,6 +481,51 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
   color: #94a3b8;
 }
 
+.co-det-page .co-det-twist {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.co-det-page .co-det-twist__icon {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0.28rem 0.42rem 0.28rem 0;
+  border-color: transparent currentColor transparent transparent;
+  flex: 0 0 auto;
+}
+
+.co-det-page .co-det-twist[aria-expanded='true'] .co-det-twist__icon {
+  border-width: 0.42rem 0.28rem 0 0.28rem;
+  border-color: currentColor transparent transparent transparent;
+}
+
+.co-det-page tr.co-det-fold {
+  display: none;
+}
+
+.co-det-page tr.co-det-fold.is-open {
+  display: table-row;
+}
+
+@media print {
+  .co-det-page tr.co-det-fold {
+    display: table-row !important;
+  }
+  .co-det-page .co-det-twist__icon {
+    display: none;
+  }
+}
+
 @media print {
   .si-report-detailed .sd-kpi-row {
     grid-template-columns: repeat(4, 1fr);
