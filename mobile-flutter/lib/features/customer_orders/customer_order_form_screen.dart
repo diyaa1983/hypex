@@ -188,8 +188,13 @@ class _OrderLine {
   }
 
   double get lineBase {
-    var n = 0.0;
+    final piece = pieceUnit;
+    final carton = cartonUnit;
+    var n = qtyPiece * _priceOf(piece) + qtyCarton * _priceOf(carton);
     for (final u in orderUnits) {
+      final isPiece = piece != null && u.unitId == piece.unitId;
+      final isCarton = carton != null && u.unitId == carton.unitId;
+      if (isPiece || isCarton) continue;
       n += qtyFor(u, extra: false) * _priceOf(u);
     }
     return n;
@@ -227,10 +232,32 @@ class _OrderLine {
     };
   }
 
-  /// سطر لكل وحدة فيها كمية، بأسماء وحدات بطاقة المادة.
+  /// سطر للكرتونة ثم القطعة، حتى لو بطاقة المادة لا تعرض إلا وحدة واحدة.
   List<Map<String, dynamic>> toSaveLines() {
     final out = <Map<String, dynamic>>[];
+    final carton = cartonUnit;
+    final piece = pieceUnit;
+    if (qtyCarton > 0 || extraCarton > 0) {
+      out.add(_saveMap(
+        carton ??
+            const ItemUnitOpt(unitId: 0, name: 'كرتونة', factor: 1),
+        qtyCarton,
+        extraCarton,
+      ));
+    }
+    if (qtyPiece > 0 || extraPiece > 0) {
+      out.add(_saveMap(
+        piece ??
+            const ItemUnitOpt(
+                unitId: 0, name: 'قطعة', factor: 1, isBase: true),
+        qtyPiece,
+        extraPiece,
+      ));
+    }
     for (final u in orderUnits) {
+      final isPiece = piece != null && u.unitId == piece.unitId;
+      final isCarton = carton != null && u.unitId == carton.unitId;
+      if (isPiece || isCarton) continue;
       final q = qtyFor(u, extra: false);
       final e = qtyFor(u, extra: true);
       if (q > 0 || e > 0) out.add(_saveMap(u, q, e));
@@ -859,21 +886,21 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     final item = await pickItem(context, warehouseId: _warehouseId);
     if (item == null || !mounted) return;
-    final split = await _askQtySplit(item);
+    final split = await _askQtySplit();
     if (split == null || !mounted) return;
-    if (split.values.every((v) => v <= 0)) {
-      showSnack(context, 'أدخل الكمية.', error: true);
+    if (split.$1 <= 0 && split.$2 <= 0) {
+      showSnack(context, 'أدخل كمية الكرتونة أو القطعة.', error: true);
       return;
     }
-    final line = _OrderLine(
-      item,
-      taxRateId: _defaultTaxRateId,
-      taxRatePercent: _defaultTaxPercent,
-    );
-    for (final u in line.orderUnits) {
-      line.setQtyFor(u, split[u.unitId] ?? 0, extra: false);
-    }
-    setState(() => _lines.add(line));
+    setState(() => _lines.add(
+          _OrderLine(
+            item,
+            taxRateId: _defaultTaxRateId,
+            taxRatePercent: _defaultTaxPercent,
+          )
+            ..qtyCarton = split.$1
+            ..qtyPiece = split.$2,
+        ));
   }
 
   Future<Map<String, dynamic>> _metaFromLocal() async {
@@ -1027,7 +1054,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       if (!ln.hasQty) {
         showSnack(
             context,
-          'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
+          'أدخل الكمية أو الكمية المجانية للبند رقم ${i + 1}.',
           error: true,
         );
         return 0;
@@ -1194,7 +1221,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       if (!ln.hasQty) {
         showSnack(
           context,
-          'أدخل الكمية أو الكمية الإضافية للبند رقم ${i + 1}.',
+          'أدخل الكمية أو الكمية المجانية للبند رقم ${i + 1}.',
           error: true,
         );
         return;
@@ -2543,39 +2570,30 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  List<ItemUnitOpt> _unitsOfItem(PickedItem item) {
-    if (item.units.isEmpty) {
-      return const [
-        ItemUnitOpt(unitId: 0, name: 'قطعة', factor: 1, isBase: true),
-      ];
-    }
-    final list = [...item.units]..sort((a, b) => b.factor.compareTo(a.factor));
-    return list;
-  }
-
-  Future<Map<int, int>?> _askQtySplit(PickedItem item) async {
-    final units = _unitsOfItem(item);
-    final controllers = {
-      for (final u in units) u.unitId: TextEditingController(),
-    };
-    final result = await showDialog<Map<int, int>>(
+  Future<(int, int)?> _askQtySplit() async {
+    final cartonCtrl = TextEditingController();
+    final pieceCtrl = TextEditingController();
+    final result = await showDialog<(int, int)>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('الكمية'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            for (var i = 0; i < units.length; i++)
-              Padding(
-                padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-                child: TextField(
-                  controller: controllers[units[i].unitId],
-                  autofocus: i == 0,
-                  keyboardType: TextInputType.number,
-                  textDirection: TextDirection.ltr,
-                  decoration: InputDecoration(labelText: units[i].name),
-                ),
-              ),
+            TextField(
+              controller: cartonCtrl,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(labelText: 'كرتونة'),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: pieceCtrl,
+              keyboardType: TextInputType.number,
+              textDirection: TextDirection.ltr,
+              decoration: const InputDecoration(labelText: 'قطعة'),
+            ),
           ],
         ),
         actions: [
@@ -2585,22 +2603,17 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           ),
           FilledButton(
             onPressed: () {
-              Navigator.pop(ctx, {
-                for (final u in units)
-                  u.unitId: int.tryParse(
-                        controllers[u.unitId]?.text.trim() ?? '',
-                      ) ??
-                      0,
-              });
+              final c = int.tryParse(cartonCtrl.text.trim()) ?? 0;
+              final p = int.tryParse(pieceCtrl.text.trim()) ?? 0;
+              Navigator.pop(ctx, (c, p));
             },
             child: const Text('موافق'),
           ),
         ],
       ),
     );
-    for (final c in controllers.values) {
-      c.dispose();
-    }
+    cartonCtrl.dispose();
+    pieceCtrl.dispose();
     return result;
   }
 
@@ -2612,28 +2625,23 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     required _LineTableMetrics m,
     required bool enabled,
   }) {
-    final units = line.orderUnits;
-    Widget field(ItemUnitOpt unit) {
-      final value = line.qtyFor(unit, extra: extra);
+    Widget field(String label, int value, void Function(int value) apply) {
       return InkWell(
         onTap: !enabled
             ? null
             : () => _editLineNumber(
-                  title: unit.name,
+                  title: label,
                   initial: value > 0 ? '$value' : '',
                   decimal: false,
                   apply: (v) {
-                    line.setQtyFor(
-                      unit,
-                      int.tryParse(v)?.clamp(0, 999999999) ?? 0,
-                      extra: extra,
-                    );
+                    apply(int.tryParse(v)?.clamp(0, 999999999) ?? 0);
                   },
                 ),
         child: InputDecorator(
           decoration: _lineFieldDecoration(m).copyWith(
-            labelText: unit.name,
-            labelStyle: TextStyle(fontSize: (m.font - 1).clamp(9, 14).toDouble()),
+            labelText: label,
+            labelStyle:
+                TextStyle(fontSize: (m.font - 1).clamp(9, 14).toDouble()),
             isDense: true,
           ),
           child: Text(
@@ -2646,15 +2654,28 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       );
     }
 
+    final carton = extra ? line.extraCarton : line.qtyCarton;
+    final piece = extra ? line.extraPiece : line.qtyPiece;
     return SizedBox(
       width: width,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          for (var i = 0; i < units.length; i++) ...[
-            if (i > 0) const SizedBox(height: 3),
-            field(units[i]),
-          ],
+          field('كرتونة', carton, (v) {
+            if (extra) {
+              line.extraCarton = v;
+            } else {
+              line.qtyCarton = v;
+            }
+          }),
+          const SizedBox(height: 3),
+          field('قطعة', piece, (v) {
+            if (extra) {
+              line.extraPiece = v;
+            } else {
+              line.qtyPiece = v;
+            }
+          }),
         ],
       ),
     );
@@ -2735,7 +2756,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         columns: [
           DataColumn(label: _tableHead('المادة', m.item, m.heading)),
           DataColumn(label: _tableHead('الكمية', m.qty, m.heading)),
-          DataColumn(label: _tableHead('إضافي', m.extra, m.heading)),
+          DataColumn(label: _tableHead('مجاني', m.extra, m.heading)),
           DataColumn(label: _tableHead('السعر غ ش*', m.price, m.heading)),
           DataColumn(label: _tableHead('السعر ش', m.priceInc, m.heading)),
           DataColumn(label: _tableHead('الضريبة', m.tax, m.heading)),

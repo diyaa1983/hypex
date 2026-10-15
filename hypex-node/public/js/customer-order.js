@@ -664,39 +664,42 @@
 
   function qtyPairHtml(ln, kind, locked) {
     var units = splitUnits(ln);
+    var piece = units.piece;
+    var carton = units.carton;
+    if (carton && piece && sameUnit(carton, piece)) carton = null;
+    var extra = kind === 'extra';
     var ro = locked ? 'readonly' : '';
-    var html = '<div class="co-qty-pair' + (units.list.length < 2 ? ' co-qty-pair--one' : '') + '">';
-    units.list.forEach(function (u) {
-      var isPiece = sameUnit(u, units.piece);
-      var isCarton = sameUnit(u, units.carton);
-      var cls =
-        kind === 'extra'
-          ? isPiece
-            ? 'js-uextra js-extra-piece'
-            : isCarton
-              ? 'js-uextra js-extra-carton'
-              : 'js-uextra'
-          : isPiece
-            ? 'js-uqty js-qty-piece js-qty'
-            : isCarton
-              ? 'js-uqty js-qty-carton'
-              : 'js-uqty';
-      var val = qtyOf(ln, u, kind === 'extra' ? 'extra' : 'qty');
-      html +=
+    function one(label, cls, unit, slotKey, fallback) {
+      var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
+      var key = unit ? unitKey(unit) : slotKey;
+      return (
         '<label>' +
-        escAttr(u.name) +
+        escAttr(label) +
         '<input class="' +
         cls +
         '" type="number" step="1" min="0" data-nav="1" data-unit-key="' +
-        escAttr(unitKey(u)) +
+        escAttr(key) +
         '" value="' +
         escAttr(userNumAttr(val)) +
         '" ' +
         ro +
-        '></label>';
-    });
-    html += '</div>';
-    return html;
+        '></label>'
+      );
+    }
+    var pieceCls = extra ? 'js-uextra js-extra-piece' : 'js-uqty js-qty-piece js-qty';
+    var cartonCls = extra ? 'js-uextra js-extra-carton' : 'js-uqty js-qty-carton';
+    return (
+      '<div class="co-qty-pair">' +
+      one(
+        'كرتونة',
+        cartonCls,
+        carton,
+        'slot:carton',
+        extra ? ln.extra_carton : ln.qty_carton
+      ) +
+      one('قطعة', pieceCls, piece, 'slot:piece', extra ? ln.extra_piece : ln.qty_piece) +
+      '</div>'
+    );
   }
 
   function unitSelectHtml(ln, disabled) {
@@ -1744,7 +1747,7 @@
       }
       if (!lineHasQty(curLn)) {
         focusLineField(idx, '.js-uqty', true);
-        hxAlert('أدخل الكمية أو الكمية الإضافية قبل الانتقال لسطر جديد.', {
+        hxAlert('أدخل الكمية أو الكمية المجانية قبل الانتقال لسطر جديد.', {
           title: 'الكمية مطلوبة',
           kind: 'warning',
         });
@@ -1863,9 +1866,9 @@
           return;
         }
         if (!lineHasQty(state.lines[idx])) {
-          setMsg('أدخل الكمية أو الكمية الإضافية أولاً قبل إضافة سطر جديد.', 'error');
+          setMsg('أدخل الكمية أو الكمية المجانية أولاً قبل إضافة سطر جديد.', 'error');
           focusLineField(idx, '.js-uqty', true);
-          hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
+          hxAlert('أدخل الكمية أو الكمية المجانية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
             kind: 'warning',
           });
@@ -2273,6 +2276,9 @@
     units.list.forEach(function (u) {
       push(u, qtyOf(ln, u, 'qty'), qtyOf(ln, u, 'extra'));
     });
+    if (!units.carton && (nQty(ln.qty_carton) || nQty(ln.extra_carton))) {
+      push({ unit_id: 0, name: 'كرتونة', factor: 1 }, ln.qty_carton, ln.extra_carton);
+    }
     return rows;
   }
 
@@ -2295,7 +2301,7 @@
     if (!lineHasItem(ln)) return true;
     if (lineHasQty(ln) || lineQtyValue(qtyEl) > 0 || lineQtyExtraValue(ln) > 0) return true;
 
-    var msg = 'أدخل الكمية أو الكمية الإضافية للبند قبل مغادرة الحقل.';
+    var msg = 'أدخل الكمية أو الكمية المجانية للبند قبل مغادرة الحقل.';
     setMsg(msg, 'error');
     qtyLeaveGuard = true;
     window.setTimeout(function () {
@@ -2355,8 +2361,8 @@
       if (!lineHasQty(lines[i])) {
         if (!opts.silent) {
           focusLineField(i, '.js-uqty', true);
-          setMsg('أدخل الكمية أو الكمية الإضافية في السطر الحالي قبل إضافة سطر جديد.', 'error');
-          hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
+          setMsg('أدخل الكمية أو الكمية المجانية في السطر الحالي قبل إضافة سطر جديد.', 'error');
+          hxAlert('أدخل الكمية أو الكمية المجانية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
             kind: 'warning',
           });
@@ -2743,7 +2749,7 @@
     }
     var missingQtyIdx = findFirstLineMissingQty();
     if (missingQtyIdx >= 0) {
-      hxAlert('أدخل الكمية أو الكمية الإضافية لكل بند قبل الحفظ.', {
+      hxAlert('أدخل الكمية أو الكمية المجانية لكل بند قبل الحفظ.', {
         title: 'الكمية مطلوبة',
         kind: 'warning',
       });
@@ -2754,7 +2760,7 @@
       var pq = Number(payload.lines[pi].qty) || 0;
       var pqe = Number(payload.lines[pi].qty_extra) || 0;
       if (!(pq > 0) && !(pqe > 0)) {
-        hxAlert('أدخل الكمية أو الكمية الإضافية للبند رقم ' + (pi + 1) + ' قبل الحفظ.', {
+        hxAlert('أدخل الكمية أو الكمية المجانية للبند رقم ' + (pi + 1) + ' قبل الحفظ.', {
           title: 'الكمية مطلوبة',
           kind: 'warning',
         });
@@ -2863,7 +2869,7 @@
     }
     syncLinesFromDom();
     var rows = [
-      ['#', 'رمز', 'مادة', 'كمية', 'إضافية', 'سعر', 'خصم%', 'ضريبة%', 'صافي', 'إجمالي'],
+      ['#', 'رمز', 'مادة', 'كمية', 'مجاني', 'سعر', 'خصم%', 'ضريبة%', 'صافي', 'إجمالي'],
     ];
     (state.lines || []).forEach(function (ln, i) {
       if (!ln.item_id) return;
@@ -3277,7 +3283,7 @@
     inp.value = String(roundBatchQty(raw));
     inp.dataset.srl = String(ln.srl || '');
     inp.dataset.lineId = String(ln.line_id || '');
-    inp.title = kind === 'bonus' ? 'الكمية الإضافية (بونص)' : 'كمية الطلب — تُحدَّث عند الترحيل';
+    inp.title = kind === 'bonus' ? 'الكمية المجانية (بونص)' : 'كمية الطلب — تُحدَّث عند الترحيل';
     inp.addEventListener('input', function () {
       syncNeedFromQtyBonus(inp.dataset.srl);
       validateBatchModal();
