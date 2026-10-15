@@ -3567,32 +3567,32 @@ body.ic-pick-lock {
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 9.4rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 11.5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 18rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(8),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(8) {
-  width: 11.5rem;
+  width: 18rem;
 }
 .si-lines--co .co-price-box {
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   justify-content: center;
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 6px;
   width: 100%;
 }
-.si-lines--co .co-price-side {
-  display: flex;
-  flex-direction: column;
+.si-lines--co .co-price-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 1px;
-  min-width: 4.2rem;
-  font-size: 10px;
+  gap: 3px;
+  white-space: nowrap;
+  font-size: 11px;
   font-weight: 800;
   color: #334155;
-  line-height: 1.15;
-  text-align: center;
+  line-height: 1.2;
 }
-.si-lines--co .co-price-side b { font-size: 10px; color: #1e3a5f; }
-.si-lines--co .co-price-side em { font-style: normal; font-weight: 800; }
+.si-lines--co .co-price-chip b { font-size: 11px; color: #1e3a5f; }
+.si-lines--co .co-price-chip em { font-style: normal; font-weight: 800; }
 .si-lines--co td.co-price-cell { text-align: center; white-space: normal; overflow: visible; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }

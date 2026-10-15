@@ -285,15 +285,14 @@ function printPricePair(cartonEx, pieceEx, taxPct) {
   function inc(ex) {
     return (Number(ex) || 0) * (1 + rate / 100);
   }
-  function side(label, ex) {
-    return `<span><i>${label}</i><i>غ.ش</i><b>${esc(fmtAmt(ex || 0))}</b><i>ش</i><b>${esc(
-      fmtAmt(inc(ex))
-    )}</b></span>`;
+  function chip(label, kind, amount) {
+    return `<span><i>${label} ${kind}</i><b>${esc(fmtAmt(amount || 0))}</b></span>`;
   }
-  return `<div class="co-print-pair co-print-price">${side('كرتونة', cartonEx)}${side(
-    'قطعة',
-    pieceEx
-  )}</div>`;
+  return `<div class="co-print-pair co-print-price">${chip('كرتونة', 'غ.ش', cartonEx)}${chip(
+    'كرتونة',
+    'ش',
+    inc(cartonEx)
+  )}${chip('قطعة', 'غ.ش', pieceEx)}${chip('قطعة', 'ش', inc(pieceEx))}</div>`;
 }
 
 function printPair(carton, piece) {

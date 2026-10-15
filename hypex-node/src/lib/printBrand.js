@@ -333,8 +333,9 @@ async function renderStandalonePrintPage({
     .co-print-pair span{display:flex;flex-direction:column;align-items:center;min-width:2.2rem;gap:1px}
     .co-print-pair i{font-style:normal;font-size:6.5pt;font-weight:700;color:#334155}
     .co-print-pair b{font-weight:800;font-size:8pt;min-height:1em}
-    .co-print-price span{min-width:3.4rem}
-    .inv-v1-table--order col.c-col-price{width:22%}
+    .co-print-price{flex-wrap:nowrap;gap:6px}
+    .co-print-price span{flex-direction:row;align-items:center;gap:3px;min-width:0;white-space:nowrap}
+    .inv-v1-table--order col.c-col-price{width:28%}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;

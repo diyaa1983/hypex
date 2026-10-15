@@ -669,18 +669,21 @@
     function money(n) {
       return escAttr(fmt(n || 0));
     }
+    function chip(label, kind, amount) {
+      return (
+        '<span class="co-price-chip"><b>' +
+        escAttr(label) +
+        '</b> ' +
+        kind +
+        ' <em dir="ltr">' +
+        money(amount) +
+        '</em></span>'
+      );
+    }
     function side(label, unit) {
       var ex = unit ? unitPriceOf(ln, unit) : 0;
       var inc = r3(ex * (1 + tax / 100));
-      return (
-        '<div class="co-price-side"><b>' +
-        escAttr(label) +
-        '</b><span>غ.ش <em dir="ltr">' +
-        money(ex) +
-        '</em></span><span>ش <em dir="ltr">' +
-        money(inc) +
-        '</em></span></div>'
-      );
+      return chip(label, 'غ.ش', ex) + chip(label, 'ش', inc);
     }
     var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
     return (
