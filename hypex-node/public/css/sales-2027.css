@@ -3503,20 +3503,27 @@ body.ic-pick-lock {
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 7rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-name { width: auto; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-unit { width: 0; }
-.si-lines--co .co-qty-pair { display: flex; gap: 4px; align-items: flex-end; }
+.si-lines--co .co-qty-pair { display: flex; flex-direction: column; gap: 2px; }
 .si-lines--co .co-qty-pair label {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  flex: 1;
   min-width: 0;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
   color: #5c6578;
+  line-height: 1.1;
 }
-.si-lines--co .co-qty-pair input { width: 100%; min-width: 0; text-align: center; }
+.si-lines--co .co-qty-pair input {
+  width: 100%;
+  min-width: 0;
+  height: 1.25rem;
+  padding: 0 2px;
+  text-align: center;
+  font-size: 12px;
+}
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 3.85rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 4.75rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 5rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }

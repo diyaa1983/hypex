@@ -11,50 +11,100 @@
     return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
+  function unitKey(u) {
+    var id = Number(u && u.unit_id) || 0;
+    if (id) return String(id);
+    return 'n:' + String((u && u.name) || '') + ':' + String((u && u.factor) || 1);
+  }
+
+  function sameUnit(a, b) {
+    if (!a || !b) return false;
+    if (Number(a.unit_id) > 0 && Number(a.unit_id) === Number(b.unit_id)) return true;
+    return a.name === b.name && Number(a.factor) === Number(b.factor);
+  }
+
+  /** وحدات بطاقة المادة كما هي: الأكبر ثم الأصغر. بدون اختراع وحدة غير موجودة. */
   function splitUnits(ln) {
-    var units = ln && Array.isArray(ln.units) ? ln.units : [];
-    var piece = null;
-    var carton = null;
-    units.forEach(function (u) {
+    var raw = ln && Array.isArray(ln.units) ? ln.units : [];
+    var seen = {};
+    var list = [];
+    raw.forEach(function (u) {
       var fac = Number(u.factor) > 0 ? Number(u.factor) : 1;
-      var name = String(u.name || '');
+      var name = String(u.name || '').trim() || 'وحدة';
       var row = {
         unit_id: Number(u.unit_id) || 0,
-        name: name || 'وحدة',
+        name: name,
         factor: fac,
+        is_base: !!(u.is_base || u.isBase) || fac <= 1.001,
         sale_price: u.sale_price,
         wholesale_price: u.wholesale_price,
       };
-      if (u.is_base || fac <= 1.001) {
-        if (!piece || u.is_base || fac < piece.factor) piece = row;
-      }
-      var looksBox = fac > 1.001 || name.indexOf('كرتون') >= 0;
-      if (looksBox && (!carton || fac > carton.factor)) carton = row;
+      var key = unitKey(row);
+      if (seen[key]) return;
+      seen[key] = 1;
+      list.push(row);
     });
-    if (!piece) {
-      piece = {
+    if (!list.length) {
+      var fac0 = Number(ln && ln.unit_factor) > 0 ? Number(ln.unit_factor) : 1;
+      list.push({
         unit_id: Number(ln && ln.unit_id) || 0,
-        name: 'قطعة',
-        factor: 1,
-      };
+        name: String((ln && ln.unit_name) || 'قطعة'),
+        factor: fac0,
+        is_base: fac0 <= 1.001,
+      });
     }
-    if (carton && piece && carton.unit_id === piece.unit_id) carton = null;
-    return { piece: piece, carton: carton };
+    list.sort(function (a, b) {
+      return b.factor - a.factor;
+    });
+    var piece = null;
+    list.forEach(function (u) {
+      if (!(u.is_base || u.factor <= 1.001)) return;
+      if (!piece || u.factor < piece.factor) piece = u;
+    });
+    if (!piece) piece = list[list.length - 1];
+    var carton = null;
+    list.forEach(function (u) {
+      if (sameUnit(u, piece)) return;
+      if (!carton || u.factor > carton.factor) carton = u;
+    });
+    return { piece: piece, carton: carton, list: list };
+  }
+
+  function qtyOf(ln, unit, kind) {
+    var map = kind === 'extra' ? ln && ln.extra_by : ln && ln.qty_by;
+    var key = unitKey(unit);
+    if (map && Object.prototype.hasOwnProperty.call(map, key)) return map[key];
+    var split = splitUnits(ln);
+    if (kind === 'extra') {
+      if (sameUnit(unit, split.piece)) return ln.extra_piece;
+      if (sameUnit(unit, split.carton)) return ln.extra_carton;
+    } else {
+      if (sameUnit(unit, split.piece)) return ln.qty_piece;
+      if (sameUnit(unit, split.carton)) return ln.qty_carton;
+    }
+    return '';
   }
 
   function hydrateQtySplit(ln) {
     ln = ln || {};
+    if (!ln.qty_by || typeof ln.qty_by !== 'object') ln.qty_by = {};
+    if (!ln.extra_by || typeof ln.extra_by !== 'object') ln.extra_by = {};
     if (
       ln.qty_piece != null ||
       ln.qty_carton != null ||
       ln.extra_piece != null ||
-      ln.extra_carton != null
+      ln.extra_carton != null ||
+      Object.keys(ln.qty_by).length ||
+      Object.keys(ln.extra_by).length
     ) {
       return ln;
     }
     var fac = Number(ln.unit_factor) > 0 ? Number(ln.unit_factor) : 1;
     var name = String(ln.unit_name || '');
     var isCarton = fac > 1.001 || name.indexOf('كرتون') >= 0;
+    var key = Number(ln.unit_id) > 0 ? String(ln.unit_id) : 'n:' + name + ':' + fac;
+    ln.qty_by[key] = ln.qty || '';
+    ln.extra_by[key] = ln.qty_extra || '';
     ln.qty_piece = isCarton ? '' : ln.qty || '';
     ln.qty_carton = isCarton ? ln.qty || '' : '';
     ln.extra_piece = isCarton ? '' : ln.qty_extra || '';
@@ -64,10 +114,20 @@
 
   function mergeSplitLines(lines) {
     var out = [];
+    function addMap(dst, src) {
+      Object.keys(src || {}).forEach(function (k) {
+        var sum = nQty(dst[k]) + nQty(src[k]);
+        dst[k] = sum || '';
+      });
+    }
     (lines || []).forEach(function (raw) {
       var ln = hydrateQtySplit(Object.assign({}, raw));
       var prev = out.length ? out[out.length - 1] : null;
       if (prev && Number(prev.item_id) > 0 && Number(prev.item_id) === Number(ln.item_id)) {
+        if (!prev.qty_by) prev.qty_by = {};
+        if (!prev.extra_by) prev.extra_by = {};
+        addMap(prev.qty_by, ln.qty_by);
+        addMap(prev.extra_by, ln.extra_by);
         prev.qty_piece = nQty(prev.qty_piece) + nQty(ln.qty_piece) || '';
         prev.qty_carton = nQty(prev.qty_carton) + nQty(ln.qty_carton) || '';
         prev.extra_piece = nQty(prev.extra_piece) + nQty(ln.extra_piece) || '';
@@ -604,30 +664,39 @@
 
   function qtyPairHtml(ln, kind, locked) {
     var units = splitUnits(ln);
-    var cartonOk = !!units.carton;
-    var cartonVal = kind === 'extra' ? ln.extra_carton : ln.qty_carton;
-    var pieceVal = kind === 'extra' ? ln.extra_piece : ln.qty_piece;
-    var cartonCls = kind === 'extra' ? 'js-extra-carton' : 'js-qty-carton';
-    var pieceCls = kind === 'extra' ? 'js-extra-piece' : 'js-qty-piece js-qty';
     var ro = locked ? 'readonly' : '';
-    return (
-      '<div class="co-qty-pair">' +
-      '<label>كرتونة<input class="' +
-      cartonCls +
-      '" type="number" step="1" min="0" data-nav="1" value="' +
-      escAttr(userNumAttr(cartonVal)) +
-      '" ' +
-      ro +
-      (cartonOk ? '' : ' disabled') +
-      '></label>' +
-      '<label>قطعة<input class="' +
-      pieceCls +
-      '" type="number" step="1" min="0" data-nav="1" value="' +
-      escAttr(userNumAttr(pieceVal)) +
-      '" ' +
-      ro +
-      '></label></div>'
-    );
+    var html = '<div class="co-qty-pair' + (units.list.length < 2 ? ' co-qty-pair--one' : '') + '">';
+    units.list.forEach(function (u) {
+      var isPiece = sameUnit(u, units.piece);
+      var isCarton = sameUnit(u, units.carton);
+      var cls =
+        kind === 'extra'
+          ? isPiece
+            ? 'js-uextra js-extra-piece'
+            : isCarton
+              ? 'js-uextra js-extra-carton'
+              : 'js-uextra'
+          : isPiece
+            ? 'js-uqty js-qty-piece js-qty'
+            : isCarton
+              ? 'js-uqty js-qty-carton'
+              : 'js-uqty';
+      var val = qtyOf(ln, u, kind === 'extra' ? 'extra' : 'qty');
+      html +=
+        '<label>' +
+        escAttr(u.name) +
+        '<input class="' +
+        cls +
+        '" type="number" step="1" min="0" data-nav="1" data-unit-key="' +
+        escAttr(unitKey(u)) +
+        '" value="' +
+        escAttr(userNumAttr(val)) +
+        '" ' +
+        ro +
+        '></label>';
+    });
+    html += '</div>';
+    return html;
   }
 
   function unitSelectHtml(ln, disabled) {
@@ -869,10 +938,12 @@
   function lineTotals(ln) {
     var units = splitUnits(ln);
     var pieceP = unitPriceOf(ln, units.piece);
-    var cartonP = units.carton ? unitPriceOf(ln, units.carton) : 0;
     var discPct = Number(ln.discount_pct) || 0;
     var taxRate = Number(ln.tax_rate_percent) || 0;
-    var sub = nQty(ln.qty_piece) * pieceP + nQty(ln.qty_carton) * cartonP;
+    var sub = 0;
+    units.list.forEach(function (u) {
+      sub += nQty(qtyOf(ln, u, 'qty')) * unitPriceOf(ln, u);
+    });
     if (!sub && nQty(ln.qty)) sub = nQty(ln.qty) * (Number(ln.unit_price) || pieceP);
     var disc = discPct > 0 ? r3((sub * discPct) / 100) : 0;
     sub = r3(sub - disc);
@@ -941,6 +1012,16 @@
     var qtyCartonEl = tr.querySelector('.js-qty-carton');
     var qtyExtraEl = tr.querySelector('.js-extra-piece');
     var extraCartonEl = tr.querySelector('.js-extra-carton');
+    if (!ln.qty_by || typeof ln.qty_by !== 'object') ln.qty_by = {};
+    if (!ln.extra_by || typeof ln.extra_by !== 'object') ln.extra_by = {};
+    tr.querySelectorAll('.js-uqty').forEach(function (el) {
+      var key = el.getAttribute('data-unit-key') || '';
+      if (key) ln.qty_by[key] = el.value;
+    });
+    tr.querySelectorAll('.js-uextra').forEach(function (el) {
+      var key = el.getAttribute('data-unit-key') || '';
+      if (key) ln.extra_by[key] = el.value;
+    });
     var discEl = tr.querySelector('.js-disc');
     var taxEl = tr.querySelector('.js-tax');
     var codeEl = tr.querySelector('.js-item-code');
@@ -950,8 +1031,15 @@
     if (qtyCartonEl) ln.qty_carton = qtyCartonEl.value;
     if (qtyExtraEl) ln.extra_piece = qtyExtraEl.value;
     if (extraCartonEl) ln.extra_carton = extraCartonEl.value;
-    ln.qty = nQty(ln.qty_piece) + nQty(ln.qty_carton);
-    ln.qty_extra = nQty(ln.extra_piece) + nQty(ln.extra_carton);
+    function sumMap(map) {
+      var n = 0;
+      Object.keys(map || {}).forEach(function (k) {
+        n += nQty(map[k]);
+      });
+      return n;
+    }
+    ln.qty = sumMap(ln.qty_by) || nQty(ln.qty_piece) + nQty(ln.qty_carton);
+    ln.qty_extra = sumMap(ln.extra_by) || nQty(ln.extra_piece) + nQty(ln.extra_carton);
     if (skuEl) ln.item_sku = String(skuEl.value || '').trim();
     if (codeEl) {
       var bc = cleanBarcodeText(codeEl.value);
@@ -1248,23 +1336,23 @@
     markFormDirty();
     if (focusNext) {
       window.setTimeout(function () {
-        focusLineField(idx, '.js-qty', true);
+        focusLineField(idx, '.js-uqty', true);
       }, 0);
     }
   }
 
   /** ترتيب حقول التنقل Enter / الأسهم داخل السطر */
-  var LINE_NAV = ['.js-item-sku', '.js-item-code', '.js-item-name', '.js-qty-carton', '.js-qty-piece', '.js-extra-carton', '.js-extra-piece', '.js-disc', '.js-tax'];
+  var LINE_NAV = ['.js-item-sku', '.js-item-code', '.js-item-name', '.js-uqty', '.js-uextra', '.js-disc', '.js-tax'];
 
   function lineNavEls(tr) {
     var list = [];
     LINE_NAV.forEach(function (sel) {
-      var el = tr.querySelector(sel);
-      if (!el || el.disabled) return;
-      if (el.readOnly && !el.classList.contains('js-item-name')) return;
-      // اسم المادة: يُتجاوز إذا readonly (المختار)
-      if (el.classList.contains('js-item-name') && el.readOnly) return;
-      list.push(el);
+      tr.querySelectorAll(sel).forEach(function (el) {
+        if (!el || el.disabled) return;
+        if (el.readOnly && !el.classList.contains('js-item-name')) return;
+        if (el.classList.contains('js-item-name') && el.readOnly) return;
+        list.push(el);
+      });
     });
     return list;
   }
@@ -1655,7 +1743,7 @@
         return;
       }
       if (!lineHasQty(curLn)) {
-        focusLineField(idx, '.js-qty', true);
+        focusLineField(idx, '.js-uqty', true);
         hxAlert('أدخل الكمية أو الكمية الإضافية قبل الانتقال لسطر جديد.', {
           title: 'الكمية مطلوبة',
           kind: 'warning',
@@ -1776,7 +1864,7 @@
         }
         if (!lineHasQty(state.lines[idx])) {
           setMsg('أدخل الكمية أو الكمية الإضافية أولاً قبل إضافة سطر جديد.', 'error');
-          focusLineField(idx, '.js-qty', true);
+          focusLineField(idx, '.js-uqty', true);
           hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
             kind: 'warning',
@@ -1878,26 +1966,19 @@
     });
   }
 
-  function bindRow(tr) {
+  function bindQtyInputs(tr) {
     if (!tr) return;
-    if (tr.getAttribute('data-hx-bound') === '1') {
-      bindUnitOnly(tr);
-      bindItemPickButton(tr);
-      return;
-    }
-    tr.setAttribute('data-hx-bound', '1');
-    ['js-qty-carton', 'js-qty-piece', 'js-extra-carton', 'js-extra-piece', 'js-disc', 'js-tax'].forEach(function (cls) {
-      var el = tr.querySelector('.' + cls);
-      if (!el) return;
+    tr.querySelectorAll('.js-uqty, .js-uextra, .js-disc, .js-tax').forEach(function (el) {
+      if (el.getAttribute('data-co-on') === '1') return;
+      el.setAttribute('data-co-on', '1');
       var ev = el.tagName === 'SELECT' ? 'change' : 'input';
       el.addEventListener(ev, function () {
         readLineFromRow(tr);
-        if ((cls === 'js-qty-piece' || cls === 'js-qty-carton') && window.HxOffers) {
+        if (el.classList.contains('js-uqty') && window.HxOffers) {
           var idx = Number(tr.getAttribute('data-idx'));
-          var ln = state.lines[idx];
           window.HxOffers.refreshLine({
             idx: idx,
-            ln: ln,
+            ln: state.lines[idx],
             tr: tr,
             onDone: function () {
               readLineFromRow(tr);
@@ -1905,12 +1986,23 @@
           });
         }
       });
-      if (cls === 'js-qty-piece' && !locked) {
+      if (el.classList.contains('js-qty') && !locked) {
         el.addEventListener('blur', function () {
           enforceQtyBeforeLeave(el);
         });
       }
     });
+  }
+
+  function bindRow(tr) {
+    if (!tr) return;
+    bindQtyInputs(tr);
+    if (tr.getAttribute('data-hx-bound') === '1') {
+      bindUnitOnly(tr);
+      bindItemPickButton(tr);
+      return;
+    }
+    tr.setAttribute('data-hx-bound', '1');
     bindUnitOnly(tr);
     var skuInput = tr.querySelector('.js-item-sku');
     var codeInput = tr.querySelector('.js-item-code');
@@ -2178,8 +2270,9 @@
       copy.unit_price = unitPriceOf(ln, unit);
       rows.push(copy);
     }
-    if (units.carton) push(units.carton, ln.qty_carton, ln.extra_carton);
-    push(units.piece, ln.qty_piece, ln.extra_piece);
+    units.list.forEach(function (u) {
+      push(u, qtyOf(ln, u, 'qty'), qtyOf(ln, u, 'extra'));
+    });
     return rows;
   }
 
@@ -2261,7 +2354,7 @@
       }
       if (!lineHasQty(lines[i])) {
         if (!opts.silent) {
-          focusLineField(i, '.js-qty', true);
+          focusLineField(i, '.js-uqty', true);
           setMsg('أدخل الكمية أو الكمية الإضافية في السطر الحالي قبل إضافة سطر جديد.', 'error');
           hxAlert('أدخل الكمية أو الكمية الإضافية قبل إضافة سطر جديد.', {
             title: 'الكمية مطلوبة',
@@ -2323,10 +2416,10 @@
     if (tr) {
       patchLineRow(tr, state.lines[idx]);
       window.setTimeout(function () {
-        focusLineField(idx, '.js-qty', true);
+        focusLineField(idx, '.js-uqty', true);
       }, 0);
     } else {
-      renderLines({ idx: idx, cls: '.js-qty', select: true });
+      renderLines({ idx: idx, cls: '.js-uqty', select: true });
     }
   });
 
@@ -2654,7 +2747,7 @@
         title: 'الكمية مطلوبة',
         kind: 'warning',
       });
-      focusLineField(missingQtyIdx, '.js-qty', true);
+      focusLineField(missingQtyIdx, '.js-uqty', true);
       return Promise.resolve(null);
     }
     for (var pi = 0; pi < payload.lines.length; pi++) {
@@ -2665,7 +2758,7 @@
           title: 'الكمية مطلوبة',
           kind: 'warning',
         });
-        focusLineField(pi, '.js-qty', true);
+        focusLineField(pi, '.js-uqty', true);
         return Promise.resolve(null);
       }
       var bonusOnly = !(pq > 0) && pqe > 0;

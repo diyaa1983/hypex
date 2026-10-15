@@ -131,16 +131,79 @@ class _OrderLine {
   double get piecePrice => _priceOf(pieceUnit);
   double get cartonPrice => cartonUnit == null ? 0 : _priceOf(cartonUnit);
 
-  bool get hasQty =>
-      qtyPiece > 0 || qtyCarton > 0 || extraPiece > 0 || extraCarton > 0;
+  /// وحدات البطاقة من الأكبر إلى الأصغر. وحدة واحدة تبقى حقلاً واحداً.
+  List<ItemUnitOpt> get orderUnits {
+    if (item.units.isEmpty) {
+      return [
+        ItemUnitOpt(
+          unitId: unitId,
+          name: unitName.isEmpty ? 'قطعة' : unitName,
+          factor: unitFactor <= 0 ? 1 : unitFactor,
+          isBase: unitFactor <= 1.001,
+        ),
+      ];
+    }
+    final list = [...item.units]..sort((a, b) => b.factor.compareTo(a.factor));
+    return list;
+  }
 
-  double get lineBase => qtyPiece * piecePrice + qtyCarton * cartonPrice;
+  final Map<int, int> qtyOther = {};
+  final Map<int, int> extraOther = {};
+
+  int qtyFor(ItemUnitOpt u, {required bool extra}) {
+    if (pieceUnit != null && u.unitId == pieceUnit!.unitId) {
+      return extra ? extraPiece : qtyPiece;
+    }
+    if (cartonUnit != null && u.unitId == cartonUnit!.unitId) {
+      return extra ? extraCarton : qtyCarton;
+    }
+    return (extra ? extraOther : qtyOther)[u.unitId] ?? 0;
+  }
+
+  void setQtyFor(ItemUnitOpt u, int v, {required bool extra}) {
+    if (pieceUnit != null && u.unitId == pieceUnit!.unitId) {
+      if (extra) {
+        extraPiece = v;
+      } else {
+        qtyPiece = v;
+      }
+      return;
+    }
+    if (cartonUnit != null && u.unitId == cartonUnit!.unitId) {
+      if (extra) {
+        extraCarton = v;
+      } else {
+        qtyCarton = v;
+      }
+      return;
+    }
+    (extra ? extraOther : qtyOther)[u.unitId] = v;
+  }
+
+  bool get hasQty {
+    for (final u in orderUnits) {
+      if (qtyFor(u, extra: false) > 0 || qtyFor(u, extra: true) > 0) return true;
+    }
+    return qtyPiece > 0 || qtyCarton > 0 || extraPiece > 0 || extraCarton > 0;
+  }
+
+  double get lineBase {
+    var n = 0.0;
+    for (final u in orderUnits) {
+      n += qtyFor(u, extra: false) * _priceOf(u);
+    }
+    return n;
+  }
   double get discountAmount =>
       discountPct <= 0 ? 0 : lineBase * (discountPct.clamp(0, 100) / 100);
   double get lineTotal => (lineBase - discountAmount).clamp(0, double.infinity);
   double get taxAmount => lineTotal * taxRatePercent / 100;
   double get lineGross => lineTotal + taxAmount;
-  double get unitPriceInclusive => piecePrice * (1 + taxRatePercent / 100);
+  double get unitPriceInclusive {
+    final units = orderUnits;
+    final u = units.isEmpty ? pieceUnit : units.last;
+    return _priceOf(u) * (1 + taxRatePercent / 100);
+  }
   double get cartonPriceInclusive => cartonPrice * (1 + taxRatePercent / 100);
 
   Map<String, dynamic> _saveMap(ItemUnitOpt? u, int qty, int extra) {
@@ -164,14 +227,13 @@ class _OrderLine {
     };
   }
 
-  /// سطر لكل وحدة فيها كمية: كرتونة ثم قطعة.
+  /// سطر لكل وحدة فيها كمية، بأسماء وحدات بطاقة المادة.
   List<Map<String, dynamic>> toSaveLines() {
     final out = <Map<String, dynamic>>[];
-    if (qtyCarton > 0 || extraCarton > 0) {
-      out.add(_saveMap(cartonUnit, qtyCarton, extraCarton));
-    }
-    if (qtyPiece > 0 || extraPiece > 0) {
-      out.add(_saveMap(pieceUnit, qtyPiece, extraPiece));
+    for (final u in orderUnits) {
+      final q = qtyFor(u, extra: false);
+      final e = qtyFor(u, extra: true);
+      if (q > 0 || e > 0) out.add(_saveMap(u, q, e));
     }
     return out;
   }
@@ -358,7 +420,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   String _fingerprint() {
     final lines = _lines
         .map((l) =>
-            '${l.item.id}:${l.qtyPiece}:${l.qtyCarton}:${l.extraPiece}:${l.extraCarton}:${l.discountPct}:${l.taxRateId}')
+            '${l.item.id}:${l.orderUnits.map((u) => '${u.unitId}:${l.qtyFor(u, extra: false)}:${l.qtyFor(u, extra: true)}').join(',')}:${l.discountPct}:${l.taxRateId}')
         .join('|');
     return '${_customer?.id}|$_warehouseId|$_paymentType|$_deliveryDate|${_notesCtrl.text.trim()}|$lines';
   }
@@ -618,6 +680,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             (factor > 1.001 || name.contains('كرتون'));
         final q = Fmt.toDouble(m['qty']).round().clamp(0, 999999999);
         final e = Fmt.toDouble(m['qty_extra']).round().clamp(0, 999999999);
+        ItemUnitOpt? matched;
+        for (final u in line.orderUnits) {
+          if (line.unitId != 0 && u.unitId == line.unitId) {
+            matched = u;
+            break;
+          }
+        }
         if (storedCarton) {
           line.qtyPiece = q;
           line.qtyCarton =
@@ -626,6 +695,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           line.extraCarton = Fmt.toDouble(m['qty_extra_carton'])
               .round()
               .clamp(0, 999999999);
+        } else if (matched != null) {
+          line.setQtyFor(matched, q, extra: false);
+          line.setQtyFor(matched, e, extra: true);
         } else if (isCarton) {
           line.qtyCarton = q;
           line.extraCarton = e;
@@ -635,10 +707,23 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         }
         if (loaded.isNotEmpty && loaded.last.item.id == line.item.id) {
           final prev = loaded.last;
-          prev.qtyPiece += line.qtyPiece;
-          prev.qtyCarton += line.qtyCarton;
-          prev.extraPiece += line.extraPiece;
-          prev.extraCarton += line.extraCarton;
+          if (matched != null && !storedCarton) {
+            prev.setQtyFor(
+              matched,
+              prev.qtyFor(matched, extra: false) + q,
+              extra: false,
+            );
+            prev.setQtyFor(
+              matched,
+              prev.qtyFor(matched, extra: true) + e,
+              extra: true,
+            );
+          } else {
+            prev.qtyPiece += line.qtyPiece;
+            prev.qtyCarton += line.qtyCarton;
+            prev.extraPiece += line.extraPiece;
+            prev.extraCarton += line.extraCarton;
+          }
         } else {
           loaded.add(line);
         }
@@ -774,21 +859,21 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     final item = await pickItem(context, warehouseId: _warehouseId);
     if (item == null || !mounted) return;
-    final split = await _askQtySplit();
+    final split = await _askQtySplit(item);
     if (split == null || !mounted) return;
-    if (split.$1 <= 0 && split.$2 <= 0) {
-      showSnack(context, 'أدخل كمية الكرتونة أو القطعة.', error: true);
+    if (split.values.every((v) => v <= 0)) {
+      showSnack(context, 'أدخل الكمية.', error: true);
       return;
     }
-    setState(() => _lines.add(
-          _OrderLine(
-            item,
-            taxRateId: _defaultTaxRateId,
-            taxRatePercent: _defaultTaxPercent,
-          )
-            ..qtyCarton = split.$1
-            ..qtyPiece = split.$2,
-        ));
+    final line = _OrderLine(
+      item,
+      taxRateId: _defaultTaxRateId,
+      taxRatePercent: _defaultTaxPercent,
+    );
+    for (final u in line.orderUnits) {
+      line.setQtyFor(u, split[u.unitId] ?? 0, extra: false);
+    }
+    setState(() => _lines.add(line));
   }
 
   Future<Map<String, dynamic>> _metaFromLocal() async {
@@ -947,7 +1032,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         );
         return 0;
       }
-      if ((ln.qtyPiece > 0 || ln.qtyCarton > 0) && ln.basePrice <= 0) {
+      if (ln.orderUnits.any((u) => ln.qtyFor(u, extra: false) > 0) &&
+          ln.basePrice <= 0) {
         showSnack(
           context,
           'سعر المادة في البطاقة صفر. عدّله من شاشة تعديل الأسعار.',
@@ -1011,11 +1097,17 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         'lines': _lines
             .map((l) => {
                   'item_name': l.item.name,
-                  'unit_name': l.unitName,
-                  'qty': l.qtyPiece + l.qtyCarton,
+                  'unit_name': l.orderUnits.map((u) => u.name).join(' / '),
+                  'qty': l.orderUnits
+                      .where((u) => l.qtyFor(u, extra: false) > 0)
+                      .map((u) => '${l.qtyFor(u, extra: false)} ${u.name}')
+                      .join(' + '),
                   'qty_piece': l.qtyPiece,
                   'qty_carton': l.qtyCarton,
-                  'qty_extra': l.extraPiece + l.extraCarton,
+                  'qty_extra': l.orderUnits
+                      .where((u) => l.qtyFor(u, extra: true) > 0)
+                      .map((u) => '${l.qtyFor(u, extra: true)} ${u.name}')
+                      .join(' + '),
                   'unit_price': l.piecePrice,
                   'unit_price_inclusive': l.unitPriceInclusive,
                   'tax_rate_percent': l.taxRatePercent,
@@ -2451,30 +2543,39 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  Future<(int, int)?> _askQtySplit() async {
-    final cartonCtrl = TextEditingController();
-    final pieceCtrl = TextEditingController();
-    final result = await showDialog<(int, int)>(
+  List<ItemUnitOpt> _unitsOfItem(PickedItem item) {
+    if (item.units.isEmpty) {
+      return const [
+        ItemUnitOpt(unitId: 0, name: 'قطعة', factor: 1, isBase: true),
+      ];
+    }
+    final list = [...item.units]..sort((a, b) => b.factor.compareTo(a.factor));
+    return list;
+  }
+
+  Future<Map<int, int>?> _askQtySplit(PickedItem item) async {
+    final units = _unitsOfItem(item);
+    final controllers = {
+      for (final u in units) u.unitId: TextEditingController(),
+    };
+    final result = await showDialog<Map<int, int>>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('الكمية'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
-              controller: cartonCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(labelText: 'كرتونة'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: pieceCtrl,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(labelText: 'قطعة'),
-            ),
+            for (var i = 0; i < units.length; i++)
+              Padding(
+                padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+                child: TextField(
+                  controller: controllers[units[i].unitId],
+                  autofocus: i == 0,
+                  keyboardType: TextInputType.number,
+                  textDirection: TextDirection.ltr,
+                  decoration: InputDecoration(labelText: units[i].name),
+                ),
+              ),
           ],
         ),
         actions: [
@@ -2484,55 +2585,62 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           ),
           FilledButton(
             onPressed: () {
-              final c = int.tryParse(cartonCtrl.text.trim()) ?? 0;
-              final p = int.tryParse(pieceCtrl.text.trim()) ?? 0;
-              Navigator.pop(ctx, (c, p));
+              Navigator.pop(ctx, {
+                for (final u in units)
+                  u.unitId: int.tryParse(
+                        controllers[u.unitId]?.text.trim() ?? '',
+                      ) ??
+                      0,
+              });
             },
             child: const Text('موافق'),
           ),
         ],
       ),
     );
-    cartonCtrl.dispose();
-    pieceCtrl.dispose();
+    for (final c in controllers.values) {
+      c.dispose();
+    }
     return result;
   }
 
   Widget _qtyPair({
     required double width,
-    required int carton,
-    required int piece,
-    required bool cartonEnabled,
+    required _OrderLine line,
+    required bool extra,
     required TextStyle style,
     required _LineTableMetrics m,
-    required void Function(int value)? onCarton,
-    required void Function(int value)? onPiece,
+    required bool enabled,
   }) {
-    Widget field(String label, int value, void Function(int value)? onTap) {
-      return Expanded(
-        child: InkWell(
-          onTap: onTap == null
-              ? null
-              : () => _editLineNumber(
-                    title: label,
-                    initial: value > 0 ? '$value' : '',
-                    decimal: false,
-                    apply: (v) {
-                      onTap(int.tryParse(v)?.clamp(0, 999999999) ?? 0);
-                    },
-                  ),
-          child: InputDecorator(
-            decoration: _lineFieldDecoration(m).copyWith(
-              labelText: label,
-              labelStyle: TextStyle(fontSize: m.font - 1),
-              isDense: true,
-            ),
-            child: Text(
-              value > 0 ? '$value' : '',
-              textAlign: TextAlign.center,
-              textDirection: TextDirection.ltr,
-              style: style,
-            ),
+    final units = line.orderUnits;
+    Widget field(ItemUnitOpt unit) {
+      final value = line.qtyFor(unit, extra: extra);
+      return InkWell(
+        onTap: !enabled
+            ? null
+            : () => _editLineNumber(
+                  title: unit.name,
+                  initial: value > 0 ? '$value' : '',
+                  decimal: false,
+                  apply: (v) {
+                    line.setQtyFor(
+                      unit,
+                      int.tryParse(v)?.clamp(0, 999999999) ?? 0,
+                      extra: extra,
+                    );
+                  },
+                ),
+        child: InputDecorator(
+          decoration: _lineFieldDecoration(m).copyWith(
+            labelText: unit.name,
+            labelStyle: TextStyle(fontSize: (m.font - 1).clamp(9, 14).toDouble()),
+            isDense: true,
+          ),
+          child: Text(
+            value > 0 ? '$value' : '',
+            textAlign: TextAlign.center,
+            textDirection: TextDirection.ltr,
+            style: style,
           ),
         ),
       );
@@ -2540,11 +2648,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
     return SizedBox(
       width: width,
-      child: Row(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          field('كرتونة', carton, cartonEnabled ? onCarton : null),
-          const SizedBox(width: 4),
-          field('قطعة', piece, onPiece),
+          for (var i = 0; i < units.length; i++) ...[
+            if (i > 0) const SizedBox(height: 3),
+            field(units[i]),
+          ],
         ],
       ),
     );
@@ -2613,7 +2723,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       child: DataTable(
         headingRowHeight: compact ? 32 : 42,
         dataRowMinHeight: compact ? 64 : 72,
-        dataRowMaxHeight: compact ? 78 : 86,
+        dataRowMaxHeight: compact ? 128 : 146,
         columnSpacing: m.colSpacing,
         horizontalMargin: m.hMargin,
         headingTextStyle: TextStyle(
@@ -2654,42 +2764,38 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               DataCell(
                 _qtyPair(
                   width: m.qty,
-                  carton: _lines[i].qtyCarton,
-                  piece: _lines[i].qtyPiece,
-                  cartonEnabled: _lines[i].cartonUnit != null,
+                  line: _lines[i],
+                  extra: false,
                   style: cellStyle,
                   m: m,
-                  onCarton: !_editable
-                      ? null
-                      : (v) => setState(() => _lines[i].qtyCarton = v),
-                  onPiece: !_editable
-                      ? null
-                      : (v) => setState(() => _lines[i].qtyPiece = v),
+                  enabled: _editable,
                 ),
               ),
               DataCell(
                 _qtyPair(
                   width: m.extra,
-                  carton: _lines[i].extraCarton,
-                  piece: _lines[i].extraPiece,
-                  cartonEnabled: _lines[i].cartonUnit != null,
+                  line: _lines[i],
+                  extra: true,
                   style: cellStyle,
                   m: m,
-                  onCarton: !_editable
-                      ? null
-                      : (v) => setState(() => _lines[i].extraCarton = v),
-                  onPiece: !_editable
-                      ? null
-                      : (v) => setState(() => _lines[i].extraPiece = v),
+                  enabled: _editable,
                 ),
               ),
               DataCell(
                 SizedBox(
                   width: m.price,
                   child: Text(
-                    _lines[i].cartonUnit == null
-                        ? Fmt.trimNum(_lines[i].piecePrice)
-                        : 'ق ${Fmt.trimNum(_lines[i].piecePrice)}\nك ${Fmt.trimNum(_lines[i].cartonPrice)}',
+                    _lines[i].orderUnits.length <= 1
+                        ? Fmt.trimNum(_lines[i]._priceOf(
+                            _lines[i].orderUnits.isEmpty
+                                ? null
+                                : _lines[i].orderUnits.first,
+                          ))
+                        : _lines[i]
+                            .orderUnits
+                            .map((u) =>
+                                '${u.name} ${Fmt.trimNum(_lines[i]._priceOf(u))}')
+                            .join('\n'),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
