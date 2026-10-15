@@ -3475,6 +3475,12 @@ body.ic-pick-lock {
 }
 
 @media print {
+  .si-lines--co .co-qty-pair {
+    justify-content: center !important;
+  }
+  .si-lines--co td.co-qty-cell {
+    text-align: center !important;
+  }
   .imv-summary {
     grid-template-columns: repeat(5, 1fr);
     gap: 0.35rem;
@@ -3522,21 +3528,33 @@ body.ic-pick-lock {
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(7) {
   width: 9.4rem;
 }
-.si-lines--co .co-qty-pair { display: flex; flex-direction: row; gap: 4px; align-items: flex-end; }
+.si-lines--co .co-qty-pair {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin: 0 auto;
+}
 .si-lines--co .co-qty-pair label {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 1px;
-  flex: 1 1 0;
+  flex: 0 0 3.4rem;
   min-width: 0;
   font-size: 10px;
   font-weight: 800;
   color: #5c6578;
   line-height: 1.1;
+  text-align: center;
 }
 .si-lines--co td.co-qty-cell {
   overflow: visible;
   white-space: normal;
+  text-align: center;
+  vertical-align: middle;
 }
 .si-lines--co .co-qty-pair input {
   width: 100%;
@@ -3549,7 +3567,33 @@ body.ic-pick-lock {
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 9.4rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 11.5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(8),
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(8) {
+  width: 11.5rem;
+}
+.si-lines--co .co-price-box {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+.si-lines--co .co-price-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 4.2rem;
+  font-size: 10px;
+  font-weight: 800;
+  color: #334155;
+  line-height: 1.15;
+  text-align: center;
+}
+.si-lines--co .co-price-side b { font-size: 10px; color: #1e3a5f; }
+.si-lines--co .co-price-side em { font-style: normal; font-weight: 800; }
+.si-lines--co td.co-price-cell { text-align: center; white-space: normal; overflow: visible; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-net,

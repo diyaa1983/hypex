@@ -662,6 +662,38 @@
     return ln;
   }
 
+  function priceBoxHtml(ln) {
+    var units = splitUnits(ln);
+    var tax = Number(ln.tax_rate_percent);
+    if (!Number.isFinite(tax)) tax = Number(defaultTax) || 0;
+    function money(n) {
+      return escAttr(fmt(n || 0));
+    }
+    function side(label, unit) {
+      var ex = unit ? unitPriceOf(ln, unit) : 0;
+      var inc = r3(ex * (1 + tax / 100));
+      return (
+        '<div class="co-price-side"><b>' +
+        escAttr(label) +
+        '</b><span>غ.ش <em dir="ltr">' +
+        money(ex) +
+        '</em></span><span>ش <em dir="ltr">' +
+        money(inc) +
+        '</em></span></div>'
+      );
+    }
+    var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
+    return (
+      '<div class="co-price-box">' +
+      side('كرتونة', units.carton) +
+      side('قطعة', units.piece) +
+      '<input type="hidden" class="js-price" value="' +
+      escAttr(pieceEx) +
+      '">' +
+      '</div>'
+    );
+  }
+
   function qtyPairHtml(ln, kind, locked) {
     var units = splitUnits(ln);
     var piece = units.piece;
@@ -1076,6 +1108,8 @@
     var grossEl = tr.querySelector('.js-gross');
     if (subEl) subEl.textContent = fmt(t.sub);
     if (grossEl) grossEl.textContent = fmt(t.gross);
+    var priceCell = tr.querySelector('.co-price-cell');
+    if (priceCell) priceCell.innerHTML = priceBoxHtml(ln);
     recomputeFooter();
   }
 
@@ -1195,11 +1229,8 @@
         '<td class="co-qty-cell">' +
         qtyPairHtml(ln, 'extra', locked) +
         '</td>' +
-        '<td><input class="js-price" type="number" step="' +
-        priceStep() +
-        '" min="0" value="' +
-        escAttr(ln.unit_price) +
-        '" readonly tabindex="-1" title="من بطاقة المادة (أقل وحدة × التعبئة)">' +
+        '<td class="co-price-cell">' +
+        priceBoxHtml(ln) +
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
@@ -1314,8 +1345,8 @@
       qtyCell[0].innerHTML = qtyPairHtml(ln, 'qty', locked);
       qtyCell[1].innerHTML = qtyPairHtml(ln, 'extra', locked);
     }
-    var pe = tr.querySelector('.js-price');
-    if (pe) pe.value = String(ln.unit_price != null ? ln.unit_price : 0);
+    var priceCell = tr.querySelector('.co-price-cell');
+    if (priceCell) priceCell.innerHTML = priceBoxHtml(ln);
     var discEl = tr.querySelector('.js-disc');
     if (discEl && ln.discount_pct != null) discEl.value = userNumAttr(ln.discount_pct);
     var taxEl = tr.querySelector('.js-tax');

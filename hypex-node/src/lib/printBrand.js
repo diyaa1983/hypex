@@ -326,6 +326,15 @@ async function renderStandalonePrintPage({
       white-space:normal;word-break:break-word;line-height:1.15;font-size:6.5pt;padding:2px 1px
     }
     .inv-v1-table--lines .c-num{font-size:7pt;white-space:nowrap;padding:2px 1px}
+    .inv-v1-table--order col.c-col-name{width:26%}
+    .inv-v1-table--order col.c-col-qty{width:18%}
+    .inv-v1-table--order col.c-col-extra{width:18%}
+    .co-print-pair{display:flex;justify-content:center;align-items:center;gap:8px;width:100%}
+    .co-print-pair span{display:flex;flex-direction:column;align-items:center;min-width:2.2rem;gap:1px}
+    .co-print-pair i{font-style:normal;font-size:6.5pt;font-weight:700;color:#334155}
+    .co-print-pair b{font-weight:800;font-size:8pt;min-height:1em}
+    .co-print-price span{min-width:3.4rem}
+    .inv-v1-table--order col.c-col-price{width:22%}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;

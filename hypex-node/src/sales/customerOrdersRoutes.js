@@ -6,7 +6,7 @@ const svc = require('./customerOrdersService');
 const invSvc = require('./invoicesService');
 const { renderApp } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
-const { ensurePrintBrand, renderStandalonePrintPage, invoiceV1LinesTableHtml } = require('../lib/printBrand');
+const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
 const { oracleStatementUrl, linesColgroup } = require('../lib/salesUi');
 
 const router = express.Router();
@@ -221,6 +221,135 @@ function toolbarHtml(caps, order, badgeHtml = '') {
     </div>`;
 }
 
+function printQtyText(n) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) < 0.000001) return '';
+  const rounded = Math.round(v * 1000) / 1000;
+  return String(rounded);
+}
+
+function isPackUnit(ln) {
+  const fac = Number(ln.unit_factor) || 1;
+  const name = String(ln.unit_name || '');
+  return fac > 1.001 || name.indexOf('كرتون') >= 0;
+}
+
+function groupOrderPrintLines(lines) {
+  const out = [];
+  for (const ln of lines || []) {
+    const id = Number(ln.item_id) || 0;
+    let g =
+      out.length && id > 0 && out[out.length - 1].item_id === id ? out[out.length - 1] : null;
+    if (!g) {
+      g = {
+        item_id: id,
+        name: ln.name_ar || ln.item_name || ln.line_desc || '',
+        cartonQty: 0,
+        pieceQty: 0,
+        cartonExtra: 0,
+        pieceExtra: 0,
+        cartonPrice: 0,
+        piecePrice: 0,
+        unit_price: ln.unit_price,
+        discount_pct: ln.discount_pct,
+        discount_amount: 0,
+        tax_rate_percent: ln.tax_rate_percent,
+        tax_amount: 0,
+        line_total: 0,
+        line_gross: 0,
+      };
+      out.push(g);
+    }
+    const q = Number(ln.qty) || 0;
+    const e = Number(ln.qty_extra) || 0;
+    if (isPackUnit(ln)) {
+      g.cartonQty += q;
+      g.cartonExtra += e;
+      g.cartonPrice = Number(ln.unit_price) || 0;
+    } else {
+      g.pieceQty += q;
+      g.pieceExtra += e;
+      g.piecePrice = Number(ln.unit_price) || 0;
+      g.unit_price = ln.unit_price;
+    }
+    g.discount_amount += Number(ln.discount_amount) || 0;
+    g.tax_amount += Number(ln.tax_amount) || 0;
+    g.line_total += Number(ln.line_total) || 0;
+    g.line_gross += Number(ln.line_gross) || 0;
+  }
+  return out;
+}
+
+function printPricePair(cartonEx, pieceEx, taxPct) {
+  const rate = Number(taxPct) || 0;
+  function inc(ex) {
+    return (Number(ex) || 0) * (1 + rate / 100);
+  }
+  function side(label, ex) {
+    return `<span><i>${label}</i><i>غ.ش</i><b>${esc(fmtAmt(ex || 0))}</b><i>ش</i><b>${esc(
+      fmtAmt(inc(ex))
+    )}</b></span>`;
+  }
+  return `<div class="co-print-pair co-print-price">${side('كرتونة', cartonEx)}${side(
+    'قطعة',
+    pieceEx
+  )}</div>`;
+}
+
+function printPair(carton, piece) {
+  return `<div class="co-print-pair">
+    <span><i>كرتونة</i><b>${esc(printQtyText(carton))}</b></span>
+    <span><i>قطعة</i><b>${esc(printQtyText(piece))}</b></span>
+  </div>`;
+}
+
+function orderLinesPrintTableHtml(lines) {
+  const grouped = groupOrderPrintLines(lines);
+  const rows = grouped
+    .map((ln) => {
+      const discPct = Number(ln.discount_pct) || 0;
+      const discAmt = Number(ln.discount_amount) || 0;
+      const discCell = discPct > 0.000001 ? `${fmtAmt(discPct)}%` : fmtAmt(discAmt);
+      const taxPct = Number(ln.tax_rate_percent);
+      const taxCell =
+        Number.isFinite(taxPct) && taxPct > 0.000001 ? `${fmtAmt(taxPct)}%` : fmtAmt(ln.tax_amount);
+      return `<tr>
+        <td class="c-name">${esc(ln.name)}</td>
+        <td class="c-num">${printPair(ln.cartonQty, ln.pieceQty)}</td>
+        <td class="c-num">${printPair(ln.cartonExtra, ln.pieceExtra)}</td>
+        <td class="c-num">${printPricePair(ln.cartonPrice, ln.piecePrice, ln.tax_rate_percent)}</td>
+        <td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>
+        <td class="c-num c-tax" dir="ltr">${esc(taxCell)}</td>
+        <td class="c-num c-gross" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
+      </tr>`;
+    })
+    .join('');
+  const body = rows || '<tr><td colspan="7" class="empty">لا بنود</td></tr>';
+  return `<table class="inv-v1-table inv-v1-table--lines inv-v1-table--order">
+    <colgroup>
+      <col class="c-col-name">
+      <col class="c-col-qty">
+      <col class="c-col-extra">
+      <col class="c-col-price">
+      <col class="c-col-disc">
+      <col class="c-col-tax">
+      <col class="c-col-total">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="c-name-h">اسم المادة</th>
+        <th class="c-h">الكمية</th>
+        <th class="c-h">مجاني</th>
+        <th class="c-h">السعر</th>
+        <th class="c-h">الخصم</th>
+        <th class="c-h">نسبة الضريبة</th>
+        <th class="c-h">الإجمالي</th>
+      </tr>
+    </thead>
+    <tbody>${body}</tbody>
+  </table>`;
+}
+
 /** طباعة طلب شراء عميل — نفس شكل فاتورة المبيعات مع محتوى الطلب */
 async function renderOrderPrint(req, res, orderId) {
   await ensurePrintBrand();
@@ -244,7 +373,7 @@ async function renderOrderPrint(req, res, orderId) {
   const showDisc = hasLineDisc || hasInvDisc || discLinesTotal > 0.000001;
   const invDiscLabel = invDiscRaw || fmtAmt(0);
   const statusLabel = order.is_approved ? 'معتمد' : 'مسودة';
-  const linesTableHtml = invoiceV1LinesTableHtml(lines, fmtAmt, esc);
+  const linesTableHtml = orderLinesPrintTableHtml(lines);
 
   const discSumRows = showDisc
     ? `<tr>
