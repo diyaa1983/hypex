@@ -392,8 +392,8 @@ class _LineTableMetrics {
     return _LineTableMetrics(
       item: 160,
       unit: 92,
-      qty: 118,
-      extra: 118,
+      qty: 168,
+      extra: 168,
       price: 86,
       priceInc: 86,
       tax: compact ? 90 : 120,
@@ -2658,24 +2658,27 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final piece = extra ? line.extraPiece : line.qtyPiece;
     return SizedBox(
       width: width,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          field('كرتونة', carton, (v) {
-            if (extra) {
-              line.extraCarton = v;
-            } else {
-              line.qtyCarton = v;
-            }
-          }),
-          const SizedBox(height: 3),
-          field('قطعة', piece, (v) {
-            if (extra) {
-              line.extraPiece = v;
-            } else {
-              line.qtyPiece = v;
-            }
-          }),
+          Expanded(
+            child: field('كرتونة', carton, (v) {
+              if (extra) {
+                line.extraCarton = v;
+              } else {
+                line.qtyCarton = v;
+              }
+            }),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: field('قطعة', piece, (v) {
+              if (extra) {
+                line.extraPiece = v;
+              } else {
+                line.qtyPiece = v;
+              }
+            }),
+          ),
         ],
       ),
     );
