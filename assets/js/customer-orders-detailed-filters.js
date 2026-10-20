@@ -139,6 +139,21 @@
     refresh(dayBox);
   }
 
+  function bootFolds(root) {
+    (root || document).querySelectorAll('.co-det-twist').forEach(function (btn) {
+      if (btn.getAttribute('data-bound') === '1') return;
+      btn.setAttribute('data-bound', '1');
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-fold');
+        var open = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
+        document.querySelectorAll('tr.co-det-fold[data-fold="' + key + '"]').forEach(function (row) {
+          row.classList.toggle('is-open', !open);
+        });
+      });
+    });
+  }
+
   function boot() {
     var form = document.getElementById('co-det-form');
     if (!form) return;
@@ -151,19 +166,87 @@
     var item = document.getElementById('co-det-item');
     var statusSel = form.querySelector('select[name="status"]');
     var runTimer = null;
-    var runSeq = 0;
+    var fetchSeq = 0;
+    var optSeq = 0;
+
+    function prepareAllFlags() {
+      var disabled = [];
+      var extras = [];
+      form.querySelectorAll('input[data-keep-all]').forEach(function (el) { el.remove(); });
+      boxes().forEach(function (box) {
+        var inputs = Array.prototype.filter.call(listInputs(box), function (el) {
+          return !dayOff(el);
+        });
+        var checked = inputs.filter(function (el) { return el.checked; });
+        if (inputs.length > 60 && checked.length === inputs.length) {
+          inputs.forEach(function (el) {
+            el.disabled = true;
+            disabled.push(el);
+          });
+          var hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = inputs[0].name + '_all';
+          hidden.value = '1';
+          hidden.setAttribute('data-keep-all', '1');
+          form.appendChild(hidden);
+          extras.push(hidden);
+        }
+      });
+      return function restore() {
+        disabled.forEach(function (el) { el.disabled = false; });
+        extras.forEach(function (el) { el.remove(); });
+      };
+    }
+
+    function reportUrl() {
+      var restore = prepareAllFlags();
+      try {
+        var action = (form.getAttribute('action') || location.pathname).split('?')[0];
+        var qs = new URLSearchParams(new FormData(form));
+        return action + '?' + qs.toString();
+      } finally {
+        restore();
+      }
+    }
+
+    function refreshResults() {
+      var url = reportUrl();
+      var seq = ++fetchSeq;
+      var target = document.getElementById('co-det-results');
+      if (!target) return;
+      target.classList.add('is-loading');
+      fetch(url, {
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest', Accept: 'text/html' },
+      })
+        .then(function (r) { return r.text(); })
+        .then(function (html) {
+          if (seq !== fetchSeq) return;
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var next = doc.getElementById('co-det-results');
+          if (next) {
+            target.innerHTML = next.innerHTML;
+            bootFolds(target);
+          }
+          try {
+            history.replaceState(null, '', url);
+          } catch (e) {}
+        })
+        .catch(function () {})
+        .then(function () {
+          if (seq === fetchSeq) target.classList.remove('is-loading');
+        });
+    }
 
     function scheduleRun() {
       clearTimeout(runTimer);
-      runTimer = setTimeout(function () {
-        if (typeof form.requestSubmit === 'function') form.requestSubmit();
-        else HTMLFormElement.prototype.submit.call(form);
-      }, 350);
+      runTimer = setTimeout(refreshResults, 280);
     }
 
     boxes().forEach(function (box) {
       ensureSearch(box);
       refresh(box);
+      var wrap = box.closest('.co-ms-wrap') || box;
       box.addEventListener('toggle', function () {
         if (!box.open) return;
         boxes().forEach(function (other) {
@@ -171,6 +254,14 @@
         });
         var find = box.querySelector('.co-ms__find input');
         if (find) setTimeout(function () { find.focus(); find.select(); }, 0);
+      });
+      wrap.addEventListener('mouseleave', function () {
+        if (box.open) box.open = false;
+      });
+      box.addEventListener('click', function (e) {
+        var t = e.target;
+        if (!t) return;
+        if (t.closest && t.closest('.co-ms__panel')) e.stopPropagation();
       });
       box.addEventListener('change', function (e) {
         var t = e.target;
@@ -197,7 +288,7 @@
 
     function loadCustomers() {
       if (!cust) return Promise.resolve();
-      var seq = ++runSeq;
+      var seq = ++optSeq;
       var ids = checkedVals(repBox, 'sales_rep_id');
       var keep = checkedVals(cust, 'customer_id');
       var all = cust.querySelector('[data-all]');
@@ -206,7 +297,7 @@
       return fetch(optionsUrl(form, 'kind=customers' + (q ? '&' + q : '')), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (seq !== runSeq) return;
+          if (seq !== optSeq) return;
           setChecks(cust, 'customer_id', (j && j.rows) || [], function (c) {
             return (c.name_ar || '') + (c.code ? ' (' + c.code + ')' : '');
           }, keep);
@@ -216,7 +307,7 @@
 
     function loadItems() {
       if (!item) return Promise.resolve();
-      var seq = ++runSeq;
+      var seq = ++optSeq;
       var ids = checkedVals(cat, 'category_id');
       var keep = checkedVals(item, 'item_id');
       var all = item.querySelector('[data-all]');
@@ -234,7 +325,7 @@
       return fetch(optionsUrl(form, 'kind=items&' + q), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
-          if (seq !== runSeq) return;
+          if (seq !== optSeq) return;
           var rows = (j && j.rows) || [];
           if (!rows.length && listInputs(item).length) return;
           setChecks(item, 'item_id', rows, function (it) {
@@ -259,35 +350,7 @@
 
     form.addEventListener('submit', function () {
       clearTimeout(runTimer);
-      form.querySelectorAll('input[data-keep-all]').forEach(function (el) { el.remove(); });
-      boxes().forEach(function (box) {
-        var inputs = Array.prototype.filter.call(listInputs(box), function (el) {
-          return !dayOff(el);
-        });
-        var checked = inputs.filter(function (el) { return el.checked; });
-        if (inputs.length > 60 && checked.length === inputs.length) {
-          inputs.forEach(function (el) { el.disabled = true; });
-          var hidden = document.createElement('input');
-          hidden.type = 'hidden';
-          hidden.name = inputs[0].name + '_all';
-          hidden.value = '1';
-          hidden.setAttribute('data-keep-all', '1');
-          form.appendChild(hidden);
-        }
-      });
-    });
-  }
-
-  function bootFolds() {
-    document.querySelectorAll('.co-det-twist').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var key = btn.getAttribute('data-fold');
-        var open = btn.getAttribute('aria-expanded') === 'true';
-        btn.setAttribute('aria-expanded', open ? 'false' : 'true');
-        document.querySelectorAll('tr.co-det-fold[data-fold="' + key + '"]').forEach(function (row) {
-          row.classList.toggle('is-open', !open);
-        });
-      });
+      prepareAllFlags();
     });
   }
 

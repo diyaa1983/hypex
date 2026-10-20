@@ -1705,23 +1705,13 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
       rowsHtml += totalRow('الإجمالي', data.totals.line_gross, 'co-det-grand');
     }
 
-    const periodText = onDate
-      ? `التاريخ ${ui.isoToDmy(onDate)}`
-      : `السنوات: ${years.length ? years.join('، ') : 'الكل'} · الأشهر: ${
-          months.length ? months.map((m) => MONTHS[m]).join('، ') : 'الكل'
-        } · الأيام: ${days.length ? days.join('، ') : 'الكل'}`;
-
     const body = `
       <div class="si-stage si-report-page co-det-page" data-hx-print-landscape="1">
         ${ui.hero({
           mark: '📑',
           kicker: 'Hypex Sales · Node',
           title: 'تقرير تفصيلي لطلبات الشراء',
-          subtitle: run
-            ? `${ui.esc(periodText)} · ${data.details.length} بند · ${Number(
-                data.totals.order_count || 0
-              )} طلب`
-            : 'السنة، ثم الشهر وأيامه، ثم المندوب، عملاؤه، الفئة، ثم المادة',
+          subtitle: '',
           actions: [
             ui.printAction(),
             { label: 'تقرير طلبات الشراء', href: '/sales/reports/customer-orders' },
@@ -1749,6 +1739,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
           </form>
         </div>
+        <div id="co-det-results">
         ${
           run && !err
             ? `<div class="sd-kpi-row no-print" style="display:flex;flex-wrap:wrap;gap:.65rem;margin:.75rem 0">
@@ -1781,6 +1772,7 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
             ['العميل', 'المندوب', 'تاريخ الطلبية', 'رقم الطلبية', 'الفئة', 'المادة', 'المبيعات'],
             rowsHtml
           )}
+        </div>
         </div>
       </div>
       `;

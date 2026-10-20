@@ -227,6 +227,12 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
   white-space: nowrap;
 }
 
+.co-det-page #co-det-results.is-loading {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
 .co-det-page .co-ms-wrap {
   position: relative;
   flex: 1 1 0;
