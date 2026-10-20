@@ -242,6 +242,7 @@ async function renderStandalonePrintPage({
   printMode = 'sheet',
   /** invoice-v1 = شكل فاتورة مبيعات المرجع */
   theme = '',
+  pageSize = 'portrait',
 }) {
   await ensurePrintBrand();
   const brand = printDataAttrs({ user, documentTitle });
@@ -326,16 +327,32 @@ async function renderStandalonePrintPage({
       white-space:normal;word-break:break-word;line-height:1.15;font-size:6.5pt;padding:2px 1px
     }
     .inv-v1-table--lines .c-num{font-size:7pt;white-space:nowrap;padding:2px 1px}
-    .inv-v1-table--order col.c-col-name{width:26%}
-    .inv-v1-table--order col.c-col-qty{width:18%}
-    .inv-v1-table--order col.c-col-extra{width:18%}
-    .co-print-pair{display:flex;justify-content:center;align-items:center;gap:8px;width:100%}
-    .co-print-pair span{display:flex;flex-direction:column;align-items:center;min-width:2.2rem;gap:1px}
-    .co-print-pair i{font-style:normal;font-size:6.5pt;font-weight:700;color:#334155}
-    .co-print-pair b{font-weight:800;font-size:8pt;min-height:1em}
-    .co-print-price{flex-wrap:nowrap;gap:6px}
-    .co-print-price span{flex-direction:row;align-items:center;gap:3px;min-width:0;white-space:nowrap}
-    .inv-v1-table--order col.c-col-price{width:28%}
+    .inv-v1-table--order col.c-col-name{width:20%}
+    .inv-v1-table--order col.c-col-qty{width:16%}
+    .inv-v1-table--order col.c-col-extra{width:16%}
+    .inv-v1-table--order col.c-col-price{width:26%}
+    .inv-v1-table--order col.c-col-disc{width:7%}
+    .inv-v1-table--order col.c-col-tax{width:7%}
+    .inv-v1-table--order col.c-col-total{width:8%}
+    .inv-v1-table--order thead th.c-h{white-space:normal}
+    .inv-v1-table--order .c-name{width:auto;max-width:none}
+    .inv-v1-table--order td{overflow:hidden;vertical-align:middle}
+    .inv-v1-table--order .c-num{white-space:normal;padding:3px 2px}
+    .co-print-pair{display:flex;justify-content:center;align-items:center;gap:4px;width:100%}
+    .co-print-pair span{display:flex;flex-direction:column;align-items:center;min-width:0;flex:1 1 0;gap:1px}
+    .co-print-pair i{font-style:normal;font-size:6pt;font-weight:700;color:#334155;white-space:nowrap}
+    .co-print-pair b{font-weight:800;font-size:7.5pt;min-height:1em}
+    .inv-v1--order col.c-col-name{width:16%}
+    .inv-v1--order col.c-col-qty{width:12%}
+    .inv-v1--order col.c-col-extra{width:12%}
+    .inv-v1--order col.c-col-price{width:42%}
+    .inv-v1--order col.c-col-disc{width:6%}
+    .inv-v1--order col.c-col-tax{width:6%}
+    .inv-v1--order col.c-col-total{width:6%}
+    .co-print-price{display:flex;flex-direction:row;flex-wrap:nowrap;justify-content:center;align-items:center;gap:3px;width:100%}
+    .co-print-chip{display:inline-flex;align-items:center;gap:2px;white-space:nowrap;font-size:6pt;font-weight:800;line-height:1.15}
+    .co-print-chip b{font-weight:800}
+    .co-print-chip em{font-style:normal;font-weight:800}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;
@@ -433,6 +450,7 @@ async function renderStandalonePrintPage({
     .hx-doc-btn--icon,.si-btn--icon{min-width:2.25rem;min-height:2.25rem;padding:.35rem;display:inline-flex;align-items:center;justify-content:center;line-height:0}
     .hx-doc-btn--icon svg,.si-btn--icon svg{display:block;flex-shrink:0}
     .hx-doc-btn--pri{background:linear-gradient(180deg,#0ea5e9 0%,#0369a1 100%);color:#fff}
+    body[data-hx-page="landscape"] .hx-doc-sheet{max-width:297mm;min-height:190mm}
     .hx-doc-sheet{max-width:210mm;margin:1rem auto 2rem;background:#fff;padding:10mm 8mm;
       box-shadow:0 8px 28px rgba(15,23,42,.1);position:relative}
     .hx-doc-head{margin:0 0 12px;padding:0 0 10px;border-bottom:1px solid #222}
@@ -451,11 +469,11 @@ async function renderStandalonePrintPage({
       body{background:#fff}
       .no-print,.hx-doc-bar{display:none!important}
       .hx-doc-sheet{max-width:none;margin:0;padding:0;box-shadow:none;position:relative}
-      @page{size:A4 portrait;margin:8mm 7mm 14mm 7mm}
+      @page{size:A4 ${pageSize === 'landscape' ? 'landscape' : 'portrait'};margin:8mm 7mm 14mm 7mm}
     }
   </style>
 </head>
-<body${bodyPrintDataHtml({ user, documentTitle })}${autoPrint ? ' data-hx-auto-print="1"' : ''} data-hx-print-mode="${mode}"${isInv ? ' data-hx-theme="invoice-v1"' : ''}>
+<body${bodyPrintDataHtml({ user, documentTitle })}${autoPrint ? ' data-hx-auto-print="1"' : ''} data-hx-print-mode="${mode}" data-hx-page="${pageSize === 'landscape' ? 'landscape' : 'portrait'}"${isInv ? ' data-hx-theme="invoice-v1"' : ''}>
   <div class="hx-doc-bar no-print">
     <strong>${escapeHtml(documentTitle)}</strong>
     <div style="display:flex;gap:.4rem;flex-wrap:wrap">

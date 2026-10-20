@@ -3578,7 +3578,7 @@ body.ic-pick-lock {
   flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
 }
 .si-lines--co .co-price-chip {
@@ -3590,10 +3590,18 @@ body.ic-pick-lock {
   font-weight: 800;
   color: #334155;
   line-height: 1.2;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f4f7fb;
 }
 .si-lines--co .co-price-chip b { font-size: 11px; color: #1e3a5f; }
-.si-lines--co .co-price-chip em { font-style: normal; font-weight: 800; }
-.si-lines--co td.co-price-cell { text-align: center; white-space: normal; overflow: visible; }
+.si-lines--co .co-price-chip em { font-style: normal; font-weight: 800; color: #0f172a; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-price-cell {
+  text-align: center;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-net,

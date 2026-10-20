@@ -286,9 +286,9 @@ function printPricePair(cartonEx, pieceEx, taxPct) {
     return (Number(ex) || 0) * (1 + rate / 100);
   }
   function chip(label, kind, amount) {
-    return `<span><i>${label} ${kind}</i><b>${esc(fmtAmt(amount || 0))}</b></span>`;
+    return `<span class="co-print-chip"><b>${label}</b> ${kind} <em>${esc(fmtAmt(amount || 0))}</em></span>`;
   }
-  return `<div class="co-print-pair co-print-price">${chip('كرتونة', 'غ.ش', cartonEx)}${chip(
+  return `<div class="co-print-price">${chip('كرتونة', 'غ.ش', cartonEx)}${chip(
     'كرتونة',
     'ش',
     inc(cartonEx)
@@ -409,7 +409,7 @@ async function renderOrderPrint(req, res, orderId) {
           </div>`;
 
   const contentHtml = `
-      <div class="inv-v1 inv-v1--draft" dir="rtl">
+      <div class="inv-v1 inv-v1--draft inv-v1--order" dir="rtl">
         <div class="inv-v1-top">
           <div class="inv-v1-meta">
             <div><span>رقم الطلب:</span> <strong dir="ltr">${esc(order.order_no || '—')}</strong></div>
@@ -450,6 +450,7 @@ async function renderOrderPrint(req, res, orderId) {
       autoPrint: false,
       printMode: 'sheet',
       theme: 'invoice-v1',
+      pageSize: 'landscape',
     })
   );
 }

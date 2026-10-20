@@ -149,6 +149,17 @@
     var cust = document.getElementById('co-det-customer');
     var cat = document.getElementById('co-det-category');
     var item = document.getElementById('co-det-item');
+    var statusSel = form.querySelector('select[name="status"]');
+    var runTimer = null;
+    var runSeq = 0;
+
+    function scheduleRun() {
+      clearTimeout(runTimer);
+      runTimer = setTimeout(function () {
+        if (typeof form.requestSubmit === 'function') form.requestSubmit();
+        else HTMLFormElement.prototype.submit.call(form);
+      }, 350);
+    }
 
     boxes().forEach(function (box) {
       ensureSearch(box);
@@ -171,19 +182,31 @@
           });
         }
         refresh(box);
+        if (box === yearBox || box === monthBox) syncDays(yearBox, monthBox, dayBox);
+        if (box === repBox) {
+          loadCustomers().then(scheduleRun);
+          return;
+        }
+        if (box === cat) {
+          loadItems().then(scheduleRun);
+          return;
+        }
+        scheduleRun();
       });
     });
 
     function loadCustomers() {
-      if (!cust) return;
+      if (!cust) return Promise.resolve();
+      var seq = ++runSeq;
       var ids = checkedVals(repBox, 'sales_rep_id');
       var keep = checkedVals(cust, 'customer_id');
       var all = cust.querySelector('[data-all]');
       if (all && all.checked) keep = [];
       var q = ids.map(function (id) { return 'sales_rep_id=' + encodeURIComponent(id); }).join('&');
-      fetch(optionsUrl(form, 'kind=customers' + (q ? '&' + q : '')), { credentials: 'same-origin' })
+      return fetch(optionsUrl(form, 'kind=customers' + (q ? '&' + q : '')), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
+          if (seq !== runSeq) return;
           setChecks(cust, 'customer_id', (j && j.rows) || [], function (c) {
             return (c.name_ar || '') + (c.code ? ' (' + c.code + ')' : '');
           }, keep);
@@ -192,7 +215,8 @@
     }
 
     function loadItems() {
-      if (!item) return;
+      if (!item) return Promise.resolve();
+      var seq = ++runSeq;
       var ids = checkedVals(cat, 'category_id');
       var keep = checkedVals(item, 'item_id');
       var all = item.querySelector('[data-all]');
@@ -204,12 +228,13 @@
       }
       if (!ids.length) {
         setChecks(item, 'item_id', [], function () { return ''; }, [], 'اختر الفئة أولاً');
-        return;
+        return Promise.resolve();
       }
       var q = ids.map(function (id) { return 'category_id=' + encodeURIComponent(id); }).join('&');
-      fetch(optionsUrl(form, 'kind=items&' + q), { credentials: 'same-origin' })
+      return fetch(optionsUrl(form, 'kind=items&' + q), { credentials: 'same-origin' })
         .then(function (r) { return r.json(); })
         .then(function (j) {
+          if (seq !== runSeq) return;
           var rows = (j && j.rows) || [];
           if (!rows.length && listInputs(item).length) return;
           setChecks(item, 'item_id', rows, function (it) {
@@ -224,22 +249,16 @@
         });
     }
 
-    if (repBox) repBox.addEventListener('change', loadCustomers);
-    if (cat) cat.addEventListener('change', loadItems);
     if (item) item.addEventListener('toggle', function () {
       if (item.open) loadItems();
     });
-    if (yearBox) yearBox.addEventListener('change', function () {
-      syncDays(yearBox, monthBox, dayBox);
-    });
-    if (monthBox) monthBox.addEventListener('change', function () {
-      syncDays(yearBox, monthBox, dayBox);
-    });
+    if (statusSel) statusSel.addEventListener('change', scheduleRun);
 
     syncDays(yearBox, monthBox, dayBox);
     loadItems();
 
     form.addEventListener('submit', function () {
+      clearTimeout(runTimer);
       form.querySelectorAll('input[data-keep-all]').forEach(function (el) { el.remove(); });
       boxes().forEach(function (box) {
         var inputs = Array.prototype.filter.call(listInputs(box), function (el) {
