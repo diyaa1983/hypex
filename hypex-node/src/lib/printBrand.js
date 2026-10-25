@@ -338,25 +338,28 @@ async function renderStandalonePrintPage({
     .inv-v1-table--order .c-name{width:auto;max-width:none}
     .inv-v1-table--order td{overflow:hidden;vertical-align:middle}
     .inv-v1-table--order .c-num{white-space:normal;padding:3px 2px}
-    .co-print-pair{display:flex;justify-content:stretch;align-items:stretch;gap:0;width:100%}
-    .co-print-pair > span{
-      display:flex;flex-direction:column;align-items:center;justify-content:center;
-      min-width:0;flex:1 1 0;gap:1px;padding:2px 3px
+    .co-print-grid{
+      width:100%;border-collapse:collapse;table-layout:fixed;margin:0;background:#fff
     }
-    .co-print-pair > span + span{border-inline-start:1px solid #94a3b8}
-    .co-print-pair i{font-style:normal;font-size:6pt;font-weight:700;color:#334155;white-space:nowrap}
-    .co-print-pair b{font-weight:800;font-size:7.5pt;min-height:1em}
-    .co-print-price{display:flex;justify-content:stretch;align-items:stretch;gap:0;width:100%}
-    .co-print-side{
-      display:grid;grid-template-columns:1fr 1fr;justify-items:center;align-items:center;
-      column-gap:0;row-gap:1px;min-width:0;flex:1 1 0;padding:2px 0
+    .co-print-grid th,.co-print-grid td{
+      border:1px solid #64748b!important;padding:2px 2px;text-align:center;vertical-align:middle;
+      background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact
     }
-    .co-print-side + .co-print-side{border-inline-start:1px solid #64748b}
-    .co-print-side > b{grid-column:1 / -1;font-size:6.5pt;font-weight:800;line-height:1.1;padding:0 2px 1px}
-    .co-print-side > span{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;padding:1px 3px;width:100%;box-sizing:border-box}
-    .co-print-side > span + span{border-inline-start:1px solid #cbd5e1}
-    .co-print-side i{font-style:normal;font-size:5.5pt;font-weight:700;color:#334155;line-height:1.1}
-    .co-print-side em{font-style:normal;font-weight:800;font-size:7pt;line-height:1.15}
+    .co-print-grid thead th{
+      background:#e8eef5!important;color:#1e3a5f;font-size:6pt;font-weight:800;line-height:1.15;
+      padding:2px 1px
+    }
+    .co-print-grid--qty th,.co-print-grid--qty td{width:50%}
+    .co-print-grid--price th,.co-print-grid--price td{width:25%}
+    .co-print-grid--price thead th:nth-child(1),
+    .co-print-grid--price thead th:nth-child(2){border-inline-end-width:1.5px}
+    .co-print-cell{line-height:1.15}
+    .co-print-cell i{display:block;font-style:normal;font-size:5.5pt;font-weight:700;color:#334155}
+    .co-print-cell b,.co-print-cell em{
+      display:block;font-style:normal;font-weight:800;font-size:7.5pt;line-height:1.2;
+      font-variant-numeric:tabular-nums
+    }
+    .inv-v1-table--order .c-num{padding:1px!important}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;

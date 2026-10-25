@@ -285,19 +285,30 @@ function printPricePair(cartonEx, pieceEx, taxPct) {
   function inc(ex) {
     return (Number(ex) || 0) * (1 + rate / 100);
   }
-  function side(label, ex) {
-    return `<span class="co-print-side"><b>${label}</b><span><i>غ.ش</i><em>${esc(
-      fmtAmt(ex || 0)
-    )}</em></span><span><i>ش</i><em>${esc(fmtAmt(inc(ex)))}</em></span></span>`;
+  function cell(kind, amount) {
+    return `<td class="co-print-cell"><i>${kind}</i><b>${esc(fmtAmt(amount || 0))}</b></td>`;
   }
-  return `<div class="co-print-price">${side('كرتونة', cartonEx)}${side('قطعة', pieceEx)}</div>`;
+  return `<table class="co-print-grid co-print-grid--price">
+    <thead>
+      <tr><th colspan="2">كرتونة</th><th colspan="2">قطعة</th></tr>
+    </thead>
+    <tbody>
+      <tr>${cell('غ.ش', cartonEx)}${cell('ش', inc(cartonEx))}${cell('غ.ش', pieceEx)}${cell(
+        'ش',
+        inc(pieceEx)
+      )}</tr>
+    </tbody>
+  </table>`;
 }
 
 function printPair(carton, piece) {
-  return `<div class="co-print-pair">
-    <span><i>كرتونة</i><b>${esc(printQtyText(carton))}</b></span>
-    <span><i>قطعة</i><b>${esc(printQtyText(piece))}</b></span>
-  </div>`;
+  return `<table class="co-print-grid co-print-grid--qty">
+    <thead><tr><th>كرتونة</th><th>قطعة</th></tr></thead>
+    <tbody><tr>
+      <td class="co-print-cell"><b>${esc(printQtyText(carton))}</b></td>
+      <td class="co-print-cell"><b>${esc(printQtyText(piece))}</b></td>
+    </tr></tbody>
+  </table>`;
 }
 
 function orderLinesPrintTableHtml(lines) {
