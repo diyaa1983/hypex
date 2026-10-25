@@ -167,6 +167,9 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
 
     $itemIds = [];
     foreach ($lines as $ln) {
+        if (!is_array($ln)) {
+            continue;
+        }
         $id = (int) ($ln['item_id'] ?? 0);
         if ($id > 0) {
             $itemIds[$id] = true;
@@ -174,27 +177,32 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
     }
     $issueMap = inv_item_units_issue_map($mysql, array_keys($itemIds));
 
-    $out = [];
-    $n = count($lines);
-    $i = 0;
-    while ($i < $n) {
-        $ln = $lines[$i];
+    // تجميع كل سطور نفس المادة (حتى غير المتتالية) — الكرتونة+الحبة بعد الحفظ سطران
+    /** @var array<string,list<array<string,mixed>>> $groups */
+    $groups = [];
+    /** @var list<string> $groupOrder */
+    $groupOrder = [];
+    $anon = 0;
+    foreach ($lines as $ln) {
         if (!is_array($ln)) {
-            $i++;
             continue;
         }
         $itemId = (int) ($ln['item_id'] ?? 0);
-        $group = [$ln];
-        $j = $i + 1;
-        while ($j < $n && $itemId > 0 && (int) ($lines[$j]['item_id'] ?? 0) === $itemId) {
-            if (!is_array($lines[$j])) {
-                break;
-            }
-            $group[] = $lines[$j];
-            $j++;
+        $key = $itemId > 0 ? 'i:' . $itemId : 'n:' . ($anon++);
+        if (!isset($groups[$key])) {
+            $groups[$key] = [];
+            $groupOrder[] = $key;
         }
+        $groups[$key][] = $ln;
+    }
+
+    $out = [];
+    foreach ($groupOrder as $key) {
+        $group = $groups[$key];
+        $itemId = (int) ($group[0]['item_id'] ?? 0);
 
         $hasPiece = false;
+        $fractionalCarton = false;
         $maxLineFactor = 0.0;
         foreach ($group as $g) {
             $f = (float) ($g['unit_factor'] ?? 1);
@@ -204,9 +212,14 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
             if ($f > $maxLineFactor) {
                 $maxLineFactor = $f;
             }
-            $q = (float) ($g['qty'] ?? 0) + (float) ($g['qty_extra'] ?? 0);
-            if ($q > 0.0000001 && $f <= 1.001) {
+            $q = (float) ($g['qty'] ?? 0);
+            $e = (float) ($g['qty_extra'] ?? 0);
+            if (($q > 0.0000001 || $e > 0.0000001) && $f <= 1.001) {
                 $hasPiece = true;
+            }
+            // كمية كرتونة عشرية مسبقاً (مثلاً بعد تعديل خاطئ على سطر الكرتونة فقط)
+            if ($f > 1.001 && (abs($q - round($q)) > 0.0000001 || abs($e - round($e)) > 0.0000001)) {
+                $fractionalCarton = true;
             }
         }
 
@@ -223,8 +236,22 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
             foreach ($group as $g) {
                 $out[] = $g;
             }
-            $i = $j;
             continue;
+        }
+
+        // إن كانت الكرتونة عشرية مسبقاً مع بقاء سطور حبة: لا تُضاعَف الحبات (الكمية العشرية هي المطلوب كامل)
+        $useGroup = $group;
+        if ($fractionalCarton) {
+            $onlyCarton = [];
+            foreach ($group as $g) {
+                $f = (float) ($g['unit_factor'] ?? 1);
+                if ($f > 1.001) {
+                    $onlyCarton[] = $g;
+                }
+            }
+            if ($onlyCarton !== []) {
+                $useGroup = $onlyCarton;
+            }
         }
 
         $baseQty = 0.0;
@@ -237,9 +264,9 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
         $cartonPrice = null;
         $piecePrice = null;
         $cartonMeta = null;
-        $template = $group[0];
+        $template = $useGroup[0];
 
-        foreach ($group as $g) {
+        foreach ($useGroup as $g) {
             $f = (float) ($g['unit_factor'] ?? 1);
             if ($f <= 0) {
                 $f = 1.0;
@@ -265,7 +292,6 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
         $cartonQty = round($baseQty / $cartonFactor, 6);
         $cartonBonus = round($baseBonus / $cartonFactor, 6);
         if ($cartonQty <= 0.0000001 && $cartonBonus <= 0.0000001) {
-            $i = $j;
             continue;
         }
 
@@ -309,7 +335,6 @@ function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
         $merged['qty_base'] = round($baseQty + $baseBonus, 6);
 
         $out[] = $merged;
-        $i = $j;
     }
 
     return $out;
@@ -347,31 +372,16 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     if ($needOverrides === []) {
         $needOverrides = is_array($opts['need_overrides'] ?? null) ? $opts['need_overrides'] : [];
     }
-    if ($needOverrides !== [] && !$dryRun) {
-        $applied = oracle_order_apply_need_overrides($mysql, $orderId, $needOverrides);
-        if (empty($applied['ok'])) {
-            return $applied;
-        }
-        if (!empty($applied['changed'])) {
-            $order = sal_customer_order_fetch($mysql, $orderId);
-            if (!$order) {
-                return ['ok' => false, 'message' => 'الطلب غير موجود.'];
-            }
-        }
-    } elseif ($needOverrides !== [] && $dryRun) {
-        // معاينة جافة: طبّق التعديل على الذاكرة فقط دون حفظ
-        $order['lines'] = oracle_order_apply_need_overrides_in_memory(
-            is_array($order['lines'] ?? null) ? $order['lines'] : [],
-            $needOverrides
-        );
-    }
 
     $lines = is_array($order['lines'] ?? null) ? $order['lines'] : [];
     if ($lines === []) {
         return ['ok' => false, 'message' => 'لا بنود في الطلب.'];
     }
-    // حبة → كرتونة عشرية عند الترحيل فقط (Hypex يبقى كرتونة+قطعة)
+    // 1) حبة → كرتونة عشرية أولاً  2) ثم تعديل الكمية على السطر المدموج (لا تُكتب العشرية على سطر الكرتونة قبل الدمج فتتضاعف الحبات)
     $lines = oracle_order_lines_as_decimal_cartons($mysql, $lines);
+    if ($needOverrides !== []) {
+        $lines = oracle_order_apply_need_overrides_in_memory($lines, $needOverrides);
+    }
 
     if (!oracle_is_enabled()) {
         return ['ok' => false, 'message' => oracle_config_status_message()];
@@ -5716,6 +5726,21 @@ function oracle_order_apply_need_overrides(PDO $mysql, int $orderId, array $over
                  WHERE id = ? AND order_id = ?'
             );
             $upd->execute([$newQty, $newBonus, $qtyBase, $lineTotal, $taxAmt, $lineGross, $discAmt, $lineId, $orderId]);
+            // عند تعديل كمية المادة بعد دمج كرتونة+حبة: صفّر السطور الشقيقة لنفس المادة حتى لا تُضاعَف الحبات
+            $itemId = (int) ($ln['item_id'] ?? 0);
+            if ($itemId > 0) {
+                try {
+                    $zero = $mysql->prepare(
+                        'UPDATE sal_customer_order_line
+                         SET qty = 0, qty_extra = 0, qty_base = 0,
+                             line_total = 0, tax_amount = 0, line_gross = 0, discount_amount = 0
+                         WHERE order_id = ? AND item_id = ? AND id <> ?'
+                    );
+                    $zero->execute([$orderId, $itemId, $lineId]);
+                } catch (Throwable $e) {
+                    // ignore
+                }
+            }
             $changed = true;
         }
 
