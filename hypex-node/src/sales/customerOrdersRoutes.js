@@ -285,14 +285,12 @@ function printPricePair(cartonEx, pieceEx, taxPct) {
   function inc(ex) {
     return (Number(ex) || 0) * (1 + rate / 100);
   }
-  function chip(label, kind, amount) {
-    return `<span class="co-print-chip"><b>${label}</b> ${kind} <em>${esc(fmtAmt(amount || 0))}</em></span>`;
+  function side(label, ex) {
+    return `<span class="co-print-side"><b>${label}</b><span><i>غ.ش</i><em>${esc(
+      fmtAmt(ex || 0)
+    )}</em></span><span><i>ش</i><em>${esc(fmtAmt(inc(ex)))}</em></span></span>`;
   }
-  return `<div class="co-print-price">${chip('كرتونة', 'غ.ش', cartonEx)}${chip(
-    'كرتونة',
-    'ش',
-    inc(cartonEx)
-  )}${chip('قطعة', 'غ.ش', pieceEx)}${chip('قطعة', 'ش', inc(pieceEx))}</div>`;
+  return `<div class="co-print-price">${side('كرتونة', cartonEx)}${side('قطعة', pieceEx)}</div>`;
 }
 
 function printPair(carton, piece) {
@@ -450,7 +448,7 @@ async function renderOrderPrint(req, res, orderId) {
       autoPrint: false,
       printMode: 'sheet',
       theme: 'invoice-v1',
-      pageSize: 'landscape',
+      pageSize: 'portrait',
     })
   );
 }
