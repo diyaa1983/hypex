@@ -338,14 +338,23 @@ async function renderStandalonePrintPage({
     .inv-v1-table--order .c-name{width:auto;max-width:none}
     .inv-v1-table--order td{overflow:hidden;vertical-align:middle}
     .inv-v1-table--order .c-num{white-space:normal;padding:3px 2px}
-    .co-print-pair{display:flex;justify-content:center;align-items:center;gap:4px;width:100%}
-    .co-print-pair span{display:flex;flex-direction:column;align-items:center;min-width:0;flex:1 1 0;gap:1px}
+    .co-print-pair{display:flex;justify-content:stretch;align-items:stretch;gap:0;width:100%}
+    .co-print-pair > span{
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      min-width:0;flex:1 1 0;gap:1px;padding:2px 3px
+    }
+    .co-print-pair > span + span{border-inline-start:1px solid #94a3b8}
     .co-print-pair i{font-style:normal;font-size:6pt;font-weight:700;color:#334155;white-space:nowrap}
     .co-print-pair b{font-weight:800;font-size:7.5pt;min-height:1em}
-    .co-print-price{display:flex;justify-content:center;align-items:stretch;gap:6px;width:100%}
-    .co-print-side{display:grid;grid-template-columns:1fr 1fr;justify-items:center;align-items:center;column-gap:3px;row-gap:1px;min-width:0;flex:1 1 0}
-    .co-print-side > b{grid-column:1 / -1;font-size:6.5pt;font-weight:800;line-height:1.1}
-    .co-print-side > span{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0}
+    .co-print-price{display:flex;justify-content:stretch;align-items:stretch;gap:0;width:100%}
+    .co-print-side{
+      display:grid;grid-template-columns:1fr 1fr;justify-items:center;align-items:center;
+      column-gap:0;row-gap:1px;min-width:0;flex:1 1 0;padding:2px 0
+    }
+    .co-print-side + .co-print-side{border-inline-start:1px solid #64748b}
+    .co-print-side > b{grid-column:1 / -1;font-size:6.5pt;font-weight:800;line-height:1.1;padding:0 2px 1px}
+    .co-print-side > span{display:flex;flex-direction:column;align-items:center;gap:0;min-width:0;padding:1px 3px;width:100%;box-sizing:border-box}
+    .co-print-side > span + span{border-inline-start:1px solid #cbd5e1}
     .co-print-side i{font-style:normal;font-size:5.5pt;font-weight:700;color:#334155;line-height:1.1}
     .co-print-side em{font-style:normal;font-weight:800;font-size:7pt;line-height:1.15}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
