@@ -1247,6 +1247,95 @@ function unpostOrderFromOracle(orderId, userId) {
   return runOraclePhpCli('oracle_order_unpost.php', [String(id), String(uid)]);
 }
 
+function checkOracleInvoiceStatus(orderId) {
+  const id = Number(orderId) || 0;
+  if (id < 1) {
+    return Promise.resolve({ ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' });
+  }
+  return runOraclePhpCli('oracle_order_status.php', [String(id)]);
+}
+
+/**
+ * فاتورة Oracle محذوفة: إلغاء الربط، واختياريًا فك الاعتماد + حذف الطلب.
+ */
+async function cleanupOrphanOracleLink(orderId, userId, { deleteOrder: doDelete = false } = {}) {
+  const id = Number(orderId) || 0;
+  const uid = Number(userId) || 0;
+  if (id < 1) {
+    return { ok: false, message: 'طلب غير صالح.', error: 'طلب غير صالح.' };
+  }
+
+  const status = await checkOracleInvoiceStatus(id);
+  if (!status.ok) {
+    return status;
+  }
+  if (status.linked && status.exists) {
+    return {
+      ok: false,
+      message: 'فاتورة Oracle ما زالت موجودة. استخدم «حذف مسودة Oracle» إن أردت إلغاء الترحيل.',
+      error: 'فاتورة Oracle ما زالت موجودة.',
+      exists: true,
+    };
+  }
+
+  // إلغاء الربط (أو تأكيد المسح إن لم يعد مرتبطاً)
+  if (status.linked) {
+    const cleared = await unpostOrderFromOracle(id, uid);
+    if (!cleared.ok) {
+      return cleared;
+    }
+  }
+
+  if (!doDelete) {
+    return {
+      ok: true,
+      cleared: true,
+      deleted: false,
+      message: status.message || 'تم إلغاء ربط فاتورة Oracle من الطلب.',
+      v_num: status.v_num || 0,
+      vyear: status.vyear || 0,
+    };
+  }
+
+  const order = await getOrder(id);
+  if (!order) {
+    return { ok: false, message: 'الطلب غير موجود.', error: 'الطلب غير موجود.' };
+  }
+  if (order.is_approved) {
+    const un = await setApproved(id, false, uid);
+    if (!un.ok) {
+      return {
+        ok: false,
+        cleared: true,
+        message: 'أُلغي الربط، لكن تعذر فك الاعتماد قبل الحذف: ' + (un.error || un.message || ''),
+        error: un.error || un.message || 'تعذر فك الاعتماد.',
+      };
+    }
+  }
+
+  const del = await deleteOrder(id);
+  if (!del.ok) {
+    return {
+      ok: false,
+      cleared: true,
+      message: 'أُلغي الربط، لكن تعذر حذف الطلب: ' + (del.error || del.message || ''),
+      error: del.error || del.message || 'تعذر حذف الطلب.',
+    };
+  }
+
+  return {
+    ok: true,
+    cleared: true,
+    deleted: true,
+    message: 'تم إلغاء الربط وحذف طلب الشراء.',
+    redirect_id: del.redirect_id || del.next_id || del.prev_id || 0,
+    next_id: del.next_id || 0,
+    prev_id: del.prev_id || 0,
+    v_num: status.v_num || 0,
+    vyear: status.vyear || 0,
+  };
+}
+
 module.exports = {
   getOrder,
   saveOrder,
@@ -1261,4 +1350,6 @@ module.exports = {
   postOrderToOracle,
   unpostOrderFromOracle,
   fetchOracleBatches,
+  checkOracleInvoiceStatus,
+  cleanupOrphanOracleLink,
 };

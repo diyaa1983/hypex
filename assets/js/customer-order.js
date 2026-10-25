@@ -3827,6 +3827,153 @@
     });
   }
 
+  function openOracleInvoiceTab(vnum, vyear) {
+    var q = '/sales/reports/oracle-sales-invoice?invoice_no=' + vnum;
+    if (vyear > 0) q += '&year=' + vyear;
+    window.open(q, '_blank');
+  }
+
+  function promptOrphanOracleInvoice(status) {
+    var vnum = Number((status && status.v_num) || state.oracle_v_num || 0);
+    var vyear = Number((status && status.vyear) || state.oracle_vyear || 0);
+    var label = vnum > 0 ? '#' + vnum + (vyear > 0 ? ' / ' + vyear : '') : '';
+    var msg =
+      'فاتورة Oracle ' +
+      label +
+      ' غير موجودة في النظام (يُحتمل أنها حُذفت من Oracle).\n' +
+      'الطلب ما زال مرتبطاً بها.\n\n' +
+      'اختر الإجراء المناسب:';
+
+    function runCleanup(deleteOrder) {
+      setBusy(true);
+      setMsg(deleteOrder ? 'جاري إلغاء الربط وحذف الطلب…' : 'جاري إلغاء الربط…');
+      return fetch('/api/sales/customer-orders/' + state.id + '/oracle-orphan-cleanup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ delete_order: !!deleteOrder }),
+      })
+        .then(function (r) {
+          return r.json().then(function (data) {
+            return { status: r.status, data: data };
+          });
+        })
+        .then(function (res) {
+          setBusy(false);
+          var data = res.data || {};
+          if (!data.ok) {
+            hxAlert(data.message || data.error || 'فشل الإجراء.', {
+              title: 'فاتورة Oracle',
+              kind: 'warning',
+            });
+            return;
+          }
+          state.oracle_v_num = 0;
+          state.oracle_vyear = 0;
+          if (data.deleted) {
+            formDirty = false;
+            var goId = Number(data.redirect_id || data.next_id || data.prev_id || 0);
+            hxAlert(data.message || 'تم إلغاء الربط وحذف الطلب.', {
+              title: 'تم',
+              kind: 'success',
+            }).then(function () {
+              if (goId > 0) window.location.href = hxPath('/sales/orders/' + goId);
+              else window.location.href = hxPath('/sales/orders/new');
+            });
+            return;
+          }
+          hxAlert(data.message || 'تم إلغاء الربط. يمكنك إعادة الترحيل أو حذف الطلب.', {
+            title: 'تم إلغاء الربط',
+            kind: 'success',
+          }).then(function () {
+            refreshOrderPageSoon();
+          });
+        })
+        .catch(function () {
+          setBusy(false);
+          hxAlert('تعذر الاتصال بالخادم.', { title: 'فاتورة Oracle', kind: 'warning' });
+        });
+    }
+
+    if (window.HypexUI && typeof window.HypexUI.dialog === 'function') {
+      return window.HypexUI.dialog({
+        title: 'فاتورة Oracle غير موجودة',
+        message: msg,
+        kind: 'warning',
+        closeOnBackdrop: false,
+        buttons: [
+          { label: 'إغلاق', value: 'close' },
+          { label: 'إلغاء الربط فقط', value: 'unlink', primary: true },
+          { label: 'إلغاء الربط وحذف الطلب', value: 'delete', danger: true },
+        ],
+      }).then(function (choice) {
+        if (choice === 'unlink') return runCleanup(false);
+        if (choice === 'delete') {
+          return hxConfirm(
+            'سيتم إلغاء الربط ثم فك الاعتماد وحذف طلب الشراء نهائياً.\nلا يمكن التراجع.',
+            { title: 'حذف طلب الشراء', okLabel: 'حذف نهائياً', danger: true }
+          ).then(function (ok) {
+            if (ok) return runCleanup(true);
+          });
+        }
+      });
+    }
+
+    return hxConfirm(
+      msg + '\n\nموافق = إلغاء الربط فقط\nإلغاء = لا شيء',
+      { title: 'فاتورة Oracle غير موجودة', okLabel: 'إلغاء الربط', danger: true }
+    ).then(function (ok) {
+      if (!ok) return;
+      return runCleanup(false).then(function () {
+        return hxConfirm('هل تريد أيضاً حذف طلب الشراء؟', {
+          title: 'حذف الطلب',
+          okLabel: 'حذف الطلب',
+          danger: true,
+        }).then(function (del) {
+          if (del) return runCleanup(true);
+          refreshOrderPageSoon();
+        });
+      });
+    });
+  }
+
+  function checkOracleInvoiceLink(opts) {
+    opts = opts || {};
+    if (!state.id || Number(state.oracle_v_num || 0) < 1) {
+      return Promise.resolve({ ok: true, linked: false });
+    }
+    return fetch('/api/sales/customer-orders/' + state.id + '/oracle-status', {
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          if (opts.openIfExists) {
+            hxAlert((data && (data.message || data.error)) || 'تعذر التحقق من فاتورة Oracle.', {
+              title: 'Oracle',
+              kind: 'warning',
+            });
+          }
+          return data || { ok: false };
+        }
+        if (data.linked && data.missing) {
+          promptOrphanOracleInvoice(data);
+          return data;
+        }
+        if (opts.openIfExists && data.exists) {
+          openOracleInvoiceTab(Number(data.v_num || state.oracle_v_num || 0), Number(data.vyear || state.oracle_vyear || 0));
+        }
+        return data;
+      })
+      .catch(function () {
+        if (opts.openIfExists) {
+          hxAlert('تعذر الاتصال للتحقق من فاتورة Oracle.', { title: 'Oracle', kind: 'warning' });
+        }
+        return { ok: false };
+      });
+  }
+
   if (oracleBtn) {
     oracleBtn.addEventListener('click', function () {
       if (!state.id) {
@@ -3834,15 +3981,17 @@
         return;
       }
       var vnum = Number(state.oracle_v_num || 0);
-      var vyear = Number(state.oracle_vyear || 0);
       if (vnum > 0) {
-        var q = '/sales/reports/oracle-sales-invoice?invoice_no=' + vnum;
-        if (vyear > 0) q += '&year=' + vyear;
-        window.open(q, '_blank');
+        checkOracleInvoiceLink({ openIfExists: true });
         return;
       }
       startOraclePost();
     });
+  }
+
+  // عند فتح طلب مرتبط بفاتورة Oracle: إن كانت محذوفة أظهر الإشعار فوراً
+  if (state.id && Number(state.oracle_v_num || 0) > 0) {
+    checkOracleInvoiceLink({ openIfExists: false });
   }
 
   var delBtn = document.getElementById('co-delete');

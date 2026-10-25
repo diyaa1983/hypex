@@ -848,9 +848,107 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
 }
 
 /**
+ * هل فاتورة Oracle المرتبطة بالطلب ما زالت موجودة؟
+ *
+ * @return array{ok:bool,exists?:bool,missing?:bool,v_num?:int,vyear?:int,message?:string}
+ */
+function oracle_order_invoice_status(PDO $mysql, int $orderId): array
+{
+    oracle_order_schema_ensure($mysql);
+    sal_customer_order_ensure_schema($mysql);
+
+    $order = sal_customer_order_fetch($mysql, $orderId);
+    if (!$order) {
+        return ['ok' => false, 'message' => 'الطلب غير موجود.'];
+    }
+    $vNum = (int) ($order['oracle_v_num'] ?? 0);
+    $vyear = (int) ($order['oracle_vyear'] ?? 0);
+    if ($vNum < 1) {
+        return [
+            'ok' => true,
+            'exists' => false,
+            'missing' => false,
+            'linked' => false,
+            'v_num' => 0,
+            'vyear' => 0,
+            'message' => 'الطلب غير مرتبط بفاتورة Oracle.',
+        ];
+    }
+
+    if (!oracle_is_enabled()) {
+        return ['ok' => false, 'message' => oracle_config_status_message()];
+    }
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        return ['ok' => false, 'message' => (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.')];
+    }
+
+    $sc = oracle_sales_invoice_cfg();
+    $owner = (string) $sc['owner'];
+    $dailyTable = (string) $sc['table'];
+    $stype = (int) ($sc['sale_type'] ?? 9);
+    $compNum = oracle_order_comp_num([]);
+    $from = oracle_order_quoted($owner, $dailyTable);
+    $binds = ['t' => $stype, 'vn' => $vNum, 'vy' => $vyear, 'c' => $compNum];
+
+    try {
+        $rows = oracle_query_all(
+            $conn,
+            'SELECT COUNT(*) AS CNT FROM ' . $from
+            . ' WHERE TYPE = :t AND V_NUM = :vn AND VYEAR = :vy AND COMP_NUM = :c',
+            $binds
+        );
+    } catch (Throwable $e) {
+        return ['ok' => false, 'message' => 'تعذر التحقق من الفاتورة في Oracle: ' . $e->getMessage()];
+    }
+
+    $cnt = 0;
+    foreach ($rows as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $cnt += (int) preg_replace('/\D+/', '', oracle_statement_row_val($r, 'CNT'));
+    }
+    $exists = $cnt > 0;
+
+    return [
+        'ok' => true,
+        'exists' => $exists,
+        'missing' => !$exists,
+        'linked' => true,
+        'v_num' => $vNum,
+        'vyear' => $vyear,
+        'message' => $exists
+            ? ('فاتورة Oracle ' . $vNum . '/' . $vyear . ' موجودة.')
+            : ('فاتورة Oracle ' . $vNum . '/' . $vyear . ' غير موجودة — ربما حُذفت من Oracle.'),
+    ];
+}
+
+/**
+ * مسح ربط الترحيل من طلب Hypex فقط (بدون حذف من Oracle).
+ */
+function oracle_order_clear_hypex_link(PDO $mysql, int $orderId, int $userId, string $reason = ''): void
+{
+    $msg = $reason !== ''
+        ? $reason
+        : 'أُلغي ربط ترحيل Oracle — الفاتورة غير موجودة أو أُلغيت.';
+    $mysql->prepare(
+        'UPDATE sal_customer_order
+         SET oracle_v_num = NULL, oracle_vyear = NULL, oracle_posted_at = NULL,
+             oracle_post_status = ?, oracle_post_message = ?, updated_by = ?
+         WHERE id = ?'
+    )->execute([
+        'cancelled',
+        $msg,
+        $userId > 0 ? $userId : null,
+        $orderId,
+    ]);
+}
+
+/**
  * حذف فاتورة Oracle المسودة (VOU_FLAG=18) التي أنشأها Hypex — لإعادة الترحيل.
  *
- * @return array{ok:bool,message?:string,v_num?:int,vyear?:int}
+ * @return array{ok:bool,message?:string,v_num?:int,vyear?:int,missing?:bool}
  */
 function oracle_unpost_customer_order(PDO $mysql, int $orderId, int $userId): array
 {
@@ -911,10 +1009,29 @@ function oracle_unpost_customer_order(PDO $mysql, int $orderId, int $userId): ar
         }
     }
     if ($totalLines < 1) {
+        // الفاتورة حُذفت من Oracle مسبقاً — امسح الربط من Hypex
+        try {
+            oracle_order_clear_hypex_link(
+                $mysql,
+                $orderId,
+                $userId,
+                'أُلغي الربط: فاتورة Oracle ' . $vNum . '/' . $vyear . ' غير موجودة (حُذفت من Oracle).'
+            );
+        } catch (Throwable $e) {
+            return [
+                'ok' => false,
+                'missing' => true,
+                'message' => 'الفاتورة غير موجودة في Oracle وتعذر مسح الربط من Hypex: ' . $e->getMessage(),
+            ];
+        }
+
         return [
-            'ok' => false,
-            'message' => 'لم تُعثر على بنود الفاتورة ' . $vNum . '/' . $vyear . ' في Oracle.'
-                . ' يمكنك مسح رقم الترحيل من Hypex يدوياً إن لزم.',
+            'ok' => true,
+            'missing' => true,
+            'v_num' => $vNum,
+            'vyear' => $vyear,
+            'message' => 'فاتورة Oracle ' . $vNum . '/' . $vyear
+                . ' غير موجودة. تم إلغاء الربط من الطلب — يمكنك إعادة الترحيل أو حذف الطلب.',
         ];
     }
     if ($draftLines < 1) {

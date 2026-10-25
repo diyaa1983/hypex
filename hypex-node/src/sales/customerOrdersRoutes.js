@@ -967,6 +967,48 @@ router.post('/api/sales/customer-orders/:id/unpost-oracle', async (req, res) => 
   }
 });
 
+router.get('/api/sales/customer-orders/:id/oracle-status', async (req, res) => {
+  try {
+    if (!canView(req.session.user)) {
+      return res.status(403).json({ ok: false, error: 'لا صلاحية.' });
+    }
+    const result = await svc.checkOracleInvoiceStatus(req.params.id);
+    if (!result.ok) return res.status(400).json(result);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+router.post('/api/sales/customer-orders/:id/oracle-orphan-cleanup', async (req, res) => {
+  try {
+    if (!canUnpostOracle(req.session.user)) {
+      return res.status(403).json({ ok: false, error: 'لا صلاحية إلغاء ربط Oracle.' });
+    }
+    const doDelete = !!(req.body && (req.body.delete_order === true || req.body.delete_order === 1 || req.body.delete_order === '1'));
+    if (doDelete) {
+      if (!canUnapprove(req.session.user)) {
+        return res.status(403).json({ ok: false, error: 'لا صلاحية فك الاعتماد قبل حذف الطلب.' });
+      }
+      if (!canDeleteOrder(req.session.user)) {
+        return res.status(403).json({ ok: false, error: 'لا صلاحية حذف الطلب.' });
+      }
+    }
+    const result = await svc.cleanupOrphanOracleLink(req.params.id, req.session.user.id, {
+      deleteOrder: doDelete,
+    });
+    if (!result.ok) {
+      return res.status(400).json({
+        ...result,
+        error: result.error || result.message || 'فشل الإجراء.',
+      });
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 router.post('/api/sales/customer-orders/:id/post-oracle', async (req, res) => {
   try {
     if (!canPostOracle(req.session.user)) {
