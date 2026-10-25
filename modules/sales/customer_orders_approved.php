@@ -560,14 +560,19 @@ sales_ora12_enqueue_assets();
               usageBySrl[srl][batch] = (usageBySrl[srl][batch] || 0) + take;
             });
             Object.keys(needBySrl).forEach(function (srl) {
-              var need = needBySrl[srl];
-              var got = takeSumBySrl[srl] || 0;
-              if (got + 0.0001 < need) {
+              // تقريب لـ 3 منازل مثل العرض — يمنع رفض 1.083 عندما المطلوب 1.0833…
+              function round3(n) {
+                n = Number(n) || 0;
+                return Math.round(n * 1000) / 1000;
+              }
+              var need = round3(needBySrl[srl]);
+              var got = round3(takeSumBySrl[srl] || 0);
+              if (got + 0.0000001 < need) {
                 ok = false;
                 if (!statusMsg) {
                   statusMsg = 'الكميات من التشغيلات لا تغطي المطلوب (مجموع ' + fmtQty(got) + ' من ' + fmtQty(need) + ').';
                 }
-              } else if (got - need > 0.0001) {
+              } else if (got - need > 0.0000001) {
                 ok = false;
                 if (!statusMsg) {
                   statusMsg = 'مجموع الكميات من التشغيلات أكبر من المطلوب.';

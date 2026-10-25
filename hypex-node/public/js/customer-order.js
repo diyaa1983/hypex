@@ -3337,7 +3337,7 @@
     if (tr && Number(tr.dataset.unitFactor) > 1.000001 && String(tr.dataset.multTr) === '1') {
       factor = Number(tr.dataset.unitFactor);
     }
-    var need = (qty + bonus) * factor;
+    var need = roundBatchQty((qty + bonus) * factor);
     batchRows.querySelectorAll('tr[data-srl="' + srl + '"]').forEach(function (row) {
       row.dataset.need = String(need);
       var sel = row.querySelector('select.co-batch-select');
@@ -3381,7 +3381,7 @@
     sel.className = 'si-field co-batch-select';
     sel.dataset.srl = String(ln.srl || '');
     sel.dataset.item = String(ln.item || '');
-    sel.dataset.need = String(ln.need || '');
+    sel.dataset.need = String(roundBatchQty(Number(ln.need) || 0));
 
     var opt0 = document.createElement('option');
     opt0.value = '';
@@ -3489,9 +3489,10 @@
     });
 
     Object.keys(needBySrl).forEach(function (srl) {
-      var need = needBySrl[srl];
-      var got = takeSumBySrl[srl] || 0;
-      if (got + 0.0001 < need) {
+      // مقارنة بعد التقريب المعروض — 1+1/12=1.0833… يظهر 1.083 فيُرفض خطأً بتحمّل 0.0001
+      var need = roundBatchQty(needBySrl[srl]);
+      var got = roundBatchQty(takeSumBySrl[srl] || 0);
+      if (got + 0.0000001 < need) {
         ok = false;
         if (!statusMsg) {
           statusMsg =
@@ -3501,7 +3502,7 @@
             fmtBatchQty(need) +
             '). عدّل الكميات أو اختر تشغيلات أخرى.';
         }
-      } else if (got - need > 0.0001) {
+      } else if (got - need > 0.0000001) {
         ok = false;
         if (!statusMsg) {
           statusMsg =
@@ -3618,7 +3619,7 @@
         tr0.className = 'co-batch-row--nostock co-batch-row--invalid';
         tr0.dataset.srl = String(ln.srl || '');
         tr0.dataset.lineId = String(ln.line_id || '');
-        tr0.dataset.need = String(ln.need || '');
+        tr0.dataset.need = String(roundBatchQty(Number(ln.need) || 0));
         tr0.dataset.unitFactor = String(ln.unit_factor || 1);
         tr0.dataset.shortfall = '1';
         tr0.innerHTML =
@@ -3652,7 +3653,7 @@
         tr.dataset.batches = JSON.stringify(batches);
         tr.dataset.srl = String(ln.srl || '');
         tr.dataset.lineId = String(ln.line_id || '');
-        tr.dataset.need = String(ln.need || '');
+        tr.dataset.need = String(roundBatchQty(Number(ln.need) || 0));
         tr.dataset.unitFactor = String(ln.unit_factor || 1);
         if (ai > 0) tr.classList.add('co-batch-row--cont');
         if (!ln.allocation_ok && Number(ln.shortfall) > 0) {

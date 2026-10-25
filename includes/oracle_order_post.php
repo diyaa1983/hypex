@@ -4779,13 +4779,16 @@ function oracle_order_validate_batch_picks_cover(
             continue;
         }
         $got = (float) ($takeBySrl[$srl] ?? 0);
-        if ($got + 0.0001 < $need) {
+        // مقارنة بـ 3 منازل عشرية (مثل الشاشة) — 1+1/12≈1.0833 يُعرض 1.083
+        $gotR = round($got, 3);
+        $needR = round($need, 3);
+        if ($gotR + 0.0000001 < $needR) {
             return 'لا يمكن الترحيل: التشغيلات لا تغطي الكمية المطلوبة للمادة '
                 . ($item !== '' ? $item : ('#' . $srl))
-                . ' (مجموع ' . rtrim(rtrim(number_format($got, 3, '.', ''), '0'), '.')
-                . ' من ' . rtrim(rtrim(number_format($need, 3, '.', ''), '0'), '.') . ').';
+                . ' (مجموع ' . rtrim(rtrim(number_format($gotR, 3, '.', ''), '0'), '.')
+                . ' من ' . rtrim(rtrim(number_format($needR, 3, '.', ''), '0'), '.') . ').';
         }
-        if ($got - $need > 0.0001) {
+        if ($gotR - $needR > 0.0000001) {
             return 'لا يمكن الترحيل: مجموع كميات التشغيلات أكبر من المطلوب للمادة '
                 . ($item !== '' ? $item : ('#' . $srl)) . '.';
         }
