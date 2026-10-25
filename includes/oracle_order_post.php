@@ -149,6 +149,173 @@ function oracle_order_schema_ensure(PDO $pdo): void
 }
 
 /**
+ * عند الترحيل إلى Oracle: إن وُجدت كمية بالحبة تُحوَّل إلى كرتونة عشرية.
+ * مثال (عامل الكرتونة = 12): 2 كرتونة + 3 قطعة → 2.25 كرتونة، و 6 قطعة → 0.5 كرتونة.
+ * البنود التي بالكروتونة فقط تبقى كما هي. لا يغيّر التخزين في Hypex.
+ *
+ * @param list<array<string,mixed>> $lines
+ * @return list<array<string,mixed>>
+ */
+function oracle_order_lines_as_decimal_cartons(PDO $mysql, array $lines): array
+{
+    if ($lines === []) {
+        return [];
+    }
+
+    require_once app_path('includes/inv_item_units.php');
+    inv_item_units_ensure_schema($mysql);
+
+    $itemIds = [];
+    foreach ($lines as $ln) {
+        $id = (int) ($ln['item_id'] ?? 0);
+        if ($id > 0) {
+            $itemIds[$id] = true;
+        }
+    }
+    $issueMap = inv_item_units_issue_map($mysql, array_keys($itemIds));
+
+    $out = [];
+    $n = count($lines);
+    $i = 0;
+    while ($i < $n) {
+        $ln = $lines[$i];
+        if (!is_array($ln)) {
+            $i++;
+            continue;
+        }
+        $itemId = (int) ($ln['item_id'] ?? 0);
+        $group = [$ln];
+        $j = $i + 1;
+        while ($j < $n && $itemId > 0 && (int) ($lines[$j]['item_id'] ?? 0) === $itemId) {
+            if (!is_array($lines[$j])) {
+                break;
+            }
+            $group[] = $lines[$j];
+            $j++;
+        }
+
+        $hasPiece = false;
+        $maxLineFactor = 0.0;
+        foreach ($group as $g) {
+            $f = (float) ($g['unit_factor'] ?? 1);
+            if ($f <= 0) {
+                $f = 1.0;
+            }
+            if ($f > $maxLineFactor) {
+                $maxLineFactor = $f;
+            }
+            $q = (float) ($g['qty'] ?? 0) + (float) ($g['qty_extra'] ?? 0);
+            if ($q > 0.0000001 && $f <= 1.001) {
+                $hasPiece = true;
+            }
+        }
+
+        $issue = $itemId > 0 && isset($issueMap[$itemId]) ? $issueMap[$itemId] : null;
+        $cartonFactor = $maxLineFactor;
+        if (is_array($issue)) {
+            $if = (float) ($issue['factor'] ?? 0);
+            if ($if > $cartonFactor) {
+                $cartonFactor = $if;
+            }
+        }
+
+        if (!$hasPiece || $cartonFactor <= 1.001) {
+            foreach ($group as $g) {
+                $out[] = $g;
+            }
+            $i = $j;
+            continue;
+        }
+
+        $baseQty = 0.0;
+        $baseBonus = 0.0;
+        $merch = 0.0;
+        $taxSum = 0.0;
+        $lineTotalSum = 0.0;
+        $lineGrossSum = 0.0;
+        $discAmtSum = 0.0;
+        $cartonPrice = null;
+        $piecePrice = null;
+        $cartonMeta = null;
+        $template = $group[0];
+
+        foreach ($group as $g) {
+            $f = (float) ($g['unit_factor'] ?? 1);
+            if ($f <= 0) {
+                $f = 1.0;
+            }
+            $q = (float) ($g['qty'] ?? 0);
+            $e = (float) ($g['qty_extra'] ?? 0);
+            $price = (float) ($g['unit_price'] ?? 0);
+            $baseQty += $q * $f;
+            $baseBonus += $e * $f;
+            $merch += $q * $price;
+            $taxSum += (float) ($g['tax_amount'] ?? 0);
+            $lineTotalSum += (float) ($g['line_total'] ?? 0);
+            $lineGrossSum += (float) ($g['line_gross'] ?? 0);
+            $discAmtSum += (float) ($g['discount_amount'] ?? 0);
+            if ($f > 1.001) {
+                $cartonPrice = $price;
+                $cartonMeta = $g;
+            } else {
+                $piecePrice = $price;
+            }
+        }
+
+        $cartonQty = round($baseQty / $cartonFactor, 6);
+        $cartonBonus = round($baseBonus / $cartonFactor, 6);
+        if ($cartonQty <= 0.0000001 && $cartonBonus <= 0.0000001) {
+            $i = $j;
+            continue;
+        }
+
+        $sell = $cartonPrice;
+        if ($sell === null || $sell <= 0.0000001) {
+            if ($cartonQty > 0.0000001 && $merch > 0.0000001) {
+                $sell = round($merch / $cartonQty, 10);
+            } elseif ($piecePrice !== null && $piecePrice > 0) {
+                $sell = round($piecePrice * $cartonFactor, 10);
+            } else {
+                $sell = (float) ($template['unit_price'] ?? 0);
+            }
+        }
+
+        $merged = $template;
+        if (is_array($cartonMeta)) {
+            if (isset($cartonMeta['unit_id'])) {
+                $merged['unit_id'] = $cartonMeta['unit_id'];
+            }
+            if (!empty($cartonMeta['unit_name'])) {
+                $merged['unit_name'] = $cartonMeta['unit_name'];
+            }
+        } elseif (is_array($issue)) {
+            if (!empty($issue['unit_id'])) {
+                $merged['unit_id'] = $issue['unit_id'];
+            }
+            if (!empty($issue['name'])) {
+                $merged['unit_name'] = $issue['name'];
+            }
+        } else {
+            $merged['unit_name'] = 'كرتونة';
+        }
+        $merged['qty'] = $cartonQty;
+        $merged['qty_extra'] = $cartonBonus;
+        $merged['unit_factor'] = $cartonFactor;
+        $merged['unit_price'] = $sell;
+        $merged['tax_amount'] = $taxSum;
+        $merged['line_total'] = $lineTotalSum;
+        $merged['line_gross'] = $lineGrossSum;
+        $merged['discount_amount'] = $discAmtSum;
+        $merged['qty_base'] = round($baseQty + $baseBonus, 6);
+
+        $out[] = $merged;
+        $i = $j;
+    }
+
+    return $out;
+}
+
+/**
  * @return array<string,mixed>
  */
 function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool $dryRun = false, array $opts = []): array
@@ -203,6 +370,8 @@ function oracle_post_customer_order(PDO $mysql, int $orderId, int $userId, bool 
     if ($lines === []) {
         return ['ok' => false, 'message' => 'لا بنود في الطلب.'];
     }
+    // حبة → كرتونة عشرية عند الترحيل فقط (Hypex يبقى كرتونة+قطعة)
+    $lines = oracle_order_lines_as_decimal_cartons($mysql, $lines);
 
     if (!oracle_is_enabled()) {
         return ['ok' => false, 'message' => oracle_config_status_message()];
@@ -5603,6 +5772,9 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
     if ($lines === []) {
         return ['ok' => false, 'message' => 'لا بنود في الطلب.'];
     }
+    // نفس تحويل الترحيل: حبة → كرتونة عشرية لمعاينة التشغيلات
+    $lines = oracle_order_lines_as_decimal_cartons($mysql, $lines);
+
     if (!oracle_is_enabled()) {
         return ['ok' => false, 'message' => oracle_config_status_message()];
     }
