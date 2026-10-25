@@ -338,28 +338,32 @@ async function renderStandalonePrintPage({
     .inv-v1-table--order .c-name{width:auto;max-width:none}
     .inv-v1-table--order td{overflow:hidden;vertical-align:middle}
     .inv-v1-table--order .c-num{white-space:normal;padding:3px 2px}
+    .inv-v1-table--order .c-num{padding:2px 1px!important}
+    .inv-v1-table--order td.c-num{border-color:#c5d0de}
     .co-print-grid{
-      width:100%;border-collapse:collapse;table-layout:fixed;margin:0;background:#fff
+      width:100%;border-collapse:collapse;table-layout:fixed;margin:0;background:transparent
     }
     .co-print-grid th,.co-print-grid td{
-      border:1px solid #64748b!important;padding:2px 2px;text-align:center;vertical-align:middle;
-      background:#fff!important;-webkit-print-color-adjust:exact;print-color-adjust:exact
+      border:0!important;border-inline-end:1px solid #d7dee8!important;
+      padding:2px 2px;text-align:center;vertical-align:middle;
+      background:transparent!important
     }
+    .co-print-grid th:last-child,.co-print-grid td:last-child{border-inline-end:0!important}
     .co-print-grid thead th{
-      background:#e8eef5!important;color:#1e3a5f;font-size:6pt;font-weight:800;line-height:1.15;
-      padding:2px 1px
+      background:#f3f6fa!important;color:#475569;font-size:5.5pt;font-weight:700;line-height:1.15;
+      padding:1px;border-bottom:1px solid #d7dee8!important;
+      -webkit-print-color-adjust:exact;print-color-adjust:exact
     }
     .co-print-grid--qty th,.co-print-grid--qty td{width:50%}
     .co-print-grid--price th,.co-print-grid--price td{width:25%}
-    .co-print-grid--price thead th:nth-child(1),
-    .co-print-grid--price thead th:nth-child(2){border-inline-end-width:1.5px}
+    .co-print-grid--price thead th:nth-child(2),
+    .co-print-grid--price tbody td:nth-child(2){border-inline-end:1px solid #b8c4d4!important}
     .co-print-cell{line-height:1.15}
-    .co-print-cell i{display:block;font-style:normal;font-size:5.5pt;font-weight:700;color:#334155}
+    .co-print-cell i{display:block;font-style:normal;font-size:5.5pt;font-weight:700;color:#64748b}
     .co-print-cell b,.co-print-cell em{
       display:block;font-style:normal;font-weight:800;font-size:7.5pt;line-height:1.2;
-      font-variant-numeric:tabular-nums
+      font-variant-numeric:tabular-nums;color:#0f172a
     }
-    .inv-v1-table--order .c-num{padding:1px!important}
     /* مجاميع كلاسيكية — جدول يسار/أسفل */
     .inv-v1-foot{
       display:flex;flex-direction:column;align-items:flex-start;
