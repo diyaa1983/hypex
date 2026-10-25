@@ -35,6 +35,10 @@
     } else text = checked.length + ' محدد';
     valueEl.textContent = text;
     valueEl.classList.toggle('is-placeholder', text === 'الكل' || text === 'اختر الفئة');
+    box.classList.toggle('is-filtered', text !== 'الكل' && text !== 'اختر الفئة');
+    listInputs(box).forEach(function (el) {
+      if (el.parentNode) el.parentNode.classList.toggle('is-checked', !!el.checked);
+    });
   }
 
   function esc(s) {
@@ -168,6 +172,7 @@
     var runTimer = null;
     var fetchSeq = 0;
     var optSeq = 0;
+    var leaveTimers = new WeakMap();
 
     function prepareAllFlags() {
       var disabled = [];
@@ -240,32 +245,70 @@
 
     function scheduleRun() {
       clearTimeout(runTimer);
-      runTimer = setTimeout(refreshResults, 280);
+      runTimer = setTimeout(refreshResults, 220);
+    }
+
+    function keepOpen(box) {
+      var t = leaveTimers.get(box);
+      if (t) clearTimeout(t);
+      leaveTimers.delete(box);
+    }
+
+    function closeLater(box) {
+      keepOpen(box);
+      leaveTimers.set(
+        box,
+        setTimeout(function () {
+          if (box.open) box.open = false;
+          leaveTimers.delete(box);
+        }, 180)
+      );
     }
 
     boxes().forEach(function (box) {
       ensureSearch(box);
       refresh(box);
       var wrap = box.closest('.co-ms-wrap') || box;
-      box.addEventListener('toggle', function () {
-        if (!box.open) return;
-        boxes().forEach(function (other) {
-          if (other !== box) other.open = false;
+      var summary = box.querySelector('summary');
+      var panel = box.querySelector('.co-ms__panel');
+
+      if (summary) {
+        summary.addEventListener('click', function (e) {
+          e.preventDefault();
+          var willOpen = !box.open;
+          if (willOpen) {
+            boxes().forEach(function (other) {
+              if (other !== box) other.open = false;
+            });
+          }
+          box.open = willOpen;
+          if (willOpen) {
+            var find = box.querySelector('.co-ms__find input');
+            if (find) setTimeout(function () { find.focus(); }, 0);
+          }
         });
-        var find = box.querySelector('.co-ms__find input');
-        if (find) setTimeout(function () { find.focus(); find.select(); }, 0);
-      });
-      wrap.addEventListener('mouseleave', function () {
-        if (box.open) box.open = false;
-      });
-      box.addEventListener('click', function (e) {
-        var t = e.target;
-        if (!t) return;
-        if (t.closest && t.closest('.co-ms__panel')) e.stopPropagation();
-      });
+      }
+
+      if (panel) {
+        panel.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+        panel.addEventListener('click', function (e) { e.stopPropagation(); });
+      }
+
+      wrap.addEventListener('mouseenter', function () { keepOpen(box); });
+      wrap.addEventListener('mouseleave', function () { closeLater(box); });
+      if (panel) {
+        panel.addEventListener('mouseenter', function () { keepOpen(box); });
+        panel.addEventListener('mouseleave', function (e) {
+          var to = e.relatedTarget;
+          if (to && wrap.contains(to)) return;
+          closeLater(box);
+        });
+      }
+
       box.addEventListener('change', function (e) {
         var t = e.target;
         if (!t || t.type !== 'checkbox') return;
+        e.stopPropagation();
         if (t.hasAttribute('data-all')) {
           listInputs(box).forEach(function (el) {
             if (dayOff(el) || searchMiss(el)) return;
@@ -273,6 +316,8 @@
           });
         }
         refresh(box);
+        box.open = true;
+        keepOpen(box);
         if (box === yearBox || box === monthBox) syncDays(yearBox, monthBox, dayBox);
         if (box === repBox) {
           loadCustomers().then(scheduleRun);
@@ -340,9 +385,11 @@
         });
     }
 
-    if (item) item.addEventListener('toggle', function () {
-      if (item.open) loadItems();
-    });
+    if (item) {
+      item.addEventListener('toggle', function () {
+        if (item.open) loadItems();
+      });
+    }
     if (statusSel) statusSel.addEventListener('change', scheduleRun);
 
     syncDays(yearBox, monthBox, dayBox);

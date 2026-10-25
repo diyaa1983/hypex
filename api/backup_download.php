@@ -39,7 +39,10 @@ try {
         exit;
     }
 
-    $downloadName = 'manager_backup_' . $dateFolder . '_' . $resolved['label'];
+    $downloadName = (string) ($resolved['label'] ?? 'Hypex-backup.zip');
+    if ($fileKey === 'bundle' || $fileKey === '') {
+        $downloadName = 'Hypex-backup-' . $dateFolder . '.zip';
+    }
     sys_backup_stream_file($resolved['file'], $downloadName);
 } catch (Throwable $e) {
     http_response_code(500);

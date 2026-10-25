@@ -249,15 +249,28 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
   overflow: visible;
 }
 
+.co-det-page .co-det-slicer-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.co-det-page .co-det-run-btn {
+  opacity: 0.85;
+}
+
 .co-det-page details.co-ms[open]::details-content {
   position: absolute;
   z-index: 80;
-  top: calc(100% + 2px);
+  top: 100%;
   inset-inline-start: 0;
   inset-inline-end: 0;
   width: 100%;
   min-width: 0;
   max-width: 100%;
+  padding-top: 2px;
 }
 
 .co-det-page .co-ms__btn {
@@ -283,9 +296,18 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
 }
 
 .co-det-page .co-ms__btn:hover,
-.co-det-page details.co-ms[open] > .co-ms__btn {
+.co-det-page details.co-ms[open] > .co-ms__btn,
+.co-det-page details.co-ms.is-filtered > .co-ms__btn {
   border-color: #1a4480;
   box-shadow: 0 0 0 3px rgba(26, 68, 128, 0.14);
+}
+
+.co-det-page details.co-ms.is-filtered > .co-ms__btn {
+  background: #eef4ff;
+}
+
+.co-det-page details.co-ms.is-filtered .co-ms__value {
+  color: #1a4480;
 }
 
 .co-det-page .co-ms__btn::-webkit-details-marker {
@@ -342,8 +364,8 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
   position: relative;
   z-index: 30;
   width: 100%;
-  min-width: 0;
-  max-height: 14rem;
+  min-width: 11rem;
+  max-height: 16rem;
   overflow: auto;
   background: #fff;
   border: 1px solid #c5d0de;
@@ -380,6 +402,12 @@ body.co-ora-body .co-det-page .co-det-filters > .si-btn {
 
 .co-det-page .co-ms__panel label:hover {
   background: #eef3fb;
+}
+
+.co-det-page .co-ms__panel label.is-checked {
+  background: #dbeafe;
+  color: #0f274f;
+  font-weight: 800;
 }
 
 .co-det-page .co-ms__panel input[type="checkbox"] {

@@ -1309,7 +1309,30 @@ function todayFolderName() {
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
-  return `${dd}-${mm}-${yyyy}`;
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function backupBundleFileName(dateFolder) {
+  const day = String(dateFolder || todayFolderName()).trim() || todayFolderName();
+  return `Hypex-backup-${day}.zip`;
+}
+
+function findMysqldumpBin() {
+  const candidates = [
+    'C:\\xampp\\mysql\\bin\\mysqldump.exe',
+    'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqldump.exe',
+    'C:\\Program Files\\MariaDB 10.4\\bin\\mysqldump.exe',
+    'mysqldump',
+  ];
+  for (const bin of candidates) {
+    if (bin === 'mysqldump') return bin;
+    try {
+      if (fs.existsSync(bin)) return bin;
+    } catch {
+      /* ignore */
+    }
+  }
+  return 'mysqldump';
 }
 
 async function getBackupSettings() {
@@ -1345,6 +1368,7 @@ async function saveBackupDir(dir, userId) {
 
 function runMysqldump(outFile) {
   return new Promise((resolve) => {
+    const bin = findMysqldumpBin();
     const args = [
       `-h${config.db.host}`,
       `-P${config.db.port}`,
@@ -1357,12 +1381,9 @@ function runMysqldump(outFile) {
     ];
     if (config.db.password) args.splice(3, 0, `-p${config.db.password}`);
     const out = fs.createWriteStream(outFile);
-    const proc = spawn('mysqldump', args, { windowsHide: true });
-    let err = '';
+    const proc = spawn(bin, args, { windowsHide: true });
     proc.stdout.pipe(out);
-    proc.stderr.on('data', (d) => {
-      err += d.toString();
-    });
+    proc.stderr.on('data', () => {});
     proc.on('error', () => resolve(false));
     proc.on('close', (code) => {
       out.end();
@@ -1418,10 +1439,14 @@ function zipAppFiles(zipFile) {
       '.git',
       'backups',
       'manager_backups',
+      'mobile-flutter/.dart_tool',
+      'mobile-flutter/build',
+      'mobile-flutter/.gradle-home',
+      'hypex-node/logs',
+      'logs',
+      'vendor/mpdf/mpdf/tmp',
     ];
-    // Windows tar (bsdtar)
     const args = ['-a', '-c', '-f', zipFile, '-C', root];
-    // include common folders; if too heavy ok
     for (const ex of excludes) {
       args.push(`--exclude=${ex}`);
     }
@@ -1434,11 +1459,81 @@ function zipAppFiles(zipFile) {
   });
 }
 
-async function runBackup(userId) {
+function createBundleZip(targetDir, dateFolder) {
+  return new Promise((resolve) => {
+    const bundleName = backupBundleFileName(dateFolder);
+    const bundlePath = path.join(targetDir, bundleName);
+    const parts = ['database.sql', 'system_files.zip', 'README.txt'].filter((name) =>
+      fs.existsSync(path.join(targetDir, name))
+    );
+    if (!parts.length) {
+      resolve({ ok: false, path: '', name: bundleName });
+      return;
+    }
+    try {
+      if (fs.existsSync(bundlePath)) fs.unlinkSync(bundlePath);
+    } catch {
+      /* ignore */
+    }
+    const args = ['-a', '-c', '-f', bundlePath, '-C', targetDir, ...parts];
+    const proc = spawn('tar', args, { windowsHide: true, shell: false });
+    proc.on('error', () => resolve({ ok: false, path: '', name: bundleName }));
+    proc.on('close', (code) => {
+      const ok = code === 0 && fs.existsSync(bundlePath) && fs.statSync(bundlePath).size > 0;
+      if (ok) {
+        try {
+          fs.copyFileSync(bundlePath, path.join(targetDir, 'backup_full.zip'));
+        } catch {
+          /* ignore */
+        }
+      }
+      resolve({ ok, path: ok ? bundlePath : '', name: bundleName });
+    });
+  });
+}
+
+function resolveBackupFile(settings, dateFolder, kind = 'bundle') {
+  const root = String(settings.backup_dir || '').trim();
+  const day = String(dateFolder || '').trim();
+  if (!root || !day || !/^(\d{4}-\d{2}-\d{2}|\d{2}-\d{2}-\d{4})$/.test(day)) return null;
+  const targetDir = path.resolve(root, day);
+  const rootAbs = path.resolve(root);
+  const rel = path.relative(rootAbs, targetDir);
+  if (!rel || rel.startsWith('..') || path.isAbsolute(rel) || !fs.existsSync(targetDir)) return null;
+  const map = {
+    bundle: [backupBundleFileName(day), 'backup_full.zip'],
+    database: ['database.sql'],
+    files: ['system_files.zip'],
+  };
+  const names = map[kind] || map.bundle;
+  for (const name of names) {
+    const full = path.join(targetDir, name);
+    if (fs.existsSync(full) && fs.statSync(full).size > 0) {
+      return {
+        path: full,
+        downloadName: kind === 'bundle' ? backupBundleFileName(day) : name,
+        dateFolder: day,
+      };
+    }
+  }
+  return null;
+}
+
+async function runBackup(userId, opts = {}) {
+  const dirInput = String(opts.backupDir || '').trim();
+  if (dirInput) {
+    const saved = await saveBackupDir(dirInput, userId);
+    if (!saved.ok) return { ok: false, error: saved.error || 'تعذر حفظ مجلد النسخ.' };
+  }
   const settings = await getBackupSettings();
   let root = String(settings.backup_dir || '').trim();
   if (!root) {
-    return { ok: false, error: 'حدّد مجلد النسخ الاحتياطي أولاً ثم احفظ المسار.' };
+    root = backupRecommendedDir();
+    const saved = await saveBackupDir(root, userId);
+    if (!saved.ok) {
+      return { ok: false, error: 'حدّد مجلد النسخ الاحتياطي أولاً ثم احفظ المسار.' };
+    }
+    root = saved.path || root;
   }
   root = path.resolve(root);
   try {
@@ -1459,20 +1554,35 @@ async function runBackup(userId) {
   if (!dumpOk) dumpOk = await dumpViaNode(dbFile);
   if (!dumpOk) return { ok: false, error: 'تعذر أخذ نسخة قاعدة البيانات.' };
 
-  await zipAppFiles(zipFile);
+  const filesOk = await zipAppFiles(zipFile);
+  if (!filesOk) {
+    return { ok: false, error: 'تعذر ضغط ملفات النظام.' };
+  }
   fs.writeFileSync(
     path.join(targetDir, 'README.txt'),
-    `Hypex backup\r\nfolder: ${dateFolder}\r\ncreated: ${new Date().toISOString()}\r\n`,
+    `نسخة احتياطية لنظام Hypex\r\n` +
+      `التاريخ: ${dateFolder}\r\n` +
+      `وقت الإنشاء: ${new Date().toISOString()}\r\n` +
+      `المحتويات:\r\n` +
+      `- database.sql (قاعدة البيانات)\r\n` +
+      `- system_files.zip (ملفات النظام)\r\n`,
     'utf8'
   );
+  const bundle = await createBundleZip(targetDir, dateFolder);
+  if (!bundle.ok) {
+    return { ok: false, error: 'تعذر إنشاء الملف المضغوط النهائي.' };
+  }
   await q(
     `UPDATE sys_backup_settings SET last_backup_at = NOW(), last_backup_path = ?, updated_by = ? WHERE id = 1`,
     [targetDir, userId || null]
   );
   return {
     ok: true,
-    message: `تم إنشاء النسخة الاحتياطية في المجلد ${dateFolder}.`,
+    message: `تم إنشاء النسخة الاحتياطية المضغوطة ${bundle.name}.`,
     path: targetDir,
+    date_folder: dateFolder,
+    bundle_name: bundle.name,
+    download_url: `/system/backup/download?date=${encodeURIComponent(dateFolder)}&file=bundle`,
   };
 }
 
@@ -1846,9 +1956,11 @@ module.exports = {
   deleteTaxRate,
   backupRecommendedDir,
   todayFolderName,
+  backupBundleFileName,
   getBackupSettings,
   saveBackupDir,
   runBackup,
+  resolveBackupFile,
   listRecentBackups,
   ACCOUNT_TYPE_AR,
   WIN_ACTIVE_SEC,

@@ -669,13 +669,11 @@
     function money(n) {
       return escAttr(fmt(n || 0));
     }
-    function chip(label, kind, amount) {
+    function chip(kind, amount) {
       return (
-        '<span class="co-price-chip"><b>' +
-        escAttr(label) +
-        '</b> ' +
+        '<span class="co-price-chip"><i>' +
         kind +
-        ' <em dir="ltr">' +
+        '</i><em dir="ltr">' +
         money(amount) +
         '</em></span>'
       );
@@ -683,7 +681,16 @@
     function side(label, unit) {
       var ex = unit ? unitPriceOf(ln, unit) : 0;
       var inc = r3(ex * (1 + tax / 100));
-      return chip(label, 'غ.ش', ex) + chip(label, 'ش', inc);
+      return (
+        '<span class="co-price-side">' +
+        '<b>' +
+        escAttr(label) +
+        '</b>' +
+        '<span class="co-price-side__vals">' +
+        chip('غ.ش', ex) +
+        chip('ش', inc) +
+        '</span></span>'
+      );
     }
     var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
     return (
@@ -708,23 +715,28 @@
       var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
       var key = unit ? unitKey(unit) : slotKey;
       return (
-        '<label>' +
+        '<label class="co-qty-slot">' +
+        '<span class="co-qty-slot__lab">' +
         escAttr(label) +
+        '</span>' +
         '<input class="' +
         cls +
-        '" type="number" step="1" min="0" data-nav="1" data-unit-key="' +
+        '" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
         escAttr(key) +
-        '" value="' +
+        '" placeholder="0" value="' +
         escAttr(userNumAttr(val)) +
         '" ' +
         ro +
-        '></label>'
+        '>' +
+        '</label>'
       );
     }
     var pieceCls = extra ? 'js-uextra js-extra-piece' : 'js-uqty js-qty-piece js-qty';
     var cartonCls = extra ? 'js-uextra js-extra-carton' : 'js-uqty js-qty-carton';
     return (
-      '<div class="co-qty-pair">' +
+      '<div class="co-qty-pair" title="' +
+      (extra ? 'الكمية المجانية' : 'الكمية') +
+      '">' +
       one(
         'كرتونة',
         cartonCls,

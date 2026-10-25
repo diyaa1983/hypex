@@ -475,7 +475,10 @@ function sys_backup_resolve_download(PDO $pdo, string $dateFolder, string $fileK
     }
 
     $map = [
-        'bundle' => ['file' => sys_backup_bundle_filename(), 'label' => 'backup_full.zip'],
+        'bundle' => [
+            'file' => sys_backup_bundle_filename(),
+            'label' => 'Hypex-backup-' . $dateFolder . '.zip',
+        ],
         'database' => ['file' => 'database.sql', 'label' => 'database.sql'],
         'files' => ['file' => 'system_files.zip', 'label' => 'system_files.zip'],
     ];

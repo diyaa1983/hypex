@@ -185,6 +185,10 @@
       method: 'POST',
       body: body,
       credentials: 'same-origin',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        Accept: 'application/json',
+      },
     })
       .then(function (res) {
         return res.json().catch(function () {

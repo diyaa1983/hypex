@@ -1736,8 +1736,9 @@ router.get('/sales/reports/customer-orders-detailed', async (req, res) => {
                 <option value="approved" ${status === 'approved' ? 'selected' : ''}>معتمد</option>
               </select>
             </label>
-            <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+            <button class="si-btn si-btn--primary co-det-run-btn" type="submit" title="التحديث يتم تلقائياً عند الاختيار">تحديث</button>
           </form>
+          <p class="co-det-slicer-hint no-print">اختر من القوائم كما في Power BI — القائمة تبقى مفتوحة أثناء التحديد، والجدول يتحدّث تلقائياً.</p>
         </div>
         <div id="co-det-results">
         ${

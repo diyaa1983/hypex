@@ -769,12 +769,24 @@ router.get('/system/settings', async (req, res) => {
         title: 'الإعدادات',
         subtitle: 'بيانات الشركة والبريد وواتساب والأمان وأرشيف السندات',
         actions: [
+          ...(can(req.session.user, 'system_backup')
+            ? [{ label: 'النسخ الاحتياطي', href: '/system/backup', primary: true }]
+            : []),
           { label: 'معدّلات الضريبة', href: '/system/tax-rates' },
           { label: 'الفاتورة الإلكترونية', href: '/system/einvoice' },
           { label: 'لوحة النظام', href: HUB },
         ],
       })}
       ${flashHtml(flash, err)}
+      ${
+        can(req.session.user, 'system_backup')
+          ? `<section class="ss-panel" style="margin-bottom:1rem">
+        <h2>النسخ الاحتياطي للنظام</h2>
+        <p class="ss-hint" style="margin:0 0 .75rem">أخذ نسخة مضغوطة من قاعدة البيانات وجميع مجلدات النظام باسم تاريخ اليوم، مع اختيار مكان الحفظ.</p>
+        <a class="si-btn si-btn--primary" href="/system/backup">💾 أخذ نسخة احتياطية</a>
+      </section>`
+          : ''
+      }
       <form method="post" action="/system/settings" enctype="multipart/form-data" class="ss-form">
         <section class="ss-panel">
           <h2>بيانات الشركة</h2>
@@ -1281,17 +1293,36 @@ router.get('/system/backup', async (req, res) => {
   const backupDir = String(settings.backup_dir || '');
   const recent = svc.listRecentBackups(settings);
   const today = svc.todayFolderName();
-  const isWin = process.platform === 'win32';
+  const bundleName = svc.backupBundleFileName(today);
+  const isLinux = process.platform !== 'win32';
+  if (!req.session.csrfToken) {
+    req.session.csrfToken = require('crypto').randomBytes(16).toString('hex');
+  }
+  const csrf = String(req.session.csrfToken || '');
 
   const recentHtml = recent.length
-    ? `<ul style="margin:.5rem 0;padding-inline-start:1.2rem">${recent
-        .map(
-          (r) =>
-            `<li><code dir="ltr">${esc(r.name)}</code> <span class="muted" dir="ltr" style="font-size:.8rem">${esc(
-              r.path
-            )}</span></li>`
-        )
-        .join('')}</ul>`
+    ? recent
+        .map((r) => {
+          const dl = `/system/backup/download?date=${encodeURIComponent(r.name)}&file=bundle`;
+          return `<article class="bk-dl-item">
+            <div class="bk-dl-head">
+              <strong dir="ltr">${esc(r.name)}</strong>
+              <span class="muted" dir="ltr">${esc(r.path)}</span>
+            </div>
+            <div class="bk-dl-actions">
+              <a class="si-btn si-btn--primary" href="${esc(dl)}">⬇ تنزيل ${esc(
+            svc.backupBundleFileName(r.name)
+          )}</a>
+              <a class="si-btn" href="/system/backup/download?date=${encodeURIComponent(
+                r.name
+              )}&file=database">قاعدة البيانات</a>
+              <a class="si-btn" href="/system/backup/download?date=${encodeURIComponent(
+                r.name
+              )}&file=files">ملفات النظام</a>
+            </div>
+          </article>`;
+        })
+        .join('')
     : '<p class="muted">لا توجد نسخ محفوظة بعد.</p>';
 
   const body = `
@@ -1299,44 +1330,47 @@ router.get('/system/backup', async (req, res) => {
       .bk-panel{background:var(--si-surface,#fff);border:1px solid var(--si-line,#e4e8f0);border-radius:14px;padding:1rem 1.2rem 1.25rem;margin-bottom:.85rem}
       .bk-panel h2{margin:0 0 .5rem;font-size:1.05rem;font-weight:800}
       .bk-hint{font-size:.85rem;color:#6b7385;margin:0 0 .85rem;line-height:1.5}
-      .bk-field{display:flex;flex-direction:column;gap:.35rem;font-size:.82rem;font-weight:700;color:#3d4659;min-width:0}
-      .bk-actions{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;margin-top:.75rem}
-      .bk-actions .si-btn{min-height:2.4rem;padding:.45rem .95rem;width:auto;align-self:center}
       .bk-list{margin:.35rem 0 .85rem;padding-inline-start:1.2rem;font-size:.88rem;color:#6b7385;line-height:1.55}
-      .bk-recent ul{margin:.5rem 0;padding-inline-start:1.2rem}
+      .bk-run{display:flex;flex-direction:column;align-items:flex-start;gap:.55rem}
+      .bk-run .si-btn{min-height:2.75rem;padding:.55rem 1.2rem;font-size:1rem}
+      .bk-dl-item{border:1px solid #e2e8f0;border-radius:10px;padding:.7rem .85rem;margin:.55rem 0}
+      .bk-dl-head{display:flex;flex-direction:column;gap:.15rem;margin-bottom:.45rem}
+      .bk-dl-actions{display:flex;flex-wrap:wrap;gap:.4rem}
+      .sys-backup-busy{position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45)}
+      .sys-backup-busy[hidden]{display:none!important}
+      .sys-backup-busy-oracle{min-width:min(28rem,92vw);background:#0b1f33;color:#d7e6f5;border:1px solid #1e3a5f;border-radius:10px;box-shadow:0 18px 50px rgba(0,0,0,.35);padding:1rem 1.15rem}
+      .sys-backup-busy-oracle-line{margin:.2rem 0;font:700 .92rem/1.45 Consolas,monospace}
+      .sys-backup-busy-oracle-line--active{color:#7dd3fc}
+      .sys-backup-busy-oracle-muted{color:#94a3b8;font-weight:600}
     </style>
-    <div class="si-stage">
+    <div class="si-stage sys-backup-page"
+         data-backup-api="/system/backup/run"
+         data-csrf="${esc(csrf)}"
+         data-backup-dir="${esc(backupDir)}"
+         data-recommended-dir="${esc(recommended)}"
+         data-is-linux="${isLinux ? '1' : '0'}">
       ${ui.hero({
         mark: 'Bk',
         kicker: KICKER,
         title: 'النسخ الاحتياطي',
-        subtitle: 'مجلد الحفظ + قاعدة البيانات + ملفات النظام',
-        actions: [{ label: 'لوحة النظام', href: HUB }],
+        subtitle: 'قاعدة البيانات + مجلدات النظام في ملف مضغوط باسم تاريخ اليوم',
+        actions: [
+          { label: 'الإعدادات', href: '/system/settings' },
+          { label: 'لوحة النظام', href: HUB },
+        ],
       })}
       ${flashHtml(flash, err)}
       <section class="bk-panel">
-        <h2>مجلد حفظ النسخ</h2>
-        <p class="bk-hint">
-          الخادم الحالي: <strong dir="ltr">${isWin ? 'Windows' : process.platform}</strong>.
-          كل نسخة تُنشأ في مجلد باسم تاريخ اليوم (مثل: <code dir="ltr">${esc(today)}</code>).
-        </p>
-        <form method="post" action="/system/backup/save-dir">
-          <label class="bk-field">مسار مجلد النسخ الاحتياطي
-            <input class="si-field si-field--mono" name="backup_dir" required dir="ltr"
-              value="${esc(backupDir || recommended)}" placeholder="${esc(recommended)}">
-          </label>
-          <p class="bk-hint" style="margin:.45rem 0 0">المسار المقترح: <code dir="ltr">${esc(recommended)}</code></p>
-          <div class="bk-actions">
-            <button class="si-btn si-btn--primary" type="submit">حفظ المسار</button>
-            <button class="si-btn" type="submit" formaction="/system/backup/use-recommended" formmethod="post">استخدام المسار المقترح</button>
-          </div>
-        </form>
-      </section>
-      <section class="bk-panel">
         <h2>أخذ نسخة احتياطية</h2>
+        <p class="bk-hint">
+          عند الضغط على الزر تُفتح نافذة لتحديد مجلد الحفظ على الخادم، ثم تُنشأ نسخة مضغوطة باسم
+          <code dir="ltr">${esc(bundleName)}</code>
+          وتشمل قاعدة البيانات وجميع مجلدات النظام، ويظهر تنبيه التحميل أثناء الإنشاء ثم يبدأ التنزيل.
+        </p>
         <ul class="bk-list">
-          <li>نسخة من قاعدة البيانات (ملف <code dir="ltr">database.sql</code>)</li>
-          <li>نسخة من ملفات النظام (ملف <code dir="ltr">system_files.zip</code>)</li>
+          <li>نسخة من <strong>قاعدة البيانات</strong></li>
+          <li>نسخة مضغوطة من <strong>جميع مجلدات النظام</strong></li>
+          <li>ملف واحد باسم تاريخ اليوم: <code dir="ltr">${esc(bundleName)}</code></li>
         </ul>
         ${
           settings.last_backup_at
@@ -1347,27 +1381,35 @@ router.get('/system/backup', async (req, res) => {
               )}</span></p>`
             : ''
         }
-        <form method="post" action="/system/backup/run" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='جاري الإنشاء…'">
-          <div class="bk-actions" style="margin-top:0">
-            <button class="si-btn si-btn--primary" type="submit">أخذ نسخة احتياطية الآن</button>
-          </div>
-        </form>
-        ${
-          backupDir
-            ? `<p class="bk-hint" style="margin-top:.85rem;margin-bottom:0">المسار: <code dir="ltr">${esc(
-                backupDir
-              )}</code><br>مجلد اليوم: <code dir="ltr">${esc(
-                require('path').join(backupDir, today)
-              )}</code></p>`
-            : '<p class="bk-hint" style="margin-top:.85rem;margin-bottom:0">احفظ مسار المجلد أولاً.</p>'
-        }
+        <div class="bk-run">
+          <button type="button" class="si-btn si-btn--primary" id="sys-backup-run-btn">💾 أخذ نسخة احتياطية الآن</button>
+          <p class="bk-hint" style="margin:0">المسار المقترح: <code dir="ltr">${esc(recommended)}</code></p>
+        </div>
       </section>
-      <section class="bk-panel bk-recent">
-        <h2>النسخ الحديثة على الخادم</h2>
+      <section class="bk-panel">
+        <h2>النسخ الحديثة / التنزيل</h2>
+        <p class="bk-hint">يمكنك إعادة تنزيل أي نسخة محفوظة على الخادم.</p>
         ${recentHtml}
       </section>
+    </div>
+    <div id="sys-backup-busy" class="sys-backup-busy no-print" hidden aria-live="polite" aria-busy="true">
+      <div class="sys-backup-busy-oracle" role="status">
+        <p class="sys-backup-busy-oracle-line">Connected to: MySQL Database Server</p>
+        <p class="sys-backup-busy-oracle-line sys-backup-busy-oracle-line--active">جاري إنشاء النسخة الاحتياطية...</p>
+        <p class="sys-backup-busy-oracle-line">جاري أخذ نسخة قاعدة البيانات...</p>
+        <p class="sys-backup-busy-oracle-line">جاري ضغط ملفات النظام...</p>
+        <p class="sys-backup-busy-oracle-line sys-backup-busy-oracle-muted">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
+      </div>
     </div>`;
-  res.send(ui.salesPage({ user: req.session.user, title: 'النسخ الاحتياطي', bodyHtml: body }));
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'النسخ الاحتياطي',
+      bodyHtml: body,
+      js: ['/assets/js/sys-backup.js'],
+      activePath: '/system/backup',
+    })
+  );
 });
 
 router.post('/system/backup/save-dir', async (req, res) => {
@@ -1392,14 +1434,55 @@ router.post('/system/backup/use-recommended', async (req, res) => {
   );
 });
 
-router.post('/system/backup/run', async (req, res) => {
+router.post('/system/backup/run', multer().none(), async (req, res) => {
   if (!can(req.session.user, 'system_backup')) return forbid(res);
-  const result = await svc.runBackup(req.session.user.id);
-  res.redirect(
-    '/system/backup?' +
-      (result.ok ? 'msg=' : 'err=') +
-      encodeURIComponent(result.message || result.error || '')
-  );
+  const sessionCsrf = String(req.session.csrfToken || '');
+  const csrf = String(req.body?._csrf || req.get('x-csrf-token') || '');
+  const wantsJson =
+    String(req.get('x-requested-with') || '').toLowerCase() === 'xmlhttprequest' ||
+    String(req.get('accept') || '').includes('application/json');
+  if (sessionCsrf && csrf && csrf !== sessionCsrf) {
+    if (wantsJson) {
+      return res.status(403).json({ ok: false, message: 'انتهت صلاحية الجلسة، أعد المحاولة.' });
+    }
+    return res.redirect('/system/backup?err=' + encodeURIComponent('انتهت صلاحية الجلسة، أعد المحاولة.'));
+  }
+  try {
+    const result = await svc.runBackup(req.session.user.id, {
+      backupDir: req.body?.backup_dir,
+    });
+    if (wantsJson) {
+      return res.json({
+        ok: !!result.ok,
+        message: result.message || result.error || '',
+        path: result.path || '',
+        date_folder: result.date_folder || '',
+        download_url: result.download_url || '',
+      });
+    }
+    return res.redirect(
+      '/system/backup?' +
+        (result.ok ? 'msg=' : 'err=') +
+        encodeURIComponent(result.message || result.error || '')
+    );
+  } catch (e) {
+    const msg = e.message || 'تعذر إتمام النسخ الاحتياطي.';
+    if (wantsJson) return res.status(500).json({ ok: false, message: msg });
+    return res.redirect('/system/backup?err=' + encodeURIComponent(msg));
+  }
+});
+
+router.get('/system/backup/download', async (req, res) => {
+  if (!can(req.session.user, 'system_backup')) return forbid(res);
+  const dateFolder = String(req.query.date || '').trim();
+  const kind = String(req.query.file || 'bundle').trim().toLowerCase();
+  const settings = await svc.getBackupSettings();
+  const resolved = svc.resolveBackupFile(settings, dateFolder, kind);
+  if (!resolved) {
+    return res.status(404).send('النسخة المطلوبة غير موجودة.');
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  return res.download(resolved.path, resolved.downloadName);
 });
 
 /* ═══════════ E-INVOICE / JoFotara ═══════════ */
