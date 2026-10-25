@@ -1301,16 +1301,17 @@
     if (!tbody) return;
     var tr = tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
     if (!tr) return;
-    var el = tr.querySelector(selector);
-    if (!el || el.disabled) return;
-    // تخطّي اسم المادة بعد الاختيار (readonly) فقط
-    if (el.readOnly && el.classList && el.classList.contains('js-item-name')) {
-      var unit = tr.querySelector('.js-unit');
-      if (unit && !unit.disabled) el = unit;
-      else return;
-    } else if (el.readOnly && el.tagName === 'INPUT') {
-      return;
+    var nodes = tr.querySelectorAll(selector);
+    var el = null;
+    for (var i = 0; i < nodes.length; i++) {
+      var cand = nodes[i];
+      if (!cand || cand.disabled) continue;
+      if (cand.readOnly && cand.classList && cand.classList.contains('js-item-name')) continue;
+      if (cand.readOnly && cand.tagName === 'INPUT') continue;
+      el = cand;
+      break;
     }
+    if (!el) return;
     try {
       el.focus({ preventScroll: true });
       if (doSelect && typeof el.select === 'function' && el.tagName === 'INPUT') el.select();
@@ -1322,6 +1323,22 @@
         /* ignore */
       }
     }
+  }
+
+  /** بعد اختيار المادة: التركيز على كمية الكرتونة ثم القطعة */
+  function focusQtyAfterItemPick(idx) {
+    function go() {
+      focusLineField(idx, '.js-qty-carton', true);
+      var tr = tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
+      var ae = document.activeElement;
+      if (tr && ae && tr.contains(ae) && ae.classList && ae.classList.contains('js-uqty')) return;
+      focusLineField(idx, '.js-qty-piece', true);
+      ae = document.activeElement;
+      if (tr && ae && tr.contains(ae) && ae.classList && ae.classList.contains('js-uqty')) return;
+      focusLineField(idx, '.js-uqty', true);
+    }
+    window.setTimeout(go, 0);
+    window.setTimeout(go, 40);
   }
 
   /** تحديث صف موجود من بيانات البند دون إعادة بناء الجدول (يمنع الوميض). */
@@ -1383,11 +1400,7 @@
     closeItemSuggest(openSuggestForRow(tr));
     patchLineRow(tr, state.lines[idx]);
     markFormDirty();
-    if (focusNext) {
-      window.setTimeout(function () {
-        focusLineField(idx, '.js-uqty', true);
-      }, 0);
-    }
+    if (focusNext) focusQtyAfterItemPick(idx);
   }
 
   /** ترتيب حقول التنقل Enter / الأسهم داخل السطر */
@@ -2467,11 +2480,9 @@
     var tr = tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
     if (tr) {
       patchLineRow(tr, state.lines[idx]);
-      window.setTimeout(function () {
-        focusLineField(idx, '.js-uqty', true);
-      }, 0);
+      focusQtyAfterItemPick(idx);
     } else {
-      renderLines({ idx: idx, cls: '.js-uqty', select: true });
+      renderLines({ idx: idx, cls: '.js-qty-carton', select: true });
     }
   });
 
