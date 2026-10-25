@@ -17,18 +17,19 @@ body.co-ora-body .si-stage , .co-ora-skin {
   color: #111;
 }
 
-/* شريط موحّد: عنوان + رقم الطلب + أزرار + اختصارات — سطر واحد */
+/* شريط موحّد: عنوان + رقم الطلب + أزرار + اختصارات — يلتف ليناسب الشاشة */
 body.co-ora-body .si-stage .si-cmd.si-doc-toolbar ,
 .co-ora-skin .si-cmd.si-doc-toolbar,
 body.co-ora-body .si-stage .si-cmd.si-doc-toolbar.co-unified-bar ,
 .co-ora-skin .si-cmd.si-doc-toolbar.co-unified-bar {
   direction: rtl;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-start;
-  gap: 0;
-  padding: 3px 6px !important;
+  column-gap: 0;
+  row-gap: 4px;
+  padding: 4px 6px !important;
   margin: 0 0 6px !important;
   background: linear-gradient(180deg, #f7f7f7 0%, #ebebeb 100%) !important;
   border: 1px solid #b0b0b0 !important;
@@ -36,22 +37,24 @@ body.co-ora-body .si-stage .si-cmd.si-doc-toolbar.co-unified-bar ,
   box-shadow: inset 0 1px 0 #fff !important;
   min-height: 28px !important;
   height: auto !important;
-  overflow-x: auto;
-  overflow-y: hidden;
+  max-width: 100%;
+  overflow-x: visible;
+  overflow-y: visible;
 }
 
 body.co-ora-body .si-stage .si-tb-group , .co-ora-skin .si-tb-group {
   direction: rtl;
   display: flex;
-  flex-wrap: nowrap;
-  gap: 2px;
+  flex-wrap: wrap;
+  gap: 3px;
   align-items: center;
   padding: 1px 5px !important;
   border: none !important;
   background: transparent !important;
   box-shadow: none !important;
   min-height: 0 !important;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  max-width: 100%;
 }
 
 body.co-ora-body .si-stage .si-tb-group + .si-tb-group , .co-ora-skin .si-tb-group + .si-tb-group {
@@ -67,6 +70,20 @@ body.co-ora-body .si-stage .si-tb-group--identity ,
   gap: 8px !important;
   padding-inline: 4px 8px !important;
   max-width: none;
+  flex: 1 1 16rem;
+  min-width: min(100%, 15rem);
+}
+
+/* صف الإجراءات يلتف تحت الهوية على الشاشات المتوسطة */
+body.co-ora-body .si-stage .si-tb-group--core ,
+.co-ora-skin .si-tb-group--core,
+body.co-ora-body .si-stage .si-tb-group--nav ,
+.co-ora-skin .si-tb-group--nav,
+body.co-ora-body .si-stage .si-tb-group--risk ,
+.co-ora-skin .si-tb-group--risk,
+body.co-ora-body .si-stage .si-tb-group--keys ,
+.co-ora-skin .si-tb-group--keys {
+  flex: 0 1 auto;
 }
 
 body.co-ora-body .si-stage .si-tb-group--identity .si-doc-screen-title ,
@@ -132,13 +149,39 @@ body.co-ora-body .si-stage .si-tb-group--keys .si-key-hint ,
   align-items: center !important;
   gap: 3px !important;
   margin: 0 !important;
-  padding: 1px 5px 1px 3px !important;
-  min-height: 20px !important;
-  border-radius: 0 !important;
+  padding: 2px 6px 2px 4px !important;
+  min-height: 26px !important;
+  border-radius: 2px !important;
   background: #f0f0f0 !important;
   border: 1px solid #a8a8a8 !important;
   box-shadow: none !important;
   line-height: 1 !important;
+}
+
+/* شاشات أضيق: اختصارات المفاتيح فقط بدون النص الطويل */
+@media (max-width: 1280px) {
+  body.co-ora-body .si-stage .si-tb-group--keys .si-key-desc ,
+  .co-ora-skin .si-tb-group--keys .si-key-desc,
+  body.co-ora-body .si-stage .si-tb-keydesc ,
+  .co-ora-skin .si-tb-keydesc {
+    display: none !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  body.co-ora-body .si-stage .si-tb-group--identity ,
+  .co-ora-skin .si-tb-group--identity {
+    flex: 1 1 100%;
+    border-inline-end: none !important;
+    padding-bottom: 2px !important;
+  }
+
+  body.co-ora-body .si-stage .si-tb-group--status ,
+  .co-ora-skin .si-tb-group--status {
+    flex: 1 1 100%;
+    margin-inline-start: 0 !important;
+    order: 99;
+  }
 }
 
 body.co-ora-body .si-stage .si-tb-group--keys .si-field-key ,
@@ -184,21 +227,24 @@ body.co-ora-body .si-stage .si-tb , .co-ora-skin .si-tb {
   color: var(--tb-fg) !important;
   border: 1px solid var(--tb-bd) !important;
   background: linear-gradient(180deg, #ffffff 0%, #efefef 100%) !important;
-  padding: 1px 7px !important;
-  border-radius: 0 !important;
+  padding: 3px 9px !important;
+  border-radius: 2px !important;
   font-size: 11px !important;
   font-family: Tahoma, Arial, sans-serif !important;
   font-weight: 600 !important;
   letter-spacing: 0 !important;
   line-height: 1.2 !important;
-  min-height: 20px !important;
-  height: 20px !important;
+  min-height: 26px !important;
+  height: 26px !important;
   min-width: 0 !important;
   width: auto !important;
+  max-width: 100%;
+  white-space: nowrap;
   box-shadow: none !important;
   text-shadow: none !important;
   transform: none !important;
   transition: background 0.08s ease, border-color 0.08s ease !important;
+  cursor: pointer;
 }
 
 body.co-ora-body .si-stage .si-tb:hover:not(:disabled) , .co-ora-skin .si-tb:hover:not(:disabled) {

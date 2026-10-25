@@ -160,21 +160,21 @@ function toolbarHtml(caps, order, badgeHtml = '') {
         </label>
         <div class="si-doc-screen-badge">${badgeHtml}</div>
       </div>
-      <div class="si-tb-group si-tb-group--core">
-        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10', 'حفظ')}
-        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد الطلب"', '', 'اعتماد')}
+      <div class="si-tb-group si-tb-group--core" role="group" aria-label="إجراءات أساسية">
+        ${b('co-save', 'حفظ', 'si-tb--save', !caps.canSave, ' data-hx-save="1" title="حفظ — F10"', 'F10')}
+        ${b('co-approve', 'اعتماد', 'si-tb--post', !caps.canApprove, ' title="اعتماد الطلب"')}
         ${
           caps.allowPostOracle || caps.oracleVnum > 0
             ? b(
                 'co-oracle',
-                caps.oracleVnum > 0 ? 'Oracle #' + caps.oracleVnum : 'ترحيل إلى Oracle',
+                caps.oracleVnum > 0 ? 'Oracle #' + caps.oracleVnum : 'ترحيل Oracle',
                 'si-tb--post',
                 !caps.canPostOracle && !(caps.oracleVnum > 0),
                 caps.oracleVnum > 0
                   ? ` title="فاتورة Oracle ${caps.oracleVnum} / ${caps.oracleVyear}"`
                   : locked
-                    ? ' title="تحويل الطلب المعتمد إلى فاتورة بيع في فواتير المبيعات"'
-                    : ' title="فعّال بعد اعتماد الطلب"'
+                    ? ' title="ترحيل إلى Oracle — تحويل الطلب المعتمد إلى فاتورة بيع"'
+                    : ' title="ترحيل إلى Oracle — فعّال بعد اعتماد الطلب"'
               )
             : ''
         }
@@ -182,24 +182,24 @@ function toolbarHtml(caps, order, badgeHtml = '') {
           caps.allowUnpostOracle || caps.oracleVnum > 0
             ? b(
                 'co-oracle-unpost',
-                'إلغاء ترحيل Oracle',
+                'إلغاء ترحيل',
                 'si-tb--ghost',
                 !caps.canUnpostOracle,
                 caps.oracleVnum > 0
-                  ? ` title="حذف مسودة Oracle #${caps.oracleVnum} لإعادة الترحيل بعد التعديل"`
+                  ? ` title="إلغاء ترحيل Oracle — حذف مسودة #${caps.oracleVnum} لإعادة الترحيل"`
                   : ' title="لا يوجد ترحيل Oracle لإلغائه"'
               )
             : ''
         }
       </div>
-      <div class="si-tb-group">
+      <div class="si-tb-group si-tb-group--nav" role="group" aria-label="تنقل ومستندات">
         ${b('co-search', 'القائمة', 'si-tb--ghost', false, ' title="قائمة الطلبات"')}
         ${b('co-new', 'جديد', 'si-tb--ghost', false, ' title="طلب جديد"')}
         ${b('co-pdf', 'PDF', '', !caps.canPdf)}
         ${b('co-print', 'طباعة', '', !caps.canPrint)}
         ${b('co-excel', 'Excel', '', !caps.canExcel)}
       </div>
-      <div class="si-tb-group si-tb-group--risk">
+      <div class="si-tb-group si-tb-group--risk" role="group" aria-label="إجراءات حساسة">
         ${b('co-unapprove', 'فك الاعتماد', '', !caps.canUnapprove)}
         ${b(
           'co-delete',
@@ -210,10 +210,9 @@ function toolbarHtml(caps, order, badgeHtml = '') {
         )}
       </div>
       <div class="si-tb-group si-tb-group--keys" role="group" aria-label="اختصارات لوحة المفاتيح">
-        <span class="si-key-hint" title="سطر بند جديد"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر جديد</span></span>
-        <span class="si-key-hint" title="قائمة المواد"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">قائمة مواد</span></span>
-        <span class="si-key-hint" title="حذف بند المادة"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف بند</span></span>
-        <span class="si-key-hint" title="حفظ"><kbd class="si-field-key">F10</kbd><span class="si-key-desc">حفظ</span></span>
+        <span class="si-key-hint" title="سطر بند جديد — F2"><kbd class="si-field-key">F2</kbd><span class="si-key-desc">سطر</span></span>
+        <span class="si-key-hint" title="قائمة المواد — F3"><kbd class="si-field-key">F3</kbd><span class="si-key-desc">مواد</span></span>
+        <span class="si-key-hint" title="حذف بند المادة — F4"><kbd class="si-field-key">F4</kbd><span class="si-key-desc">حذف</span></span>
       </div>
       <div class="si-tb-group si-tb-group--status">
         <span class="si-msg" id="co-msg"></span>
