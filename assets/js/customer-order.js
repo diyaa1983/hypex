@@ -651,7 +651,12 @@
             for (var ri = 0; ri < rows.length; ri++) {
               var hid = rows[ri].querySelector('.js-item-id');
               if (hid && Number(hid.value) === Number(ln.item_id)) {
+                var keepQtyFocus = state._holdQtyFocusIdx != null;
                 patchLineRow(rows[ri], ln);
+                if (keepQtyFocus) {
+                  var focusIdx = Number(rows[ri].getAttribute('data-idx'));
+                  if (Number.isFinite(focusIdx)) focusQtyAfterItemPick(focusIdx);
+                }
                 break;
               }
             }
@@ -1325,9 +1330,11 @@
     }
   }
 
-  /** بعد اختيار المادة: التركيز على كمية الكرتونة ثم القطعة */
+  /** بعد اختيار المادة: التركيز على كمية الكرتونة والإبقاء عليه حتى يبدأ المستخدم بالكتابة */
   function focusQtyAfterItemPick(idx) {
+    state._holdQtyFocusIdx = idx;
     function go() {
+      if (state._holdQtyFocusIdx !== idx) return;
       focusLineField(idx, '.js-qty-carton', true);
       var tr = tbody && tbody.querySelector('tr[data-idx="' + String(idx) + '"]');
       var ae = document.activeElement;
@@ -1338,7 +1345,11 @@
       focusLineField(idx, '.js-uqty', true);
     }
     window.setTimeout(go, 0);
-    window.setTimeout(go, 40);
+    window.setTimeout(go, 60);
+  }
+
+  function releaseQtyFocusHold(idx) {
+    if (idx == null || state._holdQtyFocusIdx === idx) state._holdQtyFocusIdx = null;
   }
 
   /** تحديث صف موجود من بيانات البند دون إعادة بناء الجدول (يمنع الوميض). */
@@ -2035,9 +2046,12 @@
       el.setAttribute('data-co-on', '1');
       var ev = el.tagName === 'SELECT' ? 'change' : 'input';
       el.addEventListener(ev, function () {
+        var idx = Number(tr.getAttribute('data-idx'));
+        if (el.classList.contains('js-uqty') || el.classList.contains('js-uextra')) {
+          releaseQtyFocusHold(idx);
+        }
         readLineFromRow(tr);
         if (el.classList.contains('js-uqty') && window.HxOffers) {
-          var idx = Number(tr.getAttribute('data-idx'));
           window.HxOffers.refreshLine({
             idx: idx,
             ln: state.lines[idx],
@@ -2050,6 +2064,7 @@
       });
       if (el.classList.contains('js-qty') && !locked) {
         el.addEventListener('blur', function () {
+          if (!el.isConnected) return;
           enforceQtyBeforeLeave(el);
         });
       }
@@ -2347,10 +2362,12 @@
   function enforceQtyBeforeLeave(qtyEl, opts) {
     opts = opts || {};
     if (locked || !qtyEl || qtyLeaveGuard) return true;
+    if (!qtyEl.isConnected) return true;
     if (!qtyEl.classList || !qtyEl.classList.contains('js-qty')) return true;
     var tr = qtyEl.closest ? qtyEl.closest('tr[data-idx]') : null;
     if (!tr) return true;
     var idx = Number(tr.getAttribute('data-idx'));
+    if (state._holdQtyFocusIdx === idx) return true;
     try {
       readLineFromRow(tr);
     } catch (e) {
