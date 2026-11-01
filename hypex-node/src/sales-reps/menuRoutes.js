@@ -1903,18 +1903,31 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     )
     .join('');
 
-  const selectedCustomer =
-    customers.find((c) => Number(c.id) === customerId) || null;
+  /* عملاء القائمة = من نتائج التقرير + استعلام الفترة (ضمان الظهور) */
+  const customerMap = new Map();
+  function pushCustomer(id, name, code) {
+    const cid = Number(id) || 0;
+    if (!cid || customerMap.has(cid)) return;
+    customerMap.set(cid, {
+      id: cid,
+      name: String(name || '').trim(),
+      code: String(code || '').trim(),
+    });
+  }
+  for (const r of rows) {
+    pushCustomer(r.customer_id, r.customer_name, r.customer_code);
+  }
+  for (const c of customers) {
+    pushCustomer(c.id, c.name_ar || c.name || c.NAME_AR, c.code || c.CODE);
+  }
+  const customerChoices = [...customerMap.values()].sort((a, b) =>
+    String(a.name).localeCompare(String(b.name), 'ar')
+  );
+  const selectedCustomer = customerMap.get(customerId) || null;
   const selectedCustomerLabel = selectedCustomer
-    ? `${selectedCustomer.code ? `${selectedCustomer.code} — ` : ''}${selectedCustomer.name_ar || ''}`
+    ? `${selectedCustomer.code ? `${selectedCustomer.code} — ` : ''}${selectedCustomer.name || ''}`
     : '';
-  const customersJson = JSON.stringify(
-    customers.map((c) => ({
-      id: Number(c.id) || 0,
-      name: String(c.name_ar || ''),
-      code: String(c.code || ''),
-    }))
-  ).replace(/</g, '\\u003c');
+  const customersJson = JSON.stringify(customerChoices).replace(/</g, '\\u003c');
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
@@ -2103,7 +2116,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
               ${repOpts}
             </select>
           </label>
-          <label class="hx-visits-f hx-visits-f--customer">
+          <div class="hx-visits-f hx-visits-f--customer">
             <span class="hx-visits-f-label">العميل</span>
             <div class="hx-smart-cust" id="hx-visits-smart-cust">
               <input type="hidden" name="customer_id" id="hx-visits-customer-id" value="${customerId || 0}">
@@ -2118,7 +2131,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
                 <div class="hx-smart-cust-list" id="hx-visits-cust-list" role="listbox"></div>
               </div>
             </div>
-          </label>
+          </div>
           <label class="hx-visits-f hx-visits-f--status">
             <span class="hx-visits-f-label">الحالة</span>
             <select class="si-field" name="status">
@@ -2263,14 +2276,34 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             var needle = String(q || '').trim();
             var local = filterLocal(needle);
             paintList(local, needle);
-            if (needle.length < 2) return;
+            /* بحث ذكي من الخادم عند الكتابة، أو عند فراغ القائمة المحلية */
+            var needApi = needle.length >= 1 || local.length < 1;
+            if (!needApi) return;
             var token = ++custFetchToken;
             fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
               .then(function(r){ return r.json(); })
               .then(function(data){
                 if (token !== custFetchToken) return;
                 if (!data || !data.ok) return;
-                paintList(mergeRows(local, data.rows || []), needle);
+                var apiRows = data.rows || [];
+                if (!needle){
+                  apiRows.forEach(function(c){
+                    var id = Number(c.id) || 0;
+                    if (!id) return;
+                    var exists = false;
+                    for (var i = 0; i < custPeriod.length; i++){
+                      if (custPeriod[i].id === id){ exists = true; break; }
+                    }
+                    if (!exists){
+                      custPeriod.push({
+                        id: id,
+                        name: String(c.name_ar || c.name || ''),
+                        code: String(c.code || '')
+                      });
+                    }
+                  });
+                }
+                paintList(mergeRows(local, apiRows), needle);
               })
               .catch(function(){});
           }

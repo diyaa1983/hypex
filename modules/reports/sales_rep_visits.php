@@ -250,23 +250,44 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                 </select>
             </label>
             <?php
-            $selectedCustomerLabel = '';
-            $customersForJs = [];
+            $customerMap = [];
+            foreach ($rows as $r) {
+                $cid = (int) ($r['customer_id'] ?? 0);
+                if ($cid < 1 || isset($customerMap[$cid])) {
+                    continue;
+                }
+                $customerMap[$cid] = [
+                    'id' => $cid,
+                    'name' => trim((string) ($r['customer_name'] ?? '')),
+                    'code' => trim((string) ($r['customer_code'] ?? '')),
+                ];
+            }
             foreach ($customers as $cust) {
                 $cid = (int) ($cust['id'] ?? 0);
-                $cname = (string) ($cust['name_ar'] ?? '');
-                $ccode = (string) ($cust['code'] ?? '');
-                $customersForJs[] = ['id' => $cid, 'name' => $cname, 'code' => $ccode];
-                if ($cid > 0 && $cid === $customerId) {
-                    $selectedCustomerLabel = ($ccode !== '' ? $ccode . ' — ' : '') . $cname;
+                if ($cid < 1 || isset($customerMap[$cid])) {
+                    continue;
                 }
+                $customerMap[$cid] = [
+                    'id' => $cid,
+                    'name' => trim((string) ($cust['name_ar'] ?? $cust['name'] ?? '')),
+                    'code' => trim((string) ($cust['code'] ?? '')),
+                ];
+            }
+            $customersForJs = array_values($customerMap);
+            usort($customersForJs, static function (array $a, array $b): int {
+                return strcmp((string) $a['name'], (string) $b['name']);
+            });
+            $selectedCustomerLabel = '';
+            if ($customerId > 0 && isset($customerMap[$customerId])) {
+                $sc = $customerMap[$customerId];
+                $selectedCustomerLabel = (($sc['code'] ?? '') !== '' ? $sc['code'] . ' — ' : '') . (string) ($sc['name'] ?? '');
             }
             $customersJson = json_encode($customersForJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
             if ($customersJson === false) {
                 $customersJson = '[]';
             }
             ?>
-            <label class="hx-visits-f hx-visits-f--customer">
+            <div class="hx-visits-f hx-visits-f--customer">
                 <span class="hx-visits-f-label">العميل</span>
                 <div class="hx-smart-cust" id="hx-visits-smart-cust">
                     <input type="hidden" name="customer_id" id="hx-visits-customer-id" value="<?= (int) $customerId ?>">
@@ -281,7 +302,7 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                         <div class="hx-smart-cust-list" id="hx-visits-cust-list" role="listbox"></div>
                     </div>
                 </div>
-            </label>
+            </div>
             <label class="hx-visits-f hx-visits-f--status">
                 <span class="hx-visits-f-label">الحالة</span>
                 <select class="input" name="status">
@@ -413,14 +434,33 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             var needle = String(q || '').trim();
             var local = filterLocal(needle);
             paintList(local, needle);
-            if (needle.length < 2) return;
+            var needApi = needle.length >= 1 || local.length < 1;
+            if (!needApi) return;
             var token = ++custFetchToken;
             fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
               .then(function (r) { return r.json(); })
               .then(function (data) {
                 if (token !== custFetchToken) return;
                 if (!data || !data.ok) return;
-                paintList(mergeRows(local, data.rows || []), needle);
+                var apiRows = data.rows || [];
+                if (!needle) {
+                  apiRows.forEach(function (c) {
+                    var id = Number(c.id) || 0;
+                    if (!id) return;
+                    var exists = false;
+                    for (var i = 0; i < custPeriod.length; i++) {
+                      if (custPeriod[i].id === id) { exists = true; break; }
+                    }
+                    if (!exists) {
+                      custPeriod.push({
+                        id: id,
+                        name: String(c.name_ar || c.name || ''),
+                        code: String(c.code || '')
+                      });
+                    }
+                  });
+                }
+                paintList(mergeRows(local, apiRows), needle);
               })
               .catch(function () {});
           }
