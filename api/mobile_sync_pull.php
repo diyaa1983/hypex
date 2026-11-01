@@ -593,6 +593,7 @@ try {
         'meta' => [
             'default_warehouse_id' => wh_access_default_issue_warehouse_id($pdo),
             'decimal_places' => company_decimal_places($pdo),
+            'invoice_unit_price_decimal_places' => company_invoice_unit_price_decimal_places($pdo),
             'default_tax_percent' => $defaultTaxPercent,
             'auto_send_orders' => company_mobile_order_auto_send($pdo) ? 1 : 0,
             'visit_radius_m' => $visitRadius,

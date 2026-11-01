@@ -14,7 +14,6 @@ import '../../services/document_print_helper.dart';
 import '../../widgets/app_confirm_dialog.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/mobile_scaffold.dart';
-import '../../widgets/order_statement_workflow_note.dart';
 import '../../widgets/thermal_preview_screen.dart';
 import '../../widgets/ui_kit.dart';
 
@@ -30,6 +29,69 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
   bool _loading = true;
   String? _error;
   Map<String, dynamic> _order = {};
+
+  /// دمج بنود نفس المادة (كرتونة/قطعة + مجاني) لعرض مطابق لشاشة ويندوز.
+  List<Map<String, dynamic>> _mergedDisplayLines(List rawLines) {
+    final out = <Map<String, dynamic>>[];
+    for (final raw in rawLines) {
+      if (raw is! Map) continue;
+      final m = raw.cast<String, dynamic>();
+      final itemId = Fmt.toInt(m['item_id']);
+      final factor = Fmt.toDouble(m['unit_factor'] ?? 1);
+      final name = Fmt.str(m['unit_name'] ?? m['unit']);
+      final isCarton = factor > 1.001 || name.contains('كرتون');
+      final qty = Fmt.toDouble(m['qty']);
+      final extra = Fmt.toDouble(m['qty_extra']);
+      final price = Fmt.toDouble(m['unit_price']);
+      final disc = Fmt.toDouble(m['discount_pct']);
+      final total = Fmt.toDouble(
+        m['line_total'] ??
+            m['line_gross'] ??
+            (qty * price * (1 - disc / 100)),
+      );
+      Map<String, dynamic>? prev;
+      if (itemId > 0 && out.isNotEmpty && Fmt.toInt(out.last['item_id']) == itemId) {
+        prev = out.last;
+      }
+      if (prev == null) {
+        out.add({
+          'item_id': itemId,
+          'item_barcode': m['item_barcode'] ?? m['barcode'] ?? m['item_code'],
+          'item_name': m['item_name'] ?? m['name'],
+          'qty_carton': isCarton ? qty : 0.0,
+          'qty_piece': isCarton ? 0.0 : qty,
+          'extra_carton': isCarton ? extra : 0.0,
+          'extra_piece': isCarton ? 0.0 : extra,
+          'unit_price': isCarton ? 0.0 : price,
+          'carton_price': isCarton ? price : 0.0,
+          'discount_pct': disc,
+          'line_total': total,
+        });
+      } else {
+        if (isCarton) {
+          prev['qty_carton'] = Fmt.toDouble(prev['qty_carton']) + qty;
+          prev['extra_carton'] = Fmt.toDouble(prev['extra_carton']) + extra;
+          if (price > 0) prev['carton_price'] = price;
+        } else {
+          prev['qty_piece'] = Fmt.toDouble(prev['qty_piece']) + qty;
+          prev['extra_piece'] = Fmt.toDouble(prev['extra_piece']) + extra;
+          if (price > 0) prev['unit_price'] = price;
+        }
+        prev['line_total'] = Fmt.toDouble(prev['line_total']) + total;
+        if (disc > Fmt.toDouble(prev['discount_pct'])) {
+          prev['discount_pct'] = disc;
+        }
+      }
+    }
+    return out;
+  }
+
+  String _qtyPairText(double carton, double piece) {
+    final parts = <String>[];
+    if (carton > 0) parts.add('كرتونة ${Fmt.trimNum(carton)}');
+    if (piece > 0) parts.add('قطعة ${Fmt.trimNum(piece)}');
+    return parts.isEmpty ? '—' : parts.join(' + ');
+  }
 
   Future<void> _load() async {
     setState(() {
@@ -238,217 +300,366 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) => MobileScaffold(
-        title: const Text('عرض طلب شراء'),
-        actions: [
-          if (_canDeleteOrEdit && !_loading)
-            IconButton(
-                onPressed: _delete,
-                icon: const Icon(Icons.delete_outline_rounded),
-                tooltip: 'حذف'),
-          if (!_loading)
-            IconButton(
-                onPressed: _sharePdf,
-                icon: const Icon(Icons.share_outlined),
-                tooltip: 'مشاركة PDF'),
-          IconButton(
-              onPressed: _loading ? null : _openPdf,
-              icon: const Icon(Icons.picture_as_pdf_outlined),
-              tooltip: 'PDF'),
-          IconButton(
-              onPressed: _loading ? null : _preview,
-              icon: const Icon(Icons.print_outlined),
-              tooltip: 'طباعة'),
+  Widget _infoCell(String label, String value, {bool emphasize = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+        color: emphasize ? const Color(0xFFECFDF5) : Colors.white,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value.isEmpty ? '—' : value,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: emphasize ? 18 : 14,
+              fontWeight: FontWeight.w900,
+              color: emphasize
+                  ? const Color(0xFF065F46)
+                  : const Color(0xFF0F172A),
+            ),
+          ),
         ],
-        body: AsyncView(
-            loading: _loading,
-            error: _error,
-            onRetry: _load,
-            child: ListView(
-              padding: const EdgeInsets.all(14),
-              children: [
-                DocumentHeaderCard(
-                    title: 'طلب ${Fmt.str(_order['order_no'])}',
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = _mergedDisplayLines(
+      (_order['lines'] as List? ?? _order['items'] as List? ?? []),
+    );
+    final grand = lines.fold<double>(
+      0,
+      (s, m) => s + Fmt.toDouble(m['line_total']),
+    );
+    return MobileScaffold(
+      title: const Text('عرض طلب شراء'),
+      actions: [
+        if (_canDeleteOrEdit && !_loading)
+          IconButton(
+              onPressed: _delete,
+              icon: const Icon(Icons.delete_outline_rounded),
+              tooltip: 'حذف'),
+        if (!_loading)
+          IconButton(
+              onPressed: _sharePdf,
+              icon: const Icon(Icons.share_outlined),
+              tooltip: 'مشاركة PDF'),
+        IconButton(
+            onPressed: _loading ? null : _openPdf,
+            icon: const Icon(Icons.picture_as_pdf_outlined),
+            tooltip: 'PDF'),
+        IconButton(
+            onPressed: _loading ? null : _preview,
+            icon: const Icon(Icons.print_outlined),
+            tooltip: 'طباعة'),
+      ],
+      body: AsyncView(
+        loading: _loading,
+        error: _error,
+        onRetry: _load,
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
                     child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(children: [
-                            const Text('الحالة: '),
-                            StatusPill(
-                              text: _workflowStatus.label,
-                              color: _workflowStatus.color,
-                            ),
-                          ]),
-                          const SizedBox(height: 8),
-                          Text(
-                            _workflowStatus.hint,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: AppTheme.textSoft,
-                              height: 1.4,
-                            ),
-                          ),
-                          if (_oraclePosted) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'فاتورة Oracle: ${Fmt.toInt(_order['oracle_v_num'])} / ${Fmt.toInt(_order['oracle_vyear'])}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          color: const Color(0xFFF1F5F9),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'طلب شراء ${Fmt.str(_order['order_no'])}',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                          const SizedBox(height: 8),
-                          const OrderStatementWorkflowNote(compact: true),
-                          Text(
-                              'التاريخ: ${Fmt.dmy(Fmt.str(_order['order_date']))}'),
-                          Text('العميل: ${Fmt.str(_order['customer_name'])}'),
-                          Text(
-                              'المستودع: ${Fmt.str(_order['warehouse_name'])}'),
-                          if (Fmt.str(_order['sales_rep_name']).isNotEmpty)
-                            Text(
-                                'المندوب: ${Fmt.str(_order['sales_rep_name'])}'),
-                        ])),
-                const DocumentSectionDivider('بنود الطلب'),
-                if ((_order['lines'] as List? ?? _order['items'] as List? ?? [])
-                    .isNotEmpty)
-                  AppCard(
-                    padding: EdgeInsets.zero,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: DefaultTextStyle.merge(
-                        style: const TextStyle(fontSize: 14.5, height: 1.25),
-                        child: DataTable(
-                          headingRowHeight: 38,
-                          dataRowMinHeight: 40,
-                          dataRowMaxHeight: 48,
-                          columnSpacing: 14,
-                          horizontalMargin: 10,
-                          headingTextStyle: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF475569),
+                              StatusPill(
+                                text: _workflowStatus.label,
+                                color: _workflowStatus.color,
+                              ),
+                            ],
                           ),
-                          dataTextStyle: const TextStyle(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF0F172A),
+                        ),
+                        Table(
+                          border: TableBorder.all(
+                            color: const Color(0xFFE2E8F0),
+                            width: 1,
                           ),
-                          columns: const [
-                            DataColumn(label: Text('الباركود')),
-                            DataColumn(label: Text('المادة')),
-                            DataColumn(label: Text('الوحدة')),
-                            DataColumn(label: Text('الكمية')),
-                            DataColumn(label: Text('إضافية')),
-                            DataColumn(label: Text('السعر')),
-                            DataColumn(label: Text('خصم %')),
-                            DataColumn(label: Text('المجموع')),
-                          ],
-                          rows: [
-                            for (final raw in (_order['lines'] as List? ??
-                                _order['items'] as List? ??
-                                []))
-                              if (raw is Map)
-                                () {
-                                  final m = raw.cast<String, dynamic>();
-                                  final qty = Fmt.toDouble(m['qty']);
-                                  final price = Fmt.toDouble(m['unit_price']);
-                                  final disc = Fmt.toDouble(m['discount_pct']);
-                                  final total = Fmt.toDouble(
-                                    m['line_total'] ??
-                                        m['line_gross'] ??
-                                        (qty * price * (1 - disc / 100)),
-                                  );
-                                  return DataRow(cells: [
-                                    DataCell(SizedBox(
-                                      width: 96,
-                                      child: Text(
-                                        Fmt.str(m['item_barcode'] ??
-                                            m['barcode'] ??
-                                            m['item_code']),
-                                        maxLines: 1,
-                                        softWrap: false,
-                                        overflow: TextOverflow.ellipsis,
-                                        textDirection: TextDirection.ltr,
-                                      ),
-                                    )),
-                                    DataCell(SizedBox(
-                                      width: 140,
-                                      child: Text(
-                                        Fmt.str(m['item_name'] ?? m['name']),
-                                        maxLines: 1,
-                                        softWrap: false,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    )),
-                                    DataCell(Text(
-                                      Fmt.str(m['unit_name'] ?? m['unit']),
-                                      maxLines: 1,
-                                      softWrap: false,
-                                      overflow: TextOverflow.ellipsis,
-                                    )),
-                                    DataCell(Text(Fmt.trimNum(qty),
-                                        textDirection: TextDirection.ltr)),
-                                    DataCell(Text(
-                                        Fmt.trimNum(
-                                            Fmt.toDouble(m['qty_extra'])),
-                                        textDirection: TextDirection.ltr)),
-                                    DataCell(Text(Fmt.money(price),
-                                        textDirection: TextDirection.ltr)),
-                                    DataCell(Text(Fmt.trimNum(disc),
-                                        textDirection: TextDirection.ltr)),
-                                    DataCell(Text(Fmt.money(total),
-                                        textDirection: TextDirection.ltr,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 14.5,
-                                        ))),
-                                  ]);
-                                }(),
+                          columnWidths: const {
+                            0: FlexColumnWidth(1),
+                            1: FlexColumnWidth(1),
+                            2: FlexColumnWidth(1),
+                            3: FlexColumnWidth(1),
+                          },
+                          children: [
+                            TableRow(children: [
+                              _infoCell(
+                                'رقم الطلب',
+                                Fmt.str(_order['order_no']),
+                                emphasize: true,
+                              ),
+                              _infoCell(
+                                'التاريخ',
+                                Fmt.dmy(Fmt.str(_order['order_date'])),
+                              ),
+                              _infoCell(
+                                'العميل',
+                                Fmt.str(_order['customer_name']),
+                              ),
+                              _infoCell(
+                                'المستودع',
+                                Fmt.str(_order['warehouse_name']),
+                              ),
+                            ]),
+                            TableRow(children: [
+                              _infoCell(
+                                'المندوب',
+                                Fmt.str(_order['sales_rep_name']),
+                              ),
+                              _infoCell(
+                                'نوع الدفع',
+                                Fmt.str(_order['payment_type']) == 'cash'
+                                    ? 'نقدي'
+                                    : 'ذمم',
+                              ),
+                              _infoCell(
+                                'تاريخ التسليم',
+                                Fmt.dmy(Fmt.str(_order['delivery_date'])),
+                              ),
+                              _infoCell(
+                                'الإجمالي',
+                                Fmt.money(grand > 0
+                                    ? grand
+                                    : Fmt.toDouble(_order['total'] ??
+                                        _order['grand_total'])),
+                                emphasize: true,
+                              ),
+                            ]),
                           ],
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  if (_canDeleteOrEdit)
-                    Expanded(
-                        child: OutlinedButton.icon(
-                            onPressed: () async {
-                              await context.push(
-                                  '/customer-orders/${widget.orderId}/edit');
-                              if (mounted) _load();
-                            },
-                            icon: const Icon(Icons.edit_outlined),
-                            label: const Text('تعديل'))),
-                  if (_canDeleteOrEdit) const SizedBox(width: 8),
-                  if (_canApprove)
-                    Expanded(
-                        child: FilledButton.icon(
-                            onPressed: _approveAsManager,
-                            icon: const Icon(Icons.verified_rounded),
-                            style: FilledButton.styleFrom(
-                              backgroundColor: AppTheme.success,
+                  const SizedBox(height: 10),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFCBD5E1)),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          color: const Color(0xFFF8FAFC),
+                          child: const Text(
+                            'بنود الطلب',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
                             ),
-                            label: const Text('اعتماد'))),
-                  if (_canApprove) const SizedBox(width: 8),
-                  if (_canDeleteOrEdit && !_managerMode)
-                    Expanded(
-                        child: OutlinedButton.icon(
-                            onPressed: _delete,
-                            icon: const Icon(Icons.delete_outline_rounded),
-                            label: const Text('حذف'))),
-                  if (_canDeleteOrEdit && !_managerMode)
-                    const SizedBox(width: 8),
+                          ),
+                        ),
+                        if (lines.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Text('لا توجد بنود.'),
+                          )
+                        else
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: DataTable(
+                              headingRowHeight: 40,
+                              dataRowMinHeight: 44,
+                              dataRowMaxHeight: 56,
+                              columnSpacing: 12,
+                              horizontalMargin: 12,
+                              headingRowColor: WidgetStateProperty.all(
+                                const Color(0xFFF1F5F9),
+                              ),
+                              headingTextStyle: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF334155),
+                              ),
+                              dataTextStyle: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFF0F172A),
+                              ),
+                              border: TableBorder(
+                                horizontalInside: BorderSide(
+                                  color: Colors.grey.shade200,
+                                ),
+                              ),
+                              columns: const [
+                                DataColumn(label: Text('#')),
+                                DataColumn(label: Text('المادة')),
+                                DataColumn(label: Text('الكمية')),
+                                DataColumn(label: Text('مجاني')),
+                                DataColumn(label: Text('السعر')),
+                                DataColumn(label: Text('خصم%')),
+                                DataColumn(label: Text('المجموع')),
+                              ],
+                              rows: [
+                                for (var i = 0; i < lines.length; i++)
+                                  DataRow(
+                                    color: WidgetStateProperty.all(
+                                      i.isEven
+                                          ? Colors.white
+                                          : const Color(0xFFF8FAFC),
+                                    ),
+                                    cells: [
+                                      DataCell(Text('${i + 1}')),
+                                      DataCell(SizedBox(
+                                        width: 200,
+                                        child: Text(
+                                          Fmt.str(lines[i]['item_name']),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      )),
+                                      DataCell(SizedBox(
+                                        width: 140,
+                                        child: Text(
+                                          _qtyPairText(
+                                            Fmt.toDouble(
+                                                lines[i]['qty_carton']),
+                                            Fmt.toDouble(
+                                                lines[i]['qty_piece']),
+                                          ),
+                                        ),
+                                      )),
+                                      DataCell(SizedBox(
+                                        width: 140,
+                                        child: Text(
+                                          _qtyPairText(
+                                            Fmt.toDouble(
+                                                lines[i]['extra_carton']),
+                                            Fmt.toDouble(
+                                                lines[i]['extra_piece']),
+                                          ),
+                                        ),
+                                      )),
+                                      DataCell(Text(
+                                        () {
+                                          final piece = Fmt.toDouble(
+                                              lines[i]['unit_price']);
+                                          final carton = Fmt.toDouble(
+                                              lines[i]['carton_price']);
+                                          if (piece > 0 && carton > 0) {
+                                            return 'ق ${Fmt.money(piece)}\nك ${Fmt.money(carton)}';
+                                          }
+                                          if (carton > 0) {
+                                            return Fmt.money(carton);
+                                          }
+                                          return Fmt.money(piece);
+                                        }(),
+                                        textDirection: TextDirection.ltr,
+                                      )),
+                                      DataCell(Text(
+                                        Fmt.trimNum(Fmt.toDouble(
+                                            lines[i]['discount_pct'])),
+                                        textDirection: TextDirection.ltr,
+                                      )),
+                                      DataCell(Text(
+                                        Fmt.money(Fmt.toDouble(
+                                            lines[i]['line_total'])),
+                                        textDirection: TextDirection.ltr,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF0F766E),
+                                        ),
+                                      )),
+                                    ],
+                                  ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                border: Border(top: BorderSide(color: Color(0xFFCBD5E1))),
+              ),
+              child: Row(children: [
+                if (_canDeleteOrEdit)
+                  Expanded(
+                      child: OutlinedButton.icon(
+                          onPressed: () async {
+                            await context.push(
+                                '/customer-orders/${widget.orderId}/edit');
+                            if (mounted) _load();
+                          },
+                          icon: const Icon(Icons.edit_outlined),
+                          label: const Text('تعديل'))),
+                if (_canDeleteOrEdit) const SizedBox(width: 8),
+                if (_canApprove)
                   Expanded(
                       child: FilledButton.icon(
-                          onPressed: _preview,
-                          icon: const Icon(Icons.print_outlined),
-                          label: const Text('طباعة'))),
-                ]),
-              ],
-            )),
-      );
+                          onPressed: _approveAsManager,
+                          icon: const Icon(Icons.verified_rounded),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppTheme.success,
+                          ),
+                          label: const Text('اعتماد'))),
+                if (_canApprove) const SizedBox(width: 8),
+                if (_canDeleteOrEdit && !_managerMode)
+                  Expanded(
+                      child: OutlinedButton.icon(
+                          onPressed: _delete,
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          label: const Text('حذف'))),
+                if (_canDeleteOrEdit && !_managerMode)
+                  const SizedBox(width: 8),
+                Expanded(
+                    child: FilledButton.icon(
+                        onPressed: _preview,
+                        icon: const Icon(Icons.print_outlined),
+                        label: const Text('طباعة'))),
+              ]),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

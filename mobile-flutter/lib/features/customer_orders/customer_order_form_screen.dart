@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -34,6 +35,7 @@ class CustomerOrderFormScreen extends StatefulWidget {
     this.visitRouteLineId,
     this.embedded = false,
     this.hideCustomerPicker = false,
+    this.toolbarLeading,
     this.onSaved,
     this.onDeleted,
     this.onPosted,
@@ -49,6 +51,9 @@ class CustomerOrderFormScreen extends StatefulWidget {
 
   /// إخفاء اختيار العميل (مُثبَّت من السياق).
   final bool hideCustomerPicker;
+
+  /// عناصر تُعرض في بداية شريط التابلت (مسودات / طلب جديد) على نفس السطر.
+  final Widget? toolbarLeading;
 
   final void Function(int orderId)? onSaved;
   final VoidCallback? onDeleted;
@@ -125,11 +130,22 @@ class _OrderLine {
 
   double _priceOf(ItemUnitOpt? u) {
     final f = (u == null || u.factor <= 0) ? 1.0 : u.factor;
-    return basePrice * f;
+    return Fmt.roundUnitPrice(basePrice * f);
   }
 
   double get piecePrice => _priceOf(pieceUnit);
   double get cartonPrice => cartonUnit == null ? 0 : _priceOf(cartonUnit);
+  double get piecePriceInclusive =>
+      Fmt.roundAmount(piecePrice * (1 + taxRatePercent.clamp(0, 100) / 100));
+  double get cartonPriceInclusive =>
+      Fmt.roundAmount(cartonPrice * (1 + taxRatePercent.clamp(0, 100) / 100));
+
+  /// عدد القطع في الكرتونة (معامل وحدة الكرتون).
+  int get packSize {
+    final c = cartonUnit;
+    if (c == null || c.factor <= 1.001) return 0;
+    return c.factor.round().clamp(0, 999999);
+  }
 
   /// وحدات البطاقة من الأكبر إلى الأصغر. وحدة واحدة تبقى حقلاً واحداً.
   List<ItemUnitOpt> get orderUnits {
@@ -209,7 +225,6 @@ class _OrderLine {
     final u = units.isEmpty ? pieceUnit : units.last;
     return _priceOf(u) * (1 + taxRatePercent / 100);
   }
-  double get cartonPriceInclusive => cartonPrice * (1 + taxRatePercent / 100);
 
   Map<String, dynamic> _saveMap(ItemUnitOpt? u, int qty, int extra) {
     final factor = (u == null || u.factor <= 0) ? 1.0 : u.factor;
@@ -304,12 +319,15 @@ class _OrderLine {
 class _LineTableMetrics {
   const _LineTableMetrics({
     required this.item,
-    required this.unit,
-    required this.qty,
-    required this.extra,
-    required this.price,
-    required this.priceInc,
-    required this.tax,
+    required this.pack,
+    required this.carton,
+    required this.piece,
+    required this.freeCarton,
+    required this.freePiece,
+    required this.pricePieceEx,
+    required this.pricePieceInc,
+    required this.priceCartonEx,
+    required this.priceCartonInc,
     required this.disc,
     required this.total,
     required this.del,
@@ -317,16 +335,18 @@ class _LineTableMetrics {
     required this.heading,
     required this.colSpacing,
     required this.hMargin,
-    required this.compactTax,
   });
 
   final double item;
-  final double unit;
-  final double qty;
-  final double extra;
-  final double price;
-  final double priceInc;
-  final double tax;
+  final double pack;
+  final double carton;
+  final double piece;
+  final double freeCarton;
+  final double freePiece;
+  final double pricePieceEx;
+  final double pricePieceInc;
+  final double priceCartonEx;
+  final double priceCartonInc;
   final double disc;
   final double total;
   final double del;
@@ -334,78 +354,75 @@ class _LineTableMetrics {
   final double heading;
   final double colSpacing;
   final double hMargin;
-  final bool compactTax;
+
+  // توافق مع استدعاءات قديمة لحقل الضريبة في الديكور
+  bool get compactTax => true;
+  bool get showTax => false;
+  double get tax => 0;
+
+  static const _colGaps = 12;
 
   double get minWidth =>
       item +
-      unit +
-      qty +
-      extra +
-      price +
-      priceInc +
-      tax +
+      pack +
+      carton +
+      piece +
+      freeCarton +
+      freePiece +
+      pricePieceEx +
+      pricePieceInc +
+      priceCartonEx +
+      priceCartonInc +
       disc +
       total +
       del +
       hMargin * 2 +
-      colSpacing * 9;
+      colSpacing * _colGaps;
 
   factory _LineTableMetrics.fit(double avail, {required bool compact}) {
-    const weights = [
-      2.10,
-      1.05,
-      0.72,
-      0.72,
-      0.98,
-      0.98,
-      0.80,
-      0.70,
-      0.95,
-      0.42,
-    ];
+    // أعمدة أضيق ومتناسقة — أسعار غ.ش / ش كل واحد بحقل
+    final tiny = avail < 720;
+    final tight = avail < 900;
+    final weights = tiny
+        ? const [
+            2.05, 0.36, 0.44, 0.44, 0.44, 0.44, 0.62, 0.62, 0.62, 0.62, 0.38,
+            0.70, 0.26,
+          ]
+        : const [
+            1.95, 0.38, 0.46, 0.46, 0.46, 0.46, 0.68, 0.68, 0.68, 0.68, 0.40,
+            0.72, 0.28,
+          ];
     final sum = weights.fold<double>(0, (s, w) => s + w);
-    final tight = avail < 780;
-    final spacing = tight ? 3.0 : (avail < 1000 ? 5.0 : 10.0);
-    final margin = tight ? 3.0 : 6.0;
-    final inner = (avail - margin * 2 - spacing * 9).clamp(360.0, 4000.0);
+    final spacing = tiny ? 2.0 : (tight ? 3.0 : 4.0);
+    final margin = tiny ? 2.0 : 3.0;
+    final inner =
+        (avail - margin * 2 - spacing * _colGaps).clamp(360.0, 4000.0);
     final w = weights.map((x) => inner * x / sum).toList();
+    final qtyW = w[2].clamp(tiny ? 36.0 : 40.0, 52.0);
+    final priceW = w[6].clamp(tiny ? 48.0 : 54.0, 78.0);
     return _LineTableMetrics(
-      item: w[0],
-      unit: 0,
-      qty: w[1] + w[2],
-      extra: w[1] + w[3],
-      price: w[4],
-      priceInc: w[5],
-      tax: w[6],
-      disc: w[7],
-      total: w[8],
-      del: w[9],
-      font: avail < 700 ? 10.5 : (avail < 900 ? 11.5 : 13),
-      heading: avail < 700 ? 10 : (avail < 900 ? 11 : 13),
+      item: w[0].clamp(tiny ? 100.0 : 118.0, 220.0),
+      pack: w[1].clamp(30.0, 44.0),
+      carton: qtyW,
+      piece: qtyW,
+      freeCarton: qtyW,
+      freePiece: qtyW,
+      pricePieceEx: priceW,
+      pricePieceInc: priceW,
+      priceCartonEx: priceW,
+      priceCartonInc: priceW,
+      disc: w[10].clamp(34.0, 46.0),
+      total: w[11].clamp(52.0, 78.0),
+      del: w[12].clamp(22.0, 30.0),
+      font: tiny ? 10.0 : (tight ? 11.0 : 12.0),
+      heading: tiny ? 8.5 : (tight ? 9.5 : 10.5),
       colSpacing: spacing,
       hMargin: margin,
-      compactTax: avail < 980,
     );
   }
 
   factory _LineTableMetrics.scroll({required bool compact}) {
-    return _LineTableMetrics(
-      item: 160,
-      unit: 92,
-      qty: 168,
-      extra: 168,
-      price: 86,
-      priceInc: 86,
-      tax: compact ? 90 : 120,
-      disc: 56,
-      total: 74,
-      del: 32,
-      font: compact ? 13 : 14,
-      heading: 13,
-      colSpacing: compact ? 8 : 10,
-      hMargin: compact ? 6 : 8,
-      compactTax: compact,
-    );
+    return _LineTableMetrics.fit(900, compact: compact);
   }
 }
 
@@ -431,6 +448,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   bool _autoSendOrders = false;
   bool _isSent = false;
   bool _managerMode = false;
+  int _prevId = 0;
+  int _nextId = 0;
+  int _firstId = 0;
+  int _lastId = 0;
   final _orderNoCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   String _cleanFingerprint = '';
@@ -476,6 +497,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     super.initState();
     active = this;
     _id = widget.orderId ?? 0;
+    // تثبيت العرض دائماً على شاشة الطلب
+    SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
     _load();
   }
 
@@ -570,6 +596,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         }
       }
       Map<String, dynamic> order = {};
+      var prevId = 0, nextId = 0, firstId = 0, lastId = 0;
+      Future<void> applyNav(Map<String, dynamic> result) async {
+        prevId = Fmt.toInt(result['prev_id']);
+        nextId = Fmt.toInt(result['next_id']);
+        firstId = Fmt.toInt(result['first_id']);
+        lastId = Fmt.toInt(result['last_id']);
+      }
+
       if (_id != 0) {
         // مسودات الجهاز (id سالب) تُقرأ محلياً دائماً — لا تُطلب من السيرفر.
         if (_id < 0 || !offline.online) {
@@ -582,10 +616,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           order = local;
         } else {
           try {
+            final query = <String, dynamic>{'id': _id};
+            final cid = _customer?.id ?? widget.initialCustomerId ?? 0;
+            if (cid > 0) query['customer_id'] = cid;
             final result = await api.getJson(
               AppConfig.customerOrderViewPath,
-              query: {'id': _id},
+              query: query,
             );
+            await applyNav(result);
             order =
                 (result['order'] as Map?)?.cast<String, dynamic>() ?? result;
           } on ApiException {
@@ -601,8 +639,34 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             }
           }
         }
+      } else if (offline.online) {
+        try {
+          final query = <String, dynamic>{};
+          final cid = _customer?.id ?? widget.initialCustomerId ?? 0;
+          if (cid > 0) query['customer_id'] = cid;
+          final result = await api.getJson(
+            AppConfig.customerOrderViewPath,
+            query: query,
+          );
+          await applyNav(result);
+        } catch (_) {
+          /* التنقل اختياري لمستند جديد */
+        }
       }
       if (!mounted) return;
+      // خانات الأسعار/المبالغ من إعدادات النظام (ويندوز)
+      if (meta.containsKey('decimal_places') ||
+          meta.containsKey('invoice_unit_price_decimal_places')) {
+        Fmt.applySettings(
+          decimalPlaces: meta['decimal_places'] ?? 3,
+          unitPriceDecimalPlaces:
+              meta['invoice_unit_price_decimal_places'] ??
+                  meta['decimal_places'] ??
+                  3,
+        );
+      } else {
+        await OfflineStore.instance.applyDecimalSettings();
+      }
       final ws = (meta['warehouses'] as List? ?? [])
           .whereType<Map>()
           .map((e) => e.cast<String, dynamic>())
@@ -808,9 +872,16 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _lines
           ..clear()
           ..addAll(loaded);
+        _prevId = prevId;
+        _nextId = nextId;
+        _firstId = firstId;
+        _lastId = lastId;
         _loading = false;
       });
-      _orderNoCtrl.text = _orderNo ?? '';
+      // حقل البحث للبحث فقط — لا نكرر رقم المسودة المحلية OFF-* داخله
+      final no = (_orderNo ?? '').trim();
+      _orderNoCtrl.text =
+          no.toUpperCase().startsWith('OFF-') ? '' : no;
       _notesCtrl.text = Fmt.str(order['notes']);
       _markClean();
       if (_customer != null) {
@@ -881,7 +952,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   Future<void> _addLine() async {
     if (_warehouseId == 0) {
-      showSnack(context, 'اختر المستودع أولاً.', error: true);
+      showSnack(context, 'لا يوجد مستودع مرتبط بالمندوب.', error: true);
       return;
     }
     final item = await pickItem(context, warehouseId: _warehouseId);
@@ -923,6 +994,12 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           .toList(),
       'default_warehouse_id': defWh,
       'default_tax_percent': defTax,
+      'decimal_places':
+          int.tryParse(await store.getMeta('decimal_places') ?? '') ?? 3,
+      'invoice_unit_price_decimal_places': int.tryParse(
+            await store.getMeta('invoice_unit_price_decimal_places') ?? '',
+          ) ??
+          3,
       'auto_send_orders':
           (await store.getMeta('auto_send_orders')) == '1' ? 1 : 0,
     };
@@ -1013,7 +1090,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         _orderNo = orderNo;
         _isSent = false;
       });
-      _orderNoCtrl.text = orderNo;
+      // لا تملأ صندوق البحث برقم OFF المحلي
+      if (!orderNo.toUpperCase().startsWith('OFF-')) {
+        _orderNoCtrl.text = orderNo;
+      }
       _markClean();
     }
     return localId;
@@ -1031,6 +1111,8 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       _lines.clear();
       _isSent = false;
       _approved = false;
+      _prevId = _lastId;
+      _nextId = 0;
       _visitRouteLineId = widget.visitRouteLineId ?? 0;
       _error = null;
     });
@@ -1044,8 +1126,12 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       showSnack(context, 'لا يمكن تعديل طلب معتمد.', error: true);
       return 0;
     }
-    if (_customer == null || _warehouseId == 0 || _lines.isEmpty) {
-      showSnack(context, 'اختر العميل والمستودع وأضف بنداً واحداً على الأقل.',
+    if (_warehouseId == 0) {
+      showSnack(context, 'لا يوجد مستودع مرتبط بالمندوب.', error: true);
+      return 0;
+    }
+    if (_customer == null || _lines.isEmpty) {
+      showSnack(context, 'اختر العميل وأضف بنداً واحداً على الأقل.',
           error: true);
       return 0;
     }
@@ -1166,6 +1252,30 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
 
   bool get _canStartNew => _isSaved && !_busy;
 
+  Future<void> _refreshBrowseNav({int orderId = 0}) async {
+    try {
+      final offline = context.read<OfflineController>();
+      if (!offline.online) return;
+      final query = <String, dynamic>{};
+      if (orderId > 0) query['id'] = orderId;
+      final cid = _customer?.id ?? widget.initialCustomerId ?? 0;
+      if (cid > 0) query['customer_id'] = cid;
+      final result = await context.read<ApiClient>().getJson(
+            AppConfig.customerOrderViewPath,
+            query: query,
+          );
+      if (!mounted) return;
+      setState(() {
+        _prevId = Fmt.toInt(result['prev_id']);
+        _nextId = Fmt.toInt(result['next_id']);
+        _firstId = Fmt.toInt(result['first_id']);
+        _lastId = Fmt.toInt(result['last_id']);
+      });
+    } catch (_) {
+      /* التنقل اختياري */
+    }
+  }
+
   Future<void> _startNewOrder() async {
     if (!_canStartNew) return;
     if (isDirty) {
@@ -1182,10 +1292,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       _lines.clear();
       _isSent = false;
       _approved = false;
+      _prevId = _lastId;
+      _nextId = 0;
       _visitRouteLineId = widget.visitRouteLineId ?? 0;
       _error = null;
     });
     _markClean();
+    await _refreshBrowseNav();
     if (mounted) {
       showSnack(context, 'طلب جديد — أضف المواد ثم احفظ.');
     }
@@ -1213,7 +1326,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     }
     if (_isSent) return;
     if (_customer == null || _warehouseId == 0) {
-      showSnack(context, 'اختر العميل والمستودع قبل الترحيل.', error: true);
+      showSnack(
+        context,
+        _warehouseId == 0
+            ? 'لا يوجد مستودع مرتبط بالمندوب.'
+            : 'اختر العميل قبل الترحيل.',
+        error: true,
+      );
       return;
     }
     for (var i = 0; i < _lines.length; i++) {
@@ -1756,156 +1875,6 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   double get _orderGross =>
       _lines.fold<double>(0, (s, l) => s + l.lineGross);
 
-  Widget _wideHeaderCard() {
-    final date = _orderDate.isEmpty ? Fmt.todayIso() : _orderDate;
-    return Card(
-      elevation: 2,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final h = constraints.maxHeight;
-          final tight = !h.isFinite || h < 520;
-          // حقول وأزرار أوضح على التابلت — الأيقونات كانت 14–18 وتُصغَّر أكثر بـ FittedBox.
-          final fieldH = tight ? 40.0 : 46.0;
-          final gap = tight ? 5.0 : 8.0;
-          final pad = tight ? 6.0 : 8.0;
-          final labelSize = tight ? 12.0 : 13.0;
-          final btnH = tight ? 42.0 : 48.0;
-          final docH = tight ? 40.0 : 46.0;
-          final body = Column(
-            mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-              Row(
-                children: [
-                        Expanded(
-                    child: _wideOrderNoSearch(
-                      fieldHeight: fieldH,
-                      labelSize: labelSize,
-                    ),
-                  ),
-                  SizedBox(width: gap),
-                  Expanded(
-                    child: _wideLabeledBox(
-                      'التاريخ',
-                      Fmt.dmy(date),
-                      fieldHeight: fieldH,
-                      labelSize: labelSize,
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: gap),
-              _orderHeaderField(
-                label: 'اسم العميل',
-                expand: false,
-                fieldHeight: fieldH,
-                labelSize: labelSize,
-                child: _orderHeaderCustomer(),
-              ),
-              SizedBox(height: gap),
-              Row(
-                            children: [
-                  Expanded(
-                    child: _orderHeaderField(
-                      label: 'نوع الدفع',
-                      expand: false,
-                      fieldHeight: fieldH,
-                      labelSize: labelSize,
-                      child: _paymentSeg(compact: true),
-                    ),
-                  ),
-                  SizedBox(width: gap),
-                  Expanded(
-                    child: _orderHeaderField(
-                      label: 'المستودع',
-                      expand: false,
-                      fieldHeight: fieldH,
-                      labelSize: labelSize,
-                      child: _orderHeaderWarehouse(),
-                    ),
-                  ),
-                ],
-              ),
-              SizedBox(height: gap),
-              _deliveryDateField(
-                fieldHeight: fieldH,
-                labelSize: labelSize,
-              ),
-              SizedBox(height: gap),
-              _wideNotesField(
-                fieldHeight: fieldH,
-                labelSize: labelSize,
-              ),
-              SizedBox(height: gap),
-              SizedBox(
-                height: btnH,
-                child: FilledButton.icon(
-                  onPressed: _busy || !_editable ? null : _addLine,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF2196F3),
-                    visualDensity: VisualDensity.standard,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                  icon: const Icon(Icons.add_rounded, size: 26),
-                  label: const Text(
-                    'إضافة مادة',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-                  ),
-                ),
-              ),
-              if (_isSent || _approved) ...[
-                SizedBox(height: gap),
-                Text(
-                  _approved ? 'طلب معتمد — عرض فقط' : 'طلب مرحّل — عرض فقط',
-                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFFB45309),
-                  ),
-                ),
-              ],
-              SizedBox(height: gap),
-              Row(
-                children: [
-                  Expanded(
-                    child: _wideDocBtn(
-                      'طباعة',
-                      Icons.print_outlined,
-                      _busy ? null : _print,
-                      height: docH,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: _wideDocBtn(
-                      'PDF',
-                      Icons.picture_as_pdf_outlined,
-                      _busy ? null : _openPdf,
-                      height: docH,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          );
-          final padded = Padding(padding: EdgeInsets.all(pad), child: body);
-          if (!h.isFinite || h <= 0) return padded;
-          return FittedBox(
-            alignment: Alignment.topCenter,
-            fit: BoxFit.scaleDown,
-            child: SizedBox(
-              width: constraints.maxWidth,
-              child: padded,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   Future<void> _pickDeliveryDate() async {
     if (!_editable || _busy) return;
     final now = DateTime.now();
@@ -1928,150 +1897,6 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       _deliveryDate =
           '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
     });
-  }
-
-  Widget _deliveryDateField({
-    double fieldHeight = 32,
-    double labelSize = 11,
-  }) {
-    final label = _deliveryDate.isEmpty ? 'اختر التاريخ…' : Fmt.dmy(_deliveryDate);
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-                                Text(
-          'تاريخ التسليم',
-          style: TextStyle(
-            fontSize: labelSize,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textSoft,
-          ),
-        ),
-        const SizedBox(height: 2),
-        SizedBox(
-          height: fieldHeight,
-          child: Material(
-            color: Colors.white,
-            child: InkWell(
-              onTap: _busy || !_editable ? null : _pickDeliveryDate,
-              borderRadius: BorderRadius.circular(8),
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  hintText: 'اختر التاريخ…',
-                  hintStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  isDense: true,
-                  contentPadding: const EdgeInsetsDirectional.only(
-                    start: 8,
-                    end: 4,
-                    top: 4,
-                    bottom: 4,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixIcon: Icon(
-                    Icons.event_rounded,
-                    size: 26,
-                    color: AppTheme.textSoft,
-                  ),
-                  suffixIconConstraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                ),
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _deliveryDate.isEmpty
-                        ? AppTheme.textSoft
-                        : AppTheme.textMain,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _wideNotesField({
-    double fieldHeight = 32,
-    double labelSize = 11,
-  }) {
-    final text = _notesCtrl.text.trim();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-                                Text(
-          'ملاحظات',
-          style: TextStyle(
-            fontSize: labelSize,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textSoft,
-          ),
-        ),
-        const SizedBox(height: 2),
-        SizedBox(
-          height: fieldHeight,
-          child: Material(
-            color: Colors.white,
-            child: InkWell(
-              onTap: _busy ? null : _editNotes,
-              borderRadius: BorderRadius.circular(8),
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  hintText: _editable ? 'اضغط للكتابة…' : 'لا توجد ملاحظات',
-                  hintStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  isDense: true,
-                  contentPadding: const EdgeInsetsDirectional.only(
-                    start: 8,
-                    end: 4,
-                    top: 4,
-                    bottom: 4,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixIcon: Icon(
-                    _editable ? Icons.edit_note_rounded : Icons.notes_rounded,
-                    size: 26,
-                    color: AppTheme.textSoft,
-                  ),
-                  suffixIconConstraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                ),
-                child: Text(
-                  text.isEmpty
-                      ? (_editable ? 'اضغط للكتابة…' : 'لا توجد ملاحظات')
-                      : text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: text.isEmpty ? AppTheme.textSoft : AppTheme.textMain,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
   }
 
   Future<void> _editNotes() async {
@@ -2124,146 +1949,37 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     if (mounted) setState(() {});
   }
 
-  Widget _wideOrderNoSearch({
-    double fieldHeight = 38,
-    double labelSize = 11.5,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          'رقم الطلب',
-          style: TextStyle(
-            fontSize: labelSize,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textSoft,
-          ),
-        ),
-        const SizedBox(height: 2),
-        SizedBox(
-          height: fieldHeight,
-          child: Material(
-            color: Colors.white,
-            child: InkWell(
-              onTap: _busy ? null : _searchOrderByNoPad,
-              borderRadius: BorderRadius.circular(8),
-              child: InputDecorator(
-                decoration: InputDecoration(
-                  hintText: 'بحث برقم الطلب',
-                  hintStyle: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  isDense: true,
-                  contentPadding: const EdgeInsetsDirectional.only(
-                    start: 8,
-                    end: 4,
-                    top: 4,
-                    bottom: 4,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  suffixIcon: const Icon(Icons.search_rounded, size: 26),
-                  suffixIconConstraints: const BoxConstraints(
-                    minWidth: 40,
-                    minHeight: 40,
-                  ),
-                ),
-                child: Text(
-                  _orderNoCtrl.text.isEmpty
-                      ? 'بحث برقم الطلب'
-                      : _orderNoCtrl.text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textDirection: TextDirection.ltr,
-                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                    color: _orderNoCtrl.text.isEmpty
-                        ? AppTheme.textSoft
-                        : AppTheme.textMain,
-                  ),
-                ),
-              ),
-            ),
-                                  ),
-                                ),
-                            ],
-    );
+  Future<void> _browseToOrder(int targetId) async {
+    if (targetId < 1 || targetId == _id || _busy) return;
+    if (isDirty) {
+      final ok = await showAppConfirmDialog(
+        context,
+        title: 'فتح طلب آخر',
+        message: 'هناك تعديلات غير محفوظة. المتابعة وفتح الطلب؟',
+        confirmLabel: 'فتح',
+      );
+      if (ok != true || !mounted) return;
+    }
+    setState(() => _id = targetId);
+    await _load();
+    if (mounted) widget.onSaved?.call(targetId);
   }
 
-  Widget _wideDocBtn(
-    String label,
-    IconData icon,
-    VoidCallback? onPressed, {
-    double height = 46,
-  }) {
-    return SizedBox(
-      height: height,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          visualDensity: VisualDensity.standard,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  String get _orderStatusLabel {
+    if (_id == 0 && (_orderNo == null || _orderNo!.isEmpty)) return 'جديد';
+    if (_approved) return 'معتمد';
+    if (_isSent) return 'مُرحَّل';
+    if (_id != 0 || (_orderNo != null && _orderNo!.isNotEmpty)) return 'محفوظ';
+    return 'جديد';
   }
 
-  Widget _wideLabeledBox(
-    String label,
-    String value, {
-    double fieldHeight = 38,
-    double labelSize = 11.5,
-  }) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: labelSize,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textSoft,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Container(
-          height: fieldHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          alignment: AlignmentDirectional.centerStart,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: AppTheme.border),
-          ),
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
-          ),
-        ),
-      ],
-    );
+  Color get _orderStatusColor {
+    if (_approved) return const Color(0xFF15803D);
+    if (_isSent) return const Color(0xFF1D4ED8);
+    if (_id != 0 || (_orderNo != null && _orderNo!.isNotEmpty)) {
+      return const Color(0xFFB45309);
+    }
+    return const Color(0xFF64748B);
   }
 
   Widget _wideSummaryBar() {
@@ -2271,15 +1987,15 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final cheques = Fmt.toDouble(_arSummary?['cheque_total']);
     return Container(
       width: double.infinity,
-      color: const Color(0xFFE0E0E0),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      color: const Color(0xFFE8E8E8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Row(
         children: [
-                        Expanded(
+          Expanded(
             child: InkWell(
               onTap: () => _showArDetails(focusCheques: false),
               child: _sumCell(
-                'رصيد العميل',
+                'رصيد',
                 Fmt.money(balance),
                 const Color(0xFFD32F2F),
               ),
@@ -2289,7 +2005,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
             child: InkWell(
               onTap: () => _showArDetails(focusCheques: true),
               child: _sumCell(
-                'شيكات قيد التحصيل',
+                'شيكات',
                 Fmt.money(cheques),
                 const Color(0xFFF57C00),
               ),
@@ -2297,7 +2013,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           ),
           Expanded(
             child: _sumCell(
-              'المجموع النهائي',
+              'المجموع',
               Fmt.money(_orderGross),
               const Color(0xFF388E3C),
               large: true,
@@ -2385,93 +2101,51 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   Widget _wideActionBar() {
+    const btnH = 34.0;
+    Widget btn(String label, Color color, VoidCallback? onPressed) {
+      return Expanded(
+        child: SizedBox(
+          height: btnH,
+          child: FilledButton(
+            onPressed: onPressed,
+            style: FilledButton.styleFrom(
+              backgroundColor: color,
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
+      padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
       child: Row(
         children: [
           if (_canDelete) ...[
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: FilledButton(
-                  onPressed: _busy ? null : _delete,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFFE0453C),
-                  ),
-                  child: const Text(
-                    'حذف',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
+            btn('حذف', const Color(0xFFE0453C), _busy ? null : _delete),
+            const SizedBox(width: 6),
           ],
-          Expanded(
-            child: SizedBox(
-              height: 38,
-              child: FilledButton(
-                onPressed: _busy || !_editable ? null : _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFFFF9800),
-                ),
-                child: const Text(
-                  'حفظ',
-                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                ),
-              ),
-            ),
+          btn(
+            'حفظ',
+            const Color(0xFFFF9800),
+            _busy || !_editable ? null : _save,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           if (_canManagerApprove)
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: FilledButton(
-                  onPressed: _busy ? null : _approveAsManager,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.success,
-                  ),
-                  child: const Text(
-                    'اعتماد',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                  ),
-                ),
-              ),
-            )
+            btn('اعتماد', AppTheme.success, _busy ? null : _approveAsManager)
           else if (!_managerMode)
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: FilledButton(
-                  onPressed: _busy || !_canPost ? null : _post,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
-                  ),
-                  child: const Text(
-                    'ترحيل',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                  ),
-                ),
-              ),
+            btn(
+              'ترحيل',
+              const Color(0xFF4CAF50),
+              _busy || !_canPost ? null : _post,
             ),
           if (!_managerMode) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              child: SizedBox(
-                height: 38,
-                child: FilledButton(
-                  onPressed: _canStartNew ? _startNewOrder : null,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppTheme.primary,
-                  ),
-                  child: const Text(
-                    'طلب جديد',
-                    style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-                  ),
-                ),
-              ),
-            ),
+            const SizedBox(width: 6),
+            btn('طلب جديد', AppTheme.primary, _canStartNew ? _startNewOrder : null),
           ],
         ],
       ),
@@ -2479,55 +2153,395 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   Widget _buildWideOrderBody() {
-    final screenW = MediaQuery.sizeOf(context).width;
-    final sideW = screenW < 1100
-        ? (screenW * 0.28).clamp(236.0, 286.0)
-        : 340.0;
     return ColoredBox(
       color: const Color(0xFFF5F5F5),
       child: Column(
         children: [
+          _wideTopToolbar(),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(width: sideW, child: _wideHeaderCard()),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: AppTheme.border),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: _lines.isEmpty
-                            ? const Center(
-                                child: Text(
-                                  'لا توجد مواد. اضغط «إضافة مادة».',
-                                  style: TextStyle(
-                                    color: AppTheme.textSoft,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              )
-                            : _buildLinesTableScroll(
-                                compact: true,
-                                fitToWidth: true,
-                              ),
-                      ),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppTheme.border),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: _lines.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'لا توجد مواد. اضغط «إضافة مادة».',
+                            style: TextStyle(
+                              color: AppTheme.textSoft,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        )
+                      : _buildLinesTableScroll(
+                          compact: true,
+                          fitToWidth: true,
+                        ),
+                ),
               ),
             ),
           ),
           _wideSummaryBar(),
           _wideActionBar(),
         ],
+      ),
+    );
+  }
+
+  /// شريط علوي مضغوط: كل الحقول ظاهرة بدون تمرير
+  /// رقم النظام فقط (ليس مسودة OFF المحلية)
+  String get _systemOrderNo {
+    final no = (_orderNo ?? '').trim();
+    if (no.isEmpty || no.toUpperCase().startsWith('OFF-')) return '';
+    return no;
+  }
+
+  Widget _wideTopToolbar() {
+    const fieldH = 32.0;
+    const gap = 4.0;
+    final date = _orderDate.isEmpty ? Fmt.todayIso() : _orderDate;
+    final sysNo = _systemOrderNo;
+    final showCustomer = !widget.hideCustomerPicker;
+    final hasLeading = widget.toolbarLeading != null;
+    // عند وجود شريط مسودات خارجي لا نكرر شارة «مسودة»
+    final showStatusChip = !hasLeading || sysNo.isNotEmpty;
+
+    Widget chip(String text, {Color? bg, Color? fg, Color? border}) {
+      return Container(
+        height: fieldH,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: bg ?? const Color(0xFFF1F5F9),
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: border ?? AppTheme.border),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+            color: fg ?? AppTheme.textMain,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+      child: Material(
+        color: Colors.white,
+        elevation: 1,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(6, 4, 6, 4),
+          child: SizedBox(
+            height: fieldH,
+            child: Row(
+              children: [
+                if (hasLeading) ...[
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width * 0.30,
+                    ),
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: widget.toolbarLeading!,
+                    ),
+                  ),
+                  const SizedBox(width: gap),
+                ],
+                if (sysNo.isNotEmpty) ...[
+                  chip(
+                    sysNo,
+                    bg: const Color(0xFFECFDF5),
+                    fg: const Color(0xFF065F46),
+                    border: const Color(0xFF34D399),
+                  ),
+                  const SizedBox(width: gap),
+                ],
+                if (showStatusChip) ...[
+                  chip(
+                    sysNo.isEmpty && _id != 0 ? 'مسودة' : _orderStatusLabel,
+                    bg: _orderStatusColor.withValues(alpha: 0.12),
+                    fg: _orderStatusColor,
+                    border: _orderStatusColor.withValues(alpha: 0.35),
+                  ),
+                  const SizedBox(width: gap),
+                ],
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: _orderNoCtrl,
+                    enabled: !_busy,
+                    textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'رقم الطلب',
+                      hintStyle: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textSoft,
+                      ),
+                      isDense: true,
+                      filled: true,
+                      fillColor: const Color(0xFFF8FAFC),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 7,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    onSubmitted: (_) {
+                      if (!_busy) _searchOrderByNo();
+                    },
+                  ),
+                ),
+                const SizedBox(width: 3),
+                SizedBox(
+                  height: fieldH,
+                  width: 32,
+                  child: FilledButton(
+                    onPressed: _busy ? null : _searchOrderByNo,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2563EB),
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(32, fieldH),
+                    ),
+                    child: const Icon(Icons.search_rounded, size: 16),
+                  ),
+                ),
+                const SizedBox(width: gap),
+                SizedBox(
+                  width: 118,
+                  child: _wideInlineLabelValue('التاريخ', Fmt.dmy(date)),
+                ),
+                const SizedBox(width: gap),
+                SizedBox(
+                  width: 100,
+                  child: _wideInlineDateTap(
+                    label: _deliveryDate.isEmpty
+                        ? 'التسليم'
+                        : Fmt.dmy(_deliveryDate),
+                    empty: _deliveryDate.isEmpty,
+                    onTap: _busy || !_editable ? null : _pickDeliveryDate,
+                  ),
+                ),
+                if (showCustomer) ...[
+                  const SizedBox(width: gap),
+                  Expanded(
+                    child: _wideCustomerInline(fieldHeight: fieldH),
+                  ),
+                ],
+                const SizedBox(width: gap),
+                SizedBox(
+                  width: showCustomer ? 110 : 140,
+                  child: _wideInlineDateTap(
+                    label: () {
+                      final t = _notesCtrl.text.trim();
+                      if (t.isEmpty) {
+                        return _editable ? 'ملاحظات…' : 'بدون ملاحظات';
+                      }
+                      return t;
+                    }(),
+                    empty: _notesCtrl.text.trim().isEmpty,
+                    icon: Icons.edit_note_rounded,
+                    onTap: _busy ? null : _editNotes,
+                  ),
+                ),
+                const SizedBox(width: gap),
+                SizedBox(
+                  height: fieldH,
+                  child: FilledButton.icon(
+                    onPressed: _busy || !_editable ? null : _addLine,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: const Color(0xFF2196F3),
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, fieldH),
+                    ),
+                    icon: const Icon(Icons.add_rounded, size: 16),
+                    label: const Text(
+                      'مادة',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                SizedBox(
+                  height: fieldH,
+                  width: 32,
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _print,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(32, fieldH),
+                    ),
+                    child: const Icon(Icons.print_outlined, size: 15),
+                  ),
+                ),
+                const SizedBox(width: 3),
+                SizedBox(
+                  height: fieldH,
+                  width: 32,
+                  child: OutlinedButton(
+                    onPressed: _busy ? null : _openPdf,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(32, fieldH),
+                    ),
+                    child: const Icon(
+                      Icons.picture_as_pdf_outlined,
+                      size: 15,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _wideInlineLabelValue(String label, String value) {
+    return Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppTheme.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$label: ',
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: AppTheme.textSoft,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _wideInlineDateTap({
+    required String label,
+    required bool empty,
+    VoidCallback? onTap,
+    IconData icon = Icons.event_rounded,
+  }) {
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+          child: Container(
+          height: 32,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: AppTheme.border),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: empty ? AppTheme.textSoft : AppTheme.textMain,
+                  ),
+                ),
+              ),
+              Icon(icon, size: 16, color: AppTheme.textSoft),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _wideCustomerInline({double fieldHeight = 32}) {
+    final canPick = _editable && !widget.hideCustomerPicker;
+    final hasCustomer = _customer != null;
+    final name = hasCustomer ? _customer!.name : 'اختر العميل…';
+    final code = (_customer?.code ?? '').trim();
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: canPick ? _pickCustomer : null,
+        borderRadius: BorderRadius.circular(6),
+        child: Container(
+          height: fieldHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          decoration: BoxDecoration(
+            color: hasCustomer ? const Color(0xFFF0F7FF) : Colors.white,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(
+              color: hasCustomer ? const Color(0xFF90CAF9) : AppTheme.border,
+            ),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.storefront_rounded,
+                size: 16,
+                color: Color(0xFF1565C0),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  code.isEmpty ? name : '$name  ($code)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: hasCustomer ? AppTheme.textMain : AppTheme.textSoft,
+                  ),
+                ),
+              ),
+              if (canPick)
+                const Icon(
+                  Icons.chevron_left_rounded,
+                  size: 18,
+                  color: AppTheme.textSoft,
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -2549,10 +2563,12 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           );
         }
         return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minWidth: metrics.minWidth),
-            child: table,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: metrics.minWidth),
+              child: table,
+            ),
           ),
         );
       },
@@ -2571,115 +2587,215 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   }
 
   Future<(int, int)?> _askQtySplit() async {
-    final cartonCtrl = TextEditingController();
-    final pieceCtrl = TextEditingController();
+    // بدون كيبورد النظام — لوحة أرقام داخل التطبيق حتى لا يختفي الحقل.
+    var carton = 0;
+    var piece = 0;
     final result = await showDialog<(int, int)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('الكمية'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: cartonCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(labelText: 'كرتونة'),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: pieceCtrl,
-              keyboardType: TextInputType.number,
-              textDirection: TextDirection.ltr,
-              decoration: const InputDecoration(labelText: 'قطعة'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final c = int.tryParse(cartonCtrl.text.trim()) ?? 0;
-              final p = int.tryParse(pieceCtrl.text.trim()) ?? 0;
-              Navigator.pop(ctx, (c, p));
-            },
-            child: const Text('موافق'),
-          ),
-        ],
-      ),
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) {
+            Future<void> editField({
+              required String title,
+              required int current,
+              required void Function(int v) apply,
+            }) async {
+              final v = await showNumericKeypadDialog(
+                ctx,
+                title: title,
+                initial: current > 0 ? '$current' : '',
+                decimal: false,
+              );
+              if (v == null) return;
+              apply(int.tryParse(v.trim())?.clamp(0, 999999999) ?? 0);
+              setLocal(() {});
+            }
+
+            Widget qtyTap({
+              required String label,
+              required int value,
+              required VoidCallback onTap,
+            }) {
+              final filled = value > 0;
+              return Material(
+                color: filled
+                    ? const Color(0xFFF0F9FF)
+                    : const Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.circular(10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(10),
+                  onTap: onTap,
+                  child: Container(
+                    height: 88,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: filled
+                            ? const Color(0xFF60A5FA)
+                            : const Color(0xFFCBD5E1),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF64748B),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          filled ? '$value' : 'اضغط للإدخال',
+                          textDirection: TextDirection.ltr,
+                          style: TextStyle(
+                            fontSize: filled ? 28 : 14,
+                            fontWeight: FontWeight.w900,
+                            color: filled
+                                ? const Color(0xFF0F172A)
+                                : const Color(0xFF94A3B8),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }
+
+            return AlertDialog(
+              insetPadding:
+                  const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+              title: const Text(
+                'كمية المادة',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+              content: SizedBox(
+                width: 440,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'اضغط على كرتونة أو قطعة لإدخال الكمية من لوحة الأرقام',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textSoft,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: qtyTap(
+                            label: 'كرتونة',
+                            value: carton,
+                            onTap: () => editField(
+                              title: 'كمية كرتونة',
+                              current: carton,
+                              apply: (v) => carton = v,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: qtyTap(
+                            label: 'قطعة',
+                            value: piece,
+                            onTap: () => editField(
+                              title: 'كمية قطعة',
+                              current: piece,
+                              apply: (v) => piece = v,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('إلغاء'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(ctx, (carton, piece)),
+                  child: const Text('موافق'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
-    cartonCtrl.dispose();
-    pieceCtrl.dispose();
     return result;
   }
 
-  Widget _qtyPair({
+  Widget _qtyCell({
     required double width,
-    required _OrderLine line,
-    required bool extra,
+    required String title,
+    required int value,
     required TextStyle style,
     required _LineTableMetrics m,
     required bool enabled,
+    required void Function(int value) apply,
+    Color? tint,
   }) {
-    Widget field(String label, int value, void Function(int value) apply) {
-      return InkWell(
-        onTap: !enabled
-            ? null
-            : () => _editLineNumber(
-                  title: label,
-                  initial: value > 0 ? '$value' : '',
-                  decimal: false,
-                  apply: (v) {
-                    apply(int.tryParse(v)?.clamp(0, 999999999) ?? 0);
-                  },
-                ),
-        child: InputDecorator(
-          decoration: _lineFieldDecoration(m).copyWith(
-            labelText: label,
-            labelStyle:
-                TextStyle(fontSize: (m.font - 1).clamp(9, 14).toDouble()),
-            isDense: true,
-          ),
-          child: Text(
-            value > 0 ? '$value' : '',
-            textAlign: TextAlign.center,
-            textDirection: TextDirection.ltr,
-            style: style,
-          ),
-        ),
-      );
-    }
-
-    final carton = extra ? line.extraCarton : line.qtyCarton;
-    final piece = extra ? line.extraPiece : line.qtyPiece;
+    final filled = value > 0;
     return SizedBox(
       width: width,
-      child: Row(
-        children: [
-          Expanded(
-            child: field('كرتونة', carton, (v) {
-              if (extra) {
-                line.extraCarton = v;
-              } else {
-                line.qtyCarton = v;
-              }
-            }),
+      child: Material(
+        color: tint ??
+            (filled ? const Color(0xFFF0F9FF) : const Color(0xFFF8FAFC)),
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: !enabled
+              ? null
+              : () => _editLineNumber(
+                    title: title,
+                    initial: value > 0 ? '$value' : '',
+                    decimal: false,
+                    apply: (v) {
+                      apply(int.tryParse(v)?.clamp(0, 999999999) ?? 0);
+                    },
+                  ),
+          child: Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(5),
+              border: Border.all(
+                color: filled
+                    ? const Color(0xFF93C5FD)
+                    : const Color(0xFFCBD5E1),
+              ),
+            ),
+            child: Text(
+              filled ? '$value' : '—',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.ltr,
+              style: style.copyWith(
+                fontWeight: FontWeight.w900,
+                fontSize: m.font,
+                height: 1.05,
+                color: filled
+                    ? const Color(0xFF0F172A)
+                    : const Color(0xFF94A3B8),
+              ),
+            ),
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: field('قطعة', piece, (v) {
-              if (extra) {
-                line.extraPiece = v;
-              } else {
-                line.qtyPiece = v;
-              }
-            }),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -2735,6 +2851,49 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
+  Widget _priceCell({
+    required double width,
+    required double value,
+    required TextStyle style,
+    bool inclusive = false,
+  }) {
+    // غير شامل: خانات سعر الوحدة | شامل: خانات مبالغ النظام (مثل ويندوز)
+    final text = value > 0
+        ? (inclusive ? Fmt.money(value).replaceAll(',', '') : Fmt.unitPrice(value))
+        : '—';
+    return SizedBox(
+      width: width,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: inclusive ? const Color(0xFFECFDF5) : const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: inclusive
+                ? const Color(0xFFA7F3D0)
+                : const Color(0xFFE2E8F0),
+          ),
+        ),
+        child: Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          textDirection: TextDirection.ltr,
+          style: style.copyWith(
+            fontSize: (style.fontSize ?? 12) - 0.5,
+            fontWeight: FontWeight.w900,
+            height: 1.05,
+            color: inclusive
+                ? const Color(0xFF0F766E)
+                : const Color(0xFF334155),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildLinesDataTable(_LineTableMetrics m, {required bool compact}) {
     final cellStyle = TextStyle(
       fontSize: m.font,
@@ -2745,9 +2904,9 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     return DefaultTextStyle.merge(
       style: cellStyle,
       child: DataTable(
-        headingRowHeight: compact ? 32 : 42,
-        dataRowMinHeight: compact ? 64 : 72,
-        dataRowMaxHeight: compact ? 128 : 146,
+        headingRowHeight: compact ? 28 : 36,
+        dataRowMinHeight: compact ? 30 : 40,
+        dataRowMaxHeight: compact ? 34 : 48,
         columnSpacing: m.colSpacing,
         horizontalMargin: m.hMargin,
         headingTextStyle: TextStyle(
@@ -2758,13 +2917,34 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
         dataTextStyle: cellStyle,
         columns: [
           DataColumn(label: _tableHead('المادة', m.item, m.heading)),
-          DataColumn(label: _tableHead('الكمية', m.qty, m.heading)),
-          DataColumn(label: _tableHead('مجاني', m.extra, m.heading)),
-          DataColumn(label: _tableHead('السعر غ ش*', m.price, m.heading)),
-          DataColumn(label: _tableHead('السعر ش', m.priceInc, m.heading)),
-          DataColumn(label: _tableHead('الضريبة', m.tax, m.heading)),
-          DataColumn(label: _tableHead('خصم %', m.disc, m.heading)),
-          DataColumn(label: _tableHead('المجموع', m.total, m.heading)),
+          DataColumn(
+              label: _tableHead('تعبئة', m.pack, m.heading, center: true)),
+          DataColumn(
+              label: _tableHead('كرتونة', m.carton, m.heading, center: true)),
+          DataColumn(
+              label: _tableHead('قطعة', m.piece, m.heading, center: true)),
+          DataColumn(
+              label:
+                  _tableHead('مج.ك', m.freeCarton, m.heading, center: true)),
+          DataColumn(
+              label:
+                  _tableHead('مج.ق', m.freePiece, m.heading, center: true)),
+          DataColumn(
+              label: _tableHead('ق غ.ش', m.pricePieceEx, m.heading,
+                  center: true)),
+          DataColumn(
+              label: _tableHead('ق ش', m.pricePieceInc, m.heading,
+                  center: true)),
+          DataColumn(
+              label: _tableHead('ك غ.ش', m.priceCartonEx, m.heading,
+                  center: true)),
+          DataColumn(
+              label: _tableHead('ك ش', m.priceCartonInc, m.heading,
+                  center: true)),
+          DataColumn(
+              label: _tableHead('خصم%', m.disc, m.heading, center: true)),
+          DataColumn(
+              label: _tableHead('المجموع', m.total, m.heading, center: true)),
           DataColumn(label: SizedBox(width: m.del)),
         ],
         rows: [
@@ -2773,120 +2953,119 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               DataCell(
                 SizedBox(
                   width: m.item,
-                  child: Text(
-                    _lines[i].item.name,
-                    maxLines: 1,
-                    softWrap: false,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: m.font,
+                  child: Tooltip(
+                    message: _lines[i].item.name,
+                    child: Text(
+                      _lines[i].item.name,
+                      maxLines: compact ? 1 : 2,
+                      softWrap: !compact,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: m.font,
+                        height: 1.05,
+                      ),
                     ),
                   ),
                 ),
               ),
               DataCell(
-                _qtyPair(
-                  width: m.qty,
-                  line: _lines[i],
-                  extra: false,
+                SizedBox(
+                  width: m.pack,
+                  child: Container(
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFF7ED),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: const Color(0xFFFDBA74)),
+                    ),
+                    child: Text(
+                      _lines[i].packSize > 0 ? '${_lines[i].packSize}' : '—',
+                      textAlign: TextAlign.center,
+                      textDirection: TextDirection.ltr,
+                      style: cellStyle.copyWith(
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF9A3412),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              DataCell(
+                _qtyCell(
+                  width: m.carton,
+                  title: 'كمية كرتونة',
+                  value: _lines[i].qtyCarton,
                   style: cellStyle,
                   m: m,
                   enabled: _editable,
+                  apply: (v) => _lines[i].qtyCarton = v,
                 ),
               ),
               DataCell(
-                _qtyPair(
-                  width: m.extra,
-                  line: _lines[i],
-                  extra: true,
+                _qtyCell(
+                  width: m.piece,
+                  title: 'كمية قطعة',
+                  value: _lines[i].qtyPiece,
                   style: cellStyle,
                   m: m,
                   enabled: _editable,
+                  apply: (v) => _lines[i].qtyPiece = v,
                 ),
               ),
               DataCell(
-                SizedBox(
-                  width: m.price,
-                  child: Text(
-                    _lines[i].orderUnits.length <= 1
-                        ? Fmt.trimNum(_lines[i]._priceOf(
-                            _lines[i].orderUnits.isEmpty
-                                ? null
-                                : _lines[i].orderUnits.first,
-                          ))
-                        : _lines[i]
-                            .orderUnits
-                            .map((u) =>
-                                '${u.name} ${Fmt.trimNum(_lines[i]._priceOf(u))}')
-                            .join('\n'),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.ltr,
-                    textAlign: TextAlign.center,
-                    style: cellStyle.copyWith(
-                      fontWeight: FontWeight.w800,
-                      color: const Color(0xFF334155),
-                    ),
-                  ),
+                _qtyCell(
+                  width: m.freeCarton,
+                  title: 'مجاني كرتونة',
+                  value: _lines[i].extraCarton,
+                  style: cellStyle,
+                  m: m,
+                  enabled: _editable,
+                  tint: const Color(0xFFF0FDF4),
+                  apply: (v) => _lines[i].extraCarton = v,
                 ),
               ),
               DataCell(
-                SizedBox(
-                  width: m.priceInc,
-                  child: Text(
-                    Fmt.money(_lines[i].unitPriceInclusive),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textDirection: TextDirection.ltr,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: m.font,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF0F766E),
-                    ),
-                  ),
+                _qtyCell(
+                  width: m.freePiece,
+                  title: 'مجاني قطعة',
+                  value: _lines[i].extraPiece,
+                  style: cellStyle,
+                  m: m,
+                  enabled: _editable,
+                  tint: const Color(0xFFF0FDF4),
+                  apply: (v) => _lines[i].extraPiece = v,
                 ),
               ),
               DataCell(
-                SizedBox(
-                  width: m.tax,
-                  child: DropdownButtonFormField<int>(
-                    key: ValueKey(
-                        'tax-${_lines[i].item.id}-$i-${_lines[i].taxRateId}'),
-                    initialValue: _lines[i].taxRateId,
-                    isExpanded: true,
-                    isDense: true,
-                    decoration: _lineFieldDecoration(m),
-                    items: [
-                      for (final tax in _taxRates)
-                        DropdownMenuItem(
-                          value: tax.id,
-                          child: Text(
-                            m.compactTax
-                                ? '${Fmt.trimNum(tax.rate)}%'
-                                : '${tax.name} (${Fmt.trimNum(tax.rate)}%)',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: m.font,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                    ],
-                    onChanged: !_editable
-                          ? null
-                        : (id) {
-                            final matches =
-                                _taxRates.where((t) => t.id == id);
-                            if (matches.isEmpty) return;
-                            setState(() {
-                              _lines[i].taxRateId = matches.first.id;
-                              _lines[i].taxRatePercent = matches.first.rate;
-                            });
-                          },
-                  ),
+                _priceCell(
+                  width: m.pricePieceEx,
+                  value: _lines[i].piecePrice,
+                  style: cellStyle,
+                ),
+              ),
+              DataCell(
+                _priceCell(
+                  width: m.pricePieceInc,
+                  value: _lines[i].piecePriceInclusive,
+                  style: cellStyle,
+                  inclusive: true,
+                ),
+              ),
+              DataCell(
+                _priceCell(
+                  width: m.priceCartonEx,
+                  value: _lines[i].cartonPrice,
+                  style: cellStyle,
+                ),
+              ),
+              DataCell(
+                _priceCell(
+                  width: m.priceCartonInc,
+                  value: _lines[i].cartonPriceInclusive,
+                  style: cellStyle,
+                  inclusive: true,
                 ),
               ),
               DataCell(
@@ -2926,9 +3105,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
                     textDirection: TextDirection.ltr,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
                       fontSize: m.font,
+                      color: const Color(0xFF0F766E),
                     ),
                   ),
                 ),
@@ -2952,25 +3133,28 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                           ),
                         )
                       : const SizedBox.shrink(),
-                          ),
-                        ),
-                      ]),
+                ),
+              ),
+            ]),
         ],
       ),
     );
   }
 
-  Widget _tableHead(String label, double width, double font) {
+  Widget _tableHead(String label, double width, double font,
+      {bool center = false}) {
     return SizedBox(
       width: width,
       child: Text(
         label,
-        maxLines: 1,
+        maxLines: 2,
         overflow: TextOverflow.ellipsis,
+        textAlign: center ? TextAlign.center : TextAlign.start,
         style: TextStyle(
           fontSize: font,
           fontWeight: FontWeight.w900,
           color: const Color(0xFF475569),
+          height: 1.1,
         ),
       ),
     );
@@ -3024,27 +3208,13 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                         ? 'بيانات الطلب'
                         : 'الطلب $_orderNo'),
                 padding: EdgeInsets.all(widget.embedded ? 8 : 14),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _orderHeaderField(
-                      label: 'المستودع',
-                      child: _orderHeaderWarehouse(),
-                    ),
-                    const SizedBox(width: 8),
-                    _orderHeaderField(
-                      label: 'نوع الدفع',
-                      child: _paymentSeg(compact: true),
-                    ),
-                    if (!widget.hideCustomerPicker || _customer != null) ...[
-                      const SizedBox(width: 8),
-                      _orderHeaderField(
+                child: (!widget.hideCustomerPicker || _customer != null)
+                    ? _orderHeaderField(
                         label: 'العميل',
                         child: _orderHeaderCustomer(),
-                      ),
-                    ],
-                    ],
-                  )),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             const SizedBox(height: 8),
             AppCard(
               child: Column(
@@ -3277,42 +3447,6 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     );
   }
 
-  Widget _orderHeaderWarehouse() {
-    return _orderHeaderShell(
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int>(
-          isExpanded: true,
-          isDense: true,
-          value: _warehouseId == 0 ? null : _warehouseId,
-          hint: const Text(
-            '—',
-            style: TextStyle(fontSize: 14, color: AppTheme.textSoft),
-          ),
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: AppTheme.textMain,
-          ),
-          icon: const Icon(Icons.expand_more_rounded, size: 26),
-          items: _warehouses
-              .map(
-                (w) => DropdownMenuItem(
-                  value: Fmt.toInt(w['id']),
-                  child: Text(
-                    Fmt.str(w['name'] ?? w['name_ar']),
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 14),
-                  ),
-                ),
-              )
-              .toList(),
-          onChanged:
-              _editable ? (v) => setState(() => _warehouseId = v ?? 0) : null,
-        ),
-      ),
-    );
-  }
-
   Widget _orderHeaderCustomer() {
     final canPick = _editable && !widget.hideCustomerPicker;
     final name = _customer?.name ?? 'اضغط للاختيار';
@@ -3345,51 +3479,6 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                   color: AppTheme.textSoft,
                 ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _paymentSeg({bool compact = false}) {
-    return Container(
-      padding: EdgeInsets.all(compact ? 2 : 3),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF1F5F9),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.border),
-      ),
-      child: Row(
-        children: [
-          _segBtn('ذمم', 'credit', compact: compact),
-          _segBtn('نقدي', 'cash', compact: compact),
-        ],
-      ),
-    );
-  }
-
-  Widget _segBtn(String label, String value, {bool compact = false}) {
-    final sel = _paymentType == value;
-    return Expanded(
-      child: Material(
-        color: sel ? AppTheme.primary : Colors.transparent,
-        borderRadius: BorderRadius.circular(9),
-        child: InkWell(
-          onTap: _editable ? () => setState(() => _paymentType = value) : null,
-          borderRadius: BorderRadius.circular(9),
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: compact ? 3 : 8),
-            child: Text(
-              label,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: compact ? 11.5 : 13,
-                color: sel ? Colors.white : AppTheme.textSoft,
-              ),
-            ),
           ),
         ),
       ),

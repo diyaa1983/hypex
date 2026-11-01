@@ -440,89 +440,105 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_unsentLocal.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text(
-                  'طلبات غير مرحّلة لهذا العميل',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.5,
-                    color: AppTheme.textSoft,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      for (final o in _unsentLocal)
-                        Padding(
-                          padding: const EdgeInsetsDirectional.only(end: 6),
-                          child: ActionChip(
-                            label: Text(
-                              Fmt.str(o['order_no']).isEmpty
-                                  ? '#${o['id']}'
-                                  : Fmt.str(o['order_no']),
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                            onPressed: () {
-                              final id = (o['id'] as num?)?.toInt() ?? 0;
-                              if (id == 0) return;
-                              setState(() => _orderId = id);
-                            },
-                            backgroundColor:
-                                (_orderId == ((o['id'] as num?)?.toInt() ?? 0))
-                                    ? AppTheme.primary.withValues(alpha: 0.15)
-                                    : null,
-                          ),
+    Widget draftLeading() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _unsentLocal.length; i++) ...[
+            Builder(
+              builder: (_) {
+                final o = _unsentLocal[i];
+                final raw = Fmt.str(o['order_no']).trim();
+                final isOff = raw.toUpperCase().startsWith('OFF-');
+                final label = raw.isEmpty || isOff
+                    ? (_unsentLocal.length == 1 ? 'مسودة' : 'مسودة ${i + 1}')
+                    : raw;
+                final id = (o['id'] as num?)?.toInt() ?? 0;
+                final selected = _orderId == id;
+                return Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 4),
+                  child: SizedBox(
+                    height: 32,
+                    child: OutlinedButton(
+                      onPressed: id == 0
+                          ? null
+                          : () => setState(() => _orderId = id),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: selected
+                            ? AppTheme.primary.withValues(alpha: 0.12)
+                            : Colors.white,
+                        foregroundColor: selected
+                            ? AppTheme.primary
+                            : AppTheme.textMain,
+                        side: BorderSide(
+                          color: selected
+                              ? AppTheme.primary
+                              : AppTheme.border,
                         ),
-                      ActionChip(
-                        label: const Text('＋ طلب جديد', style: TextStyle(fontSize: 12)),
-                        onPressed: () => setState(() => _orderId = null),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                    ],
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                );
+              },
+            ),
+          ],
+          SizedBox(
+            height: 32,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _orderId = null),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.add_rounded, size: 15),
+              label: const Text(
+                'طلب جديد',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
+              ),
             ),
           ),
-        Expanded(
-          child: CustomerOrderFormScreen(
-            key: ValueKey(
-              'po-${widget.customerId}-${widget.visitRouteLineId}-${_orderId ?? 0}',
-            ),
-            embedded: true,
-            hideCustomerPicker: true,
-            initialCustomerId: widget.customerId,
-            initialCustomerName: widget.customerName,
-            initialCustomerCode: widget.customerCode,
-            visitRouteLineId: widget.visitRouteLineId,
-            orderId: (_orderId ?? 0) != 0 ? _orderId : null,
-            onSaved: (id) {
-              setState(() => _orderId = id == 0 ? null : id);
-              _loadUnsentLocal();
-              widget.onOrderChanged?.call();
-            },
-            onPosted: () {
-              setState(() => _orderId = null);
-              _loadUnsentLocal();
-              widget.onOrderChanged?.call();
-            },
-            onDeleted: () {
-              setState(() => _orderId = null);
-              _loadUnsentLocal();
-              widget.onOrderChanged?.call();
-            },
-          ),
-        ),
-      ],
+        ],
+      );
+    }
+
+    return CustomerOrderFormScreen(
+      key: ValueKey(
+        'po-${widget.customerId}-${widget.visitRouteLineId}-${_orderId ?? 0}',
+      ),
+      embedded: true,
+      hideCustomerPicker: true,
+      toolbarLeading: draftLeading(),
+      initialCustomerId: widget.customerId,
+      initialCustomerName: widget.customerName,
+      initialCustomerCode: widget.customerCode,
+      visitRouteLineId: widget.visitRouteLineId,
+      orderId: (_orderId ?? 0) != 0 ? _orderId : null,
+      onSaved: (id) {
+        setState(() => _orderId = id == 0 ? null : id);
+        _loadUnsentLocal();
+        widget.onOrderChanged?.call();
+      },
+      onPosted: () {
+        setState(() => _orderId = null);
+        _loadUnsentLocal();
+        widget.onOrderChanged?.call();
+      },
+      onDeleted: () {
+        setState(() => _orderId = null);
+        _loadUnsentLocal();
+        widget.onOrderChanged?.call();
+      },
     );
   }
 

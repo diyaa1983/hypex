@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:sqflite/sqflite.dart';
 
+import '../core/format.dart';
 import 'offline_db.dart';
 
 class OfflineSyncInfo {
@@ -60,6 +61,16 @@ class OfflineStore {
       'sync_meta',
       {'key': key, 'value': value},
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// تحميل خانات النظام المحفوظة محلياً (بعد الإقلاع أو دون اتصال).
+  Future<void> applyDecimalSettings() async {
+    final amount = await getMeta('decimal_places');
+    final unit = await getMeta('invoice_unit_price_decimal_places');
+    Fmt.applySettings(
+      decimalPlaces: amount ?? 3,
+      unitPriceDecimalPlaces: unit ?? amount ?? 3,
     );
   }
 
@@ -562,7 +573,15 @@ class OfflineStore {
             ? '1'
             : '0',
       );
-      await putMeta('decimal_places', '${meta['decimal_places'] ?? 3}');
+      final amountDp = meta['decimal_places'] ?? 3;
+      final unitDp =
+          meta['invoice_unit_price_decimal_places'] ?? amountDp;
+      await putMeta('decimal_places', '$amountDp');
+      await putMeta('invoice_unit_price_decimal_places', '$unitDp');
+      Fmt.applySettings(
+        decimalPlaces: amountDp,
+        unitPriceDecimalPlaces: unitDp,
+      );
       await putMeta(
         'visit_radius_m',
         '${meta['visit_radius_m'] ?? 200}',

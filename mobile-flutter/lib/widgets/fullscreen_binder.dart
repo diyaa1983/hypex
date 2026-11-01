@@ -7,8 +7,12 @@ class FullscreenBinder extends StatefulWidget {
 
   final Widget child;
 
-  static Future<void> apply() {
-    return SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  static Future<void> apply() async {
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   static Future<void> allowKeyboard() {

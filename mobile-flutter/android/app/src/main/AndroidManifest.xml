@@ -35,10 +35,10 @@
             android:launchMode="singleTop"
             android:taskAffinity="com.gppjo.biodev.mobile"
             android:theme="@style/LaunchTheme"
-            android:screenOrientation="sensorLandscape"
+            android:screenOrientation="landscape"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustPan">
             <meta-data
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"

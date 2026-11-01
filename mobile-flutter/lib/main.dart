@@ -19,6 +19,7 @@ Future<void> main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 40 << 20;
   SystemChrome.setSystemUIOverlayStyle(AppTheme.overlayLight);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  // التابلت يعمل أفقياً فقط (بدون وضع طولي)
   await SystemChrome.setPreferredOrientations(const [
     DeviceOrientation.landscapeLeft,
     DeviceOrientation.landscapeRight,

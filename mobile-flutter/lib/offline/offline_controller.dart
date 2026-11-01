@@ -68,6 +68,7 @@ class OfflineController extends ChangeNotifier {
   Future<void> start() async {
     api.onHttpSuccess = _onHttpSuccess;
     await store.cleanupOutbox();
+    await store.applyDecimalSettings();
     await refreshInfo();
     final results = await Connectivity().checkConnectivity();
     _applyConnectivity(results, notify: false);

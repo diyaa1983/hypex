@@ -2839,70 +2839,104 @@ class _PurchaseOrderTabState extends State<_PurchaseOrderTab>
         ),
       );
     }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (_unsent.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 0),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final o in _unsent)
-                    Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 6),
-                      child: ActionChip(
-                        label: Text(
-                          Fmt.str(o['order_no']).isEmpty
-                              ? '#${o['id']}'
-                              : Fmt.str(o['order_no']),
-                          style: const TextStyle(fontSize: 12),
+    Widget draftLeading() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < _unsent.length; i++) ...[
+            Builder(
+              builder: (_) {
+                final o = _unsent[i];
+                final raw = Fmt.str(o['order_no']).trim();
+                final isOff = raw.toUpperCase().startsWith('OFF-');
+                final label = raw.isEmpty || isOff
+                    ? (_unsent.length == 1 ? 'مسودة' : 'مسودة ${i + 1}')
+                    : raw;
+                final id = (o['id'] as num?)?.toInt() ?? 0;
+                final selected = _orderId == id;
+                return Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 4),
+                  child: SizedBox(
+                    height: 32,
+                    child: OutlinedButton(
+                      onPressed: id == 0
+                          ? null
+                          : () => setState(() => _orderId = id),
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: selected
+                            ? AppTheme.primary.withValues(alpha: 0.12)
+                            : Colors.white,
+                        foregroundColor: selected
+                            ? AppTheme.primary
+                            : AppTheme.textMain,
+                        side: BorderSide(
+                          color:
+                              selected ? AppTheme.primary : AppTheme.border,
                         ),
-                        onPressed: () {
-                          final id = (o['id'] as num?)?.toInt() ?? 0;
-                          if (id != 0) setState(() => _orderId = id);
-                        },
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ActionChip(
-                    label: const Text('＋ طلب جديد', style: TextStyle(fontSize: 12)),
-                    onPressed: () => setState(() => _orderId = null),
                   ),
-                ],
+                );
+              },
+            ),
+          ],
+          SizedBox(
+            height: 32,
+            child: OutlinedButton.icon(
+              onPressed: () => setState(() => _orderId = null),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: const Icon(Icons.add_rounded, size: 15),
+              label: const Text(
+                'طلب جديد',
+                style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w800),
               ),
             ),
           ),
-        Expanded(
-          child: CustomerOrderFormScreen(
-            key: ValueKey(
-              'po-${Fmt.toInt(widget.customer['id'])}-${widget.visitRouteLineId}-${_orderId ?? 0}',
-            ),
-            embedded: true,
-            hideCustomerPicker: true,
-            initialCustomerId: Fmt.toInt(widget.customer['id']),
-            initialCustomerName: Fmt.str(widget.customer['name']),
-            initialCustomerCode: Fmt.str(widget.customer['code']),
-            visitRouteLineId: widget.visitRouteLineId,
-            orderId: (_orderId ?? 0) != 0 ? _orderId : null,
-            onSaved: (id) {
-              setState(() => _orderId = id == 0 ? null : id);
-              _loadUnsent();
-              widget.onSaved(id);
-            },
-            onPosted: () {
-              setState(() => _orderId = null);
-              _loadUnsent();
-              widget.onPosted?.call();
-            },
-            onDeleted: () {
-              setState(() => _orderId = null);
-              _loadUnsent();
-              widget.onDeleted();
-            },
-          ),
-        ),
-      ],
+        ],
+      );
+    }
+
+    return CustomerOrderFormScreen(
+      key: ValueKey(
+        'po-${Fmt.toInt(widget.customer['id'])}-${widget.visitRouteLineId}-${_orderId ?? 0}',
+      ),
+      embedded: true,
+      hideCustomerPicker: true,
+      toolbarLeading: draftLeading(),
+      initialCustomerId: Fmt.toInt(widget.customer['id']),
+      initialCustomerName: Fmt.str(widget.customer['name']),
+      initialCustomerCode: Fmt.str(widget.customer['code']),
+      visitRouteLineId: widget.visitRouteLineId,
+      orderId: (_orderId ?? 0) != 0 ? _orderId : null,
+      onSaved: (id) {
+        setState(() => _orderId = id == 0 ? null : id);
+        _loadUnsent();
+        widget.onSaved(id);
+      },
+      onPosted: () {
+        setState(() => _orderId = null);
+        _loadUnsent();
+        widget.onPosted?.call();
+      },
+      onDeleted: () {
+        setState(() => _orderId = null);
+        _loadUnsent();
+        widget.onDeleted();
+      },
     );
   }
 }
