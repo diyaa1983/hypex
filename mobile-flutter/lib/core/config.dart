@@ -78,6 +78,7 @@ class AppConfig {
   static const String customerDeletePath = 'api/mobile_customer_delete.php';
   static const String customerViewPath = 'api/mobile_customer_view.php';
   static const String visitGpsPreviewPath = 'api/mobile_visit_gps_preview.php';
+  static const String placesSearchPath = 'api/mobile_places_search.php';
   static const String inboxPath = 'api/mobile_inbox.php';
   static const String inboxNodePath = 'api/mobile-inbox';
 

@@ -74,9 +74,12 @@ class GpsMapTiles {
     return TileLayer(
       urlTemplate: osmUrl,
       maxNativeZoom: 19,
-      maxZoom: 20,
+      maxZoom: 22,
+      // بلاطات OSM القياسية (بدون retina) أوضح لأسماء الشوارع وأثبت تحميلاً.
       retinaMode: false,
       userAgentPackageName: pkg,
+      keepBuffer: 2,
+      panBuffer: 1,
     );
   }
 
