@@ -19,16 +19,27 @@ function can(user, code) {
   return auth.userCan(user, code) || user.is_admin;
 }
 
-/** يقبل customer_id مرة أو عدة مرات أو مفصولة بفواصل */
+/** يقبل مفتاح id مرة أو عدة مرات أو مفصولة بفواصل */
+function parseIdsQuery(query = {}, keys = []) {
+  const parts = [];
+  for (const key of keys) {
+    const raw = query[key];
+    if (raw == null || raw === '') continue;
+    const arr = Array.isArray(raw) ? raw : String(raw).split(',');
+    for (const item of arr) {
+      const n = Number(String(item).trim()) || 0;
+      if (n > 0) parts.push(n);
+    }
+  }
+  return [...new Set(parts)];
+}
+
 function parseCustomerIdsQuery(query = {}) {
-  const raw = query.customer_id ?? query.customer_ids ?? [];
-  const parts = Array.isArray(raw)
-    ? raw
-    : String(raw || '')
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-  return [...new Set(parts.map((n) => Number(n) || 0).filter((n) => n > 0))];
+  return parseIdsQuery(query, ['customer_id', 'customer_ids']);
+}
+
+function parseSalesRepIdsQuery(query = {}) {
+  return parseIdsQuery(query, ['sales_rep_id', 'sales_rep_ids']);
 }
 
 function forbid(res) {
@@ -1826,11 +1837,11 @@ router.get('/sales-reps/reports/visits/data', async (req, res) => {
   const today = todayIso();
   const from = parseDateToIso(req.query.from || '', today);
   const to = parseDateToIso(req.query.to || '', today);
-  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const salesRepIds = parseSalesRepIdsQuery(req.query);
   const customerIds = parseCustomerIdsQuery(req.query);
   const method = String(req.query.method || '').toUpperCase();
   const status = String(req.query.status || '');
-  const rows = await masters.reportVisits({ from, to, salesRepId, customerIds, method, status });
+  const rows = await masters.reportVisits({ from, to, salesRepIds, customerIds, method, status });
   res.json({ ok: true, from, to, rows, totals: visitTotals(rows) });
 });
 
@@ -1855,7 +1866,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const today = todayIso();
   const from = parseDateToIso(req.query.from || '', today);
   const to = parseDateToIso(req.query.to || '', today);
-  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const salesRepIds = parseSalesRepIdsQuery(req.query);
+  const salesRepId = salesRepIds.length === 1 ? salesRepIds[0] : 0;
   const customerIds = parseCustomerIdsQuery(req.query);
   const customerId = customerIds.length === 1 ? customerIds[0] : 0;
   const method = String(req.query.method || '').toUpperCase();
@@ -1866,14 +1878,14 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const rowsForPicker = await masters.reportVisits({
     from,
     to,
-    salesRepId,
+    salesRepIds,
     method,
     status,
     limit: 1500,
   });
   const rows =
     customerIds.length > 0
-      ? await masters.reportVisits({ from, to, salesRepId, customerIds, method, status })
+      ? await masters.reportVisits({ from, to, salesRepIds, customerIds, method, status })
       : rowsForPicker;
 
   function fmtTs(v) {
@@ -1919,13 +1931,34 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     return ui.statusPill('info', 'داخل الزيارة');
   }
 
-  const repOpts = reps
-    .map(
-      (r) =>
-        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${esc(
-          r.name_ar || ''
-        )}</option>`
-    )
+  const selectedRepSet = new Set(salesRepIds);
+  const selectedRepCount = salesRepIds.length;
+  const repToggleLabel =
+    selectedRepCount < 1
+      ? '— الكل —'
+      : selectedRepCount === 1
+        ? (() => {
+            const r = reps.find((x) => Number(x.id) === salesRepIds[0]);
+            return r ? String(r.name_ar || `#${salesRepIds[0]}`) : 'مندوب واحد';
+          })()
+        : `${selectedRepCount} مندوبون محددون`;
+  const repsJson = JSON.stringify(
+    (reps || []).map((r) => ({
+      id: Number(r.id) || 0,
+      name: String(r.name_ar || ''),
+      code: String(r.code || ''),
+    }))
+  ).replace(/</g, '\\u003c');
+  const repCheckHtml = (reps || [])
+    .map((r) => {
+      const id = Number(r.id) || 0;
+      const label = String(r.name_ar || `#${id}`);
+      const checked = selectedRepSet.has(id) ? ' checked' : '';
+      return `<label class="hx-cust-check-item">
+        <input type="checkbox" class="hx-rep-one" value="${id}"${checked}>
+        <span>${esc(label)}</span>
+      </label>`;
+    })
     .join('');
 
   /* عملاء قائمة الاختيار = كل عملاء زيارات الفترة (بدون فلتر العميل) */
@@ -1982,7 +2015,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     .join('');
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
-  const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
+  const groupByRep = selectedRepCount !== 1 && uniqueRepIds.length > 1;
   const canDeleteVisits = can(req.session.user, 'action_delete_sales_rep_visit');
   const baseColCount = groupByRep ? 13 : 14;
   const colCount = baseColCount + (canDeleteVisits ? 1 : 0);
@@ -2164,13 +2197,35 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
               <option value="MANUAL" ${method === 'MANUAL' ? 'selected' : ''}>يدوي</option>
             </select>
           </label>
-          <label class="hx-visits-f hx-visits-f--rep">
+          <div class="hx-visits-f hx-visits-f--rep">
             <span class="hx-visits-f-label">المندوب</span>
-            <select class="si-field" name="sales_rep_id">
-              <option value="0">— الكل —</option>
-              ${repOpts}
-            </select>
-          </label>
+            <div class="hx-smart-cust" id="hx-visits-smart-rep">
+              <div id="hx-visits-rep-hidden">
+                ${
+                  selectedRepCount
+                    ? salesRepIds
+                        .map((id) => `<input type="hidden" name="sales_rep_id" value="${id}">`)
+                        .join('')
+                    : ''
+                }
+              </div>
+              <button type="button" class="si-field hx-smart-cust-toggle" id="hx-visits-rep-toggle"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-visits-rep-panel">
+                <span class="hx-smart-cust-toggle-text" id="hx-visits-rep-label">${esc(repToggleLabel)}</span>
+                <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+              </button>
+              <div class="hx-smart-cust-panel" id="hx-visits-rep-panel" hidden>
+                <label class="hx-cust-check-item hx-cust-check-item--all">
+                  <input type="checkbox" id="hx-rep-all" ${selectedRepCount < 1 ? 'checked' : ''}>
+                  <span>تحديد الكل</span>
+                </label>
+                <div class="hx-smart-cust-list" id="hx-visits-rep-list" role="group">
+                  ${repCheckHtml || '<div class="hx-smart-cust-empty">لا يوجد مندوبون.</div>'}
+                </div>
+              </div>
+              <script type="application/json" id="hx-visits-reps-json">${repsJson}</script>
+            </div>
+          </div>
           <div class="hx-visits-f hx-visits-f--customer">
             <span class="hx-visits-f-label">العميل</span>
             <div class="hx-smart-cust" id="hx-visits-smart-cust">
@@ -2267,25 +2322,31 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           }
           function isOpen(){ return custPanel && !custPanel.hidden; }
           function filterSurface(){
-            var wrap = document.getElementById('hx-visits-smart-cust');
+            var wrap = document.getElementById('hx-visits-smart-cust') || document.getElementById('hx-visits-smart-rep');
             return wrap ? wrap.closest('.si-surface') : null;
+          }
+          function syncSurfaceOpenClass(){
+            var surf = filterSurface();
+            if (!surf) return;
+            var anyOpen = (custPanel && !custPanel.hidden) || (repPanel && !repPanel.hidden);
+            if (anyOpen) surf.classList.add('is-cust-open');
+            else surf.classList.remove('is-cust-open');
           }
           function closePanel(){
             if (!custPanel) return;
             custPanel.hidden = true;
             custPanel.setAttribute('hidden','');
             if (custToggle) custToggle.setAttribute('aria-expanded','false');
-            var surf = filterSurface();
-            if (surf) surf.classList.remove('is-cust-open');
+            syncSurfaceOpenClass();
           }
           function openPanel(){
             if (!custPanel) return;
+            closeRepPanel();
             ensureChecksFromTable();
             custPanel.hidden = false;
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded','true');
-            var surf = filterSurface();
-            if (surf) surf.classList.add('is-cust-open');
+            syncSurfaceOpenClass();
           }
           function ensureChecksFromTable(){
             if (!custList) return;
@@ -2363,13 +2424,105 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
                 syncHiddenAndLabel();
               });
             }
-            document.addEventListener('click', function(e){
-              var wrap = document.getElementById('hx-visits-smart-cust');
-              if (!wrap || wrap.contains(e.target)) return;
-              closePanel();
-            });
             syncHiddenAndLabel();
           }
+
+          /* قائمة مندوب متعددة الاختيار (checkboxes) */
+          var repToggle = document.getElementById('hx-visits-rep-toggle');
+          var repLabelEl = document.getElementById('hx-visits-rep-label');
+          var repPanel = document.getElementById('hx-visits-rep-panel');
+          var repList = document.getElementById('hx-visits-rep-list');
+          var repAllCb = document.getElementById('hx-rep-all');
+          var repHidden = document.getElementById('hx-visits-rep-hidden');
+          var repAll = [];
+          try {
+            var rawRep = document.getElementById('hx-visits-reps-json');
+            repAll = rawRep ? JSON.parse(rawRep.textContent || '[]') : [];
+          } catch (e2) { repAll = []; }
+          if (!Array.isArray(repAll)) repAll = [];
+          function repNameById(id){
+            for (var i = 0; i < repAll.length; i++){
+              if (Number(repAll[i].id) === Number(id)) return repAll[i].name || ('#' + id);
+            }
+            return 'مندوب';
+          }
+          function isRepOpen(){ return repPanel && !repPanel.hidden; }
+          function closeRepPanel(){
+            if (!repPanel) return;
+            repPanel.hidden = true;
+            repPanel.setAttribute('hidden','');
+            if (repToggle) repToggle.setAttribute('aria-expanded','false');
+            syncSurfaceOpenClass();
+          }
+          function openRepPanel(){
+            if (!repPanel) return;
+            closePanel();
+            repPanel.hidden = false;
+            repPanel.removeAttribute('hidden');
+            if (repToggle) repToggle.setAttribute('aria-expanded','true');
+            syncSurfaceOpenClass();
+          }
+          function selectedReps(){
+            if (!repList) return [];
+            return Array.prototype.slice.call(repList.querySelectorAll('.hx-rep-one:checked'))
+              .map(function(el){ return Number(el.value)||0; })
+              .filter(function(id){ return id > 0; });
+          }
+          function syncRepHiddenAndLabel(){
+            var ids = selectedReps();
+            if (repAllCb && ids.length < 1) repAllCb.checked = true;
+            if (repAllCb && ids.length > 0) repAllCb.checked = false;
+            var allOn = !!(repAllCb && repAllCb.checked);
+            if (repHidden){
+              repHidden.innerHTML = '';
+              if (!allOn){
+                ids.forEach(function(id){
+                  var inp = document.createElement('input');
+                  inp.type = 'hidden';
+                  inp.name = 'sales_rep_id';
+                  inp.value = String(id);
+                  repHidden.appendChild(inp);
+                });
+              }
+            }
+            if (repLabelEl){
+              if (allOn || ids.length < 1) repLabelEl.textContent = '— الكل —';
+              else if (ids.length === 1) repLabelEl.textContent = repNameById(ids[0]);
+              else repLabelEl.textContent = ids.length + ' مندوبون محددون';
+            }
+          }
+          if (repToggle && repPanel){
+            repToggle.addEventListener('click', function(e){
+              e.preventDefault();
+              if (isRepOpen()) closeRepPanel();
+              else openRepPanel();
+            });
+            if (repAllCb){
+              repAllCb.addEventListener('change', function(){
+                if (repAllCb.checked && repList){
+                  Array.prototype.forEach.call(repList.querySelectorAll('.hx-rep-one'), function(el){
+                    el.checked = false;
+                  });
+                }
+                syncRepHiddenAndLabel();
+              });
+            }
+            if (repList){
+              repList.addEventListener('change', function(e){
+                if (!e.target || !e.target.classList || !e.target.classList.contains('hx-rep-one')) return;
+                if (e.target.checked && repAllCb) repAllCb.checked = false;
+                syncRepHiddenAndLabel();
+              });
+            }
+            syncRepHiddenAndLabel();
+          }
+
+          document.addEventListener('click', function(e){
+            var custWrap = document.getElementById('hx-visits-smart-cust');
+            var repWrap = document.getElementById('hx-visits-smart-rep');
+            if (custWrap && !custWrap.contains(e.target)) closePanel();
+            if (repWrap && !repWrap.contains(e.target)) closeRepPanel();
+          });
         })();
         </script>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">

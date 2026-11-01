@@ -11,7 +11,21 @@ sal_rep_visit_ensure_schema($pdo);
 $today = date('Y-m-d');
 $from = parse_date_to_iso(trim((string) ($_GET['from'] ?? ''))) ?? $today;
 $to = parse_date_to_iso(trim((string) ($_GET['to'] ?? ''))) ?? $today;
-$salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
+$salesRepIds = [];
+$rawRep = $_GET['sales_rep_id'] ?? [];
+if (!is_array($rawRep)) {
+    $rawRep = [$rawRep];
+}
+foreach ($rawRep as $ridRaw) {
+    foreach (explode(',', (string) $ridRaw) as $part) {
+        $rid = (int) trim($part);
+        if ($rid > 0) {
+            $salesRepIds[$rid] = $rid;
+        }
+    }
+}
+$salesRepIds = array_values($salesRepIds);
+$salesRepId = count($salesRepIds) === 1 ? $salesRepIds[0] : 0;
 $customerIds = [];
 $rawCust = $_GET['customer_id'] ?? [];
 if (!is_array($rawCust)) {
@@ -56,7 +70,7 @@ try {
 $rowsForPicker = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
-    'sales_rep_id' => $salesRepId,
+    'sales_rep_ids' => $salesRepIds,
     'method' => $method,
     'status' => $status,
     'limit' => 1500,
@@ -65,7 +79,7 @@ $rows = $customerIds !== []
     ? sal_rep_visit_report_rows($pdo, [
         'from' => $from,
         'to' => $to,
-        'sales_rep_id' => $salesRepId,
+        'sales_rep_ids' => $salesRepIds,
         'customer_ids' => $customerIds,
         'method' => $method,
         'status' => $status,
@@ -80,7 +94,7 @@ foreach ($rows as $r) {
         $uniqueRepIds[$rid] = true;
     }
 }
-$groupByRep = $salesRepId < 1 && count($uniqueRepIds) > 1;
+$groupByRep = count($salesRepIds) !== 1 && count($uniqueRepIds) > 1;
 $colCount = $groupByRep ? 12 : 13;
 $grandTotals = sal_rep_visit_report_totals($rows);
 $livePoll = $from <= date('Y-m-d') && $to >= date('Y-m-d');
@@ -266,17 +280,70 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                     <option value="MANUAL" <?= $method === 'MANUAL' ? 'selected' : '' ?>>يدوي</option>
                 </select>
             </label>
-            <label class="hx-visits-f hx-visits-f--rep">
+            <?php
+            $selectedRepCount = count($salesRepIds);
+            $selectedRepSet = array_fill_keys($salesRepIds, true);
+            if ($selectedRepCount < 1) {
+                $repToggleLabel = '— الكل —';
+            } elseif ($selectedRepCount === 1) {
+                $repToggleLabel = 'مندوب واحد';
+                foreach ($reps as $rep) {
+                    if ((int) ($rep['id'] ?? 0) === $salesRepIds[0]) {
+                        $repToggleLabel = (string) ($rep['name_ar'] ?? 'مندوب واحد');
+                        break;
+                    }
+                }
+            } else {
+                $repToggleLabel = $selectedRepCount . ' مندوبون محددون';
+            }
+            $repsForJs = [];
+            foreach ($reps as $rep) {
+                $repsForJs[] = [
+                    'id' => (int) ($rep['id'] ?? 0),
+                    'name' => (string) ($rep['name_ar'] ?? ''),
+                    'code' => (string) ($rep['code'] ?? ''),
+                ];
+            }
+            $repsJson = json_encode($repsForJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
+            if ($repsJson === false) {
+                $repsJson = '[]';
+            }
+            ?>
+            <div class="hx-visits-f hx-visits-f--rep">
                 <span class="hx-visits-f-label">المندوب</span>
-                <select class="input" name="sales_rep_id">
-                    <option value="0">— الكل —</option>
-                    <?php foreach ($reps as $rep): ?>
-                        <option value="<?= (int) $rep['id'] ?>" <?= $salesRepId === (int) $rep['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) ($rep['name_ar'] ?? '')) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </label>
+                <div class="hx-smart-cust" id="hx-visits-smart-rep">
+                    <div id="hx-visits-rep-hidden">
+                        <?php foreach ($salesRepIds as $rid): ?>
+                            <input type="hidden" name="sales_rep_id" value="<?= (int) $rid ?>">
+                        <?php endforeach; ?>
+                    </div>
+                    <button type="button" class="input hx-smart-cust-toggle" id="hx-visits-rep-toggle"
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-visits-rep-panel">
+                        <span class="hx-smart-cust-toggle-text" id="hx-visits-rep-label"><?= esc($repToggleLabel) ?></span>
+                        <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="hx-smart-cust-panel" id="hx-visits-rep-panel" hidden>
+                        <label class="hx-cust-check-item hx-cust-check-item--all">
+                            <input type="checkbox" id="hx-rep-all" <?= $selectedRepCount < 1 ? 'checked' : '' ?>>
+                            <span>تحديد الكل</span>
+                        </label>
+                        <div class="hx-smart-cust-list" id="hx-visits-rep-list" role="group">
+                            <?php if ($reps === []): ?>
+                                <div class="hx-smart-cust-empty">لا يوجد مندوبون.</div>
+                            <?php else: ?>
+                                <?php foreach ($reps as $rep): ?>
+                                    <?php $rid = (int) ($rep['id'] ?? 0); ?>
+                                    <label class="hx-cust-check-item">
+                                        <input type="checkbox" class="hx-rep-one" value="<?= $rid ?>" <?= isset($selectedRepSet[$rid]) ? 'checked' : '' ?>>
+                                        <span><?= esc((string) ($rep['name_ar'] ?? '')) ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <script type="application/json" id="hx-visits-reps-json"><?= $repsJson ?></script>
+                </div>
+            </div>
             <?php
             $customerMap = [];
             foreach ($customers as $cust) {
@@ -422,25 +489,31 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
           }
           function isOpen() { return custPanel && !custPanel.hidden; }
           function filterSurface() {
-            var wrap = document.getElementById('hx-visits-smart-cust');
+            var wrap = document.getElementById('hx-visits-smart-cust') || document.getElementById('hx-visits-smart-rep');
             return wrap ? wrap.closest('.si-surface, .report-filters, header, .report-sales-page') : null;
+          }
+          function syncSurfaceOpenClass() {
+            var surf = filterSurface();
+            if (!surf) return;
+            var anyOpen = (custPanel && !custPanel.hidden) || (repPanel && !repPanel.hidden);
+            if (anyOpen) surf.classList.add('is-cust-open');
+            else surf.classList.remove('is-cust-open');
           }
           function closePanel() {
             if (!custPanel) return;
             custPanel.hidden = true;
             custPanel.setAttribute('hidden', '');
             if (custToggle) custToggle.setAttribute('aria-expanded', 'false');
-            var surf = filterSurface();
-            if (surf) surf.classList.remove('is-cust-open');
+            syncSurfaceOpenClass();
           }
           function openPanel() {
             if (!custPanel) return;
+            closeRepPanel();
             ensureChecksFromTable();
             custPanel.hidden = false;
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded', 'true');
-            var surf = filterSurface();
-            if (surf) surf.classList.add('is-cust-open');
+            syncSurfaceOpenClass();
           }
           function ensureChecksFromTable() {
             if (!custList) return;
@@ -517,13 +590,104 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                 syncHiddenAndLabel();
               });
             }
-            document.addEventListener('click', function (e) {
-              var wrap = document.getElementById('hx-visits-smart-cust');
-              if (!wrap || wrap.contains(e.target)) return;
-              closePanel();
-            });
             syncHiddenAndLabel();
           }
+
+          var repToggle = document.getElementById('hx-visits-rep-toggle');
+          var repLabelEl = document.getElementById('hx-visits-rep-label');
+          var repPanel = document.getElementById('hx-visits-rep-panel');
+          var repList = document.getElementById('hx-visits-rep-list');
+          var repAllCb = document.getElementById('hx-rep-all');
+          var repHidden = document.getElementById('hx-visits-rep-hidden');
+          var repAll = [];
+          try {
+            var rawRep = document.getElementById('hx-visits-reps-json');
+            repAll = rawRep ? JSON.parse(rawRep.textContent || '[]') : [];
+          } catch (e2) { repAll = []; }
+          if (!Array.isArray(repAll)) repAll = [];
+          function repNameById(id) {
+            for (var i = 0; i < repAll.length; i++) {
+              if (Number(repAll[i].id) === Number(id)) return repAll[i].name || ('#' + id);
+            }
+            return 'مندوب';
+          }
+          function isRepOpen() { return repPanel && !repPanel.hidden; }
+          function closeRepPanel() {
+            if (!repPanel) return;
+            repPanel.hidden = true;
+            repPanel.setAttribute('hidden', '');
+            if (repToggle) repToggle.setAttribute('aria-expanded', 'false');
+            syncSurfaceOpenClass();
+          }
+          function openRepPanel() {
+            if (!repPanel) return;
+            closePanel();
+            repPanel.hidden = false;
+            repPanel.removeAttribute('hidden');
+            if (repToggle) repToggle.setAttribute('aria-expanded', 'true');
+            syncSurfaceOpenClass();
+          }
+          function selectedReps() {
+            if (!repList) return [];
+            return Array.prototype.slice.call(repList.querySelectorAll('.hx-rep-one:checked'))
+              .map(function (el) { return Number(el.value) || 0; })
+              .filter(function (id) { return id > 0; });
+          }
+          function syncRepHiddenAndLabel() {
+            var ids = selectedReps();
+            if (repAllCb && ids.length < 1) repAllCb.checked = true;
+            if (repAllCb && ids.length > 0) repAllCb.checked = false;
+            var allOn = !!(repAllCb && repAllCb.checked);
+            if (repHidden) {
+              repHidden.innerHTML = '';
+              if (!allOn) {
+                ids.forEach(function (id) {
+                  var inp = document.createElement('input');
+                  inp.type = 'hidden';
+                  inp.name = 'sales_rep_id';
+                  inp.value = String(id);
+                  repHidden.appendChild(inp);
+                });
+              }
+            }
+            if (repLabelEl) {
+              if (allOn || ids.length < 1) repLabelEl.textContent = '— الكل —';
+              else if (ids.length === 1) repLabelEl.textContent = repNameById(ids[0]);
+              else repLabelEl.textContent = ids.length + ' مندوبون محددون';
+            }
+          }
+          if (repToggle && repPanel) {
+            repToggle.addEventListener('click', function (e) {
+              e.preventDefault();
+              if (isRepOpen()) closeRepPanel();
+              else openRepPanel();
+            });
+            if (repAllCb) {
+              repAllCb.addEventListener('change', function () {
+                if (repAllCb.checked && repList) {
+                  Array.prototype.forEach.call(repList.querySelectorAll('.hx-rep-one'), function (el) {
+                    el.checked = false;
+                  });
+                }
+                syncRepHiddenAndLabel();
+              });
+            }
+            if (repList) {
+              repList.addEventListener('change', function (e) {
+                if (!e.target || !e.target.classList || !e.target.classList.contains('hx-rep-one')) return;
+                if (e.target.checked && repAllCb) repAllCb.checked = false;
+                syncRepHiddenAndLabel();
+              });
+            }
+            syncRepHiddenAndLabel();
+          }
+
+          document.addEventListener('click', function (e) {
+            var custWrap = document.getElementById('hx-visits-smart-cust');
+            var repWrap = document.getElementById('hx-visits-smart-rep');
+            if (custWrap && !custWrap.contains(e.target)) closePanel();
+            if (repWrap && !repWrap.contains(e.target)) closeRepPanel();
+          });
         })();
         </script>
     </header>

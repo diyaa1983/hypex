@@ -1794,6 +1794,19 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
         $to = '';
     }
     $salesRepId = (int) ($filters['sales_rep_id'] ?? 0);
+    $salesRepIds = [];
+    if (isset($filters['sales_rep_ids']) && is_array($filters['sales_rep_ids'])) {
+        foreach ($filters['sales_rep_ids'] as $ridRaw) {
+            $rid = (int) $ridRaw;
+            if ($rid > 0) {
+                $salesRepIds[$rid] = $rid;
+            }
+        }
+    }
+    $salesRepIds = array_values($salesRepIds);
+    if ($salesRepIds === [] && $salesRepId > 0) {
+        $salesRepIds = [$salesRepId];
+    }
     $customerId = (int) ($filters['customer_id'] ?? 0);
     $customerIds = [];
     if (isset($filters['customer_ids']) && is_array($filters['customer_ids'])) {
@@ -1822,9 +1835,15 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
         $where[] = 'r.route_date <= ?';
         $params[] = $to;
     }
-    if ($salesRepId > 0) {
+    if (count($salesRepIds) === 1) {
         $where[] = 'r.sales_rep_id = ?';
-        $params[] = $salesRepId;
+        $params[] = $salesRepIds[0];
+    } elseif (count($salesRepIds) > 1) {
+        $placeholders = implode(',', array_fill(0, count($salesRepIds), '?'));
+        $where[] = 'r.sales_rep_id IN (' . $placeholders . ')';
+        foreach ($salesRepIds as $rid) {
+            $params[] = $rid;
+        }
     }
     if (count($customerIds) === 1) {
         $where[] = 'l.customer_id = ?';

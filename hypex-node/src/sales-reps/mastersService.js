@@ -1246,6 +1246,7 @@ async function reportVisits({
   from = '',
   to = '',
   salesRepId = 0,
+  salesRepIds = null,
   customerId = 0,
   customerIds = null,
   method = '',
@@ -1263,9 +1264,17 @@ async function reportVisits({
     where.push('r.route_date <= ?');
     params.push(to);
   }
-  if (Number(salesRepId) > 0) {
+  const repIds = Array.isArray(salesRepIds)
+    ? [...new Set(salesRepIds.map((n) => Number(n) || 0).filter((n) => n > 0))]
+    : Number(salesRepId) > 0
+      ? [Number(salesRepId)]
+      : [];
+  if (repIds.length === 1) {
     where.push('r.sales_rep_id = ?');
-    params.push(Number(salesRepId));
+    params.push(repIds[0]);
+  } else if (repIds.length > 1) {
+    where.push(`r.sales_rep_id IN (${repIds.map(() => '?').join(',')})`);
+    params.push(...repIds);
   }
   const custIds = Array.isArray(customerIds)
     ? [...new Set(customerIds.map((n) => Number(n) || 0).filter((n) => n > 0))]

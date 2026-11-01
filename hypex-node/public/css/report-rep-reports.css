@@ -156,7 +156,8 @@
 }
 
 .hx-visits-filters .hx-smart-cust > script,
-.hx-visits-filters #hx-visits-customer-hidden {
+.hx-visits-filters #hx-visits-customer-hidden,
+.hx-visits-filters #hx-visits-rep-hidden {
   display: none !important;
 }
 
@@ -251,6 +252,11 @@
 .si-report-page.si-report-visits .si-surface.no-print.is-cust-open,
 .si-stage.si-report-visits > .si-surface.no-print.is-cust-open {
   z-index: 200 !important;
+}
+
+.hx-visits-filters .hx-visits-f--rep,
+.hx-visits-filters .hx-visits-f--customer {
+  overflow: visible !important;
 }
 
 .si-report-page.si-report-visits .si-print-area,
