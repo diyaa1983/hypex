@@ -351,12 +351,17 @@ class CustomerOrderBluetoothReceipt {
           brandHeader,
           pw.SizedBox(height: 8),
           pw.Text(
-            'رقم الطلب: ${Fmt.str(order['order_no']).isEmpty ? '—' : Fmt.str(order['order_no'])}'
-            '   التاريخ: ${Fmt.dmy(Fmt.str(order['order_date']))}'
-            '${Fmt.str(order['delivery_date']).trim().isEmpty ? '' : '   تاريخ التسليم: ${Fmt.dmy(Fmt.str(order['delivery_date']))}'}'
-            '   العميل: ${Fmt.str(order['customer_name'])}'
-            '${salesRep.isEmpty ? '' : '   المندوب: $salesRep'}'
-            '   النوع: ${Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم'}',
+            () {
+              final code = Fmt.str(order['customer_code']).trim();
+              final wh = Fmt.str(order['warehouse_name']).trim();
+              return 'رقم الطلب: ${Fmt.str(order['order_no']).isEmpty ? '—' : Fmt.str(order['order_no'])}'
+                  '   التاريخ: ${Fmt.dmy(Fmt.str(order['order_date']))}'
+                  '${Fmt.str(order['delivery_date']).trim().isEmpty ? '' : '   تاريخ التسليم: ${Fmt.dmy(Fmt.str(order['delivery_date']))}'}'
+                  '   العميل: ${Fmt.str(order['customer_name'])}${code.isEmpty ? '' : ' ($code)'}'
+                  '${salesRep.isEmpty ? '' : '   المندوب: $salesRep'}'
+                  '${wh.isEmpty ? '' : '   المستودع: $wh'}'
+                  '   النوع: ${Fmt.str(order['payment_type']) == 'cash' ? 'نقدي' : 'ذمم'}';
+            }(),
             style: pw.TextStyle(font: bold, fontSize: 10),
           ),
           if (Fmt.str(order['notes']).trim().isNotEmpty) ...[
@@ -396,17 +401,23 @@ class CustomerOrderBluetoothReceipt {
                           0
                       ? Fmt.toDouble(line['unit_price_inclusive'])
                       : price * (1 + taxP / 100);
+                  String qtyLabel(dynamic raw) {
+                    final s = Fmt.str(raw).trim();
+                    if (s.isNotEmpty && double.tryParse(s) == null) return s;
+                    final n = Fmt.toDouble(raw);
+                    return n > 0 ? Fmt.trimNum(n) : '—';
+                  }
+
                   return pw.TableRow(
                     decoration: pw.BoxDecoration(
                       color: i.isOdd ? PdfColors.grey100 : PdfColors.white,
                     ),
                     children: rtlCells([
                       td('${i + 1}', ltr: true),
-                      td(Fmt.str(line['item_name'])),
-                      td(Fmt.str(line['unit_name'])),
-                      td(Fmt.trimNum(Fmt.toDouble(line['qty'])), ltr: true),
-                      td(Fmt.trimNum(Fmt.toDouble(line['qty_extra'])),
-                          ltr: true),
+                      td(Fmt.str(line['item_name'] ?? line['name'])),
+                      td(Fmt.str(line['unit_name'] ?? line['unit'])),
+                      td(qtyLabel(line['qty']), ltr: true),
+                      td(qtyLabel(line['qty_extra']), ltr: true),
                       td(Fmt.money(price), ltr: true),
                       td(Fmt.money(priceInc), ltr: true),
                       td('${Fmt.trimNum(Fmt.toDouble(line['discount_pct']))}%',

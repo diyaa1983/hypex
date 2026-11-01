@@ -222,23 +222,145 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
     );
   }
 
-  Future<void> _sharePdf() async {
-    await DocumentPrintHelper.sharePdfFromApi(
-      context,
-      apiPath: AppConfig.customerOrderPdfPath,
-      query: {'id': widget.orderId},
-      fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+  /// بيانات كاملة للـ PDF (رأس + بنود + مجاميع).
+  Map<String, dynamic> _pdfOrderData() {
+    final rawLines =
+        (_order['lines'] as List? ?? _order['items'] as List? ?? []);
+    final lines = <Map<String, dynamic>>[];
+    var sub = 0.0;
+    var disc = 0.0;
+    var tax = 0.0;
+    var gross = 0.0;
+    for (final raw in rawLines) {
+      if (raw is! Map) continue;
+      final m = raw.cast<String, dynamic>();
+      final qty = Fmt.toDouble(m['qty']);
+      final price = Fmt.toDouble(m['unit_price'] ?? m['price']);
+      final discPct = Fmt.toDouble(m['discount_pct']);
+      final taxP = Fmt.toDouble(m['tax_rate_percent']);
+      final lineGross = Fmt.toDouble(
+        m['line_gross'] ??
+            m['line_total'] ??
+            (qty * price * (1 - discPct / 100) * (1 + taxP / 100)),
+      );
+      final lineNet = Fmt.toDouble(
+        m['line_net'] ??
+            m['line_subtotal'] ??
+            (qty * price * (1 - discPct / 100)),
+      );
+      final lineTax = Fmt.toDouble(m['tax_amount'] ?? (lineGross - lineNet));
+      final lineDisc = Fmt.toDouble(
+        m['discount_amount'] ?? (qty * price * discPct / 100),
+      );
+      sub += lineNet;
+      disc += lineDisc;
+      tax += lineTax;
+      gross += lineGross;
+      final unitName = Fmt.str(m['unit_name'] ?? m['unit']);
+      final qtyLabel = Fmt.str(m['qty_label']).trim().isNotEmpty
+          ? Fmt.str(m['qty_label']).trim()
+          : (qty > 0
+              ? '${Fmt.trimNum(qty)}${unitName.isEmpty ? '' : ' $unitName'}'
+              : '');
+      final extra = Fmt.toDouble(m['qty_extra']);
+      final extraLabel = Fmt.str(m['qty_extra_label']).trim().isNotEmpty
+          ? Fmt.str(m['qty_extra_label']).trim()
+          : (extra > 0
+              ? '${Fmt.trimNum(extra)}${unitName.isEmpty ? '' : ' $unitName'}'
+              : '');
+      lines.add({
+        'item_name': m['item_name'] ?? m['name'],
+        'unit_name': unitName,
+        'qty': qtyLabel.isEmpty ? qty : qtyLabel,
+        'qty_extra': extraLabel.isEmpty ? extra : extraLabel,
+        'unit_price': price,
+        'unit_price_inclusive': Fmt.toDouble(m['unit_price_inclusive']) > 0
+            ? Fmt.toDouble(m['unit_price_inclusive'])
+            : price * (1 + taxP / 100),
+        'tax_rate_percent': taxP,
+        'discount_pct': discPct,
+        'line_total': lineGross,
+        'line_gross': lineGross,
+      });
+    }
+    final orderSub = Fmt.toDouble(_order['subtotal']);
+    final orderDisc = Fmt.toDouble(_order['discount_total']);
+    final orderTax = Fmt.toDouble(_order['tax_total']);
+    final orderGrand = Fmt.toDouble(
+      _order['grand_total'] ?? _order['total'] ?? _order['net_total'],
     );
+    return {
+      ..._order,
+      'order_no': _order['order_no'],
+      'order_date': _order['order_date'],
+      'delivery_date': _order['delivery_date'],
+      'customer_name': _order['customer_name'],
+      'customer_code': _order['customer_code'],
+      'warehouse_name': _order['warehouse_name'],
+      'sales_rep_name': _order['sales_rep_name'] ??
+          _order['sales_rep'] ??
+          _order['rep_name'],
+      'payment_type': _order['payment_type'],
+      'notes': _order['notes'],
+      'company_name': _order['company_name'],
+      'logo_url': _order['logo_url'],
+      'subtotal': orderSub > 0 ? orderSub : sub,
+      'discount_total': orderDisc > 0 ? orderDisc : disc,
+      'tax_total': orderTax > 0 ? orderTax : tax,
+      'grand_total': orderGrand > 0 ? orderGrand : gross,
+      'lines': lines,
+    };
+  }
+
+  Future<void> _sharePdf() async {
+    showSnack(context, 'جاري تجهيز PDF...');
+    try {
+      final bytes =
+          await CustomerOrderBluetoothReceipt.buildA4Pdf(_pdfOrderData());
+      if (!mounted) return;
+      await DocumentPrintHelper.sharePdfBytes(
+        bytes,
+        fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+        context: context,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // احتياط: مشاركة PDF من السيرفر
+      await DocumentPrintHelper.sharePdfFromApi(
+        context,
+        apiPath: AppConfig.customerOrderPdfPath,
+        query: {'id': widget.orderId},
+        fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+      );
+    }
   }
 
   Future<void> _openPdf() async {
-    await DocumentPrintHelper.openPdfFromApi(
-      context,
-      apiPath: AppConfig.customerOrderPdfPath,
-      query: {'id': widget.orderId},
-      title: 'طلب شراء',
-      fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
-    );
+    showSnack(context, 'جاري تجهيز PDF...');
+    try {
+      final bytes =
+          await CustomerOrderBluetoothReceipt.buildA4Pdf(_pdfOrderData());
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'طلب شراء',
+        fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      try {
+        await DocumentPrintHelper.openPdfFromApi(
+          context,
+          apiPath: AppConfig.customerOrderPdfPath,
+          query: {'id': widget.orderId},
+          title: 'طلب شراء',
+          fileName: 'طلب شراء - ${Fmt.str(_order['order_no'])}',
+        );
+      } catch (e2) {
+        if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e2', error: true);
+      }
+    }
   }
 
   Future<void> _preview() async {

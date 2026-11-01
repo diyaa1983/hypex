@@ -8,6 +8,8 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
+import '../../services/customer_order_bluetooth_receipt.dart';
+import '../../services/document_print_helper.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/list_page_bar.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -125,6 +127,133 @@ class _CustomerOrdersSentScreenState extends State<CustomerOrdersSentScreen> {
     _load();
   }
 
+  Future<Map<String, dynamic>?> _fetchOrder(int id) async {
+    final offline = context.read<OfflineController>();
+    if (!offline.online && offline.catalogReady) {
+      return OfflineStore.instance.getOrderById(id);
+    }
+    try {
+      final res = await context.read<ApiClient>().getJson(
+            AppConfig.customerOrderViewPath,
+            query: {'id': id},
+          );
+      return (res['order'] as Map?)?.cast<String, dynamic>() ??
+          res.cast<String, dynamic>();
+    } on ApiException {
+      if (offline.catalogReady) {
+        return OfflineStore.instance.getOrderById(id);
+      }
+      rethrow;
+    }
+  }
+
+  Map<String, dynamic> _pdfPayload(Map<String, dynamic> order) {
+    final rawLines = (order['lines'] as List? ?? order['items'] as List? ?? []);
+    final lines = <Map<String, dynamic>>[];
+    var sub = 0.0, disc = 0.0, tax = 0.0, gross = 0.0;
+    for (final raw in rawLines) {
+      if (raw is! Map) continue;
+      final m = raw.cast<String, dynamic>();
+      final qty = Fmt.toDouble(m['qty']);
+      final price = Fmt.toDouble(m['unit_price'] ?? m['price']);
+      final discPct = Fmt.toDouble(m['discount_pct']);
+      final taxP = Fmt.toDouble(m['tax_rate_percent']);
+      final lineGross = Fmt.toDouble(
+        m['line_gross'] ??
+            m['line_total'] ??
+            (qty * price * (1 - discPct / 100) * (1 + taxP / 100)),
+      );
+      final lineNet = Fmt.toDouble(
+        m['line_net'] ??
+            m['line_subtotal'] ??
+            (qty * price * (1 - discPct / 100)),
+      );
+      final lineTax = Fmt.toDouble(m['tax_amount'] ?? (lineGross - lineNet));
+      final lineDisc = Fmt.toDouble(
+        m['discount_amount'] ?? (qty * price * discPct / 100),
+      );
+      sub += lineNet;
+      disc += lineDisc;
+      tax += lineTax;
+      gross += lineGross;
+      final unitName = Fmt.str(m['unit_name'] ?? m['unit']);
+      lines.add({
+        'item_name': m['item_name'] ?? m['name'],
+        'unit_name': unitName,
+        'qty': qty > 0
+            ? '${Fmt.trimNum(qty)}${unitName.isEmpty ? '' : ' $unitName'}'
+            : qty,
+        'qty_extra': Fmt.toDouble(m['qty_extra']) > 0
+            ? '${Fmt.trimNum(Fmt.toDouble(m['qty_extra']))}${unitName.isEmpty ? '' : ' $unitName'}'
+            : m['qty_extra'],
+        'unit_price': price,
+        'unit_price_inclusive': Fmt.toDouble(m['unit_price_inclusive']) > 0
+            ? Fmt.toDouble(m['unit_price_inclusive'])
+            : price * (1 + taxP / 100),
+        'tax_rate_percent': taxP,
+        'discount_pct': discPct,
+        'line_total': lineGross,
+        'line_gross': lineGross,
+      });
+    }
+    final orderGrand = Fmt.toDouble(
+      order['grand_total'] ?? order['total'] ?? order['net_total'],
+    );
+    return {
+      ...order,
+      'subtotal': Fmt.toDouble(order['subtotal']) > 0
+          ? Fmt.toDouble(order['subtotal'])
+          : sub,
+      'discount_total': Fmt.toDouble(order['discount_total']) > 0
+          ? Fmt.toDouble(order['discount_total'])
+          : disc,
+      'tax_total':
+          Fmt.toDouble(order['tax_total']) > 0 ? Fmt.toDouble(order['tax_total']) : tax,
+      'grand_total': orderGrand > 0 ? orderGrand : gross,
+      'lines': lines,
+    };
+  }
+
+  Future<void> _openOrderPdf(Map<String, dynamic> row) async {
+    final id = Fmt.toInt(row['id']);
+    if (id == 0) {
+      showSnack(context, 'رقم الطلب غير صالح.', error: true);
+      return;
+    }
+    showSnack(context, 'جاري تجهيز PDF...');
+    try {
+      final order = await _fetchOrder(id);
+      if (!mounted) return;
+      if (order == null) {
+        showSnack(context, 'تعذر تحميل بيانات الطلب.', error: true);
+        return;
+      }
+      final bytes = await CustomerOrderBluetoothReceipt.buildA4Pdf(
+        _pdfPayload(order),
+      );
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'طلب شراء',
+        fileName: 'طلب شراء - ${Fmt.str(order['order_no']).isEmpty ? id : Fmt.str(order['order_no'])}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      try {
+        await DocumentPrintHelper.openPdfFromApi(
+          context,
+          apiPath: AppConfig.customerOrderPdfPath,
+          query: {'id': id},
+          title: 'طلب شراء',
+          fileName: 'طلب شراء - ${Fmt.str(row['order_no'])}',
+        );
+      } catch (e2) {
+        if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e2', error: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MobileScaffold(
@@ -223,6 +352,14 @@ class _CustomerOrdersSentScreenState extends State<CustomerOrdersSentScreen> {
                                         ),
                                       ),
                                     ],
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'PDF',
+                                  onPressed: () => _openOrderPdf(o),
+                                  icon: const Icon(
+                                    Icons.picture_as_pdf_outlined,
+                                    color: Color(0xFFC62828),
                                   ),
                                 ),
                                 const Icon(
