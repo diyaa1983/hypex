@@ -2126,14 +2126,14 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           <div class="hx-visits-f hx-visits-f--customer">
             <span class="hx-visits-f-label">العميل</span>
             <div class="hx-smart-cust" id="hx-visits-smart-cust">
-              <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-customer-q"
-                placeholder="ابحث بالاسم أو الرمز…" autocomplete="off"
-                aria-controls="hx-visits-customer-id">
               <select class="si-field" name="customer_id" id="hx-visits-customer-id"
                 aria-label="العميل">
                 <option value="0"${customerId ? '' : ' selected'}>— الكل —</option>
                 ${custOptsHtml}
               </select>
+              <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-customer-q"
+                placeholder="بحث…" autocomplete="off" title="بحث بالاسم أو الرمز"
+                aria-controls="hx-visits-customer-id">
               <script type="application/json" id="hx-visits-customers-json">${customersJson}</script>
             </div>
           </div>

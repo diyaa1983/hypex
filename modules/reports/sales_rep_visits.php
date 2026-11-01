@@ -290,9 +290,6 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             <div class="hx-visits-f hx-visits-f--customer">
                 <span class="hx-visits-f-label">العميل</span>
                 <div class="hx-smart-cust" id="hx-visits-smart-cust">
-                    <input class="input hx-smart-cust-search" type="search" id="hx-visits-customer-q"
-                        placeholder="ابحث بالاسم أو الرمز…" autocomplete="off"
-                        aria-controls="hx-visits-customer-id">
                     <select class="input" name="customer_id" id="hx-visits-customer-id" aria-label="العميل">
                         <option value="0" <?= $customerId < 1 ? 'selected' : '' ?>>— الكل —</option>
                         <?php foreach ($customersForJs as $cust): ?>
@@ -309,6 +306,9 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                             <option value="<?= $cid ?>" <?= $customerId === $cid ? 'selected' : '' ?>><?= esc($clabel) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <input class="input hx-smart-cust-search" type="search" id="hx-visits-customer-q"
+                        placeholder="بحث…" autocomplete="off" title="بحث بالاسم أو الرمز"
+                        aria-controls="hx-visits-customer-id">
                     <script type="application/json" id="hx-visits-customers-json"><?= $customersJson ?></script>
                 </div>
             </div>

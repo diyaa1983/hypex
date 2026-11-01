@@ -45,27 +45,37 @@
   min-width: 9rem;
 }
 
-/* قائمة عميل: بحث ذكي فوق select بأسماء ظاهرة */
+/* قائمة عميل: select بأسماء + بحث ذكي بجانبه في نفس الارتفاع */
 .hx-visits-filters .hx-smart-cust {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.3rem;
   width: 100%;
   min-width: 0;
 }
 
-.hx-visits-filters .hx-smart-cust-search {
-  width: 100%;
-  order: 0;
+.hx-visits-filters .hx-smart-cust > select {
+  flex: 1 1 62%;
+  min-width: 6rem;
+  width: auto;
+  order: 1;
 }
 
-.hx-visits-filters .hx-smart-cust > select {
-  width: 100%;
-  order: 1;
+.hx-visits-filters .hx-smart-cust-search {
+  flex: 0 1 38%;
+  min-width: 4rem;
+  width: auto;
+  order: 2;
 }
 
 .hx-visits-filters .hx-smart-cust > script {
   display: none !important;
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .hx-visits-filters .hx-visits-f-label {
