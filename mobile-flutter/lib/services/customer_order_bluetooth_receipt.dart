@@ -325,7 +325,7 @@ class CustomerOrderBluetoothReceipt {
         );
 
     // الجدول LTR داخلياً → نعكس الخلايا ليُقرأ من اليمين:
-    // تسلسل | المادة | الوحدة | الكمية | إضافي | السعر غ ش | السعر ش | الخصم | الضريبة | المجموع
+    // تسلسل | المادة | الوحدة | الكمية | إضافي | سعر ق غ.ش | سعر ق شامل | الخصم | الضريبة | المجموع
     List<pw.Widget> rtlCells(List<pw.Widget> cells) => cells.reversed.toList();
     final headers = rtlCells([
       th('تسلسل'),
@@ -333,8 +333,8 @@ class CustomerOrderBluetoothReceipt {
       th('الوحدة'),
       th('الكمية'),
       th('إضافي'),
-      th('السعر غ ش'),
-      th('السعر ش'),
+      th('سعر ق غ.ش'),
+      th('سعر ق شامل'),
       th('الخصم'),
       th('الضريبة'),
       th('المجموع'),

@@ -236,8 +236,21 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       final m = raw.cast<String, dynamic>();
       final qty = Fmt.toDouble(m['qty']);
       final price = Fmt.toDouble(m['unit_price'] ?? m['price']);
-      final discPct = Fmt.toDouble(m['discount_pct']);
+      final factor = Fmt.toDouble(m['unit_factor'] ?? 1);
+      final unitName = Fmt.str(m['unit_name'] ?? m['unit']);
+      final isCarton = factor > 1.001 || unitName.contains('كرتون');
+      // سعر القطعة غ.ش / شامل — يُشتق من الكرتونة إن لزم
+      var pieceEx = isCarton
+          ? (factor > 1.001 ? price / factor : 0.0)
+          : price;
+      if (Fmt.toDouble(m['piece_price']) > 0) {
+        pieceEx = Fmt.toDouble(m['piece_price']);
+      }
       final taxP = Fmt.toDouble(m['tax_rate_percent']);
+      final pieceInc = Fmt.toDouble(m['unit_price_inclusive']) > 0 && !isCarton
+          ? Fmt.toDouble(m['unit_price_inclusive'])
+          : pieceEx * (1 + taxP / 100);
+      final discPct = Fmt.toDouble(m['discount_pct']);
       final lineGross = Fmt.toDouble(
         m['line_gross'] ??
             m['line_total'] ??
@@ -256,7 +269,6 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
       disc += lineDisc;
       tax += lineTax;
       gross += lineGross;
-      final unitName = Fmt.str(m['unit_name'] ?? m['unit']);
       final qtyLabel = Fmt.str(m['qty_label']).trim().isNotEmpty
           ? Fmt.str(m['qty_label']).trim()
           : (qty > 0
@@ -273,10 +285,8 @@ class _CustomerOrderViewScreenState extends State<CustomerOrderViewScreen> {
         'unit_name': unitName,
         'qty': qtyLabel.isEmpty ? qty : qtyLabel,
         'qty_extra': extraLabel.isEmpty ? extra : extraLabel,
-        'unit_price': price,
-        'unit_price_inclusive': Fmt.toDouble(m['unit_price_inclusive']) > 0
-            ? Fmt.toDouble(m['unit_price_inclusive'])
-            : price * (1 + taxP / 100),
+        'unit_price': pieceEx,
+        'unit_price_inclusive': pieceInc,
         'tax_rate_percent': taxP,
         'discount_pct': discPct,
         'line_total': lineGross,

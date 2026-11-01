@@ -31,18 +31,28 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
         $qty = (float) ($ln['qty'] ?? 0);
         $qtyExtra = (float) ($ln['qty_extra'] ?? 0);
         $price = (float) ($ln['unit_price'] ?? 0);
+        $factor = (float) ($ln['unit_factor'] ?? 1);
+        $unitName = (string) ($ln['unit_name'] ?? $ln['unit_code'] ?? '');
+        $isCarton = $factor > 1.001 || mb_strpos($unitName, 'كرتون') !== false;
+        // سعر القطعة غ.ش / شامل
+        $pieceEx = $isCarton
+            ? ($factor > 1.001 ? $price / $factor : 0.0)
+            : $price;
+        if ((float) ($ln['piece_price'] ?? 0) > 0) {
+            $pieceEx = (float) $ln['piece_price'];
+        }
         $taxP = (float) ($ln['tax_rate_percent'] ?? 0);
-        $priceInc = $price * (1 + $taxP / 100);
+        $pieceInc = $pieceEx * (1 + $taxP / 100);
         $disc = (float) ($ln['discount_pct'] ?? 0);
         $gross = (float) ($ln['line_gross'] ?? $ln['line_total'] ?? 0);
         $rowsHtml .= '<tr>'
             . '<td>' . $i . '</td>'
             . '<td style="text-align:right">' . esc((string) ($ln['item_name'] ?? '')) . '</td>'
-            . '<td>' . esc((string) ($ln['unit_name'] ?? $ln['unit_code'] ?? '')) . '</td>'
+            . '<td>' . esc($unitName) . '</td>'
             . '<td dir="ltr">' . esc(number_format($qty, 0, '.', '')) . '</td>'
             . '<td dir="ltr">' . esc(number_format($qtyExtra, 0, '.', '')) . '</td>'
-            . '<td dir="ltr">' . esc(number_format($price, 3, '.', ',')) . '</td>'
-            . '<td dir="ltr">' . esc(number_format($priceInc, 3, '.', ',')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($pieceEx, 3, '.', ',')) . '</td>'
+            . '<td dir="ltr">' . esc(number_format($pieceInc, 3, '.', ',')) . '</td>'
             . '<td dir="ltr">' . esc(number_format($disc, 2, '.', '') . '%') . '</td>'
             . '<td dir="ltr">' . esc(number_format($taxP, 2, '.', '') . '%') . '</td>'
             . '<td dir="ltr">' . esc(number_format($gross, 3, '.', ',')) . '</td>'
@@ -75,7 +85,7 @@ function mobile_customer_order_print_html(PDO $pdo, array $order): string
         . '</div>'
         . '<table><thead><tr>'
         . '<th>تسلسل</th><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>إضافي</th>'
-        . '<th>السعر غ ش</th><th>السعر ش</th><th>الخصم</th><th>الضريبة</th><th>المجموع</th>'
+        . '<th>سعر ق غ.ش</th><th>سعر ق شامل</th><th>الخصم</th><th>الضريبة</th><th>المجموع</th>'
         . '</tr></thead><tbody>' . $rowsHtml . '</tbody></table>'
         . '<table class="totals"><tr><td class="lbl">المجموع</td><td class="val">' . $subtotal . '</td></tr>'
         . '<tr><td class="lbl">الخصم</td><td class="val">' . $discount . '</td></tr>'

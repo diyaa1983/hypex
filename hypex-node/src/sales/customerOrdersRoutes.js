@@ -249,6 +249,7 @@ function groupOrderPrintLines(lines) {
         pieceExtra: 0,
         cartonPrice: 0,
         piecePrice: 0,
+        packFactor: 0,
         unit_price: ln.unit_price,
         discount_pct: ln.discount_pct,
         discount_amount: 0,
@@ -261,20 +262,37 @@ function groupOrderPrintLines(lines) {
     }
     const q = Number(ln.qty) || 0;
     const e = Number(ln.qty_extra) || 0;
+    const fac = Number(ln.unit_factor) || 0;
     if (isPackUnit(ln)) {
       g.cartonQty += q;
       g.cartonExtra += e;
-      g.cartonPrice = Number(ln.unit_price) || 0;
+      if ((Number(ln.unit_price) || 0) > 0) g.cartonPrice = Number(ln.unit_price) || 0;
+      if (fac > 1.001) g.packFactor = fac;
     } else {
       g.pieceQty += q;
       g.pieceExtra += e;
-      g.piecePrice = Number(ln.unit_price) || 0;
-      g.unit_price = ln.unit_price;
+      if ((Number(ln.unit_price) || 0) > 0) {
+        g.piecePrice = Number(ln.unit_price) || 0;
+        g.unit_price = ln.unit_price;
+      }
+      if (fac > 0 && fac <= 1.001 && !g.packFactor) {
+        /* معامل القطعة لا يكفي لاشتقاق التعبئة */
+      }
     }
     g.discount_amount += Number(ln.discount_amount) || 0;
     g.tax_amount += Number(ln.tax_amount) || 0;
     g.line_total += Number(ln.line_total) || 0;
     g.line_gross += Number(ln.line_gross) || 0;
+  }
+  // اشتقاق سعر القطعة/الكرتونة الناقص من معامل التعبئة حتى يظهر بالطباعة
+  for (const g of out) {
+    const fac = Number(g.packFactor) || 0;
+    if (g.piecePrice <= 0.0000001 && g.cartonPrice > 0.0000001 && fac > 1.001) {
+      g.piecePrice = g.cartonPrice / fac;
+    }
+    if (g.cartonPrice <= 0.0000001 && g.piecePrice > 0.0000001 && fac > 1.001) {
+      g.cartonPrice = g.piecePrice * fac;
+    }
   }
   return out;
 }
@@ -284,18 +302,18 @@ function printPricePair(cartonEx, pieceEx, taxPct) {
   function inc(ex) {
     return (Number(ex) || 0) * (1 + rate / 100);
   }
-  function cell(kind, amount) {
-    return `<td class="co-print-cell"><i>${kind}</i><b>${esc(fmtAmt(amount || 0))}</b></td>`;
+  function cell(amount) {
+    const n = Number(amount) || 0;
+    const shown = Math.abs(n) < 0.0000001 ? '—' : esc(fmtAmt(n));
+    return `<td class="co-print-cell"><b dir="ltr">${shown}</b></td>`;
   }
   return `<table class="co-print-grid co-print-grid--price">
     <thead>
-      <tr><th colspan="2">كرتونة</th><th colspan="2">قطعة</th></tr>
+      <tr><th colspan="2">سعر الكرتونة</th><th colspan="2">سعر القطعة</th></tr>
+      <tr><th>غ.ش</th><th>شامل</th><th>غ.ش</th><th>شامل</th></tr>
     </thead>
     <tbody>
-      <tr>${cell('غ.ش', cartonEx)}${cell('ش', inc(cartonEx))}${cell('غ.ش', pieceEx)}${cell(
-        'ش',
-        inc(pieceEx)
-      )}</tr>
+      <tr>${cell(cartonEx)}${cell(inc(cartonEx))}${cell(pieceEx)}${cell(inc(pieceEx))}</tr>
     </tbody>
   </table>`;
 }

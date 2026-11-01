@@ -1222,7 +1222,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
                       .map((u) => '${l.qtyFor(u, extra: true)} ${u.name}')
                       .join(' + '),
                   'unit_price': l.piecePrice,
-                  'unit_price_inclusive': l.unitPriceInclusive,
+                  'unit_price_inclusive': l.piecePriceInclusive,
                   'tax_rate_percent': l.taxRatePercent,
                   'tax_amount': l.taxAmount,
                   'discount_pct': l.discountPct,
