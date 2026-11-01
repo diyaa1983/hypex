@@ -219,17 +219,15 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
         <form method="get" class="report-filters hx-visits-filters" action="<?= esc(app_url('index.php')) ?>">
             <input type="hidden" name="r" value="report_sales_rep_visits">
             <label class="hx-visits-f hx-visits-f--from">
-                <span class="hx-visits-f-label">من تاريخ</span>
+                <span class="hx-visits-f-label">من تاريخ <span class="hx-date-weekday" id="hx-weekday-from"><?= esc(sal_rep_visit_weekday_ar($from)) ?></span></span>
                 <span class="hx-date-field">
                     <input type="date" class="input" name="from" id="hx-visits-from" value="<?= esc($from) ?>" dir="ltr">
-                    <span class="hx-date-weekday" id="hx-weekday-from"><?= esc(sal_rep_visit_weekday_ar($from)) ?></span>
                 </span>
             </label>
             <label class="hx-visits-f hx-visits-f--to">
-                <span class="hx-visits-f-label">إلى تاريخ</span>
+                <span class="hx-visits-f-label">إلى تاريخ <span class="hx-date-weekday" id="hx-weekday-to"><?= esc(sal_rep_visit_weekday_ar($to)) ?></span></span>
                 <span class="hx-date-field">
                     <input type="date" class="input" name="to" id="hx-visits-to" value="<?= esc($to) ?>" dir="ltr">
-                    <span class="hx-date-weekday" id="hx-weekday-to"><?= esc(sal_rep_visit_weekday_ar($to)) ?></span>
                 </span>
             </label>
             <label class="hx-visits-f hx-visits-f--method">

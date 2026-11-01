@@ -2073,17 +2073,15 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
         <form method="get" action="/sales-reps/reports/visits" class="si-meta hx-visits-filters">
           <label class="hx-visits-f hx-visits-f--from">
-            <span class="hx-visits-f-label">من تاريخ</span>
+            <span class="hx-visits-f-label">من تاريخ <span class="hx-date-weekday" id="si-weekday-from">${esc(weekdayAr(from))}</span></span>
             <span class="hx-date-field">
               <input class="si-field si-field--mono" type="date" name="from" id="si-visits-from" value="${esc(from)}" dir="ltr">
-              <span class="muted hx-date-weekday" id="si-weekday-from">${esc(weekdayAr(from))}</span>
             </span>
           </label>
           <label class="hx-visits-f hx-visits-f--to">
-            <span class="hx-visits-f-label">إلى تاريخ</span>
+            <span class="hx-visits-f-label">إلى تاريخ <span class="hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span></span>
             <span class="hx-date-field">
               <input class="si-field si-field--mono" type="date" name="to" id="si-visits-to" value="${esc(to)}" dir="ltr">
-              <span class="muted hx-date-weekday" id="si-weekday-to">${esc(weekdayAr(to))}</span>
             </span>
           </label>
           <label class="hx-visits-f hx-visits-f--method">

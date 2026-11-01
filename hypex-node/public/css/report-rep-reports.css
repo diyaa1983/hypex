@@ -1,41 +1,61 @@
-/* Sales rep visits & tours — compact rows, landscape print */
+﻿/* Sales rep visits & tours — compact rows, landscape print */
 
-.hx-visits-filters {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  grid-template-areas:
-    'from to method rep customer status'
-    'actions actions actions actions actions actions';
-  gap: 0.4rem 0.55rem;
-  align-items: end;
+/* صف فلتر واحد مستقيم: تواريخ + قوائم + أزرار */
+.hx-visits-filters,
+.si-meta.hx-visits-filters {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.55rem;
+  padding: 0 !important;
+  margin: 0;
 }
 
 .hx-visits-filters > .hx-visits-f,
-.hx-visits-filters > label {
-  display: grid;
-  gap: 0.18rem;
+.hx-visits-filters > label,
+.si-meta.hx-visits-filters > .hx-visits-f,
+.si-meta.hx-visits-filters > label {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.2rem;
   min-width: 0;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: inherit;
+  color: inherit;
 }
 
-.hx-visits-filters .hx-visits-f--from { grid-area: from; }
-.hx-visits-filters .hx-visits-f--to { grid-area: to; }
-.hx-visits-filters .hx-visits-f--rep { grid-area: rep; }
-.hx-visits-filters .hx-visits-f--customer { grid-area: customer; }
-.hx-visits-filters .hx-visits-f--method { grid-area: method; }
-.hx-visits-filters .hx-visits-f--status { grid-area: status; }
+.hx-visits-filters .hx-visits-f--from,
+.hx-visits-filters .hx-visits-f--to {
+  flex: 0 1 9.75rem;
+  width: 9.75rem;
+}
+
+.hx-visits-filters .hx-visits-f--method,
+.hx-visits-filters .hx-visits-f--status {
+  flex: 0 1 7.75rem;
+  width: 7.75rem;
+}
+
+.hx-visits-filters .hx-visits-f--rep,
+.hx-visits-filters .hx-visits-f--customer {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+}
 
 .hx-visits-filters .hx-visits-f-label {
   font-size: 0.72rem;
   font-weight: 700;
   color: #475569;
   line-height: 1.15;
+  white-space: nowrap;
 }
 
 .hx-visits-filters .hx-date-field {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.4rem;
+  display: block;
+  width: 100%;
 }
 
 .hx-visits-filters input[type='date'],
@@ -46,66 +66,59 @@
 .hx-visits-filters .js-date-dmy {
   width: 100%;
   min-width: 0;
-  min-height: 1.85rem;
-  height: 1.85rem;
+  min-height: 2rem;
+  height: 2rem;
   padding: 0.2rem 0.45rem;
   font-size: 0.82rem;
   box-sizing: border-box;
+  margin: 0;
 }
 
 .hx-visits-filters .date-dmy-field {
   display: flex;
   align-items: center;
   gap: 0.2rem;
-  height: auto;
-  min-height: 1.85rem;
+  height: 2rem;
+  min-height: 2rem;
   padding: 0;
 }
 
 .hx-visits-filters .date-dmy-field .js-date-dmy {
   flex: 1;
+  height: 2rem;
 }
 
 .hx-visits-filters .date-dmy-picker-btn {
-  width: 1.85rem;
-  height: 1.85rem;
-  min-width: 1.85rem;
+  width: 2rem;
+  height: 2rem;
+  min-width: 2rem;
   padding: 0;
+  flex: 0 0 2rem;
 }
 
 .hx-visits-filters .hx-visits-f-actions {
-  grid-area: actions;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
   gap: 0.4rem;
-  padding: 0.1rem 0 0;
+  padding: 0;
   margin: 0;
   border: 0;
-  min-height: 1.85rem;
+  flex: 0 0 auto;
+  min-height: 2rem;
 }
 
-.hx-visits-filters .hx-visits-f-actions .si-btn {
-  min-height: 1.85rem;
-  padding: 0.28rem 0.85rem;
+.hx-visits-filters .hx-visits-f-actions .si-btn,
+.hx-visits-filters .hx-visits-f-actions .btn {
+  min-height: 2rem;
+  height: 2rem;
+  padding: 0 0.85rem;
   font-size: 0.82rem;
-}
-
-.si-meta.hx-visits-filters {
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  grid-template-areas:
-    'from to method rep customer status'
-    'actions actions actions actions actions actions';
-}
-
-.si-meta.hx-visits-filters > label {
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: inherit;
-  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
 }
 
 .si-report-page.si-report-visits .si-surface.no-print {
@@ -113,41 +126,41 @@
   margin-bottom: 0.55rem !important;
 }
 
-@media (max-width: 1280px) {
-  .hx-visits-filters,
-  .si-meta.hx-visits-filters {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas:
-      'from to method'
-      'rep customer status'
-      'actions actions actions';
+@media (max-width: 1100px) {
+  .hx-visits-filters .hx-visits-f--from,
+  .hx-visits-filters .hx-visits-f--to,
+  .hx-visits-filters .hx-visits-f--method,
+  .hx-visits-filters .hx-visits-f--status {
+    flex: 1 1 8rem;
+    width: auto;
   }
 }
 
 @media (max-width: 720px) {
-  .hx-visits-filters,
-  .si-meta.hx-visits-filters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-areas:
-      'from to'
-      'rep customer'
-      'method status'
-      'actions actions';
+  .hx-visits-filters .hx-visits-f--from,
+  .hx-visits-filters .hx-visits-f--to,
+  .hx-visits-filters .hx-visits-f--method,
+  .hx-visits-filters .hx-visits-f--status,
+  .hx-visits-filters .hx-visits-f--rep,
+  .hx-visits-filters .hx-visits-f--customer {
+    flex: 1 1 calc(50% - 0.3rem);
+    width: auto;
+  }
+  .hx-visits-filters .hx-visits-f-actions {
+    flex: 1 1 100%;
   }
 }
 
 @media (max-width: 480px) {
-  .hx-visits-filters,
-  .si-meta.hx-visits-filters {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      'from'
-      'to'
-      'rep'
-      'customer'
-      'method'
-      'status'
-      'actions';
+  .hx-visits-filters .hx-visits-f--from,
+  .hx-visits-filters .hx-visits-f--to,
+  .hx-visits-filters .hx-visits-f--method,
+  .hx-visits-filters .hx-visits-f--status,
+  .hx-visits-filters .hx-visits-f--rep,
+  .hx-visits-filters .hx-visits-f--customer,
+  .hx-visits-filters .hx-visits-f-actions {
+    flex: 1 1 100%;
+    width: 100%;
   }
 }
 
@@ -203,13 +216,14 @@
 }
 
 .si-report-page.si-report-visits .hx-date-weekday,
-.report-sales-page.report-visits-page .hx-date-weekday {
+.report-sales-page.report-visits-page .hx-date-weekday,
+.hx-visits-filters .hx-date-weekday {
   display: inline;
   font-size: 0.68rem;
   font-weight: 600;
   margin: 0;
   min-height: 0;
-  color: #64748b;
+  color: #94a3b8;
   text-align: start;
 }
 
