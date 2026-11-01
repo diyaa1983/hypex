@@ -2215,6 +2215,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
                 <span class="hx-smart-cust-caret" aria-hidden="true"></span>
               </button>
               <div class="hx-smart-cust-panel" id="hx-visits-rep-panel" hidden>
+                <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-rep-q"
+                  placeholder="ابحث عن مندوب…" autocomplete="off">
                 <label class="hx-cust-check-item hx-cust-check-item--all">
                   <input type="checkbox" id="hx-rep-all" ${selectedRepCount < 1 ? 'checked' : ''}>
                   <span>تحديد الكل</span>
@@ -2244,6 +2246,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
                 <span class="hx-smart-cust-caret" aria-hidden="true"></span>
               </button>
               <div class="hx-smart-cust-panel" id="hx-visits-cust-panel" hidden>
+                <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-customer-q"
+                  placeholder="ابحث بالاسم أو الرمز…" autocomplete="off">
                 <label class="hx-cust-check-item hx-cust-check-item--all">
                   <input type="checkbox" id="hx-cust-all" ${selectedCount < 1 ? 'checked' : ''}>
                   <span>تحديد الكل</span>
@@ -2305,6 +2309,9 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           var custList = document.getElementById('hx-visits-cust-list');
           var custAllCb = document.getElementById('hx-cust-all');
           var custHidden = document.getElementById('hx-visits-customer-hidden');
+          var custSearch = document.getElementById('hx-visits-customer-q');
+          var custSearchTimer = null;
+          var custFetchToken = 0;
           var custAll = [];
           try {
             var raw = document.getElementById('hx-visits-customers-json');
@@ -2332,11 +2339,74 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             if (anyOpen) surf.classList.add('is-cust-open');
             else surf.classList.remove('is-cust-open');
           }
+          function filterCheckItems(listEl, needle, oneClass){
+            if (!listEl) return;
+            var q = String(needle || '').trim().toLowerCase();
+            var visible = 0;
+            Array.prototype.forEach.call(listEl.querySelectorAll('.hx-cust-check-item'), function(lab){
+              if (lab.classList.contains('hx-cust-check-item--all')) return;
+              var inp = lab.querySelector('.' + oneClass);
+              if (!inp) return;
+              var text = (lab.textContent || '').toLowerCase();
+              var show = !q || text.indexOf(q) >= 0 || String(inp.value).indexOf(q) >= 0;
+              if (show){ lab.classList.remove('is-hidden'); visible++; }
+              else lab.classList.add('is-hidden');
+            });
+            var empty = listEl.querySelector('.hx-smart-cust-empty');
+            if (!visible && q){
+              if (!empty){
+                empty = document.createElement('div');
+                empty.className = 'hx-smart-cust-empty';
+                listEl.appendChild(empty);
+              }
+              empty.textContent = 'لا توجد نتائج مطابقة.';
+              empty.hidden = false;
+              empty.removeAttribute('hidden');
+            } else if (empty){
+              empty.hidden = true;
+              empty.setAttribute('hidden','');
+            }
+          }
+          function ensureCustCheck(c){
+            if (!custList || !c || !c.id) return;
+            var id = String(c.id);
+            if (custList.querySelector('.hx-cust-one[value="' + id + '"]')) return;
+            var label = (c.code ? (c.code + ' — ') : '') + (c.name || ('#' + c.id));
+            var lab = document.createElement('label');
+            lab.className = 'hx-cust-check-item';
+            lab.innerHTML = '<input type="checkbox" class="hx-cust-one" value="' + id + '"><span></span>';
+            lab.querySelector('span').textContent = label;
+            custList.appendChild(lab);
+            custAll.push({ id: Number(c.id), name: c.name || '', code: c.code || '' });
+          }
+          function applyCustSearch(q){
+            filterCheckItems(custList, q, 'hx-cust-one');
+            var needle = String(q || '').trim();
+            if (needle.length < 2) return;
+            var token = ++custFetchToken;
+            fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
+              .then(function(r){ return r.json(); })
+              .then(function(data){
+                if (token !== custFetchToken) return;
+                if (!data || !data.ok) return;
+                (data.rows || []).forEach(function(c){
+                  ensureCustCheck({
+                    id: Number(c.id) || 0,
+                    name: String(c.name_ar || c.name || ''),
+                    code: String(c.code || '')
+                  });
+                });
+                filterCheckItems(custList, needle, 'hx-cust-one');
+              })
+              .catch(function(){});
+          }
           function closePanel(){
             if (!custPanel) return;
             custPanel.hidden = true;
             custPanel.setAttribute('hidden','');
             if (custToggle) custToggle.setAttribute('aria-expanded','false');
+            if (custSearch) custSearch.value = '';
+            filterCheckItems(custList, '', 'hx-cust-one');
             syncSurfaceOpenClass();
           }
           function openPanel(){
@@ -2347,6 +2417,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded','true');
             syncSurfaceOpenClass();
+            if (custSearch) setTimeout(function(){ custSearch.focus(); custSearch.select(); }, 0);
           }
           function ensureChecksFromTable(){
             if (!custList) return;
@@ -2424,6 +2495,20 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
                 syncHiddenAndLabel();
               });
             }
+            if (custSearch){
+              custSearch.addEventListener('input', function(){
+                clearTimeout(custSearchTimer);
+                var v = custSearch.value;
+                custSearchTimer = setTimeout(function(){ applyCustSearch(v); }, 140);
+              });
+              custSearch.addEventListener('keydown', function(e){
+                if (e.key === 'Escape'){
+                  e.preventDefault();
+                  closePanel();
+                  if (custToggle) custToggle.focus();
+                }
+              });
+            }
             syncHiddenAndLabel();
           }
 
@@ -2434,6 +2519,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           var repList = document.getElementById('hx-visits-rep-list');
           var repAllCb = document.getElementById('hx-rep-all');
           var repHidden = document.getElementById('hx-visits-rep-hidden');
+          var repSearch = document.getElementById('hx-visits-rep-q');
+          var repSearchTimer = null;
           var repAll = [];
           try {
             var rawRep = document.getElementById('hx-visits-reps-json');
@@ -2452,6 +2539,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             repPanel.hidden = true;
             repPanel.setAttribute('hidden','');
             if (repToggle) repToggle.setAttribute('aria-expanded','false');
+            if (repSearch) repSearch.value = '';
+            filterCheckItems(repList, '', 'hx-rep-one');
             syncSurfaceOpenClass();
           }
           function openRepPanel(){
@@ -2461,6 +2550,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             repPanel.removeAttribute('hidden');
             if (repToggle) repToggle.setAttribute('aria-expanded','true');
             syncSurfaceOpenClass();
+            if (repSearch) setTimeout(function(){ repSearch.focus(); repSearch.select(); }, 0);
           }
           function selectedReps(){
             if (!repList) return [];
@@ -2512,6 +2602,20 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
                 if (!e.target || !e.target.classList || !e.target.classList.contains('hx-rep-one')) return;
                 if (e.target.checked && repAllCb) repAllCb.checked = false;
                 syncRepHiddenAndLabel();
+              });
+            }
+            if (repSearch){
+              repSearch.addEventListener('input', function(){
+                clearTimeout(repSearchTimer);
+                var v = repSearch.value;
+                repSearchTimer = setTimeout(function(){ filterCheckItems(repList, v, 'hx-rep-one'); }, 120);
+              });
+              repSearch.addEventListener('keydown', function(e){
+                if (e.key === 'Escape'){
+                  e.preventDefault();
+                  closeRepPanel();
+                  if (repToggle) repToggle.focus();
+                }
               });
             }
             syncRepHiddenAndLabel();
