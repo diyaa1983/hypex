@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -86,53 +87,112 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   final MapController _map = MapController();
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
+  final GlobalKey _bottomBarKey = GlobalKey();
 
+  /// الموقع المحفوظ سابقاً للعميل (إن وُجد) — يُعرض بعلامة وبطاقة على الخريطة.
+  LatLng? _savedPoint;
   bool _locating = false;
   bool _searching = false;
   bool _resolvingPlace = false;
+  bool _reverseLoading = false;
   bool _satellite = false;
   double _zoom = 17;
+  double _fabBottom = 240;
   String? _placeLabel;
+  String? _placeSub;
   String _providerHint = '';
   List<_PlaceHit> _hits = const [];
   Timer? _debounce;
+  Timer? _reverseDebounce;
   int _searchGen = 0;
+  int _reverseGen = 0;
 
   @override
   void initState() {
     super.initState();
+    if (widget.hasInitialLocation) {
+      _savedPoint = widget.initial;
+      _placeLabel = 'الموقع المحفوظ للعميل';
+      _placeSub = '${widget.initial.latitude.toStringAsFixed(6)} ، '
+          '${widget.initial.longitude.toStringAsFixed(6)}';
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
+      _measureBottomBar();
       if (widget.hasInitialLocation) {
-        _placeLabel = 'موقع محفوظ للعميل';
+        _scheduleReverse(_selected, force: true);
         return;
       }
       // قراءة فورية بلا انتظار طويل — لا نعلّق الشاشة عند الفتح.
       final pos = await LocationService.instantPosition();
       if (!mounted || pos == null) return;
-      _moveTo(LatLng(pos.latitude, pos.longitude), zoom: 17, label: 'موقعك الحالي');
+      _moveTo(
+        LatLng(pos.latitude, pos.longitude),
+        zoom: 17,
+        label: 'موقعك الحالي',
+        clearSub: true,
+      );
+      _scheduleReverse(_selected);
     });
   }
 
   @override
   void dispose() {
     _debounce?.cancel();
+    _reverseDebounce?.cancel();
     _search.dispose();
     _searchFocus.dispose();
     super.dispose();
   }
 
-  void _moveTo(LatLng p, {double zoom = 18, String? label}) {
+  void _measureBottomBar() {
+    final box = _bottomBarKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !box.hasSize) return;
+    final h = box.size.height;
+    // ارفع أزرار الدائرة فوق بطاقة الموقع + زر الاعتماد بهامش واضح.
+    final next = h + 28;
+    if ((next - _fabBottom).abs() > 2) {
+      setState(() => _fabBottom = next);
+    }
+  }
+
+  void _moveTo(
+    LatLng p, {
+    double zoom = 18,
+    String? label,
+    String? sub,
+    bool clearSub = false,
+  }) {
     setState(() {
       _selected = p;
       _zoom = zoom;
       if (label != null) _placeLabel = label;
+      if (clearSub) {
+        _placeSub = null;
+      } else if (sub != null) {
+        _placeSub = sub;
+      }
     });
     try {
       _map.move(p, zoom);
     } catch (_) {
       // الخريطة قد لا تكون جاهزة بعد.
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _measureBottomBar();
+    });
+  }
+
+  void _goToSaved() {
+    final s = _savedPoint;
+    if (s == null) return;
+    _moveTo(
+      s,
+      zoom: 18,
+      label: 'الموقع المحفوظ للعميل',
+      sub: '${s.latitude.toStringAsFixed(6)} ، ${s.longitude.toStringAsFixed(6)}',
+    );
+    _scheduleReverse(s, force: true);
   }
 
   void _onMapEvent(MapEvent event) {
@@ -153,8 +213,59 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     setState(() {
       _selected = c;
       _zoom = z;
-      // عند التحريك اليدوي نُسقط تسمية البحث القديمة.
-      if (_hits.isEmpty) _placeLabel = null;
+      if (_hits.isEmpty) {
+        _placeLabel = 'الموقع المحدد';
+        _placeSub = null;
+      }
+    });
+    _scheduleReverse(c);
+  }
+
+  void _scheduleReverse(LatLng p, {bool force = false}) {
+    _reverseDebounce?.cancel();
+    _reverseDebounce = Timer(
+      Duration(milliseconds: force ? 80 : 550),
+      () => _reverseLookup(p),
+    );
+  }
+
+  Future<void> _reverseLookup(LatLng p) async {
+    final gen = ++_reverseGen;
+    if (mounted) setState(() => _reverseLoading = true);
+    try {
+      final api = context.read<ApiClient>();
+      final res = await api.getJson(
+        AppConfig.placesSearchPath,
+        query: {
+          'reverse': '1',
+          'lat': p.latitude.toStringAsFixed(7),
+          'lng': p.longitude.toStringAsFixed(7),
+        },
+        receiveTimeout: const Duration(seconds: 12),
+      );
+      if (!mounted || gen != _reverseGen) return;
+      final place = res['place'];
+      if (place is Map) {
+        final hit = _PlaceHit.fromJson(Map<String, dynamic>.from(place));
+        setState(() {
+          _placeLabel = hit.name.isNotEmpty ? hit.name : 'الموقع المحدد';
+          _placeSub = hit.address.isNotEmpty
+              ? hit.address
+              : '${p.latitude.toStringAsFixed(6)} ، ${p.longitude.toStringAsFixed(6)}';
+          _reverseLoading = false;
+        });
+        WidgetsBinding.instance
+            .addPostFrameCallback((_) => _measureBottomBar());
+        return;
+      }
+    } catch (_) {
+      // نكتفي بالإحداثيات إن فشل العنوان العكسي.
+    }
+    if (!mounted || gen != _reverseGen) return;
+    setState(() {
+      _reverseLoading = false;
+      _placeSub ??=
+          '${p.latitude.toStringAsFixed(6)} ، ${p.longitude.toStringAsFixed(6)}';
     });
   }
 
@@ -165,11 +276,9 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
       final pos = await LocationService.requirePosition(fresh: true)
           .timeout(const Duration(seconds: 25));
       if (!mounted) return;
-      _moveTo(
-        LatLng(pos.latitude, pos.longitude),
-        zoom: 18,
-        label: 'موقعك الحالي',
-      );
+      final p = LatLng(pos.latitude, pos.longitude);
+      _moveTo(p, zoom: 18, label: 'موقعك الحالي', clearSub: true);
+      _scheduleReverse(p, force: true);
     } catch (e) {
       if (!mounted) return;
       showSnack(context, LocationService.friendlyError(e), error: true);
@@ -205,7 +314,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
           'lat': _selected.latitude.toStringAsFixed(6),
           'lng': _selected.longitude.toStringAsFixed(6),
         },
-        receiveTimeout: const Duration(seconds: 18),
+        receiveTimeout: const Duration(seconds: 20),
       );
       if (!mounted || gen != _searchGen) return;
       final list = <_PlaceHit>[];
@@ -224,7 +333,9 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
         _hits = list;
         _searching = false;
         _providerHint = hasGoogle
-            ? (provider == 'google' ? 'نتائج Google Maps' : 'نتائج بديلة (OSM)')
+            ? (provider == 'google'
+                ? 'نتائج Google Maps — محلات وأماكن'
+                : 'نتائج بديلة (OSM)')
             : 'نتائج OpenStreetMap';
       });
     } catch (e) {
@@ -235,7 +346,9 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
       });
       showSnack(
         context,
-        e is ApiException ? e.message : 'تعذّر البحث عن المكان. تحقق من الاتصال.',
+        e is ApiException
+            ? e.message
+            : 'تعذّر البحث عن المكان. تحقق من الاتصال.',
         error: true,
       );
     }
@@ -251,8 +364,9 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     if (hit.hasCoords) {
       _moveTo(
         LatLng(hit.lat!, hit.lng!),
-        zoom: 18,
-        label: hit.address.isNotEmpty ? hit.address : hit.name,
+        zoom: 19,
+        label: hit.name,
+        sub: hit.address.isNotEmpty ? hit.address : null,
       );
       return;
     }
@@ -274,8 +388,9 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
           if (detail.hasCoords) {
             _moveTo(
               LatLng(detail.lat!, detail.lng!),
-              zoom: 18,
-              label: detail.address.isNotEmpty ? detail.address : detail.name,
+              zoom: 19,
+              label: detail.name,
+              sub: detail.address.isNotEmpty ? detail.address : null,
             );
             return;
           }
@@ -295,7 +410,6 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   }
 
   void _confirm() {
-    // اقرأ مركز الخريطة الفعلي لحظة الاعتماد (أدق من آخر setState).
     try {
       final c = _map.camera.center;
       Navigator.of(context).pop(c);
@@ -304,9 +418,87 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     }
   }
 
+  Widget _infoCard({
+    required String title,
+    String? subtitle,
+    required Color accent,
+    IconData icon = Icons.place_rounded,
+    VoidCallback? onTap,
+    bool loading = false,
+  }) {
+    return Material(
+      color: Colors.white.withValues(alpha: 0.97),
+      elevation: 3,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accent, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                      ),
+                    ),
+                    if (subtitle != null && subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Colors.grey.shade700,
+                          height: 1.25,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (loading)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else if (onTap != null)
+                Icon(Icons.my_location_rounded, size: 18, color: accent),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
+    final saved = _savedPoint;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _measureBottomBar();
+    });
 
     return MobileScaffold(
       title: const Text('تحديد موقع العميل'),
@@ -319,7 +511,6 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
               initialZoom: _zoom,
               minZoom: 5,
               maxZoom: 20,
-              // تفاعل سلس على التابلت — بدون دوران يربك التحديد.
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.drag |
                     InteractiveFlag.flingAnimation |
@@ -339,14 +530,29 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
               ...GpsMapTiles.layers(
                 mapProvider: _satellite ? 'imagery' : 'osm',
               ),
+              if (saved != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: saved,
+                      width: 44,
+                      height: 44,
+                      alignment: Alignment.topCenter,
+                      child: const Icon(
+                        Icons.store_mall_directory_rounded,
+                        color: Color(0xFF1565C0),
+                        size: 40,
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
 
-          // تقاطع ثابت في المنتصف — الموقع = مركز الخريطة (أدق وأقل تعليقاً).
+          // تقاطع ثابت في المنتصف — الموقع = مركز الخريطة.
           const IgnorePointer(
             child: Center(
               child: Padding(
-                // طرف الدبوس يشير لمنتصف الشاشة.
                 padding: EdgeInsets.only(bottom: 40),
                 child: Icon(
                   Icons.location_on_rounded,
@@ -374,7 +580,12 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                     focusNode: _searchFocus,
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
-                      hintText: 'ابحث عن اسم مكان أو شارع (Google Maps)…',
+                      hintText:
+                          'ابحث عن محل، مطعم، شارع، مجمع… مثل Google Maps',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
                       prefixIcon: const Icon(Icons.search_rounded),
                       suffixIcon: _searching || _resolvingPlace
                           ? const Padding(
@@ -382,7 +593,8 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                               child: SizedBox(
                                 width: 18,
                                 height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               ),
                             )
                           : (_search.text.isEmpty
@@ -403,7 +615,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                       ),
                     ),
                     onChanged: (v) {
-                      setState(() {}); // لتحديث زر المسح
+                      setState(() {});
                       _onSearchChanged(v);
                     },
                     onSubmitted: (v) {
@@ -429,7 +641,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                     ),
                   if (_hits.isNotEmpty)
                     ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 240),
+                      constraints: const BoxConstraints(maxHeight: 260),
                       child: ListView.separated(
                         shrinkWrap: true,
                         padding: const EdgeInsets.only(bottom: 6),
@@ -442,7 +654,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                             dense: true,
                             leading: Icon(
                               isGoogle
-                                  ? Icons.place_rounded
+                                  ? Icons.storefront_rounded
                                   : Icons.map_outlined,
                               color: isGoogle
                                   ? const Color(0xFF1A73E8)
@@ -452,7 +664,9 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                               h.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.w700),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
                             ),
                             subtitle: h.address.isEmpty
                                 ? null
@@ -472,9 +686,10 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
             ),
           ),
 
+          // أزرار التكبير / الطبقات / موقعي — مرتفعة فوق بطاقة الموقع.
           Positioned(
             right: 12,
-            bottom: 108 + bottomPad,
+            bottom: _fabBottom + bottomPad,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -510,9 +725,10 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                         : Icons.satellite_alt_rounded,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 FloatingActionButton(
                   heroTag: 'loc_cur_add',
+                  tooltip: 'موقعي الحالي',
                   onPressed: _locating ? null : _goToCurrent,
                   child: _locating
                       ? const SizedBox(
@@ -526,61 +742,48 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
             ),
           ),
 
+          // شريط: الموقع المحفوظ + الموقع المحدد + الاعتماد.
           Positioned(
             left: 12,
             right: 12,
             bottom: 12 + bottomPad,
             child: Column(
+              key: _bottomBarKey,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Container(
-                  width: double.infinity,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.96),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: AppTheme.softShadow,
+                if (saved != null) ...[
+                  _infoCard(
+                    title: 'الموقع المحفوظ على الخريطة',
+                    subtitle:
+                        '${saved.latitude.toStringAsFixed(6)} ، ${saved.longitude.toStringAsFixed(6)}'
+                        ' — اضغط للعودة إليه',
+                    accent: const Color(0xFF1565C0),
+                    icon: Icons.store_mall_directory_rounded,
+                    onTap: _goToSaved,
                   ),
-                  child: Column(
-                    children: [
-                      if (_placeLabel != null && _placeLabel!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: Text(
-                            _placeLabel!,
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      Text(
-                        '${_selected.latitude.toStringAsFixed(6)} ، ${_selected.longitude.toStringAsFixed(6)}',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 12,
-                          color: Colors.grey.shade800,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'حرّك الخريطة حتى يقع التقاطع على الموقع المطلوب',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey.shade600,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(height: 8),
+                ],
+                _infoCard(
+                  title: _placeLabel?.isNotEmpty == true
+                      ? _placeLabel!
+                      : 'الموقع المحدد',
+                  subtitle: _placeSub ??
+                      '${_selected.latitude.toStringAsFixed(6)} ، ${_selected.longitude.toStringAsFixed(6)}',
+                  accent: AppTheme.danger,
+                  icon: Icons.location_on_rounded,
+                  loading: _reverseLoading,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'حرّك الخريطة حتى يقع الدبوس الأحمر على الموقع المطلوب',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey.shade700,
+                    fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 SizedBox(
                   width: double.infinity,
                   child: FilledButton.icon(

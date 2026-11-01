@@ -6,9 +6,9 @@ declare(strict_types=1);
  * يستخدم مفتاح Google Maps المحفوظ في إعدادات الشركة إن وُجد،
  * وإلا Nominatim (OpenStreetMap) كبديل.
  *
- * GET q=...&lat=...&lng=...        → اقتراحات
+ * GET q=...&lat=...&lng=...        → اقتراحات (محلات / شوارع / أماكن)
  * GET place_id=ChIJ...             → تفاصيل نقطة Google
- * GET osm_id=...&osm_type=...      → تفاصيل Nominatim (اختياري — النتائج غالباً معها lat/lng)
+ * GET reverse=1&lat=...&lng=...    → عنوان عكسي لنقطة على الخريطة
  */
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
@@ -37,6 +37,8 @@ if (strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
 $googleKey = mobile_gps_settings_google_maps_key();
 $q = trim((string) ($_GET['q'] ?? ''));
 $placeId = trim((string) ($_GET['place_id'] ?? ''));
+$wantReverse = ((string) ($_GET['reverse'] ?? '')) === '1'
+    || strtolower((string) ($_GET['action'] ?? '')) === 'reverse';
 $biasLat = isset($_GET['lat']) ? (float) $_GET['lat'] : null;
 $biasLng = isset($_GET['lng']) ? (float) $_GET['lng'] : null;
 if ($biasLat !== null && ($biasLat < -90 || $biasLat > 90)) {
@@ -71,12 +73,49 @@ function mobile_places_normalize_rows(array $rows): array
             'lng' => is_numeric($lng) ? (float) $lng : null,
             'provider' => (string) ($r['provider'] ?? 'unknown'),
         ];
-        if (count($out) >= 10) {
+        if (count($out) >= 15) {
             break;
         }
     }
 
     return $out;
+}
+
+/**
+ * دمج نتائج بحث بدون تكرار (حسب id أو الإحداثيات التقريبية).
+ *
+ * @param list<array{id:string,name:string,address:string,lat:?float,lng:?float,provider:string}> ...$lists
+ * @return list<array{id:string,name:string,address:string,lat:?float,lng:?float,provider:string}>
+ */
+function mobile_places_merge_unique(array ...$lists): array
+{
+    $seen = [];
+    $out = [];
+    foreach ($lists as $list) {
+        foreach ($list as $r) {
+            if (!is_array($r)) {
+                continue;
+            }
+            $id = trim((string) ($r['id'] ?? ''));
+            $lat = $r['lat'] ?? null;
+            $lng = $r['lng'] ?? null;
+            $key = $id !== ''
+                ? 'id:' . $id
+                : (is_numeric($lat) && is_numeric($lng)
+                    ? sprintf('xy:%.4F:%.4F', (float) $lat, (float) $lng)
+                    : 'n:' . md5((string) ($r['name'] ?? '') . '|' . (string) ($r['address'] ?? '')));
+            if (isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+            $out[] = $r;
+            if (count($out) >= 15) {
+                return mobile_places_normalize_rows($out);
+            }
+        }
+    }
+
+    return mobile_places_normalize_rows($out);
 }
 
 /** @return array<string, mixed>|null */
@@ -96,6 +135,7 @@ function mobile_places_http_json(string $url): ?array
  */
 function mobile_places_google_autocomplete(string $key, string $q, ?float $lat, ?float $lng): array
 {
+    // بدون types مقيّدة — يظهر محلات وشوارع وعناوين مثل Google Maps.
     $params = [
         'input' => $q,
         'key' => $key,
@@ -104,7 +144,7 @@ function mobile_places_google_autocomplete(string $key, string $q, ?float $lat, 
     ];
     if ($lat !== null && $lng !== null) {
         $params['location'] = sprintf('%.6F,%.6F', $lat, $lng);
-        $params['radius'] = '50000';
+        $params['radius'] = '80000';
     }
     $url = 'https://maps.googleapis.com/maps/api/place/autocomplete/json?' . http_build_query($params);
     $data = mobile_places_http_json($url);
@@ -137,6 +177,129 @@ function mobile_places_google_autocomplete(string $key, string $q, ?float $lat, 
     }
 
     return mobile_places_normalize_rows($rows);
+}
+
+/**
+ * Text Search — أفضل لأسماء المحلات والمطاعم والمراكز مثل Google Maps.
+ *
+ * @return list<array{id:string,name:string,address:string,lat:?float,lng:?float,provider:string}>
+ */
+function mobile_places_google_textsearch(string $key, string $q, ?float $lat, ?float $lng): array
+{
+    $params = [
+        'query' => $q,
+        'key' => $key,
+        'language' => 'ar',
+        'region' => 'jo',
+    ];
+    if ($lat !== null && $lng !== null) {
+        $params['location'] = sprintf('%.6F,%.6F', $lat, $lng);
+        $params['radius'] = '40000';
+    }
+    $url = 'https://maps.googleapis.com/maps/api/place/textsearch/json?' . http_build_query($params);
+    $data = mobile_places_http_json($url);
+    if ($data === null) {
+        return [];
+    }
+    $status = (string) ($data['status'] ?? '');
+    if ($status !== 'OK' && $status !== 'ZERO_RESULTS') {
+        return [];
+    }
+    $rows = [];
+    foreach (($data['results'] ?? []) as $r) {
+        if (!is_array($r)) {
+            continue;
+        }
+        $pid = trim((string) ($r['place_id'] ?? ''));
+        $name = trim((string) ($r['name'] ?? ''));
+        $addr = trim((string) ($r['formatted_address'] ?? ''));
+        $latV = $r['geometry']['location']['lat'] ?? null;
+        $lngV = $r['geometry']['location']['lng'] ?? null;
+        if ($pid === '' || $name === '') {
+            continue;
+        }
+        $rows[] = [
+            'id' => $pid,
+            'name' => $name,
+            'address' => $addr !== '' ? $addr : $name,
+            'lat' => is_numeric($latV) ? (float) $latV : null,
+            'lng' => is_numeric($lngV) ? (float) $lngV : null,
+            'provider' => 'google',
+        ];
+    }
+
+    return mobile_places_normalize_rows($rows);
+}
+
+/**
+ * عنوان عكسي لنقطة على الخريطة.
+ *
+ * @return array{name:string,address:string,lat:float,lng:float,provider:string}|null
+ */
+function mobile_places_reverse(?string $googleKey, float $lat, float $lng): ?array
+{
+    if (is_string($googleKey) && $googleKey !== '') {
+        $url = 'https://maps.googleapis.com/maps/api/geocode/json?' . http_build_query([
+            'latlng' => sprintf('%.7F,%.7F', $lat, $lng),
+            'key' => $googleKey,
+            'language' => 'ar',
+            'result_type' => 'street_address|route|premise|subpremise|point_of_interest|establishment|neighborhood|locality',
+        ]);
+        $data = mobile_places_http_json($url);
+        if (is_array($data) && (string) ($data['status'] ?? '') === 'OK') {
+            $r = $data['results'][0] ?? null;
+            if (is_array($r)) {
+                $addr = trim((string) ($r['formatted_address'] ?? ''));
+                $name = $addr;
+                foreach (($r['address_components'] ?? []) as $c) {
+                    if (!is_array($c)) {
+                        continue;
+                    }
+                    $types = $c['types'] ?? [];
+                    if (!is_array($types)) {
+                        continue;
+                    }
+                    if (in_array('point_of_interest', $types, true)
+                        || in_array('establishment', $types, true)
+                        || in_array('premise', $types, true)) {
+                        $name = trim((string) ($c['long_name'] ?? $name));
+                        break;
+                    }
+                }
+                if ($addr !== '') {
+                    return [
+                        'name' => $name !== '' ? $name : $addr,
+                        'address' => $addr,
+                        'lat' => $lat,
+                        'lng' => $lng,
+                        'provider' => 'google',
+                    ];
+                }
+            }
+        }
+    }
+
+    $nom = app_osm_nominatim_fetch($lat, $lng);
+    if (!is_array($nom)) {
+        return null;
+    }
+    $display = trim((string) ($nom['display_name'] ?? ''));
+    $name = trim((string) ($nom['name'] ?? ''));
+    if ($name === '' && $display !== '') {
+        $parts = explode(',', $display);
+        $name = trim((string) ($parts[0] ?? ''));
+    }
+    if ($display === '' && $name === '') {
+        return null;
+    }
+
+    return [
+        'name' => $name !== '' ? $name : $display,
+        'address' => $display !== '' ? $display : $name,
+        'lat' => $lat,
+        'lng' => $lng,
+        'provider' => 'nominatim',
+    ];
 }
 
 /** @return array{id:string,name:string,address:string,lat:float,lng:float,provider:string}|null */
@@ -308,6 +471,41 @@ function mobile_places_nominatim_search(string $q, ?float $lat, ?float $lng): ar
     return mobile_places_normalize_rows($rows);
 }
 
+// —— عنوان عكسي لنقطة على الخريطة ——
+if ($wantReverse) {
+    if ($biasLat === null || $biasLng === null) {
+        http_response_code(422);
+        echo json_encode([
+            'ok' => false,
+            'message' => 'إحداثيات الموقع مطلوبة.',
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $place = mobile_places_reverse($googleKey !== '' ? $googleKey : null, $biasLat, $biasLng);
+    if ($place === null) {
+        echo json_encode([
+            'ok' => true,
+            'has_google' => $googleKey !== '',
+            'provider' => 'none',
+            'place' => [
+                'name' => 'موقع محدد',
+                'address' => sprintf('%.6F ، %.6F', $biasLat, $biasLng),
+                'lat' => $biasLat,
+                'lng' => $biasLng,
+                'provider' => 'coords',
+            ],
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode([
+        'ok' => true,
+        'has_google' => $googleKey !== '',
+        'provider' => $place['provider'],
+        'place' => $place,
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 // —— تفاصيل مكان Google ——
 if ($placeId !== '') {
     if ($googleKey === '') {
@@ -351,10 +549,13 @@ $provider = 'nominatim';
 $results = [];
 
 if ($googleKey !== '') {
-    $results = mobile_places_google_autocomplete($googleKey, $q, $biasLat, $biasLng);
-    if ($results === []) {
-        $results = mobile_places_google_geocode($googleKey, $q, $biasLat, $biasLng);
-    }
+    // Text Search أولاً (محلات وأسماء تجارية) ثم Autocomplete ثم Geocode.
+    $text = mobile_places_google_textsearch($googleKey, $q, $biasLat, $biasLng);
+    $auto = mobile_places_google_autocomplete($googleKey, $q, $biasLat, $biasLng);
+    $geo = $text === [] && $auto === []
+        ? mobile_places_google_geocode($googleKey, $q, $biasLat, $biasLng)
+        : [];
+    $results = mobile_places_merge_unique($text, $auto, $geo);
     if ($results !== []) {
         $provider = 'google';
     }
