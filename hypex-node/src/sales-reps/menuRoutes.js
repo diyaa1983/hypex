@@ -1903,14 +1903,18 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     )
     .join('');
 
-  const custOpts = customers
-    .map(
-      (c) =>
-        `<option value="${c.id}" ${customerId === Number(c.id) ? 'selected' : ''}>${esc(
-          c.name_ar || ''
-        )}</option>`
-    )
-    .join('');
+  const selectedCustomer =
+    customers.find((c) => Number(c.id) === customerId) || null;
+  const selectedCustomerLabel = selectedCustomer
+    ? `${selectedCustomer.code ? `${selectedCustomer.code} — ` : ''}${selectedCustomer.name_ar || ''}`
+    : '';
+  const customersJson = JSON.stringify(
+    customers.map((c) => ({
+      id: Number(c.id) || 0,
+      name: String(c.name_ar || ''),
+      code: String(c.code || ''),
+    }))
+  ).replace(/</g, '\\u003c');
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
@@ -2101,10 +2105,14 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           </label>
           <label class="hx-visits-f hx-visits-f--customer">
             <span class="hx-visits-f-label">العميل</span>
-            <select class="si-field" name="customer_id">
-              <option value="0">— الكل —</option>
-              ${custOpts}
-            </select>
+            <div class="hx-smart-cust" id="hx-visits-smart-cust">
+              <input type="hidden" name="customer_id" id="hx-visits-customer-id" value="${customerId || 0}">
+              <input class="si-field" type="search" id="hx-visits-customer"
+                placeholder="ابحث بالاسم أو الرمز…" autocomplete="off"
+                value="${esc(selectedCustomerLabel)}"
+                aria-autocomplete="list" aria-controls="hx-visits-cust-list">
+              <div class="hx-smart-cust-list" id="hx-visits-cust-list" hidden></div>
+            </div>
           </label>
           <label class="hx-visits-f hx-visits-f--status">
             <span class="hx-visits-f-label">الحالة</span>
@@ -2148,6 +2156,92 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           }
           bind('si-visits-from','si-weekday-from');
           bind('si-visits-to','si-weekday-to');
+
+          /* قائمة عميل ذكية — بحث بالاسم/الرمز */
+          var custAll = ${customersJson};
+          var custInput = document.getElementById('hx-visits-customer');
+          var custId = document.getElementById('hx-visits-customer-id');
+          var custList = document.getElementById('hx-visits-cust-list');
+          var custTimer = null;
+          function custLabel(c){
+            return (c.code ? (c.code + ' — ') : '') + (c.name || '');
+          }
+          function hideCustList(){
+            if (!custList) return;
+            custList.hidden = true;
+            custList.setAttribute('hidden','');
+            custList.innerHTML = '';
+          }
+          function pickCust(c){
+            if (!custInput || !custId) return;
+            if (!c || !c.id){
+              custId.value = '0';
+              custInput.value = '';
+            } else {
+              custId.value = String(c.id);
+              custInput.value = custLabel(c);
+            }
+            hideCustList();
+          }
+          function renderCustList(q){
+            if (!custList || !custInput) return;
+            var needle = String(q || '').trim().toLowerCase();
+            var rows = custAll.slice();
+            if (needle){
+              rows = rows.filter(function(c){
+                return String(c.name||'').toLowerCase().indexOf(needle) >= 0
+                  || String(c.code||'').toLowerCase().indexOf(needle) >= 0;
+              });
+            }
+            custList.innerHTML = '';
+            var allBtn = document.createElement('button');
+            allBtn.type = 'button';
+            allBtn.className = 'hx-smart-cust-item hx-smart-cust-item--all';
+            allBtn.textContent = '— الكل —';
+            allBtn.addEventListener('click', function(){ pickCust(null); });
+            custList.appendChild(allBtn);
+            if (!rows.length){
+              var empty = document.createElement('div');
+              empty.className = 'hx-smart-cust-empty';
+              empty.textContent = 'لا يوجد عملاء مطابقون في الفترة.';
+              custList.appendChild(empty);
+            } else {
+              rows.slice(0, 40).forEach(function(c){
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'hx-smart-cust-item';
+                b.textContent = custLabel(c);
+                b.addEventListener('click', function(){ pickCust(c); });
+                custList.appendChild(b);
+              });
+            }
+            custList.hidden = false;
+            custList.removeAttribute('hidden');
+          }
+          if (custInput && custList && custId){
+            custInput.addEventListener('focus', function(){ renderCustList(custInput.value); });
+            custInput.addEventListener('click', function(){ renderCustList(custInput.value); });
+            custInput.addEventListener('input', function(){
+              custId.value = '0';
+              clearTimeout(custTimer);
+              custTimer = setTimeout(function(){ renderCustList(custInput.value); }, 120);
+            });
+            custInput.addEventListener('keydown', function(e){
+              if (e.key === 'Escape') hideCustList();
+              if (e.key === 'Enter'){
+                var first = custList && custList.querySelector('.hx-smart-cust-item:not(.hx-smart-cust-item--all)');
+                if (first && !custList.hidden){
+                  e.preventDefault();
+                  first.click();
+                }
+              }
+            });
+            document.addEventListener('click', function(e){
+              var wrap = document.getElementById('hx-visits-smart-cust');
+              if (!wrap || wrap.contains(e.target)) return;
+              hideCustList();
+            });
+          }
         })();
         </script>
         <p class="muted" style="margin:.65rem 0 0;font-size:.82rem;line-height:1.45">

@@ -1365,13 +1365,13 @@ async function listVisitReportCustomers({ from = '', to = '' } = {}) {
   }
   try {
     return await safeQuery(
-      `SELECT DISTINCT c.id, c.name_ar
+      `SELECT DISTINCT c.id, c.name_ar, COALESCE(c.code,'') AS code
        FROM sal_rep_route_line l
        INNER JOIN sal_rep_route r ON r.id = l.route_id
        INNER JOIN crm_customer c ON c.id = l.customer_id
        WHERE ${where.join(' AND ')}
        ORDER BY c.name_ar
-       LIMIT 500`,
+       LIMIT 800`,
       params
     );
   } catch (e) {

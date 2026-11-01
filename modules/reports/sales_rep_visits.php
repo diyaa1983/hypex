@@ -23,14 +23,14 @@ try {
         "SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar LIMIT 300"
     )->fetchAll(PDO::FETCH_ASSOC) ?: [];
     $stCust = $pdo->prepare(
-        'SELECT DISTINCT c.id, c.name_ar
+        'SELECT DISTINCT c.id, c.name_ar, COALESCE(c.code, \'\') AS code
          FROM sal_rep_route_line l
          INNER JOIN sal_rep_route r ON r.id = l.route_id
          INNER JOIN crm_customer c ON c.id = l.customer_id
          WHERE l.visit_checkin_at IS NOT NULL
            AND r.route_date >= ? AND r.route_date <= ?
          ORDER BY c.name_ar
-         LIMIT 500'
+         LIMIT 800'
     );
     $stCust->execute([$from, $to]);
     $customers = $stCust->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -249,16 +249,33 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                     <?php endforeach; ?>
                 </select>
             </label>
+            <?php
+            $selectedCustomerLabel = '';
+            $customersForJs = [];
+            foreach ($customers as $cust) {
+                $cid = (int) ($cust['id'] ?? 0);
+                $cname = (string) ($cust['name_ar'] ?? '');
+                $ccode = (string) ($cust['code'] ?? '');
+                $customersForJs[] = ['id' => $cid, 'name' => $cname, 'code' => $ccode];
+                if ($cid > 0 && $cid === $customerId) {
+                    $selectedCustomerLabel = ($ccode !== '' ? $ccode . ' — ' : '') . $cname;
+                }
+            }
+            $customersJson = json_encode($customersForJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
+            if ($customersJson === false) {
+                $customersJson = '[]';
+            }
+            ?>
             <label class="hx-visits-f hx-visits-f--customer">
                 <span class="hx-visits-f-label">العميل</span>
-                <select class="input" name="customer_id">
-                    <option value="0">— الكل —</option>
-                    <?php foreach ($customers as $cust): ?>
-                        <option value="<?= (int) $cust['id'] ?>" <?= $customerId === (int) $cust['id'] ? 'selected' : '' ?>>
-                            <?= esc((string) ($cust['name_ar'] ?? '')) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
+                <div class="hx-smart-cust" id="hx-visits-smart-cust">
+                    <input type="hidden" name="customer_id" id="hx-visits-customer-id" value="<?= (int) $customerId ?>">
+                    <input class="input" type="search" id="hx-visits-customer"
+                        placeholder="ابحث بالاسم أو الرمز…" autocomplete="off"
+                        value="<?= esc($selectedCustomerLabel) ?>"
+                        aria-autocomplete="list" aria-controls="hx-visits-cust-list">
+                    <div class="hx-smart-cust-list" id="hx-visits-cust-list" hidden></div>
+                </div>
             </label>
             <label class="hx-visits-f hx-visits-f--status">
                 <span class="hx-visits-f-label">الحالة</span>
@@ -292,6 +309,91 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
           }
           bind('hx-visits-from', 'hx-weekday-from');
           bind('hx-visits-to', 'hx-weekday-to');
+
+          var custAll = <?= $customersJson ?>;
+          var custInput = document.getElementById('hx-visits-customer');
+          var custId = document.getElementById('hx-visits-customer-id');
+          var custList = document.getElementById('hx-visits-cust-list');
+          var custTimer = null;
+          function custLabel(c) {
+            return (c.code ? (c.code + ' — ') : '') + (c.name || '');
+          }
+          function hideCustList() {
+            if (!custList) return;
+            custList.hidden = true;
+            custList.setAttribute('hidden', '');
+            custList.innerHTML = '';
+          }
+          function pickCust(c) {
+            if (!custInput || !custId) return;
+            if (!c || !c.id) {
+              custId.value = '0';
+              custInput.value = '';
+            } else {
+              custId.value = String(c.id);
+              custInput.value = custLabel(c);
+            }
+            hideCustList();
+          }
+          function renderCustList(q) {
+            if (!custList || !custInput) return;
+            var needle = String(q || '').trim().toLowerCase();
+            var rows = custAll.slice();
+            if (needle) {
+              rows = rows.filter(function (c) {
+                return String(c.name || '').toLowerCase().indexOf(needle) >= 0
+                  || String(c.code || '').toLowerCase().indexOf(needle) >= 0;
+              });
+            }
+            custList.innerHTML = '';
+            var allBtn = document.createElement('button');
+            allBtn.type = 'button';
+            allBtn.className = 'hx-smart-cust-item hx-smart-cust-item--all';
+            allBtn.textContent = '— الكل —';
+            allBtn.addEventListener('click', function () { pickCust(null); });
+            custList.appendChild(allBtn);
+            if (!rows.length) {
+              var empty = document.createElement('div');
+              empty.className = 'hx-smart-cust-empty';
+              empty.textContent = 'لا يوجد عملاء مطابقون في الفترة.';
+              custList.appendChild(empty);
+            } else {
+              rows.slice(0, 40).forEach(function (c) {
+                var b = document.createElement('button');
+                b.type = 'button';
+                b.className = 'hx-smart-cust-item';
+                b.textContent = custLabel(c);
+                b.addEventListener('click', function () { pickCust(c); });
+                custList.appendChild(b);
+              });
+            }
+            custList.hidden = false;
+            custList.removeAttribute('hidden');
+          }
+          if (custInput && custList && custId) {
+            custInput.addEventListener('focus', function () { renderCustList(custInput.value); });
+            custInput.addEventListener('click', function () { renderCustList(custInput.value); });
+            custInput.addEventListener('input', function () {
+              custId.value = '0';
+              clearTimeout(custTimer);
+              custTimer = setTimeout(function () { renderCustList(custInput.value); }, 120);
+            });
+            custInput.addEventListener('keydown', function (e) {
+              if (e.key === 'Escape') hideCustList();
+              if (e.key === 'Enter') {
+                var first = custList && custList.querySelector('.hx-smart-cust-item:not(.hx-smart-cust-item--all)');
+                if (first && !custList.hidden) {
+                  e.preventDefault();
+                  first.click();
+                }
+              }
+            });
+            document.addEventListener('click', function (e) {
+              var wrap = document.getElementById('hx-visits-smart-cust');
+              if (!wrap || wrap.contains(e.target)) return;
+              hideCustList();
+            });
+          }
         })();
         </script>
     </header>

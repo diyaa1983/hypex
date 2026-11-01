@@ -45,6 +45,63 @@
   min-width: 9rem;
 }
 
+/* قائمة عميل ذكية (بحث بالاسم/الرمز) */
+.hx-visits-filters .hx-smart-cust {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.hx-visits-filters .hx-smart-cust .si-field,
+.hx-visits-filters .hx-smart-cust .input {
+  width: 100%;
+}
+
+.hx-visits-filters .hx-smart-cust-list {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + 2px);
+  z-index: 40;
+  max-height: 14rem;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.35rem;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.12);
+  padding: 0.2rem 0;
+}
+
+.hx-visits-filters .hx-smart-cust-item {
+  display: block;
+  width: 100%;
+  text-align: right;
+  border: 0;
+  background: transparent;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.82rem;
+  color: #0f172a;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.hx-visits-filters .hx-smart-cust-item:hover,
+.hx-visits-filters .hx-smart-cust-item:focus {
+  background: #eff6ff;
+  outline: none;
+}
+
+.hx-visits-filters .hx-smart-cust-item--all {
+  color: #64748b;
+  font-weight: 600;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.hx-visits-filters .hx-smart-cust-empty {
+  padding: 0.55rem 0.65rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
 .hx-visits-filters .hx-visits-f-label {
   font-size: 0.72rem;
   font-weight: 700;
