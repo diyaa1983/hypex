@@ -1247,6 +1247,7 @@ async function reportVisits({
   to = '',
   salesRepId = 0,
   customerId = 0,
+  customerIds = null,
   method = '',
   status = '',
   limit = 1500,
@@ -1266,9 +1267,17 @@ async function reportVisits({
     where.push('r.sales_rep_id = ?');
     params.push(Number(salesRepId));
   }
-  if (Number(customerId) > 0) {
+  const custIds = Array.isArray(customerIds)
+    ? [...new Set(customerIds.map((n) => Number(n) || 0).filter((n) => n > 0))]
+    : Number(customerId) > 0
+      ? [Number(customerId)]
+      : [];
+  if (custIds.length === 1) {
     where.push('l.customer_id = ?');
-    params.push(Number(customerId));
+    params.push(custIds[0]);
+  } else if (custIds.length > 1) {
+    where.push(`l.customer_id IN (${custIds.map(() => '?').join(',')})`);
+    params.push(...custIds);
   }
   const m = String(method || '').trim().toUpperCase();
   if (m === 'GPS' || m === 'MANUAL') {

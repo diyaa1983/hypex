@@ -12,7 +12,21 @@ $today = date('Y-m-d');
 $from = parse_date_to_iso(trim((string) ($_GET['from'] ?? ''))) ?? $today;
 $to = parse_date_to_iso(trim((string) ($_GET['to'] ?? ''))) ?? $today;
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
-$customerId = (int) ($_GET['customer_id'] ?? 0);
+$customerIds = [];
+$rawCust = $_GET['customer_id'] ?? [];
+if (!is_array($rawCust)) {
+    $rawCust = [$rawCust];
+}
+foreach ($rawCust as $cidRaw) {
+    foreach (explode(',', (string) $cidRaw) as $part) {
+        $cid = (int) trim($part);
+        if ($cid > 0) {
+            $customerIds[$cid] = $cid;
+        }
+    }
+}
+$customerIds = array_values($customerIds);
+$customerId = count($customerIds) === 1 ? $customerIds[0] : 0;
 $method = strtoupper(trim((string) ($_GET['method'] ?? '')));
 $status = trim((string) ($_GET['status'] ?? ''));
 
@@ -43,7 +57,7 @@ $rows = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
     'sales_rep_id' => $salesRepId,
-    'customer_id' => $customerId,
+    'customer_ids' => $customerIds,
     'method' => $method,
     'status' => $status,
     'limit' => 1500,
@@ -251,17 +265,6 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             </label>
             <?php
             $customerMap = [];
-            foreach ($rows as $r) {
-                $cid = (int) ($r['customer_id'] ?? 0);
-                if ($cid < 1 || isset($customerMap[$cid])) {
-                    continue;
-                }
-                $customerMap[$cid] = [
-                    'id' => $cid,
-                    'name' => trim((string) ($r['customer_name'] ?? '')),
-                    'code' => trim((string) ($r['customer_code'] ?? '')),
-                ];
-            }
             foreach ($customers as $cust) {
                 $cid = (int) ($cust['id'] ?? 0);
                 if ($cid < 1 || isset($customerMap[$cid])) {
@@ -273,14 +276,45 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                     'code' => trim((string) ($cust['code'] ?? '')),
                 ];
             }
+            if ($customerMap === [] || $customerIds !== []) {
+                $pickerRows = $rows;
+                if ($customerIds !== [] && $customerMap === []) {
+                    $pickerRows = sal_rep_visit_report_rows($pdo, [
+                        'from' => $from,
+                        'to' => $to,
+                        'sales_rep_id' => $salesRepId,
+                        'method' => $method,
+                        'status' => $status,
+                        'limit' => 800,
+                    ]);
+                }
+                foreach ($pickerRows as $r) {
+                    $cid = (int) ($r['customer_id'] ?? 0);
+                    if ($cid < 1 || isset($customerMap[$cid])) {
+                        continue;
+                    }
+                    $customerMap[$cid] = [
+                        'id' => $cid,
+                        'name' => trim((string) ($r['customer_name'] ?? '')),
+                        'code' => trim((string) ($r['customer_code'] ?? '')),
+                    ];
+                }
+            }
             $customersForJs = array_values($customerMap);
             usort($customersForJs, static function (array $a, array $b): int {
                 return strcmp((string) $a['name'], (string) $b['name']);
             });
-            $selectedCustomerLabel = '';
-            if ($customerId > 0 && isset($customerMap[$customerId])) {
-                $sc = $customerMap[$customerId];
-                $selectedCustomerLabel = (($sc['code'] ?? '') !== '' ? $sc['code'] . ' — ' : '') . (string) ($sc['name'] ?? '');
+            $selectedCount = count($customerIds);
+            $selectedSet = array_fill_keys($customerIds, true);
+            if ($selectedCount < 1) {
+                $customerToggleLabel = '— الكل —';
+            } elseif ($selectedCount === 1 && isset($customerMap[$customerIds[0]])) {
+                $sc = $customerMap[$customerIds[0]];
+                $customerToggleLabel = (($sc['code'] ?? '') !== '' ? $sc['code'] . ' — ' : '') . (string) ($sc['name'] ?? '');
+            } elseif ($selectedCount === 1) {
+                $customerToggleLabel = 'عميل واحد';
+            } else {
+                $customerToggleLabel = $selectedCount . ' عملاء محددون';
             }
             $customersJson = json_encode($customersForJs, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS);
             if ($customersJson === false) {
@@ -290,25 +324,44 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             <div class="hx-visits-f hx-visits-f--customer">
                 <span class="hx-visits-f-label">العميل</span>
                 <div class="hx-smart-cust" id="hx-visits-smart-cust">
-                    <select class="input" name="customer_id" id="hx-visits-customer-id" aria-label="العميل">
-                        <option value="0" <?= $customerId < 1 ? 'selected' : '' ?>>— الكل —</option>
-                        <?php foreach ($customersForJs as $cust): ?>
-                            <?php
-                            $cid = (int) ($cust['id'] ?? 0);
-                            $clabel = trim(
-                                ((string) ($cust['code'] ?? '') !== '' ? (string) $cust['code'] . ' — ' : '')
-                                . (string) ($cust['name'] ?? '')
-                            );
-                            if ($clabel === '') {
-                                $clabel = '#' . $cid;
-                            }
-                            ?>
-                            <option value="<?= $cid ?>" <?= $customerId === $cid ? 'selected' : '' ?>><?= esc($clabel) ?></option>
+                    <div id="hx-visits-customer-hidden">
+                        <?php foreach ($customerIds as $cid): ?>
+                            <input type="hidden" name="customer_id" value="<?= (int) $cid ?>">
                         <?php endforeach; ?>
-                    </select>
-                    <input class="input hx-smart-cust-search" type="search" id="hx-visits-customer-q"
-                        placeholder="بحث…" autocomplete="off" title="بحث بالاسم أو الرمز"
-                        aria-controls="hx-visits-customer-id">
+                    </div>
+                    <button type="button" class="input hx-smart-cust-toggle" id="hx-visits-customer-toggle"
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-visits-cust-panel">
+                        <span class="hx-smart-cust-toggle-text" id="hx-visits-customer-label"><?= esc($customerToggleLabel) ?></span>
+                        <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="hx-smart-cust-panel" id="hx-visits-cust-panel" hidden>
+                        <label class="hx-cust-check-item hx-cust-check-item--all">
+                            <input type="checkbox" id="hx-cust-all" <?= $selectedCount < 1 ? 'checked' : '' ?>>
+                            <span>تحديد الكل</span>
+                        </label>
+                        <div class="hx-smart-cust-list" id="hx-visits-cust-list" role="group">
+                            <?php if ($customersForJs === []): ?>
+                                <div class="hx-smart-cust-empty">لا يوجد عملاء في الفترة.</div>
+                            <?php else: ?>
+                                <?php foreach ($customersForJs as $cust): ?>
+                                    <?php
+                                    $cid = (int) ($cust['id'] ?? 0);
+                                    $clabel = trim(
+                                        ((string) ($cust['code'] ?? '') !== '' ? (string) $cust['code'] . ' — ' : '')
+                                        . (string) ($cust['name'] ?? '')
+                                    );
+                                    if ($clabel === '') {
+                                        $clabel = '#' . $cid;
+                                    }
+                                    ?>
+                                    <label class="hx-cust-check-item">
+                                        <input type="checkbox" class="hx-cust-one" value="<?= $cid ?>" <?= isset($selectedSet[$cid]) ? 'checked' : '' ?>>
+                                        <span><?= esc($clabel) ?></span>
+                                    </label>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </div>
+                    </div>
                     <script type="application/json" id="hx-visits-customers-json"><?= $customersJson ?></script>
                 </div>
             </div>
@@ -345,101 +398,98 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
           bind('hx-visits-from', 'hx-weekday-from');
           bind('hx-visits-to', 'hx-weekday-to');
 
-          var custSel = document.getElementById('hx-visits-customer-id');
-          var custSearch = document.getElementById('hx-visits-customer-q');
-          var custTimer = null;
-          var custFetchToken = 0;
+          var custToggle = document.getElementById('hx-visits-customer-toggle');
+          var custLabelEl = document.getElementById('hx-visits-customer-label');
+          var custPanel = document.getElementById('hx-visits-cust-panel');
+          var custList = document.getElementById('hx-visits-cust-list');
+          var custAllCb = document.getElementById('hx-cust-all');
+          var custHidden = document.getElementById('hx-visits-customer-hidden');
           var custAll = [];
           try {
             var raw = document.getElementById('hx-visits-customers-json');
             custAll = raw ? JSON.parse(raw.textContent || '[]') : [];
           } catch (e) { custAll = []; }
           if (!Array.isArray(custAll)) custAll = [];
-          function custLabel(c) {
-            return (c.code ? (c.code + ' — ') : '') + (c.name || ('#' + c.id));
-          }
-          function ensureOpt(c) {
-            if (!custSel || !c || !c.id) return;
-            var id = String(c.id);
-            for (var i = 0; i < custSel.options.length; i++) {
-              if (custSel.options[i].value === id) return;
-            }
-            var opt = document.createElement('option');
-            opt.value = id;
-            opt.textContent = custLabel(c);
-            custSel.appendChild(opt);
-          }
-          function rebuildSelect(list, keepValue) {
-            if (!custSel) return;
-            var cur = keepValue != null ? String(keepValue) : String(custSel.value || '0');
-            custSel.innerHTML = '';
-            var all = document.createElement('option');
-            all.value = '0';
-            all.textContent = '— الكل —';
-            custSel.appendChild(all);
-            (list || []).forEach(function (c) { ensureOpt(c); });
-            var found = false;
-            for (var i = 0; i < custSel.options.length; i++) {
-              if (custSel.options[i].value === cur) { custSel.selectedIndex = i; found = true; break; }
-            }
-            if (!found) custSel.value = '0';
-          }
-          function filterLocal(q) {
-            var needle = String(q || '').trim().toLowerCase();
-            if (!needle) return custAll.slice();
-            return custAll.filter(function (c) {
-              return String(c.name || '').toLowerCase().indexOf(needle) >= 0
-                || String(c.code || '').toLowerCase().indexOf(needle) >= 0
-                || String(c.id).indexOf(needle) >= 0;
-            });
-          }
-          function applyFilter(q) {
-            var needle = String(q || '').trim();
-            var local = filterLocal(needle);
-            rebuildSelect(local, custSel ? custSel.value : '0');
-            if (needle.length < 1) return;
-            var token = ++custFetchToken;
-            fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
-              .then(function (r) { return r.json(); })
-              .then(function (data) {
-                if (token !== custFetchToken) return;
-                if (!data || !data.ok) return;
-                var map = {};
-                local.forEach(function (c) { map[c.id] = c; });
-                (data.rows || []).forEach(function (c) {
-                  var id = Number(c.id) || 0;
-                  if (!id) return;
-                  var row = {
-                    id: id,
-                    name: String(c.name_ar || c.name || ''),
-                    code: String(c.code || '')
-                  };
-                  map[id] = row;
-                  var exists = false;
-                  for (var i = 0; i < custAll.length; i++) {
-                    if (custAll[i].id === id) { exists = true; break; }
-                  }
-                  if (!exists) custAll.push(row);
-                });
-                rebuildSelect(Object.keys(map).map(function (k) { return map[k]; }), custSel.value);
-              })
-              .catch(function () {});
-          }
-          if (custSel && custSearch) {
-            if (custSel.options.length <= 1 && custAll.length) {
-              rebuildSelect(custAll, custSel.value);
-            }
-            custSearch.addEventListener('input', function () {
-              clearTimeout(custTimer);
-              var v = custSearch.value;
-              custTimer = setTimeout(function () { applyFilter(v); }, 140);
-            });
-            custSearch.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') {
-                custSearch.value = '';
-                applyFilter('');
+          function custNameById(id) {
+            for (var i = 0; i < custAll.length; i++) {
+              if (Number(custAll[i].id) === Number(id)) {
+                var c = custAll[i];
+                return (c.code ? (c.code + ' — ') : '') + (c.name || ('#' + c.id));
               }
+            }
+            return 'عميل';
+          }
+          function isOpen() { return custPanel && !custPanel.hidden; }
+          function closePanel() {
+            if (!custPanel) return;
+            custPanel.hidden = true;
+            custPanel.setAttribute('hidden', '');
+            if (custToggle) custToggle.setAttribute('aria-expanded', 'false');
+          }
+          function openPanel() {
+            if (!custPanel) return;
+            custPanel.hidden = false;
+            custPanel.removeAttribute('hidden');
+            if (custToggle) custToggle.setAttribute('aria-expanded', 'true');
+          }
+          function selectedOnes() {
+            if (!custList) return [];
+            return Array.prototype.slice.call(custList.querySelectorAll('.hx-cust-one:checked'))
+              .map(function (el) { return Number(el.value) || 0; })
+              .filter(function (id) { return id > 0; });
+          }
+          function syncHiddenAndLabel() {
+            var ids = selectedOnes();
+            if (custAllCb && ids.length < 1) custAllCb.checked = true;
+            if (custAllCb && ids.length > 0) custAllCb.checked = false;
+            var allOn = !!(custAllCb && custAllCb.checked);
+            if (custHidden) {
+              custHidden.innerHTML = '';
+              if (!allOn) {
+                ids.forEach(function (id) {
+                  var inp = document.createElement('input');
+                  inp.type = 'hidden';
+                  inp.name = 'customer_id';
+                  inp.value = String(id);
+                  custHidden.appendChild(inp);
+                });
+              }
+            }
+            if (custLabelEl) {
+              if (allOn || ids.length < 1) custLabelEl.textContent = '— الكل —';
+              else if (ids.length === 1) custLabelEl.textContent = custNameById(ids[0]);
+              else custLabelEl.textContent = ids.length + ' عملاء محددون';
+            }
+          }
+          if (custToggle && custPanel) {
+            custToggle.addEventListener('click', function (e) {
+              e.preventDefault();
+              if (isOpen()) closePanel();
+              else openPanel();
             });
+            if (custAllCb) {
+              custAllCb.addEventListener('change', function () {
+                if (custAllCb.checked && custList) {
+                  Array.prototype.forEach.call(custList.querySelectorAll('.hx-cust-one'), function (el) {
+                    el.checked = false;
+                  });
+                }
+                syncHiddenAndLabel();
+              });
+            }
+            if (custList) {
+              custList.addEventListener('change', function (e) {
+                if (!e.target || !e.target.classList || !e.target.classList.contains('hx-cust-one')) return;
+                if (e.target.checked && custAllCb) custAllCb.checked = false;
+                syncHiddenAndLabel();
+              });
+            }
+            document.addEventListener('click', function (e) {
+              var wrap = document.getElementById('hx-visits-smart-cust');
+              if (!wrap || wrap.contains(e.target)) return;
+              closePanel();
+            });
+            syncHiddenAndLabel();
           }
         })();
         </script>

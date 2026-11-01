@@ -19,6 +19,18 @@ function can(user, code) {
   return auth.userCan(user, code) || user.is_admin;
 }
 
+/** يقبل customer_id مرة أو عدة مرات أو مفصولة بفواصل */
+function parseCustomerIdsQuery(query = {}) {
+  const raw = query.customer_id ?? query.customer_ids ?? [];
+  const parts = Array.isArray(raw)
+    ? raw
+    : String(raw || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+  return [...new Set(parts.map((n) => Number(n) || 0).filter((n) => n > 0))];
+}
+
 function forbid(res) {
   res.status(403).send('<div class="si-stage"><p class="muted">لا توجد صلاحية.</p></div>');
 }
@@ -1815,10 +1827,10 @@ router.get('/sales-reps/reports/visits/data', async (req, res) => {
   const from = parseDateToIso(req.query.from || '', today);
   const to = parseDateToIso(req.query.to || '', today);
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
-  const customerId = Number(req.query.customer_id || 0) || 0;
+  const customerIds = parseCustomerIdsQuery(req.query);
   const method = String(req.query.method || '').toUpperCase();
   const status = String(req.query.status || '');
-  const rows = await masters.reportVisits({ from, to, salesRepId, customerId, method, status });
+  const rows = await masters.reportVisits({ from, to, salesRepId, customerIds, method, status });
   res.json({ ok: true, from, to, rows, totals: visitTotals(rows) });
 });
 
@@ -1844,12 +1856,32 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const from = parseDateToIso(req.query.from || '', today);
   const to = parseDateToIso(req.query.to || '', today);
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
-  const customerId = Number(req.query.customer_id || 0) || 0;
+  const customerIds = parseCustomerIdsQuery(req.query);
+  const customerId = customerIds.length === 1 ? customerIds[0] : 0;
   const method = String(req.query.method || '').toUpperCase();
   const status = String(req.query.status || '');
   const reps = await q.listRepsSimple();
   const customers = await masters.listVisitReportCustomers({ from, to });
-  const rows = await masters.reportVisits({ from, to, salesRepId, customerId, method, status });
+  const rows = await masters.reportVisits({ from, to, salesRepId, customerIds, method, status });
+  /* إن كانت قائمة الفترة فارغة نبنيها من زيارات غير مفلترة بالعميل */
+  let customersForPicker = customers;
+  if (!customersForPicker.length) {
+    const unfiltered =
+      customerIds.length > 0
+        ? await masters.reportVisits({ from, to, salesRepId, method, status, limit: 800 })
+        : rows;
+    const seen = new Map();
+    for (const r of unfiltered) {
+      const id = Number(r.customer_id) || 0;
+      if (!id || seen.has(id)) continue;
+      seen.set(id, {
+        id,
+        name_ar: r.customer_name || '',
+        code: r.customer_code || '',
+      });
+    }
+    customersForPicker = [...seen.values()];
+  }
 
   function fmtTs(v) {
     if (!v) return '—';
@@ -1903,8 +1935,9 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     )
     .join('');
 
-  /* عملاء القائمة = من نتائج التقرير + استعلام الفترة (ضمان الظهور) */
+  /* عملاء قائمة الاختيار = الفترة (+ نتائج التقرير عند الحاجة) */
   const customerMap = new Map();
+  const selectedSet = new Set(customerIds);
   function pushCustomer(id, name, code) {
     const cid = Number(id) || 0;
     if (!cid || customerMap.has(cid)) return;
@@ -1914,25 +1947,36 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       code: String(code || '').trim(),
     });
   }
+  for (const c of customersForPicker) {
+    pushCustomer(c.id, c.name_ar || c.name || c.NAME_AR, c.code || c.CODE);
+  }
   for (const r of rows) {
     pushCustomer(r.customer_id, r.customer_name, r.customer_code);
-  }
-  for (const c of customers) {
-    pushCustomer(c.id, c.name_ar || c.name || c.NAME_AR, c.code || c.CODE);
   }
   const customerChoices = [...customerMap.values()].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), 'ar')
   );
-  const selectedCustomer = customerMap.get(customerId) || null;
-  const selectedCustomerLabel = selectedCustomer
-    ? `${selectedCustomer.code ? `${selectedCustomer.code} — ` : ''}${selectedCustomer.name || ''}`
-    : '';
+  const selectedCount = customerIds.length;
+  const customerToggleLabel =
+    selectedCount < 1
+      ? '— الكل —'
+      : selectedCount === 1
+        ? (() => {
+            const c = customerMap.get(customerIds[0]);
+            return c
+              ? `${c.code ? `${c.code} — ` : ''}${c.name || `#${c.id}`}`
+              : `عميل واحد`;
+          })()
+        : `${selectedCount} عملاء محددون`;
   const customersJson = JSON.stringify(customerChoices).replace(/</g, '\\u003c');
-  const custOptsHtml = customerChoices
+  const custCheckHtml = customerChoices
     .map((c) => {
       const label = `${c.code ? `${c.code} — ` : ''}${c.name || `#${c.id}`}`;
-      const sel = customerId === c.id ? ' selected' : '';
-      return `<option value="${c.id}"${sel}>${esc(label)}</option>`;
+      const checked = selectedSet.has(c.id) ? ' checked' : '';
+      return `<label class="hx-cust-check-item">
+        <input type="checkbox" class="hx-cust-one" value="${c.id}"${checked}>
+        <span>${esc(label)}</span>
+      </label>`;
     })
     .join('');
 
@@ -2126,14 +2170,29 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           <div class="hx-visits-f hx-visits-f--customer">
             <span class="hx-visits-f-label">العميل</span>
             <div class="hx-smart-cust" id="hx-visits-smart-cust">
-              <select class="si-field" name="customer_id" id="hx-visits-customer-id"
-                aria-label="العميل">
-                <option value="0"${customerId ? '' : ' selected'}>— الكل —</option>
-                ${custOptsHtml}
-              </select>
-              <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-customer-q"
-                placeholder="بحث…" autocomplete="off" title="بحث بالاسم أو الرمز"
-                aria-controls="hx-visits-customer-id">
+              <div id="hx-visits-customer-hidden">
+                ${
+                  selectedCount
+                    ? customerIds
+                        .map((id) => `<input type="hidden" name="customer_id" value="${id}">`)
+                        .join('')
+                    : ''
+                }
+              </div>
+              <button type="button" class="si-field hx-smart-cust-toggle" id="hx-visits-customer-toggle"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-visits-cust-panel">
+                <span class="hx-smart-cust-toggle-text" id="hx-visits-customer-label">${esc(customerToggleLabel)}</span>
+                <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+              </button>
+              <div class="hx-smart-cust-panel" id="hx-visits-cust-panel" hidden>
+                <label class="hx-cust-check-item hx-cust-check-item--all">
+                  <input type="checkbox" id="hx-cust-all" ${selectedCount < 1 ? 'checked' : ''}>
+                  <span>تحديد الكل</span>
+                </label>
+                <div class="hx-smart-cust-list" id="hx-visits-cust-list" role="group">
+                  ${custCheckHtml || '<div class="hx-smart-cust-empty">لا يوجد عملاء في الفترة.</div>'}
+                </div>
+              </div>
               <script type="application/json" id="hx-visits-customers-json">${customersJson}</script>
             </div>
           </div>
@@ -2180,102 +2239,100 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           bind('si-visits-from','si-weekday-from');
           bind('si-visits-to','si-weekday-to');
 
-          /* قائمة عميل: select بأسماء من الخادم + بحث ذكي */
-          var custSel = document.getElementById('hx-visits-customer-id');
-          var custSearch = document.getElementById('hx-visits-customer-q');
-          var custTimer = null;
-          var custFetchToken = 0;
+          /* قائمة عميل متعددة الاختيار (checkboxes) */
+          var custToggle = document.getElementById('hx-visits-customer-toggle');
+          var custLabelEl = document.getElementById('hx-visits-customer-label');
+          var custPanel = document.getElementById('hx-visits-cust-panel');
+          var custList = document.getElementById('hx-visits-cust-list');
+          var custAllCb = document.getElementById('hx-cust-all');
+          var custHidden = document.getElementById('hx-visits-customer-hidden');
           var custAll = [];
           try {
             var raw = document.getElementById('hx-visits-customers-json');
             custAll = raw ? JSON.parse(raw.textContent || '[]') : [];
           } catch (e) { custAll = []; }
           if (!Array.isArray(custAll)) custAll = [];
-          function custLabel(c){
-            return (c.code ? (c.code + ' — ') : '') + (c.name || ('#' + c.id));
-          }
-          function ensureOpt(c){
-            if (!custSel || !c || !c.id) return;
-            var id = String(c.id);
-            for (var i = 0; i < custSel.options.length; i++){
-              if (custSel.options[i].value === id) return;
-            }
-            var opt = document.createElement('option');
-            opt.value = id;
-            opt.textContent = custLabel(c);
-            custSel.appendChild(opt);
-          }
-          function rebuildSelect(list, keepValue){
-            if (!custSel) return;
-            var cur = keepValue != null ? String(keepValue) : String(custSel.value || '0');
-            custSel.innerHTML = '';
-            var all = document.createElement('option');
-            all.value = '0';
-            all.textContent = '— الكل —';
-            custSel.appendChild(all);
-            (list || []).forEach(function(c){ ensureOpt(c); });
-            var found = false;
-            for (var i = 0; i < custSel.options.length; i++){
-              if (custSel.options[i].value === cur){ custSel.selectedIndex = i; found = true; break; }
-            }
-            if (!found) custSel.value = '0';
-          }
-          function filterLocal(q){
-            var needle = String(q || '').trim().toLowerCase();
-            if (!needle) return custAll.slice();
-            return custAll.filter(function(c){
-              return String(c.name||'').toLowerCase().indexOf(needle) >= 0
-                || String(c.code||'').toLowerCase().indexOf(needle) >= 0
-                || String(c.id).indexOf(needle) >= 0;
-            });
-          }
-          function applyFilter(q){
-            var needle = String(q || '').trim();
-            var local = filterLocal(needle);
-            rebuildSelect(local, custSel ? custSel.value : '0');
-            if (needle.length < 1) return;
-            var token = ++custFetchToken;
-            fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
-              .then(function(r){ return r.json(); })
-              .then(function(data){
-                if (token !== custFetchToken) return;
-                if (!data || !data.ok) return;
-                var map = {};
-                local.forEach(function(c){ map[c.id] = c; });
-                (data.rows || []).forEach(function(c){
-                  var id = Number(c.id) || 0;
-                  if (!id) return;
-                  var row = {
-                    id: id,
-                    name: String(c.name_ar || c.name || ''),
-                    code: String(c.code || '')
-                  };
-                  map[id] = row;
-                  var exists = false;
-                  for (var i = 0; i < custAll.length; i++){
-                    if (custAll[i].id === id){ exists = true; break; }
-                  }
-                  if (!exists) custAll.push(row);
-                });
-                rebuildSelect(Object.keys(map).map(function(k){ return map[k]; }), custSel.value);
-              })
-              .catch(function(){});
-          }
-          if (custSel && custSearch){
-            if (custSel.options.length <= 1 && custAll.length){
-              rebuildSelect(custAll, custSel.value);
-            }
-            custSearch.addEventListener('input', function(){
-              clearTimeout(custTimer);
-              var v = custSearch.value;
-              custTimer = setTimeout(function(){ applyFilter(v); }, 140);
-            });
-            custSearch.addEventListener('keydown', function(e){
-              if (e.key === 'Escape'){
-                custSearch.value = '';
-                applyFilter('');
+          function custNameById(id){
+            for (var i = 0; i < custAll.length; i++){
+              if (Number(custAll[i].id) === Number(id)){
+                var c = custAll[i];
+                return (c.code ? (c.code + ' — ') : '') + (c.name || ('#' + c.id));
               }
+            }
+            return 'عميل';
+          }
+          function isOpen(){ return custPanel && !custPanel.hidden; }
+          function closePanel(){
+            if (!custPanel) return;
+            custPanel.hidden = true;
+            custPanel.setAttribute('hidden','');
+            if (custToggle) custToggle.setAttribute('aria-expanded','false');
+          }
+          function openPanel(){
+            if (!custPanel) return;
+            custPanel.hidden = false;
+            custPanel.removeAttribute('hidden');
+            if (custToggle) custToggle.setAttribute('aria-expanded','true');
+          }
+          function selectedOnes(){
+            if (!custList) return [];
+            return Array.prototype.slice.call(custList.querySelectorAll('.hx-cust-one:checked'))
+              .map(function(el){ return Number(el.value)||0; })
+              .filter(function(id){ return id > 0; });
+          }
+          function syncHiddenAndLabel(){
+            var ids = selectedOnes();
+            var allOn = !!(custAllCb && custAllCb.checked) || ids.length < 1;
+            if (custAllCb && ids.length < 1) custAllCb.checked = true;
+            if (custAllCb && ids.length > 0) custAllCb.checked = false;
+            allOn = !!(custAllCb && custAllCb.checked);
+            if (custHidden){
+              custHidden.innerHTML = '';
+              if (!allOn){
+                ids.forEach(function(id){
+                  var inp = document.createElement('input');
+                  inp.type = 'hidden';
+                  inp.name = 'customer_id';
+                  inp.value = String(id);
+                  custHidden.appendChild(inp);
+                });
+              }
+            }
+            if (custLabelEl){
+              if (allOn || ids.length < 1) custLabelEl.textContent = '— الكل —';
+              else if (ids.length === 1) custLabelEl.textContent = custNameById(ids[0]);
+              else custLabelEl.textContent = ids.length + ' عملاء محددون';
+            }
+          }
+          if (custToggle && custPanel){
+            custToggle.addEventListener('click', function(e){
+              e.preventDefault();
+              if (isOpen()) closePanel();
+              else openPanel();
             });
+            if (custAllCb){
+              custAllCb.addEventListener('change', function(){
+                if (custAllCb.checked && custList){
+                  Array.prototype.forEach.call(custList.querySelectorAll('.hx-cust-one'), function(el){
+                    el.checked = false;
+                  });
+                }
+                syncHiddenAndLabel();
+              });
+            }
+            if (custList){
+              custList.addEventListener('change', function(e){
+                if (!e.target || !e.target.classList || !e.target.classList.contains('hx-cust-one')) return;
+                if (e.target.checked && custAllCb) custAllCb.checked = false;
+                syncHiddenAndLabel();
+              });
+            }
+            document.addEventListener('click', function(e){
+              var wrap = document.getElementById('hx-visits-smart-cust');
+              if (!wrap || wrap.contains(e.target)) return;
+              closePanel();
+            });
+            syncHiddenAndLabel();
           }
         })();
         </script>

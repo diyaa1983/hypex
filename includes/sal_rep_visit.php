@@ -1795,6 +1795,19 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
     }
     $salesRepId = (int) ($filters['sales_rep_id'] ?? 0);
     $customerId = (int) ($filters['customer_id'] ?? 0);
+    $customerIds = [];
+    if (isset($filters['customer_ids']) && is_array($filters['customer_ids'])) {
+        foreach ($filters['customer_ids'] as $cidRaw) {
+            $cid = (int) $cidRaw;
+            if ($cid > 0) {
+                $customerIds[$cid] = $cid;
+            }
+        }
+    }
+    $customerIds = array_values($customerIds);
+    if ($customerIds === [] && $customerId > 0) {
+        $customerIds = [$customerId];
+    }
     $method = strtoupper(trim((string) ($filters['method'] ?? '')));
     $status = trim((string) ($filters['status'] ?? ''));
     $limit = max(1, min(2000, (int) ($filters['limit'] ?? 800)));
@@ -1813,9 +1826,15 @@ function sal_rep_visit_report_rows(PDO $pdo, array $filters = []): array
         $where[] = 'r.sales_rep_id = ?';
         $params[] = $salesRepId;
     }
-    if ($customerId > 0) {
+    if (count($customerIds) === 1) {
         $where[] = 'l.customer_id = ?';
-        $params[] = $customerId;
+        $params[] = $customerIds[0];
+    } elseif (count($customerIds) > 1) {
+        $placeholders = implode(',', array_fill(0, count($customerIds), '?'));
+        $where[] = 'l.customer_id IN (' . $placeholders . ')';
+        foreach ($customerIds as $cid) {
+            $params[] = $cid;
+        }
     }
     if ($method === 'GPS' || $method === 'MANUAL') {
         $where[] = '(UPPER(IFNULL(l.checkin_method,\'\')) = ? OR UPPER(IFNULL(l.checkout_method,\'\')) = ?)';
