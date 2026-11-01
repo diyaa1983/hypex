@@ -421,11 +421,17 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             return 'عميل';
           }
           function isOpen() { return custPanel && !custPanel.hidden; }
+          function filterSurface() {
+            var wrap = document.getElementById('hx-visits-smart-cust');
+            return wrap ? wrap.closest('.si-surface, .report-filters, header, .report-sales-page') : null;
+          }
           function closePanel() {
             if (!custPanel) return;
             custPanel.hidden = true;
             custPanel.setAttribute('hidden', '');
             if (custToggle) custToggle.setAttribute('aria-expanded', 'false');
+            var surf = filterSurface();
+            if (surf) surf.classList.remove('is-cust-open');
           }
           function openPanel() {
             if (!custPanel) return;
@@ -433,6 +439,8 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             custPanel.hidden = false;
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded', 'true');
+            var surf = filterSurface();
+            if (surf) surf.classList.add('is-cust-open');
           }
           function ensureChecksFromTable() {
             if (!custList) return;

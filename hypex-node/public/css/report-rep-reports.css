@@ -83,7 +83,7 @@
   position: absolute;
   inset-inline: 0;
   top: calc(100% + 2px);
-  z-index: 60;
+  z-index: 4000;
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
@@ -91,8 +91,9 @@
   background: #fff;
   border: 1px solid #cbd5e1;
   border-radius: 0.35rem;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-  min-width: 14rem;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18);
+  min-width: 16rem;
+  max-height: min(22rem, 70vh);
 }
 
 .hx-visits-filters .hx-smart-cust-panel[hidden] {
@@ -100,7 +101,7 @@
 }
 
 .hx-visits-filters .hx-smart-cust-list {
-  max-height: 14rem;
+  max-height: 16rem;
   overflow: auto;
   border: 1px solid #e2e8f0;
   border-radius: 0.25rem;
@@ -235,9 +236,35 @@
   margin: 0;
 }
 
-.si-report-page.si-report-visits .si-surface.no-print {
+/* سطح الفلاتر فوق الجدول حتى لا تُقصّ قائمة العميل */
+.si-report-page.si-report-visits .si-surface.no-print,
+.si-stage.si-report-visits > .si-surface.no-print {
   padding: 0.55rem 0.75rem !important;
   margin-bottom: 0.55rem !important;
+  overflow: visible !important;
+  position: relative;
+  z-index: 30;
+}
+
+.si-report-page.si-report-visits .si-surface.no-print:has(.hx-smart-cust-panel:not([hidden])),
+.si-stage.si-report-visits > .si-surface.no-print:has(.hx-smart-cust-panel:not([hidden])),
+.si-report-page.si-report-visits .si-surface.no-print.is-cust-open,
+.si-stage.si-report-visits > .si-surface.no-print.is-cust-open {
+  z-index: 200 !important;
+}
+
+.si-report-page.si-report-visits .si-print-area,
+.si-report-page.si-report-visits .si-table-wrap,
+.si-stage.si-report-visits .si-print-area,
+.si-stage.si-report-visits .si-table-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+.hx-visits-filters,
+.hx-visits-filters .hx-visits-f--customer,
+.hx-visits-filters .hx-smart-cust {
+  overflow: visible !important;
 }
 
 @media (max-width: 1100px) {

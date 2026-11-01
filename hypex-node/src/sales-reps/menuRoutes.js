@@ -2266,11 +2266,17 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             return 'عميل';
           }
           function isOpen(){ return custPanel && !custPanel.hidden; }
+          function filterSurface(){
+            var wrap = document.getElementById('hx-visits-smart-cust');
+            return wrap ? wrap.closest('.si-surface') : null;
+          }
           function closePanel(){
             if (!custPanel) return;
             custPanel.hidden = true;
             custPanel.setAttribute('hidden','');
             if (custToggle) custToggle.setAttribute('aria-expanded','false');
+            var surf = filterSurface();
+            if (surf) surf.classList.remove('is-cust-open');
           }
           function openPanel(){
             if (!custPanel) return;
@@ -2278,6 +2284,8 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
             custPanel.hidden = false;
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded','true');
+            var surf = filterSurface();
+            if (surf) surf.classList.add('is-cust-open');
           }
           function ensureChecksFromTable(){
             if (!custList) return;
