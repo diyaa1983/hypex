@@ -1862,26 +1862,19 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
   const status = String(req.query.status || '');
   const reps = await q.listRepsSimple();
   const customers = await masters.listVisitReportCustomers({ from, to });
-  const rows = await masters.reportVisits({ from, to, salesRepId, customerIds, method, status });
-  /* إن كانت قائمة الفترة فارغة نبنيها من زيارات غير مفلترة بالعميل */
-  let customersForPicker = customers;
-  if (!customersForPicker.length) {
-    const unfiltered =
-      customerIds.length > 0
-        ? await masters.reportVisits({ from, to, salesRepId, method, status, limit: 800 })
-        : rows;
-    const seen = new Map();
-    for (const r of unfiltered) {
-      const id = Number(r.customer_id) || 0;
-      if (!id || seen.has(id)) continue;
-      seen.set(id, {
-        id,
-        name_ar: r.customer_name || '',
-        code: r.customer_code || '',
-      });
-    }
-    customersForPicker = [...seen.values()];
-  }
+  /* زيارات بدون فلتر عميل — مصدر أسماء قائمة الاختيار */
+  const rowsForPicker = await masters.reportVisits({
+    from,
+    to,
+    salesRepId,
+    method,
+    status,
+    limit: 1500,
+  });
+  const rows =
+    customerIds.length > 0
+      ? await masters.reportVisits({ from, to, salesRepId, customerIds, method, status })
+      : rowsForPicker;
 
   function fmtTs(v) {
     if (!v) return '—';
@@ -1935,11 +1928,11 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     )
     .join('');
 
-  /* عملاء قائمة الاختيار = الفترة (+ نتائج التقرير عند الحاجة) */
+  /* عملاء قائمة الاختيار = كل عملاء زيارات الفترة (بدون فلتر العميل) */
   const customerMap = new Map();
   const selectedSet = new Set(customerIds);
   function pushCustomer(id, name, code) {
-    const cid = Number(id) || 0;
+    const cid = Number(id) || Number(id && id.id) || 0;
     if (!cid || customerMap.has(cid)) return;
     customerMap.set(cid, {
       id: cid,
@@ -1947,11 +1940,19 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       code: String(code || '').trim(),
     });
   }
-  for (const c of customersForPicker) {
-    pushCustomer(c.id, c.name_ar || c.name || c.NAME_AR, c.code || c.CODE);
+  for (const c of customers) {
+    pushCustomer(
+      c.id || c.ID,
+      c.name_ar || c.name || c.NAME_AR || '',
+      c.code || c.CODE || ''
+    );
   }
-  for (const r of rows) {
-    pushCustomer(r.customer_id, r.customer_name, r.customer_code);
+  for (const r of rowsForPicker) {
+    pushCustomer(
+      r.customer_id || r.CUSTOMER_ID,
+      r.customer_name || r.CUSTOMER_NAME || '',
+      r.customer_code || r.CUSTOMER_CODE || ''
+    );
   }
   const customerChoices = [...customerMap.values()].sort((a, b) =>
     String(a.name).localeCompare(String(b.name), 'ar')
@@ -2013,10 +2014,13 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   function visitDataCells(r, seq, includeRep) {
     const reason = esc(r.no_order_reasons || '—');
+    const custIdAttr = Number(r.customer_id || r.CUSTOMER_ID || 0) || 0;
+    const custNameAttr = esc(r.customer_name || r.CUSTOMER_NAME || '');
+    const custCodeAttr = esc(r.customer_code || r.CUSTOMER_CODE || '');
     return `<td class="si-num" dir="ltr">${seq}</td>
       <td class="si-col-date">${esc(dateWithWeekday(r.route_date))}</td>
       ${includeRep ? `<td class="si-col-rep">${esc(r.sales_rep_name || '—')}</td>` : ''}
-      <td class="si-col-customer">${customerNameOnly(r)}</td>
+      <td class="si-col-customer" data-customer-id="${custIdAttr}" data-customer-name="${custNameAttr}" data-customer-code="${custCodeAttr}">${customerNameOnly(r)}</td>
       <td class="si-col-scope">${scopeLbl(r)}</td>
       ${orderNoCell(r)}
       <td class="si-col-reason" title="${reason}">${reason}</td>
@@ -2270,9 +2274,33 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           }
           function openPanel(){
             if (!custPanel) return;
+            ensureChecksFromTable();
             custPanel.hidden = false;
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded','true');
+          }
+          function ensureChecksFromTable(){
+            if (!custList) return;
+            var existing = {};
+            Array.prototype.forEach.call(custList.querySelectorAll('.hx-cust-one'), function(el){
+              existing[String(el.value)] = true;
+            });
+            Array.prototype.forEach.call(document.querySelectorAll('.si-col-customer[data-customer-id]'), function(td){
+              var id = Number(td.getAttribute('data-customer-id') || 0) || 0;
+              if (!id || existing[String(id)]) return;
+              existing[String(id)] = true;
+              var name = td.getAttribute('data-customer-name') || (td.textContent || '').trim();
+              var code = td.getAttribute('data-customer-code') || '';
+              var label = (code ? (code + ' — ') : '') + name;
+              var lab = document.createElement('label');
+              lab.className = 'hx-cust-check-item';
+              lab.innerHTML = '<input type="checkbox" class="hx-cust-one" value="' + id + '"><span></span>';
+              lab.querySelector('span').textContent = label || ('#' + id);
+              custList.appendChild(lab);
+              custAll.push({ id: id, name: name, code: code });
+            });
+            var empty = custList.querySelector('.hx-smart-cust-empty');
+            if (empty && custList.querySelector('.hx-cust-one')) empty.remove();
           }
           function selectedOnes(){
             if (!custList) return [];

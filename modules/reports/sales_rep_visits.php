@@ -53,15 +53,25 @@ try {
     $customers = [];
 }
 
-$rows = sal_rep_visit_report_rows($pdo, [
+$rowsForPicker = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
     'sales_rep_id' => $salesRepId,
-    'customer_ids' => $customerIds,
     'method' => $method,
     'status' => $status,
     'limit' => 1500,
 ]);
+$rows = $customerIds !== []
+    ? sal_rep_visit_report_rows($pdo, [
+        'from' => $from,
+        'to' => $to,
+        'sales_rep_id' => $salesRepId,
+        'customer_ids' => $customerIds,
+        'method' => $method,
+        'status' => $status,
+        'limit' => 1500,
+    ])
+    : $rowsForPicker;
 
 $uniqueRepIds = [];
 foreach ($rows as $r) {
@@ -121,7 +131,11 @@ function sal_rep_visit_report_data_row_html(array $r, int $seq, bool $includeRep
     if ($includeRep) {
         $html .= '<td>' . esc((string) ($r['sales_rep_name'] ?? '')) . '</td>';
     }
-    $html .= '<td class="col-customer">' . sal_rep_visit_customer_name_only($r) . '</td>';
+    $custId = (int) ($r['customer_id'] ?? 0);
+    $html .= '<td class="col-customer si-col-customer" data-customer-id="' . $custId . '"'
+        . ' data-customer-name="' . esc((string) ($r['customer_name'] ?? '')) . '"'
+        . ' data-customer-code="' . esc((string) ($r['customer_code'] ?? '')) . '">'
+        . sal_rep_visit_customer_name_only($r) . '</td>';
     $html .= '<td class="col-scope">' . esc($scope) . '</td>';
     $html .= '<td class="col-reason" title="' . esc($reason) . '">' . esc($reason) . '</td>';
     $html .= '<td class="col-location">' . sal_rep_visit_location_inline($r) . '</td>';
@@ -276,29 +290,16 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                     'code' => trim((string) ($cust['code'] ?? '')),
                 ];
             }
-            if ($customerMap === [] || $customerIds !== []) {
-                $pickerRows = $rows;
-                if ($customerIds !== [] && $customerMap === []) {
-                    $pickerRows = sal_rep_visit_report_rows($pdo, [
-                        'from' => $from,
-                        'to' => $to,
-                        'sales_rep_id' => $salesRepId,
-                        'method' => $method,
-                        'status' => $status,
-                        'limit' => 800,
-                    ]);
+            foreach ($rowsForPicker as $r) {
+                $cid = (int) ($r['customer_id'] ?? 0);
+                if ($cid < 1 || isset($customerMap[$cid])) {
+                    continue;
                 }
-                foreach ($pickerRows as $r) {
-                    $cid = (int) ($r['customer_id'] ?? 0);
-                    if ($cid < 1 || isset($customerMap[$cid])) {
-                        continue;
-                    }
-                    $customerMap[$cid] = [
-                        'id' => $cid,
-                        'name' => trim((string) ($r['customer_name'] ?? '')),
-                        'code' => trim((string) ($r['customer_code'] ?? '')),
-                    ];
-                }
+                $customerMap[$cid] = [
+                    'id' => $cid,
+                    'name' => trim((string) ($r['customer_name'] ?? '')),
+                    'code' => trim((string) ($r['customer_code'] ?? '')),
+                ];
             }
             $customersForJs = array_values($customerMap);
             usort($customersForJs, static function (array $a, array $b): int {
@@ -428,9 +429,33 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
           }
           function openPanel() {
             if (!custPanel) return;
+            ensureChecksFromTable();
             custPanel.hidden = false;
             custPanel.removeAttribute('hidden');
             if (custToggle) custToggle.setAttribute('aria-expanded', 'true');
+          }
+          function ensureChecksFromTable() {
+            if (!custList) return;
+            var existing = {};
+            Array.prototype.forEach.call(custList.querySelectorAll('.hx-cust-one'), function (el) {
+              existing[String(el.value)] = true;
+            });
+            Array.prototype.forEach.call(document.querySelectorAll('.si-col-customer[data-customer-id], .col-customer[data-customer-id]'), function (td) {
+              var id = Number(td.getAttribute('data-customer-id') || 0) || 0;
+              if (!id || existing[String(id)]) return;
+              existing[String(id)] = true;
+              var name = td.getAttribute('data-customer-name') || (td.textContent || '').trim();
+              var code = td.getAttribute('data-customer-code') || '';
+              var label = (code ? (code + ' — ') : '') + name;
+              var lab = document.createElement('label');
+              lab.className = 'hx-cust-check-item';
+              lab.innerHTML = '<input type="checkbox" class="hx-cust-one" value="' + id + '"><span></span>';
+              lab.querySelector('span').textContent = label || ('#' + id);
+              custList.appendChild(lab);
+              custAll.push({ id: id, name: name, code: code });
+            });
+            var empty = custList.querySelector('.hx-smart-cust-empty');
+            if (empty && custList.querySelector('.hx-cust-one')) empty.remove();
           }
           function selectedOnes() {
             if (!custList) return [];

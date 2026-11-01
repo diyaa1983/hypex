@@ -1373,19 +1373,36 @@ async function listVisitReportCustomers({ from = '', to = '' } = {}) {
     params.push(to);
   }
   try {
+    /* GROUP BY أوضح من DISTINCT مع أعمدة متعددة */
     return await safeQuery(
-      `SELECT DISTINCT c.id, c.name_ar, COALESCE(c.code,'') AS code
+      `SELECT c.id, MAX(c.name_ar) AS name_ar, MAX(COALESCE(c.code,'')) AS code
        FROM sal_rep_route_line l
        INNER JOIN sal_rep_route r ON r.id = l.route_id
        INNER JOIN crm_customer c ON c.id = l.customer_id
        WHERE ${where.join(' AND ')}
-       ORDER BY c.name_ar
+       GROUP BY c.id
+       ORDER BY MAX(c.name_ar)
        LIMIT 800`,
       params
     );
   } catch (e) {
     console.error('listVisitReportCustomers', e.message);
-    return [];
+    try {
+      return await safeQuery(
+        `SELECT c.id, c.name_ar, COALESCE(c.code,'') AS code
+         FROM sal_rep_route_line l
+         INNER JOIN sal_rep_route r ON r.id = l.route_id
+         INNER JOIN crm_customer c ON c.id = l.customer_id
+         WHERE ${where.join(' AND ')}
+         GROUP BY c.id, c.name_ar, c.code
+         ORDER BY c.name_ar
+         LIMIT 800`,
+        params
+      );
+    } catch (e2) {
+      console.error('listVisitReportCustomers fallback', e2.message);
+      return [];
+    }
   }
 }
 
