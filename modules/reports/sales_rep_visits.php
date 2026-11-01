@@ -270,11 +270,16 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
                 <span class="hx-visits-f-label">العميل</span>
                 <div class="hx-smart-cust" id="hx-visits-smart-cust">
                     <input type="hidden" name="customer_id" id="hx-visits-customer-id" value="<?= (int) $customerId ?>">
-                    <input class="input" type="search" id="hx-visits-customer"
-                        placeholder="ابحث بالاسم أو الرمز…" autocomplete="off"
-                        value="<?= esc($selectedCustomerLabel) ?>"
-                        aria-autocomplete="list" aria-controls="hx-visits-cust-list">
-                    <div class="hx-smart-cust-list" id="hx-visits-cust-list" hidden></div>
+                    <button type="button" class="input hx-smart-cust-toggle" id="hx-visits-customer-toggle"
+                        aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-visits-cust-panel">
+                        <span class="hx-smart-cust-toggle-text" id="hx-visits-customer-label"><?= esc($selectedCustomerLabel !== '' ? $selectedCustomerLabel : '— الكل —') ?></span>
+                        <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+                    </button>
+                    <div class="hx-smart-cust-panel" id="hx-visits-cust-panel" hidden>
+                        <input class="input hx-smart-cust-search" type="search" id="hx-visits-customer-q"
+                            placeholder="ابحث بالاسم أو الرمز…" autocomplete="off">
+                        <div class="hx-smart-cust-list" id="hx-visits-cust-list" role="listbox"></div>
+                    </div>
                 </div>
             </label>
             <label class="hx-visits-f hx-visits-f--status">
@@ -310,41 +315,68 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
           bind('hx-visits-from', 'hx-weekday-from');
           bind('hx-visits-to', 'hx-weekday-to');
 
-          var custAll = <?= $customersJson ?>;
-          var custInput = document.getElementById('hx-visits-customer');
+          var custPeriod = <?= $customersJson ?>;
           var custId = document.getElementById('hx-visits-customer-id');
+          var custToggle = document.getElementById('hx-visits-customer-toggle');
+          var custLabelEl = document.getElementById('hx-visits-customer-label');
+          var custPanel = document.getElementById('hx-visits-cust-panel');
+          var custSearch = document.getElementById('hx-visits-customer-q');
           var custList = document.getElementById('hx-visits-cust-list');
           var custTimer = null;
+          var custFetchToken = 0;
           function custLabel(c) {
             return (c.code ? (c.code + ' — ') : '') + (c.name || '');
           }
-          function hideCustList() {
-            if (!custList) return;
-            custList.hidden = true;
-            custList.setAttribute('hidden', '');
-            custList.innerHTML = '';
+          function isOpen() {
+            return custPanel && !custPanel.hidden;
+          }
+          function closePanel() {
+            if (!custPanel) return;
+            custPanel.hidden = true;
+            custPanel.setAttribute('hidden', '');
+            if (custToggle) custToggle.setAttribute('aria-expanded', 'false');
+            if (custSearch) custSearch.value = '';
+          }
+          function openPanel() {
+            if (!custPanel) return;
+            custPanel.hidden = false;
+            custPanel.removeAttribute('hidden');
+            if (custToggle) custToggle.setAttribute('aria-expanded', 'true');
+            renderCustList('');
+            if (custSearch) {
+              setTimeout(function () { custSearch.focus(); custSearch.select(); }, 0);
+            }
           }
           function pickCust(c) {
-            if (!custInput || !custId) return;
+            if (!custId || !custLabelEl) return;
             if (!c || !c.id) {
               custId.value = '0';
-              custInput.value = '';
+              custLabelEl.textContent = '— الكل —';
             } else {
               custId.value = String(c.id);
-              custInput.value = custLabel(c);
+              custLabelEl.textContent = custLabel(c);
             }
-            hideCustList();
+            closePanel();
           }
-          function renderCustList(q) {
-            if (!custList || !custInput) return;
-            var needle = String(q || '').trim().toLowerCase();
-            var rows = custAll.slice();
-            if (needle) {
-              rows = rows.filter(function (c) {
-                return String(c.name || '').toLowerCase().indexOf(needle) >= 0
-                  || String(c.code || '').toLowerCase().indexOf(needle) >= 0;
+          function mergeRows(localRows, apiRows) {
+            var map = {};
+            var out = [];
+            function push(c) {
+              var id = Number(c && c.id) || 0;
+              if (!id || map[id]) return;
+              map[id] = 1;
+              out.push({
+                id: id,
+                name: String(c.name || c.name_ar || ''),
+                code: String(c.code || '')
               });
             }
+            (localRows || []).forEach(push);
+            (apiRows || []).forEach(push);
+            return out;
+          }
+          function paintList(rows, needle) {
+            if (!custList) return;
             custList.innerHTML = '';
             var allBtn = document.createElement('button');
             allBtn.type = 'button';
@@ -355,43 +387,74 @@ $repCssUrl = app_url('hypex-node/public/css/report-rep-reports.css') . (is_file(
             if (!rows.length) {
               var empty = document.createElement('div');
               empty.className = 'hx-smart-cust-empty';
-              empty.textContent = 'لا يوجد عملاء مطابقون في الفترة.';
+              empty.textContent = needle ? 'لا يوجد عملاء مطابقون.' : 'لا يوجد عملاء في الفترة.';
               custList.appendChild(empty);
-            } else {
-              rows.slice(0, 40).forEach(function (c) {
-                var b = document.createElement('button');
-                b.type = 'button';
-                b.className = 'hx-smart-cust-item';
-                b.textContent = custLabel(c);
-                b.addEventListener('click', function () { pickCust(c); });
-                custList.appendChild(b);
+              return;
+            }
+            rows.slice(0, 80).forEach(function (c) {
+              var b = document.createElement('button');
+              b.type = 'button';
+              b.className = 'hx-smart-cust-item';
+              b.setAttribute('role', 'option');
+              b.textContent = custLabel(c);
+              b.addEventListener('click', function () { pickCust(c); });
+              custList.appendChild(b);
+            });
+          }
+          function filterLocal(q) {
+            var needle = String(q || '').trim().toLowerCase();
+            if (!needle) return custPeriod.slice();
+            return custPeriod.filter(function (c) {
+              return String(c.name || '').toLowerCase().indexOf(needle) >= 0
+                || String(c.code || '').toLowerCase().indexOf(needle) >= 0;
+            });
+          }
+          function renderCustList(q) {
+            var needle = String(q || '').trim();
+            var local = filterLocal(needle);
+            paintList(local, needle);
+            if (needle.length < 2) return;
+            var token = ++custFetchToken;
+            fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                if (token !== custFetchToken) return;
+                if (!data || !data.ok) return;
+                paintList(mergeRows(local, data.rows || []), needle);
+              })
+              .catch(function () {});
+          }
+          if (custToggle && custPanel && custList && custId) {
+            custToggle.addEventListener('click', function (e) {
+              e.preventDefault();
+              if (isOpen()) closePanel();
+              else openPanel();
+            });
+            if (custSearch) {
+              custSearch.addEventListener('input', function () {
+                clearTimeout(custTimer);
+                var v = custSearch.value;
+                custTimer = setTimeout(function () { renderCustList(v); }, 160);
+              });
+              custSearch.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  closePanel();
+                  custToggle.focus();
+                }
+                if (e.key === 'Enter') {
+                  var first = custList.querySelector('.hx-smart-cust-item:not(.hx-smart-cust-item--all)');
+                  if (first) {
+                    e.preventDefault();
+                    first.click();
+                  }
+                }
               });
             }
-            custList.hidden = false;
-            custList.removeAttribute('hidden');
-          }
-          if (custInput && custList && custId) {
-            custInput.addEventListener('focus', function () { renderCustList(custInput.value); });
-            custInput.addEventListener('click', function () { renderCustList(custInput.value); });
-            custInput.addEventListener('input', function () {
-              custId.value = '0';
-              clearTimeout(custTimer);
-              custTimer = setTimeout(function () { renderCustList(custInput.value); }, 120);
-            });
-            custInput.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') hideCustList();
-              if (e.key === 'Enter') {
-                var first = custList && custList.querySelector('.hx-smart-cust-item:not(.hx-smart-cust-item--all)');
-                if (first && !custList.hidden) {
-                  e.preventDefault();
-                  first.click();
-                }
-              }
-            });
             document.addEventListener('click', function (e) {
               var wrap = document.getElementById('hx-visits-smart-cust');
               if (!wrap || wrap.contains(e.target)) return;
-              hideCustList();
+              closePanel();
             });
           }
         })();
