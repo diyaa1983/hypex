@@ -283,20 +283,23 @@ body.co-ora-body .si-print-meta {
   color: #333 !important;
 }
 
-/* شريط أدوات المستندات (إن لم يُلف بـ co-ora-skin) */
+/* شريط أدوات المستندات — يلتف عند الزووم بدل تداخل الكبسات */
 body.co-ora-body .si-cmd.si-doc-toolbar {
-  direction: ltr;
+  direction: rtl;
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0;
+  justify-content: flex-start;
+  gap: 3px;
   padding: 2px 3px !important;
   margin: 0 0 6px !important;
   background: linear-gradient(180deg, #f7f7f7 0%, #ebebeb 100%) !important;
   border: 1px solid #b0b0b0 !important;
   border-radius: 0 !important;
   box-shadow: inset 0 1px 0 #fff !important;
+  max-width: 100%;
+  overflow: visible;
+  height: auto !important;
 }
 
 body.co-ora-body .si-tb {
