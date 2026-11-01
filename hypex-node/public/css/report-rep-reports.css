@@ -45,109 +45,27 @@
   min-width: 9rem;
 }
 
-/* قائمة عميل: أسماء ظاهرة + بحث ذكي */
+/* قائمة عميل: بحث ذكي فوق select بأسماء ظاهرة */
 .hx-visits-filters .hx-smart-cust {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-}
-
-.hx-visits-filters .hx-smart-cust-toggle {
-  display: flex !important;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.35rem;
-  width: 100%;
-  text-align: right;
-  cursor: pointer;
-  background: #fff;
-}
-
-.hx-visits-filters .hx-smart-cust-toggle-text {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hx-visits-filters .hx-smart-cust-caret {
-  flex: 0 0 auto;
-  width: 0;
-  height: 0;
-  border-inline: 0.28rem solid transparent;
-  border-top: 0.34rem solid #64748b;
-}
-
-.hx-visits-filters .hx-smart-cust-panel {
-  position: absolute;
-  inset-inline: 0;
-  top: calc(100% + 2px);
-  z-index: 50;
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.4rem;
-  background: #fff;
-  border: 1px solid #cbd5e1;
-  border-radius: 0.35rem;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14);
-  min-width: 16rem;
-}
-
-.hx-visits-filters .hx-smart-cust-panel[hidden] {
-  display: none !important;
+  gap: 0.25rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .hx-visits-filters .hx-smart-cust-search {
   width: 100%;
-  flex: 0 0 auto;
+  order: 0;
 }
 
-.hx-visits-filters .hx-smart-cust-list {
-  max-height: 14rem;
-  min-height: 2.4rem;
-  overflow: auto;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.25rem;
-  background: #fff;
-}
-
-.hx-visits-filters .hx-smart-cust-item {
-  display: block;
+.hx-visits-filters .hx-smart-cust > select {
   width: 100%;
-  text-align: right;
-  border: 0;
-  background: #fff;
-  padding: 0.45rem 0.65rem;
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: #0f172a !important;
-  cursor: pointer;
-  line-height: 1.4;
-  min-height: 2rem;
+  order: 1;
 }
 
-.hx-visits-filters .hx-smart-cust-item:hover,
-.hx-visits-filters .hx-smart-cust-item:focus {
-  background: #eff6ff;
-  outline: none;
-}
-
-.hx-visits-filters .hx-smart-cust-item--all {
-  color: #64748b;
-  font-weight: 600;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-
-.hx-visits-filters .hx-smart-cust-empty {
-  padding: 0.55rem 0.65rem;
-  font-size: 0.8rem;
-  color: #64748b;
+.hx-visits-filters .hx-smart-cust > script {
+  display: none !important;
 }
 
 .hx-visits-filters .hx-visits-f-label {

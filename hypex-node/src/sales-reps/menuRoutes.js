@@ -1422,14 +1422,14 @@ function fmtGpsCoord(lat, lng) {
 }
 
 const REP_REPORT_CSS = ['/assets/css/report-rep-reports.css'];
-const REP_REPORT_STYLE = (() => {
+function repReportStyle() {
   try {
     const cssPath = path.join(__dirname, '../../public/css/report-rep-reports.css');
     return `<style>${fs.readFileSync(cssPath, 'utf8')}</style>`;
   } catch {
     return '';
   }
-})();
+}
 
 function visitTsMethod(ts, method, fmtTsFn, methodLblFn) {
   const t = fmtTsFn(ts);
@@ -1726,7 +1726,7 @@ router.get('/sales-reps/reports/tours', async (req, res) => {
 
   const body = `
     <div class="si-stage si-report-page si-report-tours" data-hx-print-landscape="1">
-      ${REP_REPORT_STYLE}
+      ${repReportStyle()}
       ${ui.hero({
         mark: '🗺️',
         kicker: KICKER,
@@ -1928,6 +1928,13 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
     ? `${selectedCustomer.code ? `${selectedCustomer.code} — ` : ''}${selectedCustomer.name || ''}`
     : '';
   const customersJson = JSON.stringify(customerChoices).replace(/</g, '\\u003c');
+  const custOptsHtml = customerChoices
+    .map((c) => {
+      const label = `${c.code ? `${c.code} — ` : ''}${c.name || `#${c.id}`}`;
+      const sel = customerId === c.id ? ' selected' : '';
+      return `<option value="${c.id}"${sel}>${esc(label)}</option>`;
+    })
+    .join('');
 
   const uniqueRepIds = [...new Set(rows.map((r) => Number(r.sales_rep_id || 0)).filter((id) => id > 0))];
   const groupByRep = salesRepId < 1 && uniqueRepIds.length > 1;
@@ -2074,7 +2081,7 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
 
   const body = `
     <div class="si-stage si-report-page si-report-visits" data-hx-print-landscape="1">
-      ${REP_REPORT_STYLE}
+      ${repReportStyle()}
       ${ui.hero({
         mark: '📍',
         kicker: KICKER,
@@ -2119,17 +2126,15 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           <div class="hx-visits-f hx-visits-f--customer">
             <span class="hx-visits-f-label">العميل</span>
             <div class="hx-smart-cust" id="hx-visits-smart-cust">
-              <input type="hidden" name="customer_id" id="hx-visits-customer-id" value="${customerId || 0}">
-              <button type="button" class="si-field hx-smart-cust-toggle" id="hx-visits-customer-toggle"
-                aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-visits-cust-panel">
-                <span class="hx-smart-cust-toggle-text" id="hx-visits-customer-label">${esc(selectedCustomerLabel || '— الكل —')}</span>
-                <span class="hx-smart-cust-caret" aria-hidden="true"></span>
-              </button>
-              <div class="hx-smart-cust-panel" id="hx-visits-cust-panel" hidden>
-                <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-customer-q"
-                  placeholder="ابحث بالاسم أو الرمز…" autocomplete="off">
-                <div class="hx-smart-cust-list" id="hx-visits-cust-list" role="listbox"></div>
-              </div>
+              <input class="si-field hx-smart-cust-search" type="search" id="hx-visits-customer-q"
+                placeholder="ابحث بالاسم أو الرمز…" autocomplete="off"
+                aria-controls="hx-visits-customer-id">
+              <select class="si-field" name="customer_id" id="hx-visits-customer-id"
+                aria-label="العميل">
+                <option value="0"${customerId ? '' : ' selected'}>— الكل —</option>
+                ${custOptsHtml}
+              </select>
+              <script type="application/json" id="hx-visits-customers-json">${customersJson}</script>
             </div>
           </div>
           <label class="hx-visits-f hx-visits-f--status">
@@ -2175,169 +2180,101 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
           bind('si-visits-from','si-weekday-from');
           bind('si-visits-to','si-weekday-to');
 
-          /* قائمة عميل: أسماء من الفترة + بحث ذكي من قاعدة العملاء */
-          var custPeriod = ${customersJson};
-          var custId = document.getElementById('hx-visits-customer-id');
-          var custToggle = document.getElementById('hx-visits-customer-toggle');
-          var custLabelEl = document.getElementById('hx-visits-customer-label');
-          var custPanel = document.getElementById('hx-visits-cust-panel');
+          /* قائمة عميل: select بأسماء من الخادم + بحث ذكي */
+          var custSel = document.getElementById('hx-visits-customer-id');
           var custSearch = document.getElementById('hx-visits-customer-q');
-          var custList = document.getElementById('hx-visits-cust-list');
           var custTimer = null;
           var custFetchToken = 0;
+          var custAll = [];
+          try {
+            var raw = document.getElementById('hx-visits-customers-json');
+            custAll = raw ? JSON.parse(raw.textContent || '[]') : [];
+          } catch (e) { custAll = []; }
+          if (!Array.isArray(custAll)) custAll = [];
           function custLabel(c){
-            return (c.code ? (c.code + ' — ') : '') + (c.name || '');
+            return (c.code ? (c.code + ' — ') : '') + (c.name || ('#' + c.id));
           }
-          function isOpen(){
-            return custPanel && !custPanel.hidden;
-          }
-          function closePanel(){
-            if (!custPanel) return;
-            custPanel.hidden = true;
-            custPanel.setAttribute('hidden','');
-            if (custToggle) custToggle.setAttribute('aria-expanded','false');
-            if (custSearch) custSearch.value = '';
-          }
-          function openPanel(){
-            if (!custPanel) return;
-            custPanel.hidden = false;
-            custPanel.removeAttribute('hidden');
-            if (custToggle) custToggle.setAttribute('aria-expanded','true');
-            renderCustList('');
-            if (custSearch){
-              setTimeout(function(){ custSearch.focus(); custSearch.select(); }, 0);
+          function ensureOpt(c){
+            if (!custSel || !c || !c.id) return;
+            var id = String(c.id);
+            for (var i = 0; i < custSel.options.length; i++){
+              if (custSel.options[i].value === id) return;
             }
+            var opt = document.createElement('option');
+            opt.value = id;
+            opt.textContent = custLabel(c);
+            custSel.appendChild(opt);
           }
-          function pickCust(c){
-            if (!custId || !custLabelEl) return;
-            if (!c || !c.id){
-              custId.value = '0';
-              custLabelEl.textContent = '— الكل —';
-            } else {
-              custId.value = String(c.id);
-              custLabelEl.textContent = custLabel(c);
+          function rebuildSelect(list, keepValue){
+            if (!custSel) return;
+            var cur = keepValue != null ? String(keepValue) : String(custSel.value || '0');
+            custSel.innerHTML = '';
+            var all = document.createElement('option');
+            all.value = '0';
+            all.textContent = '— الكل —';
+            custSel.appendChild(all);
+            (list || []).forEach(function(c){ ensureOpt(c); });
+            var found = false;
+            for (var i = 0; i < custSel.options.length; i++){
+              if (custSel.options[i].value === cur){ custSel.selectedIndex = i; found = true; break; }
             }
-            closePanel();
-          }
-          function mergeRows(localRows, apiRows){
-            var map = {};
-            var out = [];
-            function push(c){
-              var id = Number(c && c.id) || 0;
-              if (!id || map[id]) return;
-              map[id] = 1;
-              out.push({
-                id: id,
-                name: String(c.name || c.name_ar || ''),
-                code: String(c.code || '')
-              });
-            }
-            (localRows || []).forEach(push);
-            (apiRows || []).forEach(push);
-            return out;
-          }
-          function paintList(rows, needle){
-            if (!custList) return;
-            custList.innerHTML = '';
-            var allBtn = document.createElement('button');
-            allBtn.type = 'button';
-            allBtn.className = 'hx-smart-cust-item hx-smart-cust-item--all';
-            allBtn.textContent = '— الكل —';
-            allBtn.addEventListener('click', function(){ pickCust(null); });
-            custList.appendChild(allBtn);
-            if (!rows.length){
-              var empty = document.createElement('div');
-              empty.className = 'hx-smart-cust-empty';
-              empty.textContent = needle
-                ? 'لا يوجد عملاء مطابقون.'
-                : 'لا يوجد عملاء في الفترة.';
-              custList.appendChild(empty);
-              return;
-            }
-            rows.slice(0, 80).forEach(function(c){
-              var b = document.createElement('button');
-              b.type = 'button';
-              b.className = 'hx-smart-cust-item';
-              b.setAttribute('role','option');
-              b.textContent = custLabel(c);
-              b.addEventListener('click', function(){ pickCust(c); });
-              custList.appendChild(b);
-            });
+            if (!found) custSel.value = '0';
           }
           function filterLocal(q){
             var needle = String(q || '').trim().toLowerCase();
-            if (!needle) return custPeriod.slice();
-            return custPeriod.filter(function(c){
+            if (!needle) return custAll.slice();
+            return custAll.filter(function(c){
               return String(c.name||'').toLowerCase().indexOf(needle) >= 0
-                || String(c.code||'').toLowerCase().indexOf(needle) >= 0;
+                || String(c.code||'').toLowerCase().indexOf(needle) >= 0
+                || String(c.id).indexOf(needle) >= 0;
             });
           }
-          function renderCustList(q){
+          function applyFilter(q){
             var needle = String(q || '').trim();
             var local = filterLocal(needle);
-            paintList(local, needle);
-            /* بحث ذكي من الخادم عند الكتابة، أو عند فراغ القائمة المحلية */
-            var needApi = needle.length >= 1 || local.length < 1;
-            if (!needApi) return;
+            rebuildSelect(local, custSel ? custSel.value : '0');
+            if (needle.length < 1) return;
             var token = ++custFetchToken;
             fetch('/api/lookup/customers?q=' + encodeURIComponent(needle), { credentials: 'same-origin' })
               .then(function(r){ return r.json(); })
               .then(function(data){
                 if (token !== custFetchToken) return;
                 if (!data || !data.ok) return;
-                var apiRows = data.rows || [];
-                if (!needle){
-                  apiRows.forEach(function(c){
-                    var id = Number(c.id) || 0;
-                    if (!id) return;
-                    var exists = false;
-                    for (var i = 0; i < custPeriod.length; i++){
-                      if (custPeriod[i].id === id){ exists = true; break; }
-                    }
-                    if (!exists){
-                      custPeriod.push({
-                        id: id,
-                        name: String(c.name_ar || c.name || ''),
-                        code: String(c.code || '')
-                      });
-                    }
-                  });
-                }
-                paintList(mergeRows(local, apiRows), needle);
+                var map = {};
+                local.forEach(function(c){ map[c.id] = c; });
+                (data.rows || []).forEach(function(c){
+                  var id = Number(c.id) || 0;
+                  if (!id) return;
+                  var row = {
+                    id: id,
+                    name: String(c.name_ar || c.name || ''),
+                    code: String(c.code || '')
+                  };
+                  map[id] = row;
+                  var exists = false;
+                  for (var i = 0; i < custAll.length; i++){
+                    if (custAll[i].id === id){ exists = true; break; }
+                  }
+                  if (!exists) custAll.push(row);
+                });
+                rebuildSelect(Object.keys(map).map(function(k){ return map[k]; }), custSel.value);
               })
               .catch(function(){});
           }
-          if (custToggle && custPanel && custList && custId){
-            custToggle.addEventListener('click', function(e){
-              e.preventDefault();
-              if (isOpen()) closePanel();
-              else openPanel();
-            });
-            if (custSearch){
-              custSearch.addEventListener('input', function(){
-                clearTimeout(custTimer);
-                var v = custSearch.value;
-                custTimer = setTimeout(function(){ renderCustList(v); }, 160);
-              });
-              custSearch.addEventListener('keydown', function(e){
-                if (e.key === 'Escape'){
-                  e.preventDefault();
-                  closePanel();
-                  custToggle.focus();
-                }
-                if (e.key === 'Enter'){
-                  var first = custList.querySelector('.hx-smart-cust-item:not(.hx-smart-cust-item--all)');
-                  if (first){
-                    e.preventDefault();
-                    first.click();
-                  }
-                }
-              });
+          if (custSel && custSearch){
+            if (custSel.options.length <= 1 && custAll.length){
+              rebuildSelect(custAll, custSel.value);
             }
-            document.addEventListener('click', function(e){
-              var wrap = document.getElementById('hx-visits-smart-cust');
-              if (!wrap || wrap.contains(e.target)) return;
-              closePanel();
+            custSearch.addEventListener('input', function(){
+              clearTimeout(custTimer);
+              var v = custSearch.value;
+              custTimer = setTimeout(function(){ applyFilter(v); }, 140);
+            });
+            custSearch.addEventListener('keydown', function(e){
+              if (e.key === 'Escape'){
+                custSearch.value = '';
+                applyFilter('');
+              }
             });
           }
         })();
