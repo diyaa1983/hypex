@@ -9,6 +9,8 @@ import '../../core/payment_period.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
+import '../../services/document_print_helper.dart';
+import '../../services/report_table_pdf.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/ui_kit.dart';
 import '../customer_orders/customer_order_form_screen.dart';
@@ -51,13 +53,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
   String? _ordersError;
   DateTime _ordersFrom = DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _ordersTo = DateTime.now();
-
-  List<Map<String, dynamic>> _invoices = [];
-  bool _invoicesLoading = false;
-  String? _invoicesError;
-  DateTime _invoicesFrom =
-      DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _invoicesTo = DateTime.now();
+  bool _ordersPdfBusy = false;
 
   int? _orderId;
   List<Map<String, dynamic>> _unsentLocal = [];
@@ -68,13 +64,12 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     _orderId = (widget.orderId != null && widget.orderId != 0)
         ? widget.orderId
         : null;
-    _tabs = TabController(length: 5, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging && mounted) setState(() {});
     });
     _loadCustomer();
     _loadOrders();
-    _loadInvoices();
     // افتح آخر مسودة غير مرحّلة لاستكمال الترحيل/التعديل/الحذف.
     _loadUnsentLocal(autoSelectIfEmpty: true);
   }
@@ -93,7 +88,6 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
       _orderId = null;
       _loadCustomer();
       _loadOrders();
-      _loadInvoices();
       _loadUnsentLocal(autoSelectIfEmpty: true);
     } else if (oldWidget.orderId != widget.orderId &&
         widget.orderId != null &&
@@ -254,55 +248,6 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     }
   }
 
-  Future<void> _loadInvoices() async {
-    setState(() {
-      _invoicesLoading = true;
-      _invoicesError = null;
-    });
-    final offline = context.read<OfflineController>();
-    if (!offline.online) {
-      if (!mounted) return;
-      setState(() {
-        _invoices = [];
-        _invoicesLoading = false;
-        _invoicesError = 'سجل الفواتير يتطلب اتصالاً — متاح بعد عودة الإنترنت.';
-      });
-      return;
-    }
-    try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.salesInvoiceListPath,
-        query: {
-          'customer_id': widget.customerId,
-          'from': _iso(_invoicesFrom),
-          'to': _iso(_invoicesTo),
-          'filter': 'all',
-          'page': 1,
-        },
-      );
-      if (!mounted) return;
-      setState(() {
-        _invoices = (res['invoices'] as List? ?? [])
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList();
-        _invoicesLoading = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _invoicesError = e.message;
-        _invoicesLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _invoicesError = e.toString();
-        _invoicesLoading = false;
-      });
-    }
-  }
-
   Future<void> _pickDate({
     required bool isFrom,
     required DateTime current,
@@ -344,8 +289,7 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
                 tabs: const [
                   Tab(height: 40, text: 'طلب شراء'),
                   Tab(height: 40, text: 'معلومات العميل'),
-                  Tab(height: 40, text: 'الطلبات التاريخية'),
-                  Tab(height: 40, text: 'الفواتير التاريخية'),
+                  Tab(height: 40, text: 'طلبات العملاء'),
                   Tab(height: 40, text: 'كشف حساب'),
                 ],
               ),
@@ -380,30 +324,6 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
                     ),
                     onRetry: _loadOrders,
                     child: _ordersList(),
-                  ),
-                  _buildHistTab(
-                    loading: _invoicesLoading,
-                    error: _invoicesError,
-                    from: _invoicesFrom,
-                    to: _invoicesTo,
-                    onFrom: () => _pickDate(
-                      isFrom: true,
-                      current: _invoicesFrom,
-                      apply: (d) {
-                        setState(() => _invoicesFrom = d);
-                        _loadInvoices();
-                      },
-                    ),
-                    onTo: () => _pickDate(
-                      isFrom: false,
-                      current: _invoicesTo,
-                      apply: (d) {
-                        setState(() => _invoicesTo = d);
-                        _loadInvoices();
-                      },
-                    ),
-                    onRetry: _loadInvoices,
-                    child: _invoicesList(),
                   ),
                   PartyStatementScreen(
                     key: ValueKey('stmt-${widget.customerId}'),
@@ -681,6 +601,59 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     );
   }
 
+  String _orderNo(Map<String, dynamic> o) {
+    final raw = Fmt.str(o['order_no']).trim();
+    return raw.isEmpty ? '#${Fmt.toInt(o['id'])}' : raw;
+  }
+
+  Future<void> _openOrdersPdf() async {
+    if (_orders.isEmpty || _ordersPdfBusy) return;
+    setState(() => _ordersPdfBusy = true);
+    try {
+      final bytes = await ReportTablePdf.build(
+        title: 'طلبات العملاء',
+        subtitle: widget.customerName,
+        headers: const [
+          '#',
+          'رقم الطلب',
+          'التاريخ',
+          'الحالة',
+          'العميل',
+          'اسم المندوب',
+          'المجموع',
+        ],
+        rows: [
+          for (var i = 0; i < _orders.length; i++)
+            [
+              '${i + 1}',
+              _orderNo(_orders[i]),
+              Fmt.dmy(Fmt.str(_orders[i]['order_date'])),
+              _histOrderStatusLabel(_orders[i]),
+              Fmt.str(_orders[i]['customer_name']).isEmpty
+                  ? '—'
+                  : Fmt.str(_orders[i]['customer_name']),
+              Fmt.str(_orders[i]['sales_rep_name']).isEmpty
+                  ? '—'
+                  : Fmt.str(_orders[i]['sales_rep_name']),
+              Fmt.money(Fmt.toDouble(_orders[i]['total'])),
+            ],
+        ],
+        landscape: true,
+      );
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'طلبات العملاء',
+        fileName: 'طلبات-العملاء',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _ordersPdfBusy = false);
+    }
+  }
+
   Widget _ordersList() {
     if (_orders.isEmpty) {
       return ListView(
@@ -696,6 +669,21 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
       children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: _ordersPdfBusy ? null : _openOrdersPdf,
+            icon: _ordersPdfBusy
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+            label: const Text('PDF'),
+          ),
+        ),
+        const SizedBox(height: 8),
         LinedReportTable(
           headers: const [
             '#',
@@ -743,67 +731,5 @@ class _VisitWorkspacePanelState extends State<VisitWorkspacePanel>
     }
     final label = Fmt.str(o['status_label']);
     return label.isEmpty ? (status.isEmpty ? '—' : status) : label;
-  }
-
-  Widget _invoicesList() {
-    if (_invoices.isEmpty) {
-      return ListView(
-        children: const [
-          SizedBox(height: 50),
-          EmptyState(
-            message: 'لا توجد فواتير في هذه الفترة.',
-            icon: Icons.receipt_long_outlined,
-          ),
-        ],
-      );
-    }
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
-      children: [
-        LinedReportTable(
-          headers: const [
-            '#',
-            'رقم الفاتورة',
-            'تاريخ الفاتورة',
-            'الحالة',
-            'اسم العميل',
-            'اسم المندوب',
-            'مجموع الفاتورة',
-          ],
-          numericCols: const {0, 6},
-          onRowTap: (i) =>
-              context.push('/invoices/${Fmt.toInt(_invoices[i]['id'])}'),
-          rows: [
-            for (var i = 0; i < _invoices.length; i++)
-              [
-                '${i + 1}',
-                Fmt.str(_invoices[i]['invoice_no']).isEmpty
-                    ? '#${Fmt.toInt(_invoices[i]['id'])}'
-                    : Fmt.str(_invoices[i]['invoice_no']),
-                Fmt.dmy(Fmt.str(_invoices[i]['invoice_date'])),
-                _histInvoiceStatusLabel(_invoices[i]),
-                Fmt.str(_invoices[i]['customer_name']).isEmpty
-                    ? '—'
-                    : Fmt.str(_invoices[i]['customer_name']),
-                Fmt.str(_invoices[i]['sales_rep_name']).isEmpty
-                    ? '—'
-                    : Fmt.str(_invoices[i]['sales_rep_name']),
-                Fmt.money(Fmt.toDouble(_invoices[i]['total'])),
-              ],
-          ],
-        ),
-      ],
-    );
-  }
-
-  static String _histInvoiceStatusLabel(Map<String, dynamic> inv) {
-    final posted = inv['is_posted'] == true ||
-        inv['is_posted'] == 1 ||
-        '${inv['is_posted']}' == '1';
-    final pay = Fmt.str(inv['payment_label']).isNotEmpty
-        ? Fmt.str(inv['payment_label'])
-        : (Fmt.str(inv['payment_type']) == 'credit' ? 'ذمة' : 'نقدي');
-    final base = posted ? 'مرحّلة' : 'غير مرحّلة';
-    return pay.isEmpty ? base : '$base · $pay';
   }
 }

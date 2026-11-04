@@ -252,8 +252,57 @@ function mobile_party_statement_print_lines_table(
 }
 
 /**
+ * جدول الشيكات قيد التحصيل لملحق كشف الحساب.
+ *
+ * @param list<array<string, mixed>> $cheques
+ */
+function mobile_party_statement_print_cheques_html(array $cheques, float $total, bool $forPdf): string
+{
+    $th = $forPdf
+        ? ' style="background:#f1f5f9;padding:6px 4px;border:1px solid #94a3b8;text-align:center;font-weight:700;font-size:8px;"'
+        : '';
+    $td = $forPdf
+        ? ' style="padding:6px 4px;border:1px solid #cbd5e1;text-align:center;font-size:9px;"'
+        : '';
+    $html = '<div class="report-sales-table-wrap" style="margin-top:14px">'
+        . '<h3 style="margin:0 0 6px;font-size:13px">الشيكات قيد التحصيل</h3>'
+        . '<table class="data-table report-sales-table" cellpadding="0" cellspacing="0"'
+        . ($forPdf ? ' style="width:100%;border-collapse:collapse;direction:rtl;"' : '')
+        . '><thead><tr>'
+        . '<th' . $th . '>رقم الشيك</th>'
+        . '<th' . $th . '>تاريخ الشيك</th>'
+        . '<th' . $th . '>تاريخ القبض</th>'
+        . '<th' . $th . '>المبلغ</th>'
+        . '</tr></thead><tbody>';
+    if ($cheques === []) {
+        $html .= '<tr><td colspan="4"' . $td . '>لا توجد شيكات قيد التحصيل.</td></tr>';
+    } else {
+        foreach ($cheques as $ch) {
+            if (!is_array($ch)) {
+                continue;
+            }
+            $html .= '<tr>'
+                . '<td' . $td . '>' . esc((string) ($ch['chq_no'] ?? '')) . '</td>'
+                . '<td' . $td . '>' . esc(format_date_dmY((string) ($ch['chq_date'] ?? ''))) . '</td>'
+                . '<td' . $td . '>' . esc(format_date_dmY((string) ($ch['receipt_date'] ?? ''))) . '</td>'
+                . '<td' . $td . '>' . mobile_party_statement_print_money_cell((float) ($ch['amount'] ?? 0)) . '</td>'
+                . '</tr>';
+        }
+        $foot = $forPdf
+            ? ' style="background:#e8edf5;border:1px solid #94a3b8;padding:6px 4px;font-weight:800;text-align:center;"'
+            : '';
+        $html .= '<tr><td colspan="3"' . $foot . '>مجموع الشيكات قيد التحصيل</td>'
+            . '<td' . $foot . '>' . mobile_party_statement_print_money_cell($total) . '</td></tr>';
+    }
+    $html .= '</tbody></table></div>';
+
+    return $html;
+}
+
+/**
  * @param list<array<string, mixed>> $rows
  * @param array<string, mixed> $built
+ * @param list<array<string, mixed>>|null $cheques
  */
 function mobile_party_statement_print_inner_html(
     PDO $pdo,
@@ -265,7 +314,9 @@ function mobile_party_statement_print_inner_html(
     array $rows,
     array $built,
     bool $forPdf = false,
-    string $salesRepNames = ''
+    string $salesRepNames = '',
+    ?array $cheques = null,
+    float $chequeTotal = 0.0
 ): string {
     $partyTypeLabel = $partyType === 'supplier' ? 'مورد' : 'عميل';
     $title = 'كشف حساب ' . $partyTypeLabel;
@@ -283,6 +334,9 @@ function mobile_party_statement_print_inner_html(
     $content = mobile_party_statement_print_header_html($title, $pdo, $forPdf)
         . mobile_party_statement_print_report_head($partyName, $fromDmy, $toDmy, $salesRepNames)
         . mobile_party_statement_print_lines_table($rows, $totals, $fromIso, $forPdf);
+    if ($cheques !== null) {
+        $content .= mobile_party_statement_print_cheques_html($cheques, $chequeTotal, $forPdf);
+    }
 
     $wm = mobile_party_statement_print_watermark_overlay($pdo);
     $scopeClass = 'report-sales-print-area party-stmt-page doc-print-watermark-scope';
@@ -313,6 +367,7 @@ function mobile_party_statement_print_full_html(PDO $pdo, string $inner, bool $f
 /**
  * @param list<array<string, mixed>> $rows
  * @param array<string, mixed> $built
+ * @param list<array<string, mixed>>|null $cheques
  * @return array{styles: string, styles_pdf: string, inner: string, inner_pdf: string, html: string, html_pdf: string}
  */
 function mobile_party_statement_print_document(
@@ -325,7 +380,9 @@ function mobile_party_statement_print_document(
     string $toIso,
     array $rows,
     array $built,
-    string $salesRepNames = ''
+    string $salesRepNames = '',
+    ?array $cheques = null,
+    float $chequeTotal = 0.0
 ): array {
     if ($salesRepNames === '' && $partyType === 'customer' && $partyId > 0) {
         require_once app_path('includes/crm_sales_rep_schema.php');
@@ -341,7 +398,9 @@ function mobile_party_statement_print_document(
         $rows,
         $built,
         false,
-        $salesRepNames
+        $salesRepNames,
+        $cheques,
+        $chequeTotal
     );
     $styles = mobile_party_statement_print_styles($pdo) . mobile_party_statement_print_page_css();
     $html = mobile_party_statement_print_full_html($pdo, $inner, false);

@@ -1488,6 +1488,7 @@ async function customerForm(req, res, id) {
                   <input type="hidden" name="longitude" id="cust-longitude" value="${esc(lngVal)}">
                   <input type="hidden" name="gps_accuracy" id="cust-gps-accuracy" value="${esc(accVal)}">
                   <input type="hidden" name="clear_gps" id="cust-clear-gps" value="0">
+                  <div id="cust-gps-map-host"></div>
                   <p id="cust-gps-status" class="cf-gps-status${hasGps ? '' : ' is-empty'}">
                     ${
                       hasGps
@@ -1687,6 +1688,17 @@ async function customerForm(req, res, id) {
         }
 
         if (clearBtn) clearBtn.addEventListener('click', clearGps);
+
+        var mapHost = document.getElementById('cust-gps-map-host');
+        if (mapHost && window.AppGeoMapPick && typeof AppGeoMapPick.mountInlineMap === 'function') {
+          AppGeoMapPick.mountInlineMap({
+            host: mapHost,
+            latitude: latEl.value ? parseFloat(latEl.value) : null,
+            longitude: lngEl.value ? parseFloat(lngEl.value) : null,
+            editable: true,
+            onChange: setGps,
+          });
+        }
 
         if (mapBtn) {
           mapBtn.addEventListener('click', function () {

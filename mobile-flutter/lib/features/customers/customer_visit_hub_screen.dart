@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -16,7 +16,9 @@ import '../../core/visit_status.dart';
 import '../../core/theme.dart';
 import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
+import '../../services/document_print_helper.dart';
 import '../../services/location_service.dart';
+import '../../services/report_table_pdf.dart';
 import '../../widgets/async_view.dart';
 import '../../widgets/fullscreen_binder.dart';
 import '../../widgets/mobile_scaffold.dart';
@@ -81,13 +83,6 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
   DateTime _histOrdersFrom =
       DateTime(DateTime.now().year, DateTime.now().month, 1);
   DateTime _histOrdersTo = DateTime.now();
-
-  List<Map<String, dynamic>> _histInvoices = [];
-  bool _histInvoicesLoading = false;
-  String? _histInvoicesError;
-  DateTime _histInvoicesFrom =
-      DateTime(DateTime.now().year, DateTime.now().month, 1);
-  DateTime _histInvoicesTo = DateTime.now();
 
   @override
   void initState() {
@@ -628,7 +623,6 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
         }
       });
       _loadHistOrders(id);
-      _loadHistInvoices(id);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -694,58 +688,6 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       setState(() {
         _histOrdersError = e.toString();
         _histOrdersLoading = false;
-      });
-    }
-  }
-
-  Future<void> _loadHistInvoices(int customerId) async {
-    setState(() {
-      _histInvoicesLoading = true;
-      _histInvoicesError = null;
-    });
-    final offline = context.read<OfflineController>();
-    if (!offline.online) {
-      if (!mounted) return;
-      setState(() {
-        _histInvoices = [];
-        _histInvoicesLoading = false;
-        _histInvoicesError =
-            'سجل الفواتير يتطلب اتصالاً — متاح بعد عودة الإنترنت.';
-      });
-      return;
-    }
-    try {
-      final res = await context.read<ApiClient>().getJson(
-        AppConfig.salesInvoiceListPath,
-        query: {
-          'customer_id': customerId,
-          'from': _isoDate(_histInvoicesFrom),
-          'to': _isoDate(_histInvoicesTo),
-          'filter': 'all',
-          'page': 1,
-        },
-      );
-      if (!mounted) return;
-      setState(() {
-        _histInvoices = (res['invoices'] as List? ?? [])
-            .whereType<Map>()
-            .map((e) => e.cast<String, dynamic>())
-            .toList();
-        _histInvoicesLoading = false;
-      });
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _histInvoicesError = _isNetworkFail(e)
-            ? 'سجل الفواتير يتطلب اتصالاً — متاح بعد عودة الإنترنت.'
-            : e.message;
-        _histInvoicesLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _histInvoicesError = e.toString();
-        _histInvoicesLoading = false;
       });
     }
   }
@@ -1981,8 +1923,8 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
       onRetry: () => _selectCustomer(_selectedId!),
       child: _customer == null
           ? const SizedBox.shrink()
-          : DefaultTabController(
-              length: 5,
+            : DefaultTabController(
+              length: 4,
               initialIndex: 0,
               child: Column(
                 children: [
@@ -1996,8 +1938,7 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                         Tab(text: 'طلب شراء'),
                         Tab(text: 'معلومات العميل'),
                         Tab(text: 'كشف حساب'),
-                        Tab(text: 'الطلبات التاريخية'),
-                        Tab(text: 'الفواتير التاريخية'),
+                        Tab(text: 'طلبات العملاء'),
                       ],
                     ),
                   ),
@@ -2016,14 +1957,6 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                         _InfoTab(
                           customer: _customer!,
                           onSaved: () => _selectCustomer(_selectedId!),
-                          onDeleted: () {
-                            setState(() {
-                              _selectedId = null;
-                              _customer = null;
-                              _showNarrowDetail = false;
-                            });
-                            _loadCustomers();
-                          },
                         ),
                         _StatementTab(customer: _customer!),
                         _OrdersTab(
@@ -2041,22 +1974,6 @@ class _CustomerVisitHubScreenState extends State<CustomerVisitHubScreen>
                             _loadHistOrders(_selectedId!);
                           },
                           onRetry: () => _loadHistOrders(_selectedId!),
-                        ),
-                        _InvoicesTab(
-                          loading: _histInvoicesLoading,
-                          error: _histInvoicesError,
-                          invoices: _histInvoices,
-                          from: _histInvoicesFrom,
-                          to: _histInvoicesTo,
-                          onFromChanged: (d) {
-                            setState(() => _histInvoicesFrom = d);
-                            _loadHistInvoices(_selectedId!);
-                          },
-                          onToChanged: (d) {
-                            setState(() => _histInvoicesTo = d);
-                            _loadHistInvoices(_selectedId!);
-                          },
-                          onRetry: () => _loadHistInvoices(_selectedId!),
                         ),
                       ],
                     ),
@@ -2195,11 +2112,9 @@ class _InfoTab extends StatefulWidget {
   const _InfoTab({
     required this.customer,
     required this.onSaved,
-    required this.onDeleted,
   });
   final Map<String, dynamic> customer;
   final VoidCallback onSaved;
-  final VoidCallback onDeleted;
 
   @override
   State<_InfoTab> createState() => _InfoTabState();
@@ -2416,109 +2331,6 @@ class _InfoTabState extends State<_InfoTab> {
     }
   }
 
-  Future<void> _delete() async {
-    final id = Fmt.toInt(widget.customer['id']);
-    if (id == 0) return;
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('حذف العميل'),
-        content: Text(
-          id < 0
-              ? 'سيُحذف العميل من الجهاز فقط (لم يُرحَّل بعد).'
-              : 'سيتم حذف العميل من الجهاز، ثم من النظام عند عودة الاتصال إن لم يكن مرتبطاً بحركات.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppTheme.danger),
-            child: const Text('حذف'),
-          ),
-        ],
-      ),
-    );
-    if (go != true || !mounted) return;
-    setState(() => _saving = true);
-    final offline = context.read<OfflineController>();
-    final s = context.read<SessionController>();
-    final api = context.read<ApiClient>();
-    try {
-      await OfflineStore.instance.dropPendingCustomerMutations(id);
-      await OfflineStore.instance.deleteLocalCustomer(id);
-
-      if (id < 0) {
-        if (!mounted) return;
-        showSnack(context, 'حُذف العميل المحلي.');
-        widget.onDeleted();
-        return;
-      }
-
-      final fields = <String, dynamic>{
-        'id': id,
-        'snapshot': {
-          'id': id,
-          'name': Fmt.str(widget.customer['name']),
-          'code': Fmt.str(widget.customer['code']),
-          'phone': Fmt.str(widget.customer['phone']),
-          'address': Fmt.str(widget.customer['address']),
-          'latitude': widget.customer['latitude'],
-          'longitude': widget.customer['longitude'],
-          'payment_period': widget.customer['payment_period'],
-        },
-      };
-      if (!offline.online) {
-        await offline.enqueue(
-          kind: 'customer_delete',
-          path: AppConfig.customerDeletePath,
-          body: fields,
-          method: 'POST_FORM',
-        );
-        if (!mounted) return;
-        showSnack(context, 'سيُحذف من النظام عند عودة الاتصال.');
-        widget.onDeleted();
-        return;
-      }
-
-      try {
-        final res = await api.postForm(
-              AppConfig.customerDeletePath,
-              csrf: s.csrf,
-              fields: fields,
-            );
-        if (!mounted) return;
-        showSnack(
-          context,
-          Fmt.str(res['message']).isEmpty
-              ? 'تم حذف العميل.'
-              : Fmt.str(res['message']),
-        );
-        widget.onDeleted();
-      } on ApiException catch (e) {
-        if (offline.catalogReady &&
-            (e.message.contains('تعذر الاتصال') ||
-                e.message.contains('الإنترنت'))) {
-          await offline.enqueue(
-            kind: 'customer_delete',
-            path: AppConfig.customerDeletePath,
-            body: fields,
-            method: 'POST_FORM',
-          );
-          if (!mounted) return;
-          showSnack(context, 'سيُحذف من النظام عند عودة الاتصال.');
-          widget.onDeleted();
-        } else if (mounted) {
-          showSnack(context, e.message, error: true);
-        }
-      }
-    } finally {
-      if (mounted) setState(() => _saving = false);
-    }
-  }
-
   Widget _readonlyRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
@@ -2715,13 +2527,6 @@ class _InfoTabState extends State<_InfoTab> {
                       )
                     : const Icon(Icons.save_rounded),
                 label: Text(_saving ? 'جاري الحفظ...' : 'حفظ التعديلات'),
-              ),
-              const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: _saving || _locating ? null : _delete,
-                icon: const Icon(Icons.delete_outline_rounded),
-                style: OutlinedButton.styleFrom(foregroundColor: AppTheme.danger),
-                label: const Text('حذف العميل'),
               ),
             ],
           ),
@@ -2941,7 +2746,7 @@ class _PurchaseOrderTabState extends State<_PurchaseOrderTab>
   }
 }
 
-class _OrdersTab extends StatelessWidget {
+class _OrdersTab extends StatefulWidget {
   const _OrdersTab({
     required this.loading,
     required this.error,
@@ -2962,8 +2767,15 @@ class _OrdersTab extends StatelessWidget {
   final ValueChanged<DateTime> onToChanged;
   final VoidCallback onRetry;
 
+  @override
+  State<_OrdersTab> createState() => _OrdersTabState();
+}
+
+class _OrdersTabState extends State<_OrdersTab> {
+  bool _pdfBusy = false;
+
   Future<void> _pick(BuildContext context, bool isFrom) async {
-    final initial = isFrom ? from : to;
+    final initial = isFrom ? widget.from : widget.to;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -2972,14 +2784,73 @@ class _OrdersTab extends StatelessWidget {
     );
     if (picked == null) return;
     if (isFrom) {
-      onFromChanged(picked);
+      widget.onFromChanged(picked);
     } else {
-      onToChanged(picked);
+      widget.onToChanged(picked);
+    }
+  }
+
+  String _orderNo(Map<String, dynamic> o) {
+    final raw = Fmt.str(o['order_no']).trim();
+    return raw.isEmpty ? '#${Fmt.toInt(o['id'])}' : raw;
+  }
+
+  String _repName(Map<String, dynamic> o) {
+    final name = Fmt.str(o['sales_rep_name']).trim();
+    return name.isEmpty ? '—' : name;
+  }
+
+  Future<void> _openPdf() async {
+    final orders = widget.orders;
+    if (orders.isEmpty || _pdfBusy) return;
+    setState(() => _pdfBusy = true);
+    try {
+      final bytes = await ReportTablePdf.build(
+        title: 'طلبات العملاء',
+        subtitle:
+            'من ${Fmt.dmy('${widget.from.year.toString().padLeft(4, '0')}-${widget.from.month.toString().padLeft(2, '0')}-${widget.from.day.toString().padLeft(2, '0')}')} إلى ${Fmt.dmy('${widget.to.year.toString().padLeft(4, '0')}-${widget.to.month.toString().padLeft(2, '0')}-${widget.to.day.toString().padLeft(2, '0')}')}',
+        headers: const [
+          '#',
+          'رقم الطلب',
+          'التاريخ',
+          'الحالة',
+          'العميل',
+          'اسم المندوب',
+          'المجموع',
+        ],
+        rows: [
+          for (var i = 0; i < orders.length; i++)
+            [
+              '${i + 1}',
+              _orderNo(orders[i]),
+              Fmt.dmy(Fmt.str(orders[i]['order_date'])),
+              _orderStatusLabel(orders[i]),
+              Fmt.str(orders[i]['customer_name']).isEmpty
+                  ? '—'
+                  : Fmt.str(orders[i]['customer_name']),
+              _repName(orders[i]),
+              Fmt.money(Fmt.toDouble(orders[i]['total'])),
+            ],
+        ],
+        landscape: true,
+      );
+      if (!mounted) return;
+      await DocumentPrintHelper.openPdfBytes(
+        context,
+        bytes: bytes,
+        title: 'طلبات العملاء',
+        fileName: 'طلبات-العملاء',
+      );
+    } catch (e) {
+      if (mounted) showSnack(context, 'تعذر إنشاء PDF: $e', error: true);
+    } finally {
+      if (mounted) setState(() => _pdfBusy = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final orders = widget.orders;
     return Column(
       children: [
         Padding(
@@ -2991,7 +2862,7 @@ class _OrdersTab extends StatelessWidget {
                   onPressed: () => _pick(context, true),
                   icon: const Icon(Icons.calendar_today, size: 16),
                   label: Text(
-                      'من: ${Fmt.dmy('${from.year.toString().padLeft(4, '0')}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}')}'),
+                      'من: ${Fmt.dmy('${widget.from.year.toString().padLeft(4, '0')}-${widget.from.month.toString().padLeft(2, '0')}-${widget.from.day.toString().padLeft(2, '0')}')}'),
                 ),
               ),
               const SizedBox(width: 8),
@@ -3000,17 +2871,29 @@ class _OrdersTab extends StatelessWidget {
                   onPressed: () => _pick(context, false),
                   icon: const Icon(Icons.calendar_today, size: 16),
                   label: Text(
-                      'إلى: ${Fmt.dmy('${to.year.toString().padLeft(4, '0')}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}')}'),
+                      'إلى: ${Fmt.dmy('${widget.to.year.toString().padLeft(4, '0')}-${widget.to.month.toString().padLeft(2, '0')}-${widget.to.day.toString().padLeft(2, '0')}')}'),
                 ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: orders.isEmpty || _pdfBusy ? null : _openPdf,
+                icon: _pdfBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.picture_as_pdf_outlined, size: 18),
+                label: const Text('PDF'),
               ),
             ],
           ),
         ),
         Expanded(
           child: AsyncView(
-            loading: loading,
-            error: error,
-            onRetry: onRetry,
+            loading: widget.loading,
+            error: widget.error,
+            onRetry: widget.onRetry,
             child: orders.isEmpty
                 ? ListView(
                     children: const [
@@ -3071,146 +2954,3 @@ String _orderStatusLabel(Map<String, dynamic> o) {
   if (status == 'approved') return 'معتمد';
   if (status == 'draft') {
     final sent = o['is_sent'] == true ||
-        o['is_sent'] == 1 ||
-        '${o['is_sent']}' == '1';
-    return sent ? 'مسودة · مرحّل' : 'مسودة';
-  }
-  final label = Fmt.str(o['status_label']);
-  return label.isEmpty ? (status.isEmpty ? '—' : status) : label;
-}
-
-class _InvoicesTab extends StatelessWidget {
-  const _InvoicesTab({
-    required this.loading,
-    required this.error,
-    required this.invoices,
-    required this.from,
-    required this.to,
-    required this.onFromChanged,
-    required this.onToChanged,
-    required this.onRetry,
-  });
-
-  final bool loading;
-  final String? error;
-  final List<Map<String, dynamic>> invoices;
-  final DateTime from;
-  final DateTime to;
-  final ValueChanged<DateTime> onFromChanged;
-  final ValueChanged<DateTime> onToChanged;
-  final VoidCallback onRetry;
-
-  Future<void> _pick(BuildContext context, bool isFrom) async {
-    final initial = isFrom ? from : to;
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2015),
-      lastDate: DateTime(2100),
-    );
-    if (picked == null) return;
-    if (isFrom) {
-      onFromChanged(picked);
-    } else {
-      onToChanged(picked);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-          children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _pick(context, true),
-                  icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text(
-                      'من: ${Fmt.dmy('${from.year.toString().padLeft(4, '0')}-${from.month.toString().padLeft(2, '0')}-${from.day.toString().padLeft(2, '0')}')}'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _pick(context, false),
-                  icon: const Icon(Icons.calendar_today, size: 16),
-                  label: Text(
-                      'إلى: ${Fmt.dmy('${to.year.toString().padLeft(4, '0')}-${to.month.toString().padLeft(2, '0')}-${to.day.toString().padLeft(2, '0')}')}'),
-                ),
-            ),
-          ],
-        ),
-      ),
-        Expanded(
-          child: AsyncView(
-            loading: loading,
-            error: error,
-            onRetry: onRetry,
-            child: invoices.isEmpty
-                ? ListView(
-                    children: const [
-                      SizedBox(height: 50),
-                      EmptyState(
-                        message: 'لا توجد فواتير في هذه الفترة.',
-                        icon: Icons.receipt_long_outlined,
-                      ),
-                    ],
-                  )
-                : ListView(
-                    padding: const EdgeInsets.fromLTRB(8, 10, 8, 16),
-                    children: [
-                      LinedReportTable(
-                        headers: const [
-                          '#',
-                          'رقم الفاتورة',
-                          'تاريخ الفاتورة',
-                          'الحالة',
-                          'اسم العميل',
-                          'اسم المندوب',
-                          'مجموع الفاتورة',
-                        ],
-                        numericCols: const {0, 6},
-                        onRowTap: (i) => context.push(
-                          '/invoices/${Fmt.toInt(invoices[i]['id'])}',
-                        ),
-                        rows: [
-                          for (var i = 0; i < invoices.length; i++)
-                            [
-                              '${i + 1}',
-                              Fmt.str(invoices[i]['invoice_no']).isEmpty
-                                  ? '#${Fmt.toInt(invoices[i]['id'])}'
-                                  : Fmt.str(invoices[i]['invoice_no']),
-                              Fmt.dmy(Fmt.str(invoices[i]['invoice_date'])),
-                              _invoiceStatusLabel(invoices[i]),
-                              Fmt.str(invoices[i]['customer_name']).isEmpty
-                                  ? '—'
-                                  : Fmt.str(invoices[i]['customer_name']),
-                              Fmt.str(invoices[i]['sales_rep_name']).isEmpty
-                                  ? '—'
-                                  : Fmt.str(invoices[i]['sales_rep_name']),
-                              Fmt.money(Fmt.toDouble(invoices[i]['total'])),
-                            ],
-                        ],
-                      ),
-                    ],
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-String _invoiceStatusLabel(Map<String, dynamic> inv) {
-  final posted = inv['is_posted'] == true ||
-      inv['is_posted'] == 1 ||
-      '${inv['is_posted']}' == '1';
-  final pay = Fmt.str(inv['payment_label']).isNotEmpty
-      ? Fmt.str(inv['payment_label'])
-      : (Fmt.str(inv['payment_type']) == 'credit' ? 'ذمة' : 'نقدي');
-  final base = posted ? 'مرحّلة' : 'غير مرحّلة';
-  return pay.isEmpty ? base : '$base · $pay';
-}

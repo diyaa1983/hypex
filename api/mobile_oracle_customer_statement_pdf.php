@@ -132,6 +132,13 @@ try {
 
 $partyName = $name;
 $partyCode = (string) ($party['code'] ?? '');
+$cheques = [];
+foreach ((array) ($stmt['cheques'] ?? []) as $ch) {
+    if (is_array($ch)) {
+        $cheques[] = $ch;
+    }
+}
+$chequeTotal = (float) ($stmt['cheque_total'] ?? 0);
 $doc = mobile_party_statement_print_document(
     $pdo,
     'customer',
@@ -142,7 +149,9 @@ $doc = mobile_party_statement_print_document(
     $to,
     $rows,
     $built,
-    $salesRepNames
+    $salesRepNames,
+    $cheques,
+    $chequeTotal
 );
 $html = (string) ($doc['html_pdf'] ?? $doc['html'] ?? '');
 if ($html === '') {

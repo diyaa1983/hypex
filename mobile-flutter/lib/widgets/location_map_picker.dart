@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui' show FontFeature;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -8,6 +7,7 @@ import 'package:provider/provider.dart';
 
 import '../core/api_client.dart';
 import '../core/config.dart';
+import '../core/device_layout.dart';
 import '../core/theme.dart';
 import '../features/gps/gps_map_tiles.dart';
 import '../services/location_service.dart';
@@ -87,9 +87,8 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   final MapController _map = MapController();
   final TextEditingController _search = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
-  final GlobalKey _bottomBarKey = GlobalKey();
 
-  /// الموقع المحفوظ سابقاً للعميل (إن وُجد) — يُعرض بعلامة وبطاقة على الخريطة.
+  /// الموقع المحفوظ سابقاً — علامة على الخريطة فقط (بدون بطاقة كبيرة).
   LatLng? _savedPoint;
   bool _locating = false;
   bool _searching = false;
@@ -97,7 +96,6 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
   bool _reverseLoading = false;
   bool _satellite = false;
   double _zoom = 17;
-  double _fabBottom = 240;
   String? _placeLabel;
   String? _placeSub;
   String _providerHint = '';
@@ -112,18 +110,15 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     super.initState();
     if (widget.hasInitialLocation) {
       _savedPoint = widget.initial;
-      _placeLabel = 'الموقع المحفوظ للعميل';
-      _placeSub = '${widget.initial.latitude.toStringAsFixed(6)} ، '
-          '${widget.initial.longitude.toStringAsFixed(6)}';
+      _placeLabel = 'الموقع المحفوظ';
+      _placeSub = null;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      _measureBottomBar();
       if (widget.hasInitialLocation) {
         _scheduleReverse(_selected, force: true);
         return;
       }
-      // قراءة فورية بلا انتظار طويل — لا نعلّق الشاشة عند الفتح.
       final pos = await LocationService.instantPosition();
       if (!mounted || pos == null) return;
       _moveTo(
@@ -145,17 +140,6 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     super.dispose();
   }
 
-  void _measureBottomBar() {
-    final box = _bottomBarKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return;
-    final h = box.size.height;
-    // ارفع أزرار الدائرة فوق بطاقة الموقع + زر الاعتماد بهامش واضح.
-    final next = h + 28;
-    if ((next - _fabBottom).abs() > 2) {
-      setState(() => _fabBottom = next);
-    }
-  }
-
   void _moveTo(
     LatLng p, {
     double zoom = 18,
@@ -175,28 +159,17 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
     });
     try {
       _map.move(p, zoom);
-    } catch (_) {
-      // الخريطة قد لا تكون جاهزة بعد.
-    }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _measureBottomBar();
-    });
+    } catch (_) {}
   }
 
   void _goToSaved() {
     final s = _savedPoint;
     if (s == null) return;
-    _moveTo(
-      s,
-      zoom: 18,
-      label: 'الموقع المحفوظ للعميل',
-      sub: '${s.latitude.toStringAsFixed(6)} ، ${s.longitude.toStringAsFixed(6)}',
-    );
+    _moveTo(s, zoom: 18, label: 'الموقع المحفوظ', clearSub: true);
     _scheduleReverse(s, force: true);
   }
 
   void _onMapEvent(MapEvent event) {
-    // نحدّث الإحداثيات عند انتهاء الحركة فقط — يمنع تعليق التابلت أثناء السحب.
     final ended = event is MapEventMoveEnd ||
         event is MapEventFlingAnimationEnd ||
         event is MapEventDoubleTapZoomEnd ||
@@ -214,7 +187,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
       _selected = c;
       _zoom = z;
       if (_hits.isEmpty) {
-        _placeLabel = 'الموقع المحدد';
+        _placeLabel = null;
         _placeSub = null;
       }
     });
@@ -248,25 +221,15 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
       if (place is Map) {
         final hit = _PlaceHit.fromJson(Map<String, dynamic>.from(place));
         setState(() {
-          _placeLabel = hit.name.isNotEmpty ? hit.name : 'الموقع المحدد';
-          _placeSub = hit.address.isNotEmpty
-              ? hit.address
-              : '${p.latitude.toStringAsFixed(6)} ، ${p.longitude.toStringAsFixed(6)}';
+          _placeLabel = hit.name.isNotEmpty ? hit.name : null;
+          _placeSub = hit.address.isNotEmpty ? hit.address : null;
           _reverseLoading = false;
         });
-        WidgetsBinding.instance
-            .addPostFrameCallback((_) => _measureBottomBar());
         return;
       }
-    } catch (_) {
-      // نكتفي بالإحداثيات إن فشل العنوان العكسي.
-    }
+    } catch (_) {}
     if (!mounted || gen != _reverseGen) return;
-    setState(() {
-      _reverseLoading = false;
-      _placeSub ??=
-          '${p.latitude.toStringAsFixed(6)} ، ${p.longitude.toStringAsFixed(6)}';
-    });
+    setState(() => _reverseLoading = false);
   }
 
   Future<void> _goToCurrent() async {
@@ -333,9 +296,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
         _hits = list;
         _searching = false;
         _providerHint = hasGoogle
-            ? (provider == 'google'
-                ? 'نتائج Google Maps — محلات وأماكن'
-                : 'نتائج بديلة (OSM)')
+            ? (provider == 'google' ? 'نتائج Google Maps' : 'نتائج بديلة')
             : 'نتائج OpenStreetMap';
       });
     } catch (e) {
@@ -371,7 +332,6 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
       return;
     }
 
-    // Google Autocomplete يحتاج تفاصيل place_id.
     if (hit.provider == 'google' && hit.id.isNotEmpty) {
       setState(() => _resolvingPlace = true);
       try {
@@ -411,94 +371,337 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
 
   void _confirm() {
     try {
-      final c = _map.camera.center;
-      Navigator.of(context).pop(c);
+      Navigator.of(context).pop(_map.camera.center);
     } catch (_) {
       Navigator.of(context).pop(_selected);
     }
   }
 
-  Widget _infoCard({
-    required String title,
-    String? subtitle,
-    required Color accent,
-    IconData icon = Icons.place_rounded,
-    VoidCallback? onTap,
-    bool loading = false,
-  }) {
-    return Material(
-      color: Colors.white.withValues(alpha: 0.97),
-      elevation: 3,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
+  String get _compactLabel {
+    if (_placeLabel != null && _placeLabel!.trim().isNotEmpty) {
+      return _placeLabel!.trim();
+    }
+    return '${_selected.latitude.toStringAsFixed(5)} ، ${_selected.longitude.toStringAsFixed(5)}';
+  }
+
+  Widget _buildSearchPanel({required bool tablet, required double maxWidth}) {
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Material(
+        elevation: 2,
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _search,
+              focusNode: _searchFocus,
+              textInputAction: TextInputAction.search,
+              style: TextStyle(fontSize: tablet ? 14 : 15),
+              decoration: InputDecoration(
+                hintText: 'ابحث عن محل أو شارع…',
+                hintStyle: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey.shade600,
                 ),
-                child: Icon(icon, color: accent, size: 22),
+                isDense: true,
+                prefixIcon: const Icon(Icons.search_rounded, size: 22),
+                suffixIcon: _searching || _resolvingPlace
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : (_search.text.isEmpty
+                        ? null
+                        : IconButton(
+                            tooltip: 'مسح',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () {
+                              _debounce?.cancel();
+                              _search.clear();
+                              setState(() => _hits = const []);
+                            },
+                            icon: const Icon(Icons.close_rounded, size: 20),
+                          )),
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13,
-                      ),
+              onChanged: (v) {
+                setState(() {});
+                _onSearchChanged(v);
+              },
+              onSubmitted: (v) {
+                _debounce?.cancel();
+                final q = v.trim();
+                if (q.length >= 2) _runSearch(q);
+              },
+            ),
+            if (_providerHint.isNotEmpty && _hits.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    _providerHint,
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w600,
                     ),
-                    if (subtitle != null && subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        maxLines: 2,
+                  ),
+                ),
+              ),
+            if (_hits.isNotEmpty)
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: tablet ? 220 : 200),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.only(bottom: 4),
+                  itemCount: _hits.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (ctx, i) {
+                    final h = _hits[i];
+                    final isGoogle = h.provider == 'google';
+                    return ListTile(
+                      dense: true,
+                      visualDensity: VisualDensity.compact,
+                      leading: Icon(
+                        isGoogle
+                            ? Icons.storefront_rounded
+                            : Icons.map_outlined,
+                        size: 22,
+                        color: isGoogle
+                            ? const Color(0xFF1A73E8)
+                            : AppTheme.primary,
+                      ),
+                      title: Text(
+                        h.name,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          color: Colors.grey.shade700,
-                          height: 1.25,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
                         ),
                       ),
-                    ],
-                  ],
+                      subtitle: h.address.isEmpty
+                          ? null
+                          : Text(
+                              h.address,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                      onTap: () => _selectHit(h),
+                    );
+                  },
                 ),
               ),
-              if (loading)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else if (onTap != null)
-                Icon(Icons.my_location_rounded, size: 18, color: accent),
-            ],
-          ),
+          ],
         ),
       ),
+    );
+  }
+
+  /// شريط سفلي رفيع: اسم المكان + اعتماد — بدون بطاقات تغطي الخريطة.
+  Widget _buildCompactBottomBar({required bool tablet}) {
+    final saved = _savedPoint;
+    return Material(
+      elevation: 4,
+      color: Colors.white.withValues(alpha: 0.98),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          tablet ? 12 : 10,
+          tablet ? 8 : 8,
+          tablet ? 10 : 8,
+          tablet ? 8 : 8,
+        ),
+        child: Row(
+          children: [
+            if (saved != null) ...[
+              Tooltip(
+                message: 'العودة للموقع المحفوظ',
+                child: InkWell(
+                  onTap: _goToSaved,
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: const Color(0xFF1565C0).withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.store_mall_directory_rounded,
+                          size: 16,
+                          color: Color(0xFF1565C0),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          'محفوظ',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF1565C0),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.location_on_rounded,
+                        size: 16,
+                        color: AppTheme.danger,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          _compactLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                      if (_reverseLoading)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 4),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (_placeSub != null &&
+                      _placeSub!.isNotEmpty &&
+                      _placeSub != _compactLabel)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1, right: 20),
+                      child: Text(
+                        _placeSub!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            FilledButton(
+              onPressed: _resolvingPlace ? null : _confirm,
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.symmetric(
+                  horizontal: tablet ? 18 : 14,
+                  vertical: 12,
+                ),
+                minimumSize: const Size(0, 42),
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text(
+                'اعتماد',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapControls() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton.small(
+          heroTag: 'loc_zoom_in',
+          tooltip: 'تكبير',
+          onPressed: () {
+            final z = (_zoom + 1).clamp(5.0, 20.0);
+            _moveTo(_selected, zoom: z);
+          },
+          child: const Icon(Icons.add_rounded),
+        ),
+        const SizedBox(height: 8),
+        FloatingActionButton.small(
+          heroTag: 'loc_zoom_out',
+          tooltip: 'تصغير',
+          onPressed: () {
+            final z = (_zoom - 1).clamp(5.0, 20.0);
+            _moveTo(_selected, zoom: z);
+          },
+          child: const Icon(Icons.remove_rounded),
+        ),
+        const SizedBox(height: 8),
+        FloatingActionButton.small(
+          heroTag: 'loc_layer_add',
+          tooltip: _satellite ? 'شوارع' : 'أقمار صناعية',
+          onPressed: () => setState(() => _satellite = !_satellite),
+          child: Icon(
+            _satellite ? Icons.map_rounded : Icons.satellite_alt_rounded,
+          ),
+        ),
+        const SizedBox(height: 10),
+        FloatingActionButton(
+          heroTag: 'loc_cur_add',
+          tooltip: 'موقعي الحالي',
+          onPressed: _locating ? null : _goToCurrent,
+          child: _locating
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.my_location_rounded),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.paddingOf(context).bottom;
+    final size = MediaQuery.sizeOf(context);
+    final tablet = DeviceLayout.isTabletSize(size);
     final saved = _savedPoint;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _measureBottomBar();
-    });
+    // على التابلت: شريط بحث محدود العرض حتى لا يغطي كامل العرض.
+    final searchMaxW = tablet
+        ? (size.width * 0.42).clamp(320.0, 420.0)
+        : size.width - 24;
 
     return MobileScaffold(
       title: const Text('تحديد موقع العميل'),
@@ -511,6 +714,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
               initialZoom: _zoom,
               minZoom: 5,
               maxZoom: 20,
+              // مساحة سفلية بصرية للدبوس فوق الشريط الرفيع.
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.drag |
                     InteractiveFlag.flingAnimation |
@@ -520,9 +724,7 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
               ),
               onMapEvent: _onMapEvent,
               onTap: (_, __) {
-                if (_hits.isNotEmpty) {
-                  setState(() => _hits = const []);
-                }
+                if (_hits.isNotEmpty) setState(() => _hits = const []);
                 _searchFocus.unfocus();
               },
             ),
@@ -535,13 +737,13 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
                   markers: [
                     Marker(
                       point: saved,
-                      width: 44,
-                      height: 44,
+                      width: 40,
+                      height: 40,
                       alignment: Alignment.topCenter,
                       child: const Icon(
                         Icons.store_mall_directory_rounded,
                         color: Color(0xFF1565C0),
-                        size: 40,
+                        size: 36,
                       ),
                     ),
                   ],
@@ -549,250 +751,49 @@ class _LocationMapPickerScreenState extends State<LocationMapPickerScreen> {
             ],
           ),
 
-          // تقاطع ثابت في المنتصف — الموقع = مركز الخريطة.
-          const IgnorePointer(
+          // دبوس التحديد في المنتصف فقط.
+          IgnorePointer(
             child: Center(
               child: Padding(
-                padding: EdgeInsets.only(bottom: 40),
-                child: Icon(
+                // يرفع طرف الدبوس فوق الشريط السفلي قليلاً على التابلت.
+                padding: EdgeInsets.only(bottom: tablet ? 56 : 48),
+                child: const Icon(
                   Icons.location_on_rounded,
                   color: AppTheme.danger,
-                  size: 48,
+                  size: 44,
                 ),
               ),
             ),
           ),
 
-          // شريط البحث أعلى الخريطة.
+          // البحث أعلى اليمين/اليسار — عرض محدود على التابلت.
           Positioned(
             top: 10,
             left: 12,
-            right: 12,
-            child: Material(
-              elevation: 3,
-              borderRadius: BorderRadius.circular(14),
-              color: Colors.white,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: _search,
-                    focusNode: _searchFocus,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText:
-                          'ابحث عن محل، مطعم، شارع، مجمع… مثل Google Maps',
-                      hintStyle: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey.shade600,
-                      ),
-                      prefixIcon: const Icon(Icons.search_rounded),
-                      suffixIcon: _searching || _resolvingPlace
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              ),
-                            )
-                          : (_search.text.isEmpty
-                              ? null
-                              : IconButton(
-                                  tooltip: 'مسح',
-                                  onPressed: () {
-                                    _debounce?.cancel();
-                                    _search.clear();
-                                    setState(() => _hits = const []);
-                                  },
-                                  icon: const Icon(Icons.close_rounded),
-                                )),
-                      border: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 14,
-                      ),
-                    ),
-                    onChanged: (v) {
-                      setState(() {});
-                      _onSearchChanged(v);
-                    },
-                    onSubmitted: (v) {
-                      _debounce?.cancel();
-                      final q = v.trim();
-                      if (q.length >= 2) _runSearch(q);
-                    },
-                  ),
-                  if (_providerHint.isNotEmpty && _hits.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          _providerHint,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey.shade600,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_hits.isNotEmpty)
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 260),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.only(bottom: 6),
-                        itemCount: _hits.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (ctx, i) {
-                          final h = _hits[i];
-                          final isGoogle = h.provider == 'google';
-                          return ListTile(
-                            dense: true,
-                            leading: Icon(
-                              isGoogle
-                                  ? Icons.storefront_rounded
-                                  : Icons.map_outlined,
-                              color: isGoogle
-                                  ? const Color(0xFF1A73E8)
-                                  : AppTheme.primary,
-                            ),
-                            title: Text(
-                              h.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            subtitle: h.address.isEmpty
-                                ? null
-                                : Text(
-                                    h.address,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                            onTap: () => _selectHit(h),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
+            right: tablet ? null : 12,
+            child: _buildSearchPanel(tablet: tablet, maxWidth: searchMaxW),
           ),
 
-          // أزرار التكبير / الطبقات / موقعي — مرتفعة فوق بطاقة الموقع.
+          // أدوات الخريطة بجانب الشريط السفلي مباشرة (بدون رفع كبير).
           Positioned(
             right: 12,
-            bottom: _fabBottom + bottomPad,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton.small(
-                  heroTag: 'loc_zoom_in',
-                  tooltip: 'تكبير لرؤية الشوارع',
-                  onPressed: () {
-                    final z = (_zoom + 1).clamp(5.0, 20.0);
-                    _moveTo(_selected, zoom: z);
-                  },
-                  child: const Icon(Icons.add_rounded),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton.small(
-                  heroTag: 'loc_zoom_out',
-                  tooltip: 'تصغير',
-                  onPressed: () {
-                    final z = (_zoom - 1).clamp(5.0, 20.0);
-                    _moveTo(_selected, zoom: z);
-                  },
-                  child: const Icon(Icons.remove_rounded),
-                ),
-                const SizedBox(height: 8),
-                FloatingActionButton.small(
-                  heroTag: 'loc_layer_add',
-                  tooltip: _satellite
-                      ? 'عرض الشوارع والأسماء'
-                      : 'عرض الأقمار الصناعية',
-                  onPressed: () => setState(() => _satellite = !_satellite),
-                  child: Icon(
-                    _satellite
-                        ? Icons.map_rounded
-                        : Icons.satellite_alt_rounded,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: 'loc_cur_add',
-                  tooltip: 'موقعي الحالي',
-                  onPressed: _locating ? null : _goToCurrent,
-                  child: _locating
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.my_location_rounded),
-                ),
-              ],
-            ),
+            bottom: 72 + bottomPad,
+            child: _buildMapControls(),
           ),
 
-          // شريط: الموقع المحفوظ + الموقع المحدد + الاعتماد.
+          // شريط واحد مضغوط أسفل الشاشة — لا يغطي الخريطة.
           Positioned(
             left: 12,
             right: 12,
-            bottom: 12 + bottomPad,
-            child: Column(
-              key: _bottomBarKey,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (saved != null) ...[
-                  _infoCard(
-                    title: 'الموقع المحفوظ على الخريطة',
-                    subtitle:
-                        '${saved.latitude.toStringAsFixed(6)} ، ${saved.longitude.toStringAsFixed(6)}'
-                        ' — اضغط للعودة إليه',
-                    accent: const Color(0xFF1565C0),
-                    icon: Icons.store_mall_directory_rounded,
-                    onTap: _goToSaved,
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                _infoCard(
-                  title: _placeLabel?.isNotEmpty == true
-                      ? _placeLabel!
-                      : 'الموقع المحدد',
-                  subtitle: _placeSub ??
-                      '${_selected.latitude.toStringAsFixed(6)} ، ${_selected.longitude.toStringAsFixed(6)}',
-                  accent: AppTheme.danger,
-                  icon: Icons.location_on_rounded,
-                  loading: _reverseLoading,
+            bottom: 10 + bottomPad,
+            child: Align(
+              alignment: Alignment.bottomCenter,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: tablet ? 520 : double.infinity,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'حرّك الخريطة حتى يقع الدبوس الأحمر على الموقع المطلوب',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade700,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _resolvingPlace ? null : _confirm,
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('اعتماد هذا الموقع'),
-                  ),
-                ),
-              ],
+                child: _buildCompactBottomBar(tablet: tablet),
+              ),
             ),
           ),
         ],

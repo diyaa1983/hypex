@@ -831,8 +831,114 @@
       });
   }
 
+  /**
+   * خريطة مضمّنة داخل نموذج (مثل شاشة العميل) بدل النافذة المنبثقة.
+   * options: { host, latitude, longitude, editable, onChange }
+   */
+  function mountInlineMap(options) {
+    options = options || {};
+    var host = options.host;
+    if (!host) return Promise.resolve(null);
+    var editable = options.editable !== false;
+    var lat0 = parseFloat(options.latitude);
+    var lng0 = parseFloat(options.longitude);
+    var has = isFinite(lat0) && isFinite(lng0);
+    var lat = has ? lat0 : DEFAULT_LAT;
+    var lng = has ? lng0 : DEFAULT_LNG;
+
+    host.innerHTML =
+      (editable
+        ? '<div class="geo-map-pick-search" style="display:flex;gap:.4rem;margin:0 0 .45rem">' +
+          '<input type="search" class="si-field" data-inline-q placeholder="ابحث عن محل أو شارع…" style="flex:1;min-height:2.1rem">' +
+          '<button type="button" class="si-btn" data-inline-search>بحث</button>' +
+          '</div><div data-inline-results style="display:none;margin:0 0 .4rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px;max-height:160px;overflow:auto"></div>'
+        : '') +
+      '<div data-inline-canvas style="height:380px;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"></div>';
+
+    return ensureLeaflet().then(function () {
+      var canvas = host.querySelector('[data-inline-canvas]');
+      var map = global.L.map(canvas, {
+        zoomControl: true,
+        dragging: editable,
+        scrollWheelZoom: editable,
+        doubleClickZoom: editable,
+        boxZoom: editable,
+        keyboard: editable,
+        touchZoom: editable,
+      }).setView([lat, lng], has ? 17 : 12);
+      attachPickBaseLayer(map);
+      var marker = null;
+      function setPoint(a, b, notify) {
+        if (!marker) marker = global.L.marker([a, b]).addTo(map);
+        else marker.setLatLng([a, b]);
+        if (notify !== false && typeof options.onChange === 'function') {
+          options.onChange({ latitude: a, longitude: b, accuracy: null });
+        }
+      }
+      if (has) setPoint(lat, lng, false);
+      if (editable) {
+        map.on('click', function (ev) {
+          if (!ev || !ev.latlng) return;
+          setPoint(ev.latlng.lat, ev.latlng.lng, true);
+          map.panTo(ev.latlng);
+        });
+        var qEl = host.querySelector('[data-inline-q]');
+        var btn = host.querySelector('[data-inline-search]');
+        var results = host.querySelector('[data-inline-results]');
+        function runSearch() {
+          var q = qEl ? qEl.value : '';
+          searchPlaces(q).then(function (rows) {
+            if (!results) return;
+            if (!rows.length) {
+              results.style.display = 'block';
+              results.innerHTML = '<div style="padding:.45rem .6rem;color:#64748b">لا نتائج</div>';
+              return;
+            }
+            results.style.display = 'block';
+            results.innerHTML = rows
+              .map(function (row, i) {
+                return (
+                  '<button type="button" data-i="' +
+                  i +
+                  '" style="display:block;width:100%;text-align:right;background:#fff;border:0;border-bottom:1px solid #f1f5f9;padding:.4rem .6rem;cursor:pointer">' +
+                  String(row.label || '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;') +
+                  '</button>'
+                );
+              })
+              .join('');
+            results.querySelectorAll('button').forEach(function (b) {
+              b.addEventListener('click', function () {
+                var row = rows[Number(b.getAttribute('data-i'))];
+                if (!row) return;
+                setPoint(row.lat, row.lng, true);
+                map.setView([row.lat, row.lng], 18);
+                results.style.display = 'none';
+              });
+            });
+          });
+        }
+        if (btn) btn.addEventListener('click', runSearch);
+        if (qEl) {
+          qEl.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') {
+              ev.preventDefault();
+              runSearch();
+            }
+          });
+        }
+      }
+      setTimeout(function () {
+        map.invalidateSize();
+      }, 180);
+      return map;
+    });
+  }
+
   global.AppGeoMapPick = {
     pickLocationOnMap: pickLocationOnMap,
     rememberCoords: rememberCoords,
+    mountInlineMap: mountInlineMap,
   };
 })(typeof window !== 'undefined' ? window : this);

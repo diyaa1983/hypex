@@ -162,18 +162,32 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
       title: 'تقرير طلبات العملاء',
       subtitle:
           'من ${Fmt.dmy(_fromIso)} إلى ${Fmt.dmy(_toIso)} · ${_orders.length} طلب',
-      headers: const ['#', 'اسم العميل', 'تاريخ الطلبية', 'المجموع'],
+      headers: const [
+        '#',
+        'رقم الطلب',
+        'اسم العميل',
+        'اسم المندوب',
+        'تاريخ الطلبية',
+        'المجموع',
+      ],
       rows: [
         for (var i = 0; i < _orders.length; i++)
           [
             '${i + 1}',
+            Fmt.str(_orders[i]['order_no']).trim().isEmpty
+                ? '#${Fmt.toInt(_orders[i]['id'])}'
+                : Fmt.str(_orders[i]['order_no']),
             Fmt.str(_orders[i]['customer_name']).isEmpty
                 ? '—'
                 : Fmt.str(_orders[i]['customer_name']),
+            Fmt.str(_orders[i]['sales_rep_name']).isEmpty
+                ? '—'
+                : Fmt.str(_orders[i]['sales_rep_name']),
             Fmt.dmy(Fmt.str(_orders[i]['order_date'])),
             Fmt.money(Fmt.toDouble(_orders[i]['total'])),
           ],
       ],
+      landscape: true,
       footer: 'الإجمالي: ${Fmt.money(_grandTotal)}',
     );
   }
@@ -319,7 +333,7 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                       Expanded(
                         child: ActionChipButton(
                           icon: Icons.picture_as_pdf_outlined,
-                          label: 'تحويل',
+                          label: 'PDF',
                           color: AppTheme.primary,
                           busy: _pdfBusy,
                           onTap: _openPdf,
@@ -372,11 +386,13 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                                 LinedReportTable(
                                   headers: const [
                                     '#',
+                                    'رقم الطلب',
                                     'اسم العميل',
+                                    'اسم المندوب',
                                     'تاريخ الطلبية',
                                     'المجموع',
                                   ],
-                                  numericCols: const {0, 3},
+                                  numericCols: const {0, 5},
                                   onRowTap: (i) => context.push(
                                     '/customer-orders/${Fmt.toInt(_orders[i]['id'])}',
                                   ),
@@ -384,11 +400,21 @@ class _CustomerOrdersQueryScreenState extends State<CustomerOrdersQueryScreen> {
                                     for (var i = 0; i < _orders.length; i++)
                                       [
                                         '${i + 1}',
+                                        Fmt.str(_orders[i]['order_no'])
+                                                .trim()
+                                                .isEmpty
+                                            ? '#${Fmt.toInt(_orders[i]['id'])}'
+                                            : Fmt.str(_orders[i]['order_no']),
                                         Fmt.str(_orders[i]['customer_name'])
                                                 .isEmpty
                                             ? '—'
                                             : Fmt.str(
                                                 _orders[i]['customer_name']),
+                                        Fmt.str(_orders[i]['sales_rep_name'])
+                                                .isEmpty
+                                            ? '—'
+                                            : Fmt.str(
+                                                _orders[i]['sales_rep_name']),
                                         Fmt.dmy(Fmt.str(
                                             _orders[i]['order_date'])),
                                         Fmt.money(Fmt.toDouble(
