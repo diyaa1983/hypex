@@ -1350,6 +1350,9 @@ async function customerForm(req, res, id) {
       .cf-gps-coords label{margin:0}
       .cf-gps-actions{display:flex;flex-wrap:wrap;gap:.45rem;align-items:center}
       .cf-gps-actions .si-btn{min-height:2rem;padding:.25rem .75rem;font-size:.8rem}
+      .cf-gps-map{height:420px;min-height:420px;border:1px solid #cbd5e1;border-radius:12px;
+        overflow:hidden;background:#e8eef6;position:relative;z-index:1}
+      .cf-gps-map .leaflet-container{height:100%;width:100%;font-family:inherit}
     </style>
     <div class="si-stage">
       ${ui.hero({
@@ -1488,7 +1491,7 @@ async function customerForm(req, res, id) {
                   <input type="hidden" name="longitude" id="cust-longitude" value="${esc(lngVal)}">
                   <input type="hidden" name="gps_accuracy" id="cust-gps-accuracy" value="${esc(accVal)}">
                   <input type="hidden" name="clear_gps" id="cust-clear-gps" value="0">
-                  <div id="cust-gps-map-host"></div>
+                  <div id="cust-gps-map-host" class="cf-gps-map" aria-label="خريطة موقع العميل"></div>
                   <p id="cust-gps-status" class="cf-gps-status${hasGps ? '' : ' is-empty'}">
                     ${
                       hasGps
@@ -1689,8 +1692,11 @@ async function customerForm(req, res, id) {
 
         if (clearBtn) clearBtn.addEventListener('click', clearGps);
 
-        var mapHost = document.getElementById('cust-gps-map-host');
-        if (mapHost && window.AppGeoMapPick && typeof AppGeoMapPick.mountInlineMap === 'function') {
+        function mountCustomerMap() {
+          var mapHost = document.getElementById('cust-gps-map-host');
+          if (!mapHost || !window.AppGeoMapPick || typeof AppGeoMapPick.mountInlineMap !== 'function') {
+            return;
+          }
           AppGeoMapPick.mountInlineMap({
             host: mapHost,
             latitude: latEl.value ? parseFloat(latEl.value) : null,
@@ -1698,6 +1704,11 @@ async function customerForm(req, res, id) {
             editable: true,
             onChange: setGps,
           });
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', mountCustomerMap);
+        } else {
+          mountCustomerMap();
         }
 
         if (mapBtn) {

@@ -2954,3 +2954,10 @@ String _orderStatusLabel(Map<String, dynamic> o) {
   if (status == 'approved') return 'معتمد';
   if (status == 'draft') {
     final sent = o['is_sent'] == true ||
+        o['is_sent'] == 1 ||
+        '${o['is_sent']}' == '1';
+    return sent ? 'مسودة · مرحّل' : 'مسودة';
+  }
+  final label = Fmt.str(o['status_label']);
+  return label.isEmpty ? (status.isEmpty ? '—' : status) : label;
+}

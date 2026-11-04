@@ -846,17 +846,24 @@
     var lat = has ? lat0 : DEFAULT_LAT;
     var lng = has ? lng0 : DEFAULT_LNG;
 
-    host.innerHTML =
-      (editable
-        ? '<div class="geo-map-pick-search" style="display:flex;gap:.4rem;margin:0 0 .45rem">' +
-          '<input type="search" class="si-field" data-inline-q placeholder="ابحث عن محل أو شارع…" style="flex:1;min-height:2.1rem">' +
-          '<button type="button" class="si-btn" data-inline-search>بحث</button>' +
-          '</div><div data-inline-results style="display:none;margin:0 0 .4rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px;max-height:160px;overflow:auto"></div>'
-        : '') +
-      '<div data-inline-canvas style="height:380px;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0"></div>';
+    var searchHtml = editable
+      ? '<div class="geo-map-pick-search" style="display:flex;gap:.4rem;margin:0 0 .45rem">' +
+        '<input type="search" class="si-field" data-inline-q placeholder="ابحث عن محل أو شارع…" style="flex:1;min-height:2.1rem">' +
+        '<button type="button" class="si-btn" data-inline-search>بحث</button>' +
+        '</div><div data-inline-results style="display:none;margin:0 0 .4rem;background:#fff;border:1px solid #e2e8f0;border-radius:8px;max-height:160px;overflow:auto"></div>'
+      : '';
+    var canvas = document.createElement('div');
+    canvas.setAttribute('data-inline-canvas', '1');
+    canvas.style.cssText = 'height:420px;width:100%;min-height:420px;';
+    host.innerHTML = searchHtml;
+    host.appendChild(canvas);
+    host.style.height = 'auto';
+    host.style.minHeight = '0';
+    host.style.overflow = 'visible';
+    host.style.background = 'transparent';
+    host.style.border = '0';
 
     return ensureLeaflet().then(function () {
-      var canvas = host.querySelector('[data-inline-canvas]');
       var map = global.L.map(canvas, {
         zoomControl: true,
         dragging: editable,
@@ -869,8 +876,17 @@
       attachPickBaseLayer(map);
       var marker = null;
       function setPoint(a, b, notify) {
-        if (!marker) marker = global.L.marker([a, b]).addTo(map);
-        else marker.setLatLng([a, b]);
+        if (!marker) {
+          marker = global.L.circleMarker([a, b], {
+            radius: 11,
+            color: '#ffffff',
+            weight: 3,
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+          }).addTo(map);
+        } else {
+          marker.setLatLng([a, b]);
+        }
         if (notify !== false && typeof options.onChange === 'function') {
           options.onChange({ latitude: a, longitude: b, accuracy: null });
         }
@@ -929,9 +945,15 @@
           });
         }
       }
-      setTimeout(function () {
+      function fit() {
         map.invalidateSize();
-      }, 180);
+        if (has) map.setView([lat, lng], 17);
+      }
+      setTimeout(fit, 80);
+      setTimeout(fit, 400);
+      global.addEventListener('resize', function () {
+        map.invalidateSize();
+      });
       return map;
     });
   }
