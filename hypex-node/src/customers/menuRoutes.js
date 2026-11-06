@@ -121,6 +121,7 @@ function listPage(res, user, opts) {
     phpRoute,
     filtersHtml = '',
     tableClass = 'si-table',
+    wrapClass = '',
     extraHtml = '',
   } = opts;
   const actions = [...extraActions, { label: 'لوحة العملاء', href: HUB }];
@@ -130,7 +131,7 @@ function listPage(res, user, opts) {
     <div class="si-stage">
       ${ui.hero({ mark, kicker: KICKER, title, subtitle, actions })}
       ${filtersHtml || (searchPath ? ui.railSearch(searchPath, qVal) : '')}
-      ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml, tableClass)}
+      ${ui.tableSurface(title, `${count} صف`, headers, rowsHtml, tableClass, wrapClass)}
       ${extraHtml}
     </div>`;
   res.send(ui.salesPage({ user, title, bodyHtml: body }));
@@ -358,6 +359,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     phpRoute: 'customers',
     filtersHtml,
     tableClass: 'si-table si-table--lined',
+    wrapClass: 'cust-list-scroll',
     extraHtml: `<script>
       (function () {
         var form = document.getElementById('cust-list-filter');
