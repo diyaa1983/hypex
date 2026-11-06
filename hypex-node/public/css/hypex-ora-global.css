@@ -129,6 +129,26 @@ body.co-ora-body .si-count {
   border: none !important;
 }
 
+/* قائمة العملاء: مسطرة ظاهرة على يمين الجدول لكل الصفوف */
+body.co-ora-body .si-stage .si-table-wrap.cust-list-scroll {
+  direction: ltr;
+  overflow-x: auto !important;
+  overflow-y: scroll !important;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #1a4480 #ece9e4;
+}
+
+body.co-ora-body .si-stage .si-table-wrap.cust-list-scroll table {
+  direction: rtl;
+}
+
+body.co-ora-body .si-stage .si-table-wrap.cust-list-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
 /* جداول القوائم والتقارير */
 body.co-ora-body .si-table-wrap,
 body.co-ora-body .si-lines-wrap {

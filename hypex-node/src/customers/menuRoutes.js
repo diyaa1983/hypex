@@ -360,8 +360,28 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     filtersHtml,
     tableClass: 'si-table si-table--lined',
     wrapClass: 'cust-list-scroll',
-    extraHtml: `<script>
+    extraHtml: `<style>
+      .si-table-wrap.cust-list-scroll{direction:ltr;overflow-x:auto!important;overflow-y:scroll!important;scrollbar-gutter:stable}
+      .si-table-wrap.cust-list-scroll table{direction:rtl}
+      .si-table-wrap.cust-list-scroll thead th{position:sticky;top:0;z-index:2;background:#e8e8e8}
+      .si-table-wrap.cust-list-scroll::-webkit-scrollbar{width:16px;height:14px}
+      .si-table-wrap.cust-list-scroll::-webkit-scrollbar-thumb{background:#1a4480;border:3px solid #ece9e4;border-radius:8px}
+      .si-table-wrap.cust-list-scroll::-webkit-scrollbar-track{background:#ece9e4}
+    </style>
+    <script>
       (function () {
+        function fitCustList() {
+          var wrap = document.querySelector('.si-table-wrap.cust-list-scroll');
+          if (!wrap) return;
+          var top = wrap.getBoundingClientRect().top;
+          var h = Math.max(220, window.innerHeight - top - 8);
+          wrap.style.setProperty('height', h + 'px', 'important');
+          wrap.style.setProperty('max-height', h + 'px', 'important');
+          wrap.style.setProperty('overflow-y', 'scroll', 'important');
+          wrap.style.setProperty('overflow-x', 'auto', 'important');
+        }
+        fitCustList();
+        window.addEventListener('resize', fitCustList);
         var form = document.getElementById('cust-list-filter');
         if (!form) return;
         var qInput = document.getElementById('cust-list-q');
