@@ -145,7 +145,8 @@ app.get('/api/lookup/customers', auth.requireAuth, async (req, res) => {
 app.get('/api/lookup/items', auth.requireAuth, async (req, res) => {
   try {
     const inv = require('./sales/invoicesService');
-    const rows = await inv.searchItems(String(req.query.q || ''), 50, {
+    const asked = Number(req.query.limit || 0);
+    const rows = await inv.searchItems(String(req.query.q || ''), asked > 0 ? asked : 500, {
       cat: String(req.query.cat || req.query.category || ''),
     });
     res.json({ ok: true, rows });

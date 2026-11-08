@@ -855,7 +855,8 @@ router.get('/api/sales/customer-orders/customers', async (req, res) => {
 
 router.get('/api/sales/customer-orders/items', async (req, res) => {
   try {
-    const rows = await invSvc.searchItems(String(req.query.q || ''), 50, {
+    const asked = Number(req.query.limit || 0);
+    const rows = await invSvc.searchItems(String(req.query.q || ''), asked > 0 ? asked : 500, {
       cat: String(req.query.cat || req.query.category || ''),
     });
     res.json({ ok: true, rows });

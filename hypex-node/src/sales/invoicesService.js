@@ -713,7 +713,7 @@ async function searchItems(q, limit = 30, opts = {}) {
                 COALESCE(default_sale, 0) AS sale_price,
                 COALESCE(default_wholesale, 0) AS wholesale_price,
                 tax_rate_id${catCols}
-         FROM inv_item WHERE is_active = 1${catFilter} ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+         FROM inv_item WHERE is_active = 1${catFilter} ORDER BY name_ar LIMIT ${Math.min(500, Math.max(1, Number(limit) || 30))}`,
         catParams
       );
     } catch {
@@ -723,14 +723,14 @@ async function searchItems(q, limit = 30, opts = {}) {
                   COALESCE(default_sale, 0) AS sale_price,
                   COALESCE(default_wholesale, 0) AS wholesale_price,
                   tax_rate_id, category_id
-           FROM inv_item WHERE is_active = 1${catFilter} ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+           FROM inv_item WHERE is_active = 1${catFilter} ORDER BY name_ar LIMIT ${Math.min(500, Math.max(1, Number(limit) || 30))}`,
           catParams
         );
       } catch {
         rows = await db.query(
           `SELECT id, COALESCE(NULLIF(TRIM(barcode), ''), sku) AS code, barcode, sku, name_ar, unit_id, unit_name,
                   COALESCE(default_sale, 0) AS sale_price
-           FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(40, limit)}`
+           FROM inv_item WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(500, Math.max(1, Number(limit) || 30))}`
         );
       }
     }
@@ -744,7 +744,7 @@ async function searchItems(q, limit = 30, opts = {}) {
          FROM inv_item
          WHERE is_active = 1${catFilter}
            AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
-         ORDER BY ${rankExact}, name_ar LIMIT ${Math.min(40, limit)}`,
+         ORDER BY ${rankExact}, name_ar LIMIT ${Math.min(500, Math.max(1, Number(limit) || 30))}`,
         [...catParams, like, like, like, like, like, qTrim, qTrim, qTrim, like, like]
       );
     } catch {
@@ -757,7 +757,7 @@ async function searchItems(q, limit = 30, opts = {}) {
            FROM inv_item
            WHERE is_active = 1${catFilter}
              AND (name_ar LIKE ? OR IFNULL(name_en,'') LIKE ? OR sku LIKE ? OR barcode LIKE ? OR IFNULL(oracle_key,'') LIKE ?)
-           ORDER BY name_ar LIMIT ${Math.min(40, limit)}`,
+           ORDER BY name_ar LIMIT ${Math.min(500, Math.max(1, Number(limit) || 30))}`,
           [...catParams, like, like, like, like, like]
         );
       } catch {
@@ -774,7 +774,7 @@ async function searchItems(q, limit = 30, opts = {}) {
                WHEN TRIM(IFNULL(barcode,'')) LIKE ? THEN 3
                ELSE 4 END,
              name_ar
-           LIMIT ${Math.min(40, limit)}`,
+           LIMIT ${Math.min(500, Math.max(1, Number(limit) || 30))}`,
           [like, like, like, qTrim, qTrim, like, like]
         );
       }
@@ -829,13 +829,9 @@ async function listItemCategoriesOracle() {
       .filter((r) => r.cat && /^\d{1,3}$/.test(r.cat));
     if (mapped.length) return mapped;
   } catch {
-    /* fall through */
+    /* الجدول فارغ */
   }
-  return Object.keys(fallbackNames).map((k) => ({
-    cat: k,
-    name: fallbackNames[k],
-    id: 0,
-  }));
+  return [];
 }
 
 async function lookups() {

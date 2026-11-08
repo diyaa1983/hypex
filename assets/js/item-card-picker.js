@@ -155,7 +155,7 @@
   function search(q) {
     var my = ++seq;
     hintEl.textContent = 'جاري البحث…';
-    var url = '/api/lookup/items?q=' + encodeURIComponent(q || '') + '&limit=120';
+    var url = '/api/lookup/items?q=' + encodeURIComponent(q || '') + '&limit=500';
     fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
       .then(function (r) {
         return r.json();
