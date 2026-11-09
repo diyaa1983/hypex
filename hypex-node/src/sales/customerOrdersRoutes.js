@@ -642,7 +642,7 @@ async function renderForm(req, res, orderId) {
                 <th>رقم المادة</th>
                 <th>الباركود</th>
                 <th>اسم المادة</th>
-                <th class="co-unit-head" hidden>الوحدة</th>
+                <th class="co-unit-head">التعبئة</th>
                 <th>الكمية</th>
                 <th>مجاني</th>
                 <th>السعر</th>

@@ -719,20 +719,11 @@
     function one(label, cls, unit, slotKey, fallback) {
       var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
       var key = unit ? unitKey(unit) : slotKey;
-      var packLab = '';
-      if (label === 'كرتونة') {
-        var packN = unit && Number(unit.factor) > 1 ? Math.round(Number(unit.factor)) : 0;
-        packLab =
-          '<span class="co-pack-lab">' +
-          (packN ? 'التعبئة ' + packN : 'التعبئة —') +
-          '</span>';
-      }
       return (
         '<label class="co-qty-slot">' +
         '<span class="co-qty-slot__lab">' +
         escAttr(label) +
         '</span>' +
-        packLab +
         '<input class="' +
         cls +
         '" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
@@ -1183,6 +1174,13 @@
     tbody.querySelectorAll('tr[data-idx]').forEach(fitRowFields);
   }
 
+  function cartonPackText(ln) {
+    var units = splitUnits(ln);
+    var carton = units.carton;
+    if (!carton || sameUnit(carton, units.piece) || Number(carton.factor) <= 1) return '—';
+    return String(Math.round(Number(carton.factor)));
+  }
+
   function renderLines(focusOpts) {
     if (!tbody) return;
     closeItemSuggest(getCoItemSuggest());
@@ -1251,7 +1249,9 @@
         (locked || ln.item_id ? 'readonly' : '') +
         '>' +
         '</td>' +
-        '<td class="si-unit-cell" hidden></td>' +
+        '<td class="si-unit-cell co-pack-cell" dir="ltr">' +
+        cartonPackText(ln) +
+        '</td>' +
         '<td class="co-qty-cell">' +
         qtyPairHtml(ln, 'qty', locked) +
         '</td>' +
