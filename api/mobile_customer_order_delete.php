@@ -26,9 +26,9 @@ try {
     sal_customer_order_ensure_schema($pdo);
     $uid = (int) (current_user()['id'] ?? 0);
     $rep = user_is_system_admin() ? null : crm_mobile_scoped_sales_rep_id($pdo);
-    // حذف إداري لأي طلب يتطلب صلاحية الإجراء؛ المندوب يحذف مسوداته فقط
+    // حذف إداري لأي مسودة: مدير المبيعات أو من لديه صلاحية الحذف. المندوب يحذف مسوداته فقط.
     $scoped = null;
-    if (sal_customer_order_user_can_delete_managed()) {
+    if (sal_customer_order_user_can_delete_managed() || mobile_can_manage_customer_orders()) {
         $scoped = null;
     } else {
         if ($rep === null) {
