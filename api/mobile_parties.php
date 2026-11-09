@@ -31,7 +31,10 @@ try {
 
     if ($type === 'customer') {
         // مندوب الهاتف يرى فقط عملاءه المربوطين — بدون ربط مندوب لا تُعرض قائمة كاملة
-        if ($scopedRepId === null && !user_is_system_admin()) {
+        if (mobile_manager_sees_all()) {
+            $scopedRepId = null;
+        }
+        if ($scopedRepId === null && !user_is_system_admin() && !mobile_manager_sees_all()) {
             http_response_code(422);
             echo json_encode([
                 'ok' => false,

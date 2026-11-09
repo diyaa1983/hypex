@@ -67,7 +67,8 @@ if (!$party) {
 if ($partyType === 'customer') {
     require_once app_path('includes/crm_sales_rep_schema.php');
     $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
-    if ($scopedRepId !== null && !crm_customer_is_linked_to_sales_rep($pdo, $partyId, $scopedRepId)) {
+    require_once app_path('includes/mobile_auth.php');
+    if (!mobile_manager_sees_all() && $scopedRepId !== null && !crm_customer_is_linked_to_sales_rep($pdo, $partyId, $scopedRepId)) {
         http_response_code(403);
         echo json_encode([
             'ok' => false,

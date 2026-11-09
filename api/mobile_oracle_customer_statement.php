@@ -53,10 +53,12 @@ try {
     $repId = function_exists('crm_sales_rep_id_for_user')
         ? crm_sales_rep_id_for_user($pdo, $uid)
         : null;
+    require_once app_path('includes/mobile_auth.php');
     if ($repId !== null
         && function_exists('crm_customer_is_linked_to_sales_rep')
         && !crm_customer_is_linked_to_sales_rep($pdo, $customerId, (int) $repId)
         && !user_is_system_admin()
+        && !mobile_manager_sees_all()
     ) {
         http_response_code(403);
         echo json_encode(['ok' => false, 'message' => 'هذا العميل غير مربوط بمندوبك.'], JSON_UNESCAPED_UNICODE);

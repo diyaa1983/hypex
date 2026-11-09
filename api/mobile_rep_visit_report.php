@@ -22,8 +22,9 @@ if (!user_can('m_rep_visit_report') && !user_is_system_admin()) {
 
 $pdo = db();
 $uid = (int) (current_user()['id'] ?? 0);
-$repId = crm_sales_rep_id_for_user($pdo, $uid);
-if ($repId === null || $repId < 1) {
+$seeAll = mobile_manager_sees_all();
+$repId = $seeAll ? 0 : (int) (crm_sales_rep_id_for_user($pdo, $uid) ?? 0);
+if (!$seeAll && $repId < 1) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'], JSON_UNESCAPED_UNICODE);
     exit;
@@ -41,24 +42,37 @@ if ($to === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
 $rows = sal_rep_visit_report_rows($pdo, [
     'from' => $from,
     'to' => $to,
-    'sales_rep_id' => $repId,
+    'sales_rep_id' => $repId > 0 ? $repId : 0,
     'customer_id' => (int) ($_GET['customer_id'] ?? 0),
     'method' => strtoupper(trim((string) ($_GET['method'] ?? ''))),
     'status' => trim((string) ($_GET['status'] ?? '')),
     'limit' => 400,
 ]);
 
-$customersSt = $pdo->prepare(
-    'SELECT DISTINCT c.id, c.code, c.name_ar AS name
-     FROM sal_rep_route_line l
-     INNER JOIN sal_rep_route r ON r.id = l.route_id
-     INNER JOIN crm_customer c ON c.id = l.customer_id
-     WHERE r.sales_rep_id = ?
-       AND r.route_date BETWEEN ? AND ?
-       AND l.visit_checkin_at IS NOT NULL
-     ORDER BY c.name_ar, c.code'
-);
-$customersSt->execute([$repId, $from, $to]);
+if ($repId > 0) {
+    $customersSt = $pdo->prepare(
+        'SELECT DISTINCT c.id, c.code, c.name_ar AS name
+         FROM sal_rep_route_line l
+         INNER JOIN sal_rep_route r ON r.id = l.route_id
+         INNER JOIN crm_customer c ON c.id = l.customer_id
+         WHERE r.sales_rep_id = ?
+           AND r.route_date BETWEEN ? AND ?
+           AND l.visit_checkin_at IS NOT NULL
+         ORDER BY c.name_ar, c.code'
+    );
+    $customersSt->execute([$repId, $from, $to]);
+} else {
+    $customersSt = $pdo->prepare(
+        'SELECT DISTINCT c.id, c.code, c.name_ar AS name
+         FROM sal_rep_route_line l
+         INNER JOIN sal_rep_route r ON r.id = l.route_id
+         INNER JOIN crm_customer c ON c.id = l.customer_id
+         WHERE r.route_date BETWEEN ? AND ?
+           AND l.visit_checkin_at IS NOT NULL
+         ORDER BY c.name_ar, c.code'
+    );
+    $customersSt->execute([$from, $to]);
+}
 $customers = array_map(static fn(array $r): array => [
     'id' => (int) $r['id'],
     'code' => (string) ($r['code'] ?? ''),

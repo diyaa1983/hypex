@@ -42,6 +42,33 @@ function mobile_can_sync_catalog_without_sales_rep(): bool
         || user_can('m_customer_gps_approve');
 }
 
+/** مدير المبيعات يرى بيانات كل المندوبين دون ربط حسابه بمندوب. */
+function mobile_manager_sees_all(): bool
+{
+    return mobile_can_sync_catalog_without_sales_rep();
+}
+
+/** @return list<int> */
+function mobile_active_sales_rep_ids(PDO $pdo): array
+{
+    try {
+        $rows = $pdo->query(
+            'SELECT id FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar, id'
+        )->fetchAll(PDO::FETCH_COLUMN) ?: [];
+    } catch (Throwable $e) {
+        return [];
+    }
+    $ids = [];
+    foreach ($rows as $id) {
+        $id = (int) $id;
+        if ($id > 0) {
+            $ids[] = $id;
+        }
+    }
+
+    return $ids;
+}
+
 /** طلب HTTP من مسار /m/ — أدق من الجلسة وحدها عند التوجيه بعد الحفظ. */
 function app_request_from_mobile_app(): bool
 {

@@ -24,12 +24,14 @@ if (!user_can('m_rep_visits') && !user_can('m_rep_route_today') && !user_can('m_
 $pdo = db();
 sal_rep_tour_ensure_monthly_rollover($pdo);
 $uid = (int) (current_user()['id'] ?? 0);
-$repId = crm_sales_rep_id_for_user($pdo, $uid);
-if ($repId === null || $repId < 1) {
+$seeAll = mobile_manager_sees_all();
+$repId = $seeAll ? 0 : (int) (crm_sales_rep_id_for_user($pdo, $uid) ?? 0);
+if (!$seeAll && $repId < 1) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'], JSON_UNESCAPED_UNICODE);
     exit;
 }
+$repIds = $repId > 0 ? [$repId] : mobile_active_sales_rep_ids($pdo);
 
 $mode = strtolower(trim((string) ($_GET['mode'] ?? '')));
 $month = trim((string) ($_GET['month'] ?? ''));
@@ -37,8 +39,38 @@ if ($mode === 'month' || $month !== '') {
     if ($month === '' || !preg_match('/^\d{4}-\d{2}$/', $month)) {
         $month = date('Y-m');
     }
-    sal_rep_clear_orphan_daily_routes($pdo, $repId);
-    $agenda = sal_rep_visit_month_agenda_for_rep($pdo, $repId, $month);
+    $items = [];
+    $days = [];
+    foreach ($repIds as $oneRep) {
+        sal_rep_clear_orphan_daily_routes($pdo, $oneRep);
+        $agendaOne = sal_rep_visit_month_agenda_for_rep($pdo, $oneRep, $month);
+        foreach ($agendaOne['items'] ?? [] as $item) {
+            $items[] = $item;
+        }
+        foreach ($agendaOne['days'] ?? [] as $day) {
+            $key = (string) ($day['route_date'] ?? '');
+            if ($key === '') {
+                continue;
+            }
+            if (!isset($days[$key])) {
+                $days[$key] = $day;
+                continue;
+            }
+            $days[$key]['customers'] = array_merge(
+                $days[$key]['customers'] ?? [],
+                $day['customers'] ?? []
+            );
+        }
+    }
+    $agenda = [
+        'ok' => true,
+        'month' => $month,
+        'date_from' => $month . '-01',
+        'date_to' => date('Y-m-t', strtotime($month . '-01') ?: time()),
+        'days' => array_values($days),
+        'items' => $items,
+        'count' => count($items),
+    ];
     echo json_encode(array_merge($agenda, [
         'visit_radius_m' => (int) sal_rep_visit_radius_m($pdo),
         'geofence_required' => sal_rep_visit_geofence_setting_enabled($pdo),
@@ -52,8 +84,13 @@ if ($date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
 }
 
 $routeDate = $date !== '' ? $date : date('Y-m-d');
-sal_rep_clear_orphan_daily_routes($pdo, $repId);
-$visits = sal_rep_visit_list_for_rep($pdo, $repId, $routeDate);
+$visits = [];
+foreach ($repIds as $oneRep) {
+    sal_rep_clear_orphan_daily_routes($pdo, $oneRep);
+    foreach (sal_rep_visit_list_for_rep($pdo, $oneRep, $routeDate) as $visit) {
+        $visits[] = $visit;
+    }
+}
 $wd = (int) date('w', strtotime($routeDate));
 $weekdayLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
 $plannedCount = 0;

@@ -5,6 +5,7 @@ require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/oracle_statement.php');
 require_once app_path('includes/oracle_customer_sync.php');
 require_once app_path('includes/crm_sales_rep_schema.php');
+require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/mobile_party_statement_print.php');
 require_once app_path('includes/mobile_dompdf.php');
 
@@ -61,6 +62,7 @@ try {
         && function_exists('crm_customer_is_linked_to_sales_rep')
         && !crm_customer_is_linked_to_sales_rep($pdo, $customerId, (int) $repId)
         && !user_is_system_admin()
+        && !mobile_manager_sees_all()
     ) {
         http_response_code(403);
         echo 'forbidden';

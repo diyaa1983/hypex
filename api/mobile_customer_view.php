@@ -30,7 +30,7 @@ try {
     $pdo = db();
     $uid = (int) (current_user()['id'] ?? 0);
     $repId = crm_sales_rep_id_for_user($pdo, $uid);
-    if (!user_is_system_admin()) {
+    if (!user_is_system_admin() && !mobile_manager_sees_all()) {
         if ($repId === null || $repId < 1) {
             http_response_code(422);
             echo json_encode(['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'], JSON_UNESCAPED_UNICODE);

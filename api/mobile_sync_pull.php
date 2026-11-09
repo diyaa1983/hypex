@@ -35,6 +35,10 @@ try {
     $uid = (int) (current_user()['id'] ?? 0);
     $scopedRepId = crm_mobile_scoped_sales_rep_id($pdo);
     $allowWithoutRep = mobile_can_sync_catalog_without_sales_rep();
+    if (mobile_manager_sees_all()) {
+        $scopedRepId = null;
+        $allowWithoutRep = true;
+    }
     if (($scopedRepId === null || $scopedRepId < 1) && !$allowWithoutRep) {
         http_response_code(422);
         echo json_encode([

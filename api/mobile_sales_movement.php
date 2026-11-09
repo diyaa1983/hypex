@@ -48,7 +48,10 @@ try {
     $itemId = (int) ($_GET['item_id'] ?? 0);
 
     require_once app_path('includes/crm_sales_rep_schema.php');
-    $salesRepId = user_is_system_admin() ? null : crm_mobile_scoped_sales_rep_id($pdo);
+    require_once app_path('includes/mobile_auth.php');
+    $salesRepId = (user_is_system_admin() || mobile_manager_sees_all())
+        ? null
+        : crm_mobile_scoped_sales_rep_id($pdo);
 
     $result = sal_mobile_sales_movement_report($pdo, [
         'from' => $from,
