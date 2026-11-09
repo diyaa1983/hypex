@@ -51,6 +51,56 @@ try {
     $reps = [];
 }
 
+$report = isset($_GET['report']) && (
+    $_GET['report'] === '1' || $_GET['report'] === 1 || $_GET['report'] === true || $_GET['report'] === 'true'
+);
+if ($report) {
+    $repFilter = (int) ($_GET['sales_rep_id'] ?? 0);
+    $q = trim((string) ($_GET['q'] ?? ''));
+    $dateFrom = trim((string) ($_GET['from'] ?? ''));
+    $dateTo = trim((string) ($_GET['to'] ?? ''));
+    $dateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateFrom) ? $dateFrom : null;
+    $dateTo = preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateTo) ? $dateTo : null;
+    if ($repFilter > 0) {
+        $known = false;
+        foreach ($reps as $r) {
+            if ((int) $r['id'] === $repFilter) {
+                $known = true;
+                break;
+            }
+        }
+        if (!$known) {
+            http_response_code(404);
+            echo json_encode(['ok' => false, 'message' => 'المندوب غير موجود أو غير نشط.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+    $rows = sal_customer_order_list_fetch(
+        $pdo,
+        $q,
+        $repFilter > 0 ? $repFilter : null,
+        null,
+        null,
+        2000,
+        0,
+        null,
+        $dateFrom,
+        $dateTo
+    );
+    $sum = 0.0;
+    foreach ($rows as $row) {
+        $sum += (float) ($row['total'] ?? 0);
+    }
+    echo json_encode([
+        'ok' => true,
+        'reps' => $reps,
+        'orders' => $rows,
+        'count' => count($rows),
+        'total_amount' => $sum,
+    ], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+    exit;
+}
+
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
 if ($salesRepId < 1) {
     echo json_encode([

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/api_client.dart';
+import '../../core/app_profile.dart';
 import '../../core/device_layout.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
@@ -497,11 +498,12 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     super.initState();
     active = this;
     _id = widget.orderId ?? 0;
-    // تثبيت العرض دائماً على شاشة الطلب
-    SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    if (!AppProfile.managerPhone) {
+      SystemChrome.setPreferredOrientations(const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
     _load();
   }
 

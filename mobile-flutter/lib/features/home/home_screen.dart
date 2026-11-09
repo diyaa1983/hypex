@@ -222,6 +222,12 @@ const Map<String, TileSpec> kTileSpecs = {
     AppTheme.success,
     'الموافقات',
   ),
+  'm_manager_orders_report': TileSpec(
+    '/manager/orders-report',
+    Icons.summarize_rounded,
+    AppTheme.primary,
+    'الموافقات',
+  ),
 };
 
 const List<String> _groupOrder = [
@@ -348,6 +354,14 @@ class _HomeScreenState extends State<HomeScreen> {
         final spec = kTileSpecs[code];
         if (spec == null) continue;
         tiles.add(_Tile(code, label, spec));
+      }
+      if (tiles.any((t) => t.code == 'm_manager_customer_orders') &&
+          !tiles.any((t) => t.code == 'm_manager_orders_report')) {
+        tiles.add(_Tile(
+          'm_manager_orders_report',
+          'تقرير طلبات الشراء',
+          kTileSpecs['m_manager_orders_report']!,
+        ));
       }
       await PrintBrand.remember(
         (res['company_name'] ?? '').toString(),

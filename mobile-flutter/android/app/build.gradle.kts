@@ -15,11 +15,29 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    flavorDimensions += "app"
+    productFlavors {
+        create("tablet") {
+            dimension = "app"
+            applicationId = "com.gppjo.biodev.mobile"
+            manifestPlaceholders["screenOrientation"] = "landscape"
+            manifestPlaceholders["taskAffinity"] = "com.gppjo.biodev.mobile"
+        }
+        create("manager") {
+            dimension = "app"
+            applicationId = "com.gppjo.biodev.mobile.manager"
+            manifestPlaceholders["screenOrientation"] = "portrait"
+            manifestPlaceholders["taskAffinity"] = "com.gppjo.biodev.mobile.manager"
+        }
+    }
+
     defaultConfig {
         // Application ID matches Capacitor / planned App Store bundle.
         applicationId = "com.gppjo.biodev.mobile"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
+        manifestPlaceholders["screenOrientation"] = "landscape"
+        manifestPlaceholders["taskAffinity"] = "com.gppjo.biodev.mobile"
         minSdk = maxOf(flutter.minSdkVersion, 23)
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

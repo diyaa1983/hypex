@@ -4,6 +4,7 @@ import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:provider/provider.dart';
 
 import 'app.dart';
+import 'core/app_profile.dart';
 import 'core/api_client.dart';
 import 'core/inbox_controller.dart';
 import 'core/session.dart';
@@ -19,11 +20,17 @@ Future<void> main() async {
   PaintingBinding.instance.imageCache.maximumSizeBytes = 40 << 20;
   SystemChrome.setSystemUIOverlayStyle(AppTheme.overlayLight);
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  // التابلت يعمل أفقياً فقط (بدون وضع طولي)
-  await SystemChrome.setPreferredOrientations(const [
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
+  await SystemChrome.setPreferredOrientations(
+    AppProfile.managerPhone
+        ? const [
+            DeviceOrientation.portraitUp,
+            DeviceOrientation.portraitDown,
+          ]
+        : const [
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ],
+  );
 
   // قناة التواصل بين isolate الخدمة والواجهة.
   FlutterForegroundTask.initCommunicationPort();

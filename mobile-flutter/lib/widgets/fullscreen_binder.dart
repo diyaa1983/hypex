@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/app_profile.dart';
+
 /// يُخفي شريط الحالة والتنقّل، ويتوقف عن الوضع الغامر أثناء ظهور الكيبورد حتى لا يُغلق.
 class FullscreenBinder extends StatefulWidget {
   const FullscreenBinder({super.key, required this.child});
@@ -8,10 +10,17 @@ class FullscreenBinder extends StatefulWidget {
   final Widget child;
 
   static Future<void> apply() async {
-    await SystemChrome.setPreferredOrientations(const [
-      DeviceOrientation.landscapeLeft,
-      DeviceOrientation.landscapeRight,
-    ]);
+    await SystemChrome.setPreferredOrientations(
+      AppProfile.managerPhone
+          ? const [
+              DeviceOrientation.portraitUp,
+              DeviceOrientation.portraitDown,
+            ]
+          : const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ],
+    );
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
