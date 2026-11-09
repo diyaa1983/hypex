@@ -1,6 +1,12 @@
 USE hypex;
 SET SQL_SAFE_UPDATES = 0;
 
+DELETE FROM inv_item_sale_price_adj;
+DELETE FROM inv_item_unit;
+DELETE FROM sal_offer_line WHERE item_id IS NOT NULL;
+DELETE FROM inv_item;
+DELETE FROM inv_item_category;
+
 INSERT INTO inv_unit (code, name_ar, is_active)
 SELECT 'PCS', 'قطعة', 1 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM inv_unit WHERE code = 'PCS' OR name_ar IN ('قطعة','حبة'));

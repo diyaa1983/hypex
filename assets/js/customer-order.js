@@ -719,11 +719,20 @@
     function one(label, cls, unit, slotKey, fallback) {
       var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
       var key = unit ? unitKey(unit) : slotKey;
+      var packLab = '';
+      if (label === 'كرتونة') {
+        var packN = unit && Number(unit.factor) > 1 ? Math.round(Number(unit.factor)) : 0;
+        packLab =
+          '<span class="co-pack-lab">' +
+          (packN ? 'التعبئة ' + packN : 'التعبئة —') +
+          '</span>';
+      }
       return (
         '<label class="co-qty-slot">' +
         '<span class="co-qty-slot__lab">' +
         escAttr(label) +
         '</span>' +
+        packLab +
         '<input class="' +
         cls +
         '" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
