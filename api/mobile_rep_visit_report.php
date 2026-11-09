@@ -23,7 +23,11 @@ if (!user_can('m_rep_visit_report') && !user_is_system_admin()) {
 $pdo = db();
 $uid = (int) (current_user()['id'] ?? 0);
 $seeAll = mobile_manager_sees_all();
+$requestedRep = (int) ($_GET['sales_rep_id'] ?? 0);
 $repId = $seeAll ? 0 : (int) (crm_sales_rep_id_for_user($pdo, $uid) ?? 0);
+if ($seeAll && $requestedRep > 0) {
+    $repId = $requestedRep;
+}
 if (!$seeAll && $repId < 1) {
     http_response_code(422);
     echo json_encode(['ok' => false, 'message' => 'حسابك غير مربوط بمندوب مبيعات.'], JSON_UNESCAPED_UNICODE);
@@ -46,7 +50,7 @@ $rows = sal_rep_visit_report_rows($pdo, [
     'customer_id' => (int) ($_GET['customer_id'] ?? 0),
     'method' => strtoupper(trim((string) ($_GET['method'] ?? ''))),
     'status' => trim((string) ($_GET['status'] ?? '')),
-    'limit' => 400,
+    'limit' => $seeAll ? 1500 : 400,
 ]);
 
 if ($repId > 0) {
@@ -86,8 +90,26 @@ foreach ($rows as $row) {
     $orderCount += (int) ($row['order_count'] ?? 0);
 }
 
+$reps = [];
+if ($seeAll) {
+    try {
+        foreach ($pdo->query('SELECT id, code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar, id')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $reps[] = [
+                'id' => (int) ($r['id'] ?? 0),
+                'code' => (string) ($r['code'] ?? ''),
+                'name_ar' => (string) ($r['name_ar'] ?? ''),
+            ];
+        }
+    } catch (Throwable $e) {
+        $reps = [];
+    }
+}
+
 echo json_encode([
     'ok' => true,
+    'see_all' => $seeAll,
+    'sales_rep_id' => $repId,
+    'reps' => $reps,
     'from' => $from,
     'to' => $to,
     'count' => count($rows),

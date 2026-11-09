@@ -134,7 +134,7 @@ router.get('/inventory/price-adjust', async (req, res) => {
         ${ui.hero({
           mark: '💰',
           kicker: KICKER,
-          title: 'تعديل أسعار البيع',
+          title: 'تعديل سعر كبار العملاء والجملة والتجزئة',
           subtitle: 'أدخل الأسعار الجديدة للبيع والجملة — تُعتمد على بطاقة المادة عند الترحيل فقط',
           actions: [
             { label: '＋ تعديل جديد', href: '/inventory/price-adjust/new', primary: true },
@@ -152,7 +152,7 @@ router.get('/inventory/price-adjust', async (req, res) => {
           rowsHtml
         )}
       </div>`;
-    res.send(page(req.session.user, 'تعديل أسعار البيع', body));
+    res.send(page(req.session.user, 'تعديل سعر كبار العملاء والجملة والتجزئة', body));
   } catch (e) {
     console.error(e);
     res.status(500).send(String(e.message || e));
@@ -282,8 +282,8 @@ async function renderForm(req, res, id) {
                   <th rowspan="2" class="pa-th-idx">#</th>
                   <th rowspan="2" class="pa-th-code">الباركود</th>
                   <th rowspan="2" class="pa-th-name">اسم المادة</th>
-                  <th colspan="2" class="pa-th-grp pa-th-grp--sale">سعر البيع</th>
-                  <th colspan="2" class="pa-th-grp pa-th-grp--wh">سعر الجملة</th>
+                  <th colspan="2" class="pa-th-grp pa-th-grp--sale">سعر كبار العملاء</th>
+                  <th colspan="2" class="pa-th-grp pa-th-grp--wh">الجملة والتجزئة</th>
                   <th rowspan="2" class="pa-th-act"></th>
                 </tr>
                 <tr class="pa-th-sub">
@@ -435,10 +435,10 @@ router.get('/inventory/reports/price-adjustments', async (req, res) => {
             '#',
             'الباركود',
             'المادة',
-            'سعر البيع السابق',
-            'سعر البيع الجديد',
-            'سعر الجملة السابق',
-            'سعر الجملة الجديد',
+            'سعر كبار العملاء السابق',
+            'سعر كبار العملاء الجديد',
+            'الجملة والتجزئة السابق',
+            'الجملة والتجزئة الجديد',
             'الموظف',
             'تاريخ التعديل',
             'رقم الحركة',

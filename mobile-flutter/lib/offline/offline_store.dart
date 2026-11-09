@@ -285,7 +285,7 @@ class OfflineStore {
             'longitude': r['longitude'],
             'payment_period': (r['payment_period'] ?? '').toString(),
             'use_wholesale_price':
-                (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
+                (r['use_wholesale_price'] as num?)?.toInt() ?? 1,
           };
 
       if (customersDelta) {
@@ -645,7 +645,7 @@ class OfflineStore {
             'longitude': r['longitude'],
             'payment_period': (r['payment_period'] ?? '').toString(),
             'use_wholesale_price':
-                (r['use_wholesale_price'] as num?)?.toInt() ?? 0,
+                (r['use_wholesale_price'] as num?)?.toInt() ?? 1,
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -717,10 +717,25 @@ class OfflineStore {
         'latitude': latitude,
         'longitude': longitude,
         'payment_period': paymentPeriod,
-        'use_wholesale_price': 0,
+        'use_wholesale_price': 1,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// الجملة والتجزئة إلا إذا كان العميل محفوظاً ككبار العملاء (0).
+  Future<bool> customerUsesWholesale(int id) async {
+    if (id < 1) return true;
+    final db = await _db;
+    final rows = await db.query(
+      'customers',
+      columns: ['use_wholesale_price'],
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    if (rows.isEmpty) return true;
+    return (rows.first['use_wholesale_price'] as num?)?.toInt() != 0;
   }
 
   Future<void> patchCustomerGps(

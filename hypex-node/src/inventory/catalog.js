@@ -32,7 +32,7 @@ const inventoryCatalog = [
     items: [
       {
         r: 'item_sale_price_adjust',
-        label: 'تعديل أسعار البيع',
+        label: 'تعديل سعر كبار العملاء والجملة والتجزئة',
         icon: '💰',
         path: '/inventory/price-adjust',
         kind: 'list',

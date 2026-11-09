@@ -308,8 +308,8 @@ router.get('/inventory/items', async (req, res) => {
             'التعبئة',
             'الفئة',
             'الوحدة',
-            'سعر البيع',
-            'سعر الجملة',
+            'سعر كبار العملاء',
+            'الجملة والتجزئة',
             'سعر الكلفة',
             'الحالة',
             'إجراءات',
@@ -611,14 +611,14 @@ async function itemForm(req, res, id) {
                          autocomplete="off">
                 </div>
                 <div class="ic-row">
-                  <span class="ic-lab">سعر البيع</span>
+                  <span class="ic-lab">سعر كبار العملاء</span>
                   <input class="si-field si-field--mono js-hx-unit-price" name="default_sale" type="text" inputmode="decimal"
                          step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
                          value="${esc(fmtPrice(item?.default_sale != null ? item.default_sale : 0))}" dir="ltr" ${ro}
                          autocomplete="off">
                 </div>
                 <div class="ic-row">
-                  <span class="ic-lab">سعر الجملة</span>
+                  <span class="ic-lab">الجملة والتجزئة</span>
                   <input class="si-field si-field--mono js-hx-unit-price" name="default_wholesale" type="text" inputmode="decimal"
                          step="${esc(unitStep)}" min="0" data-dp="${unitDp}"
                          value="${esc(fmtPrice(item?.default_wholesale != null ? item.default_wholesale : 0))}" dir="ltr" ${ro}

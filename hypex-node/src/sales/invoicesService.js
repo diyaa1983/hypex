@@ -102,12 +102,18 @@ async function listInvoices({ q = '', filter = 'all', page = 1, pageSize = 50 } 
 }
 
 async function getInvoice(id) {
+  try {
+    const masters = require('../customers/mastersService');
+    if (masters.migrateDefaultWholesaleCustomers) await masters.migrateDefaultWholesaleCustomers();
+  } catch {
+    /* */
+  }
   const invId = Number(id);
   if (!invId) return null;
 
   const headers = await db.query(
     `SELECT i.*, c.name_ar AS customer_name, c.code AS customer_code,
-            COALESCE(c.use_wholesale_price, 0) AS use_wholesale_price,
+            COALESCE(c.use_wholesale_price, 1) AS use_wholesale_price,
             w.name_ar AS warehouse_name,
             COALESCE(r.name_ar, '') AS sales_rep_name,
             (${POSTED_SQL}) AS is_posted
@@ -458,7 +464,7 @@ async function saveInvoice(payload, userId) {
   const discountInput = String(payload.invoice_discount || '').trim();
   const invoiceId = Number(payload.id || 0);
   const useWholesale = await itemPricing.customerUsesWholesale(customerId);
-  const priceLabel = useWholesale ? 'سعر الجملة' : 'سعر البيع';
+  const priceLabel = useWholesale ? 'الجملة والتجزئة' : 'سعر كبار العملاء';
 
   const rawLines = Array.isArray(payload.lines) ? payload.lines : [];
   const offerApply = require('./offerApply');
@@ -642,8 +648,14 @@ async function insertLine(conn, invoiceId, ln) {
 }
 
 async function searchCustomers(q, limit = 30) {
+  try {
+    const masters = require('../customers/mastersService');
+    if (masters.migrateDefaultWholesaleCustomers) await masters.migrateDefaultWholesaleCustomers();
+  } catch {
+    /* */
+  }
   const like = `%${String(q || '').trim()}%`;
-  const cols = `id, code, name_ar, phone, COALESCE(use_wholesale_price, 0) AS use_wholesale_price`;
+  const cols = `id, code, name_ar, phone, COALESCE(use_wholesale_price, 1) AS use_wholesale_price`;
   try {
     if (String(q || '').trim() === '') {
       return db.query(

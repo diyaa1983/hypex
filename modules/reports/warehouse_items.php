@@ -121,7 +121,7 @@ if ($showResult && $err === '') {
                         <th class="col-category">الفئة</th>
                         <th class="col-unit">الوحدة</th>
                         <th class="col-price">سعر التكلفة</th>
-                        <th class="col-price">سعر البيع</th>
+                        <th class="col-price">سعر كبار العملاء</th>
                     </tr>
                     </thead>
                     <tbody>

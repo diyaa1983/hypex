@@ -29,6 +29,8 @@ if (!is_logged_in() || !mobile_is_context() || !user_in_mobile_group()) {
 
 try {
     $pdo = db();
+    require_once app_path('includes/inv_item_doc_pricing.php');
+    inv_customer_price_mode_ensure($pdo);
     inv_item_units_ensure_schema($pdo);
     crm_customer_ensure_oracle_pending_columns($pdo);
 
@@ -115,7 +117,7 @@ try {
             'latitude' => isset($r['latitude']) && $r['latitude'] !== null ? (float) $r['latitude'] : null,
             'longitude' => isset($r['longitude']) && $r['longitude'] !== null ? (float) $r['longitude'] : null,
             'payment_period' => trim((string) ($r['payment_period'] ?? '')),
-            'use_wholesale_price' => 0,
+            'use_wholesale_price' => 1,
         ];
     }
 
@@ -129,10 +131,10 @@ try {
     if ($hasWholesale) {
         $map = [];
         foreach ($pdo->query('SELECT id, use_wholesale_price FROM crm_customer') as $wr) {
-            $map[(int) $wr['id']] = (int) ($wr['use_wholesale_price'] ?? 0);
+            $map[(int) $wr['id']] = (int) ($wr['use_wholesale_price'] ?? 1);
         }
         foreach ($customers as &$c) {
-            $c['use_wholesale_price'] = $map[(int) $c['id']] ?? 0;
+            $c['use_wholesale_price'] = $map[(int) $c['id']] ?? 1;
         }
         unset($c);
     }

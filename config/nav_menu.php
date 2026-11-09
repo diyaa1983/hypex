@@ -285,7 +285,7 @@ return [
                     'id' => 'price_adjust',
                     'title' => 'تعديل الأسعار',
                     'items' => [
-                        ['r' => 'item_sale_price_adjust', 'label' => 'تعديل أسعار البيع', 'icon' => '💰'],
+                        ['r' => 'item_sale_price_adjust', 'label' => 'تعديل سعر كبار العملاء والجملة والتجزئة', 'icon' => '💰'],
                         ['r' => 'report_item_price_adjustments', 'label' => 'تقرير الأسعار المعدّلة', 'icon' => '📋'],
                     ],
                 ],

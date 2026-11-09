@@ -27,8 +27,8 @@ async function ensureCustomerWholesalePriceColumn() {
     try {
       await safeQuery(
         `ALTER TABLE crm_customer
-         ADD COLUMN use_wholesale_price TINYINT(1) NOT NULL DEFAULT 0
-         COMMENT '1=سعر الجملة، 0=سعر البيع'`
+         ADD COLUMN use_wholesale_price TINYINT(1) NOT NULL DEFAULT 1
+         COMMENT '1=الجملة والتجزئة، 0=سعر كبار العملاء'`
       );
       wholesalePriceColReady = true;
       return true;
@@ -39,19 +39,75 @@ async function ensureCustomerWholesalePriceColumn() {
   }
 }
 
+let retailWholesaleDefaultReady = false;
+
+/**
+ * مرة واحدة: كل العملاء الحاليين على الجملة والتجزئة.
+ * كبار العملاء يُعلَّمون لاحقاً فيُحفظ لهم 0.
+ */
+async function migrateDefaultWholesaleCustomers() {
+  if (retailWholesaleDefaultReady) return;
+  await ensureCustomerWholesalePriceColumn();
+  try {
+    await safeQuery(
+      `CREATE TABLE IF NOT EXISTS sys_schema_flag (
+         flag_key VARCHAR(64) NOT NULL PRIMARY KEY,
+         applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+       )`
+    );
+    const rows = await safeQuery(
+      `SELECT flag_key FROM sys_schema_flag WHERE flag_key = ? LIMIT 1`,
+      ['cust_retail_wholesale_default_v1']
+    );
+    if (!rows[0]) {
+      await safeQuery(`UPDATE crm_customer SET use_wholesale_price = 1 WHERE id > 0`);
+      try {
+        await safeQuery(
+          `ALTER TABLE crm_customer
+           MODIFY use_wholesale_price TINYINT(1) NOT NULL DEFAULT 1
+           COMMENT '1=الجملة والتجزئة، 0=سعر كبار العملاء'`
+        );
+      } catch {
+        /* */
+      }
+      await safeQuery(`INSERT INTO sys_schema_flag (flag_key) VALUES (?)`, [
+        'cust_retail_wholesale_default_v1',
+      ]);
+    }
+    retailWholesaleDefaultReady = true;
+  } catch (e) {
+    console.error('migrateDefaultWholesaleCustomers', e.message);
+  }
+}
+
 function parseUseWholesalePrice(payload) {
-  return (
+  const key = payload.is_key_customer;
+  if (key === '1' || key === 1 || key === true || key === 'on' || key === 'true') {
+    return 0;
+  }
+  if (key === '0' || key === 0 || key === false || key === 'false') {
+    return 1;
+  }
+  if (
     payload.use_wholesale_price === '1' ||
     payload.use_wholesale_price === 1 ||
     payload.use_wholesale_price === true ||
     payload.use_wholesale_price === 'on'
-  )
-    ? 1
-    : 0;
+  ) {
+    return 1;
+  }
+  if (
+    payload.use_wholesale_price === '0' ||
+    payload.use_wholesale_price === 0 ||
+    payload.use_wholesale_price === false
+  ) {
+    return 0;
+  }
+  return 1;
 }
 
 async function getCustomer(id) {
-  await ensureCustomerWholesalePriceColumn();
+  await migrateDefaultWholesaleCustomers();
   const rows = await safeQuery(`SELECT * FROM crm_customer WHERE id = ? LIMIT 1`, [Number(id)]);
   if (!rows[0]) return null;
   const c = rows[0];
@@ -129,7 +185,7 @@ function parsePaymentPeriod(payload) {
 }
 
 async function saveCustomer(payload) {
-  await ensureCustomerWholesalePriceColumn();
+  await migrateDefaultWholesaleCustomers();
   const id = Number(payload.id || 0);
   const name = String(payload.name_ar || '').trim();
   if (!name) return { ok: false, error: 'اسم العميل مطلوب.' };
@@ -662,6 +718,7 @@ module.exports = {
   getCustomer,
   saveCustomer,
   ensureCustomerWholesalePriceColumn,
+  migrateDefaultWholesaleCustomers,
   nextCustomerCode,
   getRegion,
   saveRegion,

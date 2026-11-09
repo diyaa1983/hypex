@@ -15,17 +15,8 @@ require_once app_path('includes/crm_region.php');
 crm_sales_rep_ensure_customer_invoice_links($pdo);
 crm_customer_ensure_gps_columns($pdo);
 crm_customer_ensure_oracle_pending_columns($pdo);
-try {
-    $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
-} catch (Throwable $e) {
-    try {
-        $pdo->exec(
-            'ALTER TABLE crm_customer ADD COLUMN use_wholesale_price TINYINT(1) NOT NULL DEFAULT 0 AFTER tax_number'
-        );
-    } catch (Throwable $e2) {
-        // ignore
-    }
-}
+require_once app_path('includes/inv_item_doc_pricing.php');
+inv_customer_price_mode_ensure($pdo);
 oracle_customer_schema_ensure($pdo);
 oracle_customer_account_schema_ensure($pdo);
 crm_region_ensure_schema($pdo);
@@ -80,7 +71,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tax = trim((string) ($_POST['tax_number'] ?? ''));
             $addr = trim((string) ($_POST['address_ar'] ?? ''));
             $gps = crm_customer_gps_parse_input($_POST);
-            $useWholesale = !empty($_POST['use_wholesale_price']) ? 1 : 0;
+            if (array_key_exists('is_key_customer', $_POST)) {
+                $useWholesale = empty($_POST['is_key_customer']) ? 1 : 0;
+            } elseif (array_key_exists('use_wholesale_price', $_POST)) {
+                $useWholesale = !empty($_POST['use_wholesale_price']) ? 1 : 0;
+            } else {
+                $useWholesale = 1;
+            }
             $paymentPeriod = crm_customer_payment_period_valid(
                 trim((string) ($_POST['payment_period'] ?? ''))
             );
@@ -502,12 +499,12 @@ if ($action === 'add' || $action === 'edit') {
                 </div>
             </fieldset>
             <label class="field customers-wholesale-field" style="display:flex;align-items:flex-start;gap:.5rem;margin:.75rem 0;">
-                <input type="checkbox" name="use_wholesale_price" value="1" <?= !empty($row['use_wholesale_price']) ? ' checked' : '' ?> style="margin-top:.2rem">
+                <input type="checkbox" name="is_key_customer" value="1" <?= ((int) ($row['id'] ?? 0) > 0 && empty($row['use_wholesale_price'])) ? ' checked' : '' ?> style="margin-top:.2rem">
                 <span>
-                    <strong>تسعير بسعر الجملة</strong>
+                    <strong>كبار العملاء</strong>
                     <span class="muted" style="display:block;font-size:.85rem;margin-top:.15rem">
-                        مفعّل: تُسحب أسعار المواد من «سعر الجملة» في بطاقة المادة عند فاتورة البيع وطلب العميل.
-                        غير مفعّل: يُستخدم «سعر البيع».
+                        مفعّل: أي عملية بيع لهذا العميل تستخدم <b>سعر كبار العملاء</b>.
+                        بدون التفعيل: السعر الافتراضي هو <b>الجملة والتجزئة</b>.
                     </span>
                 </span>
             </label>

@@ -119,7 +119,7 @@ $jsItemDisplayUrl = app_url('assets/js/inv-item-display.js')
     . (is_file($jsItemDisplayPath) ? '?v=' . (string) filemtime($jsItemDisplayPath) : '');
 
 $hubQ = nav_hub_query_for_redirect();
-$pageTitle = 'تعديل أسعار البيع';
+$pageTitle = 'تعديل سعر كبار العملاء والجملة والتجزئة';
 ?>
 <link rel="stylesheet" href="<?= esc($reportCssUrl) ?>">
 <link rel="stylesheet" href="<?= esc($cssInvUrl) ?>">

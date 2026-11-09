@@ -122,13 +122,19 @@ async function nextOrderNoForRep(salesRepId, conn = null) {
 }
 
 async function getOrder(id) {
+  try {
+    const masters = require('../customers/mastersService');
+    if (masters.migrateDefaultWholesaleCustomers) await masters.migrateDefaultWholesaleCustomers();
+  } catch {
+    /* */
+  }
   await ensurePaymentTypeColumn();
   await ensureDeliveryDateColumn();
   const orderId = Number(id);
   if (!orderId) return null;
   const headers = await db.query(
     `SELECT o.*, c.name_ar AS customer_name, c.code AS customer_code,
-            COALESCE(c.use_wholesale_price, 0) AS use_wholesale_price,
+            COALESCE(c.use_wholesale_price, 1) AS use_wholesale_price,
             w.name_ar AS warehouse_name,
             COALESCE(r.name_ar, '') AS sales_rep_name
      FROM sal_customer_order o
@@ -377,7 +383,7 @@ async function saveOrder(payload, userId) {
   const discountInput = String(payload.invoice_discount || payload.invoice_discount_input || '').trim();
   const orderId = Number(payload.id || 0);
   const useWholesale = await itemPricing.customerUsesWholesale(customerId);
-  const priceLabel = useWholesale ? 'سعر الجملة' : 'سعر البيع';
+  const priceLabel = useWholesale ? 'الجملة والتجزئة' : 'سعر كبار العملاء';
 
   let defaultTax = 16;
   try {

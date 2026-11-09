@@ -515,7 +515,7 @@ async function renderForm(req, res, orderId) {
     customer_label: order
       ? String(order.customer_name || '').trim() || String(order.customer_code || '').trim()
       : '',
-    use_wholesale_price: order ? (Number(order.use_wholesale_price) === 1 ? 1 : 0) : 0,
+    use_wholesale_price: order ? (Number(order.use_wholesale_price) === 1 ? 1 : 0) : 1,
     sales_rep_id: order ? order.sales_rep_id : null,
     warehouse_id: order ? order.warehouse_id : lookups.warehouses[0]?.id || '',
     payment_type: order && order.payment_type === 'cash' ? 'cash' : 'credit',

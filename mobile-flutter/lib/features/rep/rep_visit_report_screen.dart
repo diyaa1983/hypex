@@ -30,6 +30,9 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
   List<Map<String, dynamic>> _rows = [];
   List<Map<String, dynamic>> _customers = [];
   int _customerId = 0;
+  int _repId = 0;
+  bool _seeAll = false;
+  List<Map<String, dynamic>> _reps = [];
   int _orderCount = 0;
   double _orderTotal = 0;
   bool _pdfBusy = false;
@@ -62,6 +65,7 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
               'from': _from,
               'to': _to,
               if (_customerId > 0) 'customer_id': '$_customerId',
+              if (_repId > 0) 'sales_rep_id': '$_repId',
             },
           );
       if (!mounted) return;
@@ -73,6 +77,11 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
             .map((e) => e.cast<String, dynamic>())
             .toList();
         _customers = (res['customers'] as List? ?? [])
+            .whereType<Map>()
+            .map((e) => e.cast<String, dynamic>())
+            .toList();
+        _seeAll = res['see_all'] == true || res['see_all'] == 1;
+        _reps = (res['reps'] as List? ?? [])
             .whereType<Map>()
             .map((e) => e.cast<String, dynamic>())
             .toList();
@@ -152,9 +161,10 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
     await _load();
   }
 
-  List<String> _visitHeaders() => const [
+  List<String> _visitHeaders() => [
         '#',
         'العميل',
+        if (_seeAll) 'المندوب',
         'الرمز',
         'التاريخ',
         'الحالة',
@@ -180,6 +190,10 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
     return [
       '${i + 1}',
       Fmt.str(row['customer_name']),
+      if (_seeAll)
+        Fmt.str(row['sales_rep_name']).isEmpty
+            ? '—'
+            : Fmt.str(row['sales_rep_name']),
       Fmt.str(row['customer_code']),
       Fmt.dmy(Fmt.str(row['route_date'])),
       Fmt.str(row['status_label']),
@@ -275,9 +289,47 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
                       Expanded(child: _DateChip(label: 'إلى', value: Fmt.dmy(_to), onTap: () => _pick(false))),
                     ],
                   ),
+                  if (_seeAll) ...[
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<int>(
+                      key: ValueKey('rep-$_repId'),
+                      initialValue: _repId,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'المندوب',
+                        prefixIcon: Icon(Icons.badge_outlined),
+                      ),
+                      items: [
+                        const DropdownMenuItem<int>(
+                          value: 0,
+                          child: Text('كل المندوبين'),
+                        ),
+                        ..._reps.map(
+                          (r) => DropdownMenuItem<int>(
+                            value: Fmt.toInt(r['id']),
+                            child: Text(
+                              Fmt.str(r['code']).isEmpty
+                                  ? Fmt.str(r['name_ar'])
+                                  : '${Fmt.str(r['name_ar'])} · ${Fmt.str(r['code'])}',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
+                      onChanged: _loading
+                          ? null
+                          : (v) {
+                              setState(() {
+                                _repId = v ?? 0;
+                                _customerId = 0;
+                              });
+                              _load();
+                            },
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   DropdownButtonFormField<int>(
-                    key: ValueKey(_customerId),
+                    key: ValueKey('cust-$_customerId'),
                     initialValue: _customerId,
                     isExpanded: true,
                     decoration: const InputDecoration(
@@ -388,7 +440,7 @@ class _RepVisitReportScreenState extends State<RepVisitReportScreen> {
                         children: [
                           LinedReportTable(
                             headers: _visitHeaders(),
-                            numericCols: const {0, 7},
+                            numericCols: _seeAll ? const {0, 8} : const {0, 7},
                             rows: [
                               for (var i = 0; i < _rows.length; i++)
                                 _visitCells(_rows[i], i),

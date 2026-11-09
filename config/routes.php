@@ -691,7 +691,7 @@ return [
     'item_sale_price_adjust' => [
         'file' => 'modules/inventory/item_sale_price_adjust.php',
         'permission' => 'item_sale_price_adjust',
-        'title' => 'تعديل أسعار البيع',
+        'title' => 'تعديل سعر كبار العملاء والجملة والتجزئة',
     ],
     'report_item_price_adjustments' => [
         'file' => 'modules/inventory/report_price_adjustments.php',

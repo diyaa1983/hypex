@@ -1456,19 +1456,19 @@ async function customerForm(req, res, id) {
 
             <div class="cf-sec" style="border-color:#86efac;background:linear-gradient(180deg,#f0fdf4,#fff)">
               <div class="cf-sec-h" style="background:#ecfdf5;border-color:#bbf7d0">
-                <h3>سعر البيع / الجملة</h3>
+                <h3>سعر كبار العملاء / الجملة والتجزئة</h3>
                 <span>أي سعر يُستخدم عند البيع لهذا العميل</span>
               </div>
               <div class="cf-sec-b">
                 <label class="cf-span-3" style="display:flex;align-items:flex-start;gap:.65rem;font-weight:700;color:#0f172a;cursor:pointer;padding:.35rem 0">
-                  <input type="checkbox" name="use_wholesale_price" value="1"
+                  <input type="checkbox" name="is_key_customer" value="1"
                          style="margin-top:.25rem;width:1.15rem;height:1.15rem;accent-color:#16a34a"
-                    ${Number(row?.use_wholesale_price) === 1 ? 'checked' : ''}>
+                    ${Number(row?.id) > 0 && Number(row?.use_wholesale_price) !== 1 ? 'checked' : ''}>
                   <span>
-                    تسعير بسعر الجملة (بدل سعر البيع)
+                    كبار العملاء
                     <span class="cf-field-note" style="display:block;font-weight:600;margin-top:.25rem;color:#166534">
-                      ✓ مفعّل: فاتورة البيع وطلب العميل يأخذان <b>سعر الجملة</b> من بطاقة المادة.
-                      بدون التفعيل: يُستخدم <b>سعر البيع</b>.
+                      مفعّل: فاتورة البيع وطلب العميل يأخذان <b>سعر كبار العملاء</b>.
+                      بدون التفعيل: أي عملية بيع تستخدم <b>الجملة والتجزئة</b>.
                     </span>
                   </span>
                 </label>

@@ -197,7 +197,7 @@ function inv_item_sale_price_adj_save_draft(PDO $pdo, int $itemId, float $newSal
     }
 
     if ($newSalePrice < 0) {
-        $out['error'] = 'سعر البيع يجب أن يكون أكبر أو يساوي صفرًا.';
+        $out['error'] = 'سعر كبار العملاء يجب أن يكون أكبر أو يساوي صفرًا.';
 
         return $out;
     }
@@ -207,7 +207,7 @@ function inv_item_sale_price_adj_save_draft(PDO $pdo, int $itemId, float $newSal
     $tax = inv_item_sale_price_adj_default_tax_percent($pdo);
 
     if (abs($newSalePrice - $oldSale) < 0.000001) {
-        $out['error'] = 'السعر الجديد مطابق لسعر البيع الحالي على البطاقة.';
+        $out['error'] = 'السعر الجديد مطابق لسعر كبار العملاء الحالي على البطاقة.';
 
         return $out;
     }

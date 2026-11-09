@@ -10,6 +10,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../offline/offline_store.dart';
 import '../../core/theme.dart';
 import '../../services/invoice_print_helper.dart';
 import '../../services/location_service.dart';
@@ -391,7 +392,14 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       showSnack(context, 'اختر المستودع أولاً', error: true);
       return;
     }
-    final it = await pickItem(context, warehouseId: _warehouseId);
+    final wholesale = await OfflineStore.instance
+        .customerUsesWholesale(_customer?.id ?? 0);
+    if (!mounted) return;
+    final it = await pickItem(
+      context,
+      warehouseId: _warehouseId,
+      wholesale: wholesale,
+    );
     if (it == null) return;
     _appendOrBumpLine(it,
         qty: 1, qtyExtra: 0, price: it.price > 0 ? it.price : 0);
@@ -440,9 +448,16 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           break;
         }
       }
-      final price = Fmt.toDouble(
+      final wholesale = await OfflineStore.instance
+          .customerUsesWholesale(_customer?.id ?? 0);
+      if (!mounted) return;
+      final sale = Fmt.toDouble(
         row['default_sale'] ?? row['sale_price'] ?? row['unit_price'],
       );
+      final wholesalePrice = Fmt.toDouble(
+        row['default_wholesale'] ?? row['wholesale_price'],
+      );
+      final price = wholesale && wholesalePrice > 0 ? wholesalePrice : sale;
       _appendOrBumpLine(
         PickedItem(
           Fmt.toInt(row['id']),

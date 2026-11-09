@@ -267,22 +267,22 @@
     return rUnit((Number(baseSale) || 0) * f);
   }
 
-  var customerUsesWholesale = false;
+  var customerUsesWholesale = true;
 
   function itemListPrice(it) {
     if (!it) return 0;
-    if (customerUsesWholesale) {
-      return Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
-    }
-    return Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
+    var sale = Number(it.base_sale != null ? it.base_sale : it.sale_price) || 0;
+    if (!customerUsesWholesale) return sale;
+    var wh = Number(it.base_wholesale != null ? it.base_wholesale : it.wholesale_price) || 0;
+    return wh > 0 ? wh : sale;
   }
 
   function activeBaseOfLine(ln) {
     if (!ln) return 0;
-    if (customerUsesWholesale) {
-      return Number(ln.base_wholesale != null ? ln.base_wholesale : ln.base_sale) || 0;
-    }
-    return Number(ln.base_list_sale != null ? ln.base_list_sale : ln.base_sale) || 0;
+    var sale = Number(ln.base_list_sale != null ? ln.base_list_sale : ln.base_sale) || 0;
+    if (!customerUsesWholesale) return sale;
+    var wh = ln.base_wholesale != null ? Number(ln.base_wholesale) || 0 : 0;
+    return wh > 0 ? wh : sale;
   }
 
   function repriceOpenLines() {
@@ -310,19 +310,22 @@
 
   function setCustomerPriceMode(c, opts) {
     opts = opts || {};
-    customerUsesWholesale = !!(c && (Number(c.use_wholesale_price) === 1 || c.use_wholesale_price === true));
+    if (!c || c.use_wholesale_price == null || c.use_wholesale_price === '') {
+      customerUsesWholesale = true;
+    } else {
+      customerUsesWholesale = Number(c.use_wholesale_price) === 1 || c.use_wholesale_price === true;
+    }
     var hint = document.getElementById('co_price_mode_hint');
     if (hint) {
-      // لا نعرض «سعر البيع» بجانب العميل — الافتراضي معروف؛ الشارة فقط عند الجملة.
       if (customerUsesWholesale) {
-        hint.textContent = 'سعر الجملة';
-        hint.title = 'تسعير هذا العميل: سعر الجملة';
+        hint.textContent = 'الجملة والتجزئة';
+        hint.title = 'تسعير هذا العميل: الجملة والتجزئة';
         hint.hidden = false;
         hint.classList.add('is-wholesale');
       } else {
-        hint.textContent = '';
-        hint.title = '';
-        hint.hidden = true;
+        hint.textContent = 'سعر كبار العملاء';
+        hint.title = 'تسعير هذا العميل: سعر كبار العملاء';
+        hint.hidden = false;
         hint.classList.remove('is-wholesale');
       }
     }
@@ -982,7 +985,8 @@
   function unitPriceOf(ln, unit) {
     if (!unit) return 0;
     if (customerUsesWholesale && unit.wholesale_price != null && unit.wholesale_price !== '') {
-      return rUnit(Number(unit.wholesale_price) || 0);
+      var whUnit = Number(unit.wholesale_price) || 0;
+      if (whUnit > 0) return rUnit(whUnit);
     }
     if (!customerUsesWholesale && unit.sale_price != null && unit.sale_price !== '') {
       return rUnit(Number(unit.sale_price) || 0);
@@ -2586,7 +2590,7 @@
     });
     custInput.addEventListener('input', function () {
       if (custId) custId.value = '';
-      setCustomerPriceMode({ use_wholesale_price: 0 });
+      setCustomerPriceMode({ use_wholesale_price: 1 });
       loadCustomerAr(0);
       clearTimeout(custTimer);
       custTimer = setTimeout(function () {
@@ -2854,7 +2858,7 @@
       }
       var bonusOnly = !(pq > 0) && pqe > 0;
       if (!(Number(payload.lines[pi].unit_price) > 0) && !bonusOnly) {
-        hxAlert('سعر المادة في البطاقة صفر. حدّد سعر البيع من شاشة تعديل الأسعار.', {
+        hxAlert('سعر المادة في البطاقة صفر. حدّد ' + (customerUsesWholesale ? 'الجملة والتجزئة' : 'سعر كبار العملاء') + ' من شاشة تعديل الأسعار.', {
           title: 'تنبيه',
           kind: 'warning',
         });

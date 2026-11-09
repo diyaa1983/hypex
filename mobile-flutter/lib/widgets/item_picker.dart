@@ -64,6 +64,7 @@ class PickedItem {
 Future<PickedItem?> pickItem(
   BuildContext context, {
   required int warehouseId,
+  bool wholesale = false,
 }) {
   return showModalBottomSheet<PickedItem>(
     context: context,
@@ -72,13 +73,17 @@ Future<PickedItem?> pickItem(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
     ),
-    builder: (_) => _ItemPickerSheet(warehouseId: warehouseId),
+    builder: (_) => _ItemPickerSheet(
+      warehouseId: warehouseId,
+      wholesale: wholesale,
+    ),
   );
 }
 
 class _ItemPickerSheet extends StatefulWidget {
-  const _ItemPickerSheet({required this.warehouseId});
+  const _ItemPickerSheet({required this.warehouseId, this.wholesale = false});
   final int warehouseId;
+  final bool wholesale;
 
   @override
   State<_ItemPickerSheet> createState() => _ItemPickerSheetState();
@@ -193,8 +198,12 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
   }
 
   double _price(Map<String, dynamic> it) {
-    return Fmt.toDouble(
+    final sale = Fmt.toDouble(
         it['default_sale'] ?? it['sale_price'] ?? it['unit_price']);
+    if (!widget.wholesale) return sale;
+    final wholesale =
+        Fmt.toDouble(it['default_wholesale'] ?? it['wholesale_price']);
+    return wholesale > 0 ? wholesale : sale;
   }
 
   List<ItemUnitOpt> _units(Map<String, dynamic> it) {

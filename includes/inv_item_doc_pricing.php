@@ -9,19 +9,71 @@ declare(strict_types=1);
 require_once app_path('includes/inv_item_units.php');
 require_once app_path('includes/company_settings.php');
 
+function inv_customer_price_mode_ensure(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    try {
+        $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
+    } catch (Throwable $e) {
+        try {
+            $pdo->exec(
+                "ALTER TABLE crm_customer
+                 ADD COLUMN use_wholesale_price TINYINT(1) NOT NULL DEFAULT 1
+                 COMMENT '1=الجملة والتجزئة، 0=سعر كبار العملاء'"
+            );
+        } catch (Throwable $e2) {
+            return;
+        }
+    }
+    try {
+        $pdo->exec(
+            'CREATE TABLE IF NOT EXISTS sys_schema_flag (
+                flag_key VARCHAR(64) NOT NULL PRIMARY KEY,
+                applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )'
+        );
+        $st = $pdo->query(
+            "SELECT flag_key FROM sys_schema_flag WHERE flag_key = 'cust_retail_wholesale_default_v1' LIMIT 1"
+        );
+        if ($st && $st->fetchColumn() === false) {
+            $pdo->exec('UPDATE crm_customer SET use_wholesale_price = 1 WHERE id > 0');
+            try {
+                $pdo->exec(
+                    "ALTER TABLE crm_customer
+                     MODIFY use_wholesale_price TINYINT(1) NOT NULL DEFAULT 1
+                     COMMENT '1=الجملة والتجزئة، 0=سعر كبار العملاء'"
+                );
+            } catch (Throwable $e) {
+            }
+            $pdo->exec(
+                "INSERT INTO sys_schema_flag (flag_key) VALUES ('cust_retail_wholesale_default_v1')"
+            );
+        }
+        $done = true;
+    } catch (Throwable $e) {
+    }
+}
+
 function inv_customer_uses_wholesale(PDO $pdo, int $customerId): bool
 {
+    inv_customer_price_mode_ensure($pdo);
     if ($customerId < 1) {
-        return false;
+        return true;
     }
     try {
         $st = $pdo->prepare('SELECT use_wholesale_price FROM crm_customer WHERE id = ? LIMIT 1');
         $st->execute([$customerId]);
         $v = $st->fetchColumn();
+        if ($v === false || $v === null) {
+            return true;
+        }
 
         return (int) $v === 1;
     } catch (Throwable $e) {
-        return false;
+        return true;
     }
 }
 

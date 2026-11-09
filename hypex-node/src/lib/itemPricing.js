@@ -292,7 +292,10 @@ async function resolveDocLinePricing(raw, opts = {}) {
     if (!unitName) unitName = 'قطعة';
   }
 
-  const basePrice = useWholesale ? pricing.base_wholesale : pricing.base_sale;
+  let basePrice = useWholesale ? pricing.base_wholesale : pricing.base_sale;
+  if (useWholesale && !(Number(basePrice) > 0) && Number(pricing.base_sale) > 0) {
+    basePrice = pricing.base_sale;
+  }
   const unitPrice = unitPriceFromBase(basePrice, factor);
 
   return {
@@ -307,14 +310,15 @@ async function resolveDocLinePricing(raw, opts = {}) {
   };
 }
 
-/** هل العميل مسعّر بسعر الجملة؟ */
+/** الجملة والتجزئة إلا إذا كان العميل من كبار العملاء (use_wholesale_price = 0). */
 async function customerUsesWholesale(customerId) {
   const id = Number(customerId);
-  if (!id) return false;
+  if (!id) return true;
   try {
-    // إنشاء العمود تلقائياً إن لزم
     const masters = require('../customers/mastersService');
-    if (masters.ensureCustomerWholesalePriceColumn) {
+    if (masters.migrateDefaultWholesaleCustomers) {
+      await masters.migrateDefaultWholesaleCustomers();
+    } else if (masters.ensureCustomerWholesalePriceColumn) {
       await masters.ensureCustomerWholesalePriceColumn();
     }
   } catch {
@@ -325,9 +329,10 @@ async function customerUsesWholesale(customerId) {
       `SELECT use_wholesale_price FROM crm_customer WHERE id = ? LIMIT 1`,
       [id]
     );
-    return Number(rows[0]?.use_wholesale_price) === 1;
+    if (!rows[0] || rows[0].use_wholesale_price == null) return true;
+    return Number(rows[0].use_wholesale_price) === 1;
   } catch {
-    return false;
+    return true;
   }
 }
 

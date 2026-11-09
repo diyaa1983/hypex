@@ -957,7 +957,14 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       showSnack(context, 'لا يوجد مستودع مرتبط بالمندوب.', error: true);
       return;
     }
-    final item = await pickItem(context, warehouseId: _warehouseId);
+    final wholesale = await OfflineStore.instance
+        .customerUsesWholesale(_customer?.id ?? widget.initialCustomerId ?? 0);
+    if (!mounted) return;
+    final item = await pickItem(
+      context,
+      warehouseId: _warehouseId,
+      wholesale: wholesale,
+    );
     if (item == null || !mounted) return;
     final split = await _askQtySplit();
     if (split == null || !mounted) return;

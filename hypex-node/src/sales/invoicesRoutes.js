@@ -299,7 +299,7 @@ router.get(['/sales/invoices/new', '/sales/invoices/:id'], async (req, res) => {
         ? String(inv.customer_name || '').trim() || String(inv.customer_code || '').trim()
         : '',
       customer_email: inv ? inv.customer_email || '' : '',
-      use_wholesale_price: inv ? Number(inv.use_wholesale_price) === 1 ? 1 : 0 : 0,
+      use_wholesale_price: inv ? Number(inv.use_wholesale_price) === 1 ? 1 : 0 : 1,
       sales_rep_id: inv ? inv.sales_rep_id : null,
       warehouse_id: inv ? inv.warehouse_id : lookups.warehouses[0]?.id || null,
       payment_type: inv ? inv.payment_type : 'credit',
