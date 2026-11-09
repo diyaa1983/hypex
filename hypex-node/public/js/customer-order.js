@@ -1392,6 +1392,8 @@
       nameEl.title = nameOnly;
       if (ln.item_id) nameEl.readOnly = true;
     }
+    var packEl = tr.querySelector('.co-pack-cell');
+    if (packEl) packEl.textContent = cartonPackText(ln);
     var qtyCell = tr.querySelectorAll('.co-qty-cell');
     if (qtyCell.length >= 2) {
       qtyCell[0].innerHTML = qtyPairHtml(ln, 'qty', locked);
