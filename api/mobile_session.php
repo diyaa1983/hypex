@@ -177,6 +177,11 @@ $uid = (int) (current_user()['id'] ?? 0);
 $deviceId = mobile_device_session_id_from_request();
 $pdo = db();
 $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
+$presenceOnly = (string) ($_POST['presence_only'] ?? '') === '1';
+if ($presenceOnly) {
+    echo json_encode(mobile_session_payload(), JSON_UNESCAPED_UNICODE);
+    exit;
+}
 if ($uid < 1 || !mobile_device_session_claim(
     $pdo,
     $uid,

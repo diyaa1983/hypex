@@ -522,6 +522,7 @@ class _TrackingTaskHandler extends TaskHandler {
           'device_label': await FlutterForegroundTask.getData<String>(
                   key: TrackKeys.deviceLabel) ??
               'أندرويد',
+          'presence_only': '1',
         },
         options: Options(contentType: Headers.formUrlEncodedContentType),
       );

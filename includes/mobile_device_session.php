@@ -156,7 +156,7 @@ function mobile_device_session_blocking_conflict(PDO $pdo, int $userId, string $
     $label = trim((string) ($row['device_label'] ?? ''));
     $seenHi = app_format_time_hi($seen);
 
-    $msg = 'هذا الحساب مستخدم حالياً على جهاز آخر. أغلِق التطبيق على ذلك الجهاز أو انتظر دقيقتين ثم حاول مجدداً.';
+    $msg = 'التطبيق مفتوح الآن على موبايل آخر. جلسة ويندوز لا تمنع الدخول. أغلِق التطبيق على ذلك الموبايل أو أخرجه من شاشة الجلسات.';
     if ($label !== '') {
         $msg .= ' الجهاز النشط: ' . $label;
     }

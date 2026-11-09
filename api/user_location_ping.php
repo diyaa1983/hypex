@@ -67,16 +67,6 @@ $source = sal_invoice_gps_normalize_source(
 try {
     $pdo = db();
     $deviceId = mobile_device_session_id_from_request();
-    $block = mobile_device_session_blocking_conflict($pdo, $userId, $deviceId);
-    if ($block !== null) {
-        http_response_code(409);
-        echo json_encode([
-            'ok' => false,
-            'error' => 'device_in_use',
-            'message' => $block['message'],
-        ], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
 
     $result = sys_user_location_save_ping($pdo, $userId, (float) $lat, (float) $lng, $accuracy, $source);
     if (!$result['ok']) {
@@ -89,9 +79,11 @@ try {
         'ok' => true,
         'skipped' => !empty($result['skipped']),
     ];
+    // تتبّع الموقع لا يُبقي الحساب «مفتوحاً على الموبايل».
+    // القفل يبقى فقط بينما التطبيق نفسه مفتوح، وجلسة ويندوز منفصلة.
     if ($deviceId !== '') {
         $deviceLabel = trim((string) ($_POST['device_label'] ?? ''));
-        mobile_device_session_touch(
+        mobile_device_session_touch_presence(
             $pdo,
             $userId,
             $deviceId,
@@ -99,20 +91,6 @@ try {
             $lat,
             $lng
         );
-        try {
-            require_once app_path('includes/sys_user_open_session.php');
-            $token = sys_user_open_session_mobile_token($deviceId);
-            if ($token !== '') {
-                $_SESSION['open_session_token'] = $token;
-                sys_user_open_session_touch($pdo, $token, [
-                    'client_label' => $deviceLabel !== '' ? $deviceLabel : null,
-                    'latitude' => $lat,
-                    'longitude' => $lng,
-                ]);
-            }
-        } catch (Throwable $e) {
-            error_log('user_location_ping open_session: ' . $e->getMessage());
-        }
     }
 
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);

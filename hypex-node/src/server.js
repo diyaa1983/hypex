@@ -60,6 +60,7 @@ const basePath = require('./lib/basePath');
 const obscureRoutes = require('./lib/obscureRoutes');
 const fs = require('fs');
 const { createSessionMiddleware } = require('./sessionStore');
+const windowsSession = require('./system/windowsSession');
 const { warmPrintBrand, ensurePrintBrand, getPrintBrand } = require('./lib/printBrand');
 
 const app = express();
@@ -82,6 +83,13 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.json({ limit: '2mb' }));
 // جلسة في MySQL — لا تُفقد عند إيقاف/تشغيل Node
 app.use(createSessionMiddleware());
+app.use((req, res, next) => {
+  if (!req.session || !req.session.user) return next();
+  windowsSession.touchWindows(req).catch((err) => {
+    console.error('windows session', err.message || err);
+  });
+  next();
+});
 
 /** تحميل اسم الشركة/الشعار + خانات الأرقام من الإعدادات */
 app.use(async (req, res, next) => {
@@ -252,6 +260,7 @@ app.post('/login', async (req, res) => {
     req.session.regenerate((err) => {
       if (err) console.error('session regenerate', err);
       req.session.user = result.user;
+      windowsSession.touchWindows(req).catch((e) => console.error('windows session', e.message || e));
       res.redirect('/app');
     });
   } catch (e) {
@@ -267,8 +276,11 @@ app.post('/login', async (req, res) => {
 });
 
 app.post('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.redirect('/login');
+  const sid = req.sessionID;
+  windowsSession.revokeWindows(sid).catch(() => {}).finally(() => {
+    req.session.destroy(() => {
+      res.redirect('/login');
+    });
   });
 });
 

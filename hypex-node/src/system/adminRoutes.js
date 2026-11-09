@@ -655,7 +655,7 @@ router.get('/system/sessions', async (req, res) => {
           <a class="si-btn" href="/system/sessions">تحديث</a>
         </form>
       </div>
-      <p class="muted" style="font-size:.85rem">تُعرض الجلسات النشطة فقط (Windows خلال 30 دقيقة، Mobile خلال 3 دقائق). زر الإخراج يفصل الجهاز ويحرّر الحساب للدخول فوراً من جهاز آخر.</p>
+      <p class="muted" style="font-size:.85rem">Windows = نظام الكمبيوتر، وMobile = تطبيق الموبايل مفتوح. جلسة ويندوز لا تمنع دخول الموبايل. زر الإخراج يفصل جلسة ذلك الصف فقط.</p>
       ${ui.tableSurface(
         `الجلسات النشطة`,
         `${rows.length}`,
