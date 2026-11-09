@@ -515,20 +515,12 @@ async function backfillInheritActionsForAllGroups() {
 
 /* ── sessions ── */
 async function listActiveSessions({ q: search = '', clientType = '' } = {}) {
-  const winCutoff = new Date(Date.now() - WIN_ACTIVE_SEC * 1000)
-    .toISOString()
-    .slice(0, 19)
-    .replace('T', ' ');
-  const mobCutoff = new Date(Date.now() - MOB_ACTIVE_SEC * 1000)
-    .toISOString()
-    .slice(0, 19)
-    .replace('T', ' ');
-
   const where = [
     's.revoked_at IS NULL',
-    `((s.client_type = 'windows' AND s.last_seen_at >= ?) OR (s.client_type = 'mobile' AND s.last_seen_at >= ?))`,
+    `((s.client_type = 'windows' AND s.last_seen_at >= DATE_SUB(NOW(), INTERVAL ${WIN_ACTIVE_SEC} SECOND))
+      OR (s.client_type = 'mobile' AND s.last_seen_at >= DATE_SUB(NOW(), INTERVAL ${MOB_ACTIVE_SEC} SECOND)))`,
   ];
-  const params = [winCutoff, mobCutoff];
+  const params = [];
 
   if (clientType === 'windows' || clientType === 'mobile') {
     where.push('s.client_type = ?');
@@ -542,7 +534,7 @@ async function listActiveSessions({ q: search = '', clientType = '' } = {}) {
     params.push(like, like, like, like);
   }
 
-  return q(
+  const rows = await q(
     `SELECT s.id, s.user_id, s.client_type, s.client_label, s.ip_address,
             s.location_text, s.login_at, s.last_seen_at, s.latitude, s.longitude,
             u.username, u.full_name_ar
@@ -553,13 +545,113 @@ async function listActiveSessions({ q: search = '', clientType = '' } = {}) {
      LIMIT 500`,
     params
   );
+
+  if (clientType === 'windows') return rows;
+
+  let locks = [];
+  try {
+    locks = await q(
+      `SELECT l.user_id, l.device_label, l.heartbeat_at, u.username, u.full_name_ar
+       FROM sys_user_mobile_device_lock l
+       INNER JOIN sys_user u ON u.id = l.user_id
+       WHERE l.heartbeat_at >= DATE_SUB(NOW(), INTERVAL 120 SECOND)`
+    );
+  } catch (_) {
+    locks = [];
+  }
+  const seen = new Set(
+    rows.filter((r) => String(r.client_type) === 'mobile').map((r) => Number(r.user_id))
+  );
+  const needle = String(search || '').trim().toLowerCase();
+  for (const lock of locks) {
+    const uid = Number(lock.user_id);
+    if (seen.has(uid)) continue;
+    const hay = `${lock.username || ''} ${lock.full_name_ar || ''} ${lock.device_label || ''}`.toLowerCase();
+    if (needle && !hay.includes(needle)) continue;
+    rows.push({
+      id: 0,
+      user_id: uid,
+      client_type: 'mobile',
+      client_label: lock.device_label || 'هاتف',
+      ip_address: '',
+      location_text: '',
+      login_at: lock.heartbeat_at,
+      last_seen_at: lock.heartbeat_at,
+      username: lock.username,
+      full_name_ar: lock.full_name_ar,
+    });
+  }
+  return rows;
 }
 
-async function killSession(sessionId, revokedBy) {
+async function ensureMobileKickTable() {
+  await q(
+    `CREATE TABLE IF NOT EXISTS sys_user_mobile_device_kick (
+      user_id INT UNSIGNED NOT NULL,
+      device_id VARCHAR(64) NOT NULL,
+      kicked_at DATETIME NOT NULL,
+      PRIMARY KEY (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`
+  );
+}
+
+async function releaseMobileAccount(userId, deviceId) {
+  const uid = Number(userId);
+  if (uid < 1) return;
+  let device = String(deviceId || '').replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64);
+  if (!device) {
+    try {
+      const lock = await q(
+        `SELECT device_id FROM sys_user_mobile_device_lock WHERE user_id = ? LIMIT 1`,
+        [uid]
+      );
+      device = String(lock[0]?.device_id || '').replace(/[^a-zA-Z0-9._-]/g, '').slice(0, 64);
+    } catch (_) {
+      device = '';
+    }
+  }
+  if (device) {
+    try {
+      await ensureMobileKickTable();
+      await q(
+        `INSERT INTO sys_user_mobile_device_kick (user_id, device_id, kicked_at)
+         VALUES (?, ?, NOW())
+         ON DUPLICATE KEY UPDATE device_id = VALUES(device_id), kicked_at = NOW()`,
+        [uid, device]
+      );
+    } catch (_) {
+      /* الجدول قد يُنشأ لاحقاً من PHP */
+    }
+  }
+  try {
+    await q(`DELETE FROM sys_user_mobile_device_lock WHERE user_id = ?`, [uid]);
+  } catch (_) {}
+  try {
+    if (device) {
+      await q(`DELETE FROM sys_user_device_presence WHERE user_id = ? AND device_id = ?`, [uid, device]);
+    } else {
+      await q(`DELETE FROM sys_user_device_presence WHERE user_id = ?`, [uid]);
+    }
+  } catch (_) {}
+}
+
+async function killSession(sessionId, revokedBy, userId) {
   const id = Number(sessionId);
-  if (id < 1) return { ok: false, error: 'معرّف الجلسة غير صالح.' };
+  const uidHint = Number(userId);
+  if (id < 1) {
+    if (uidHint < 1) return { ok: false, error: 'معرّف الجلسة غير صالح.' };
+    await q(
+      `UPDATE sys_user_open_session
+       SET revoked_at = NOW(), revoked_by = ?, last_seen_at = NOW()
+       WHERE user_id = ? AND client_type = 'mobile' AND revoked_at IS NULL`,
+      [revokedBy || null, uidHint]
+    );
+    await releaseMobileAccount(uidHint, '');
+    return { ok: true, message: 'تم إخراج المستخدم. يمكن الدخول بهذا الحساب من جهاز آخر الآن.' };
+  }
   const rows = await q(
-    `SELECT id, revoked_at FROM sys_user_open_session WHERE id = ? LIMIT 1`,
+    `SELECT id, user_id, client_type, session_token, revoked_at
+     FROM sys_user_open_session WHERE id = ? LIMIT 1`,
     [id]
   );
   if (!rows[0]) return { ok: false, error: 'الجلسة غير موجودة.' };
@@ -568,7 +660,12 @@ async function killSession(sessionId, revokedBy) {
     `UPDATE sys_user_open_session SET revoked_at = NOW(), revoked_by = ?, last_seen_at = NOW() WHERE id = ?`,
     [revokedBy || null, id]
   );
-  return { ok: true, message: 'تم إنهاء الجلسة. سيُفصل المستخدم عند الطلب التالي.' };
+  if (String(rows[0].client_type) === 'mobile') {
+    const token = String(rows[0].session_token || '');
+    const deviceId = token.startsWith('m:') ? token.slice(2) : '';
+    await releaseMobileAccount(rows[0].user_id, deviceId);
+  }
+  return { ok: true, message: 'تم إخراج المستخدم. يمكن الدخول بهذا الحساب من جهاز آخر الآن.' };
 }
 
 /* ── company settings ── */

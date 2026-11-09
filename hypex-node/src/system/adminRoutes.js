@@ -620,9 +620,10 @@ router.get('/system/sessions', async (req, res) => {
           <td class="si-num" dir="ltr">${dash(r.login_at)}</td>
           <td class="si-num" dir="ltr">${dash(r.last_seen_at)}</td>
           <td>
-            <form method="post" action="/system/sessions/kill" style="margin:0" onsubmit="return confirm('إنهاء هذه الجلسة؟');">
-              <input type="hidden" name="session_id" value="${r.id}">
-              <button class="si-btn" type="submit" style="background:#c0392b;color:#fff;border-color:#c0392b">إنهاء</button>
+            <form method="post" action="/system/sessions/kill" style="margin:0" onsubmit="return confirm('إخراج هذا المستخدم من الجلسة؟');">
+              <input type="hidden" name="session_id" value="${Number(r.id) || 0}">
+              <input type="hidden" name="user_id" value="${Number(r.user_id) || 0}">
+              <button class="si-btn" type="submit" style="background:#c0392b;color:#fff;border-color:#c0392b">إخراج</button>
             </form>
           </td>
         </tr>`;
@@ -654,7 +655,7 @@ router.get('/system/sessions', async (req, res) => {
           <a class="si-btn" href="/system/sessions">تحديث</a>
         </form>
       </div>
-      <p class="muted" style="font-size:.85rem">تُعرض الجلسات النشطة فقط (Windows خلال 30 دقيقة، Mobile خلال 3 دقائق). إنهاء الجلسة يفصل المستخدم عند الطلب التالي.</p>
+      <p class="muted" style="font-size:.85rem">تُعرض الجلسات النشطة فقط (Windows خلال 30 دقيقة، Mobile خلال 3 دقائق). زر الإخراج يفصل الجهاز ويحرّر الحساب للدخول فوراً من جهاز آخر.</p>
       ${ui.tableSurface(
         `الجلسات النشطة`,
         `${rows.length}`,
@@ -667,7 +668,11 @@ router.get('/system/sessions', async (req, res) => {
 
 router.post('/system/sessions/kill', async (req, res) => {
   if (!can(req.session.user, 'open_sessions')) return forbid(res);
-  const result = await svc.killSession(req.body.session_id, req.session.user.id);
+  const result = await svc.killSession(
+    req.body.session_id,
+    req.session.user.id,
+    req.body.user_id
+  );
   res.redirect(
     '/system/sessions?' +
       (result.ok ? 'msg=' : 'err=') +

@@ -420,17 +420,25 @@ function sys_user_open_session_kill(PDO $pdo, int $sessionId, ?int $revokedBy = 
     $userId = (int) ($row['user_id'] ?? 0);
     $type = (string) ($row['client_type'] ?? '');
 
-    if ($type === 'mobile' && $userId > 0 && str_starts_with($token, 'm:')) {
-        $deviceId = substr($token, 2);
+    if ($type === 'mobile' && $userId > 0) {
+        $deviceId = str_starts_with($token, 'm:') ? substr($token, 2) : '';
         try {
             require_once app_path('includes/mobile_device_session.php');
+            if ($deviceId === '') {
+                $lock = $pdo->prepare(
+                    'SELECT device_id FROM sys_user_mobile_device_lock WHERE user_id = ? LIMIT 1'
+                );
+                $lock->execute([$userId]);
+                $deviceId = trim((string) $lock->fetchColumn());
+            }
+            mobile_device_session_mark_kicked($pdo, $userId, $deviceId);
             mobile_device_session_release($pdo, $userId, $deviceId);
         } catch (Throwable $e) {
             error_log('sys_user_open_session_kill mobile release: ' . $e->getMessage());
         }
     }
 
-    return ['ok' => true, 'message' => 'تم إنهاء الجلسة. سيُفصل المستخدم عند الطلب التالي.'];
+    return ['ok' => true, 'message' => 'تم إخراج المستخدم. يمكن الدخول بهذا الحساب من جهاز آخر الآن.'];
 }
 
 /**

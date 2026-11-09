@@ -8,6 +8,7 @@ require_once app_path('includes/sal_invoice_gps.php');
  * قفل جهاز واحد لكل مستخدم في تطبيق الهاتف — منع الدخول من جهاز ثانٍ أثناء النشاط.
  */
 const MOBILE_DEVICE_ACTIVE_SECONDS = 120;
+const MOBILE_DEVICE_KICK_SECONDS = 900;
 
 function mobile_device_session_now_sql(): string
 {
@@ -69,6 +70,22 @@ function mobile_device_session_ensure_schema(PDO $pdo): void
         }
     }
 
+    if (!sal_invoice_column_exists($pdo, 'sys_user_mobile_device_kick', 'user_id')) {
+        try {
+            $pdo->exec(
+                'CREATE TABLE IF NOT EXISTS sys_user_mobile_device_kick (
+                    user_id INT UNSIGNED NOT NULL,
+                    device_id VARCHAR(64) NOT NULL,
+                    kicked_at DATETIME NOT NULL,
+                    PRIMARY KEY (user_id),
+                    CONSTRAINT fk_mobile_kick_user FOREIGN KEY (user_id) REFERENCES sys_user(id) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+            );
+        } catch (Throwable $e) {
+            error_log('mobile_device_session_ensure_schema kick: ' . $e->getMessage());
+        }
+    }
+
     $done = true;
 }
 
@@ -108,6 +125,10 @@ function mobile_device_session_blocking_conflict(PDO $pdo, int $userId, string $
     }
 
     mobile_device_session_ensure_schema($pdo);
+    $kicked = mobile_device_session_kick_block($pdo, $userId, $deviceId);
+    if ($kicked !== null) {
+        return $kicked;
+    }
     $cutoff = mobile_device_session_cutoff_sql();
 
     $st = $pdo->prepare(
@@ -187,6 +208,12 @@ function mobile_device_session_claim(
         $st->execute([$userId]);
         $row = $st->fetch(PDO::FETCH_ASSOC);
 
+        if (mobile_device_session_kick_block($pdo, $userId, $deviceId) !== null) {
+            $pdo->rollBack();
+
+            return false;
+        }
+
         if (is_array($row)) {
             $lockedId = trim((string) ($row['device_id'] ?? ''));
             $seen = trim((string) ($row['heartbeat_at'] ?? ''));
@@ -206,6 +233,7 @@ function mobile_device_session_claim(
                 heartbeat_at = VALUES(heartbeat_at)'
         )->execute([$userId, $deviceId, $label, $now]);
 
+        $pdo->prepare('DELETE FROM sys_user_mobile_device_kick WHERE user_id = ?')->execute([$userId]);
         $pdo->commit();
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
@@ -302,6 +330,74 @@ function mobile_device_session_touch(
         } catch (Throwable $e) {
             error_log('mobile_device_session cleanup: ' . $e->getMessage());
         }
+    }
+}
+
+/**
+ * الجهاز الذي أُخرج من شاشة الجلسات لا يستطيع إعادة الحجز فوراً.
+ * جهاز آخر يدخل مباشرة.
+ *
+ * @return array{active:bool, other_count:int, message:string}|null
+ */
+function mobile_device_session_kick_block(PDO $pdo, int $userId, string $deviceId): ?array
+{
+    if ($userId < 1 || $deviceId === '') {
+        return null;
+    }
+
+    mobile_device_session_ensure_schema($pdo);
+    try {
+        $st = $pdo->prepare(
+            'SELECT device_id, kicked_at FROM sys_user_mobile_device_kick WHERE user_id = ? LIMIT 1'
+        );
+        $st->execute([$userId]);
+        $row = $st->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if (!is_array($row)) {
+        return null;
+    }
+    $kickedId = trim((string) ($row['device_id'] ?? ''));
+    $at = trim((string) ($row['kicked_at'] ?? ''));
+    if ($kickedId === '' || $kickedId !== $deviceId || $at === '') {
+        return null;
+    }
+    $cutoff = date('Y-m-d H:i:s', time() - max(60, MOBILE_DEVICE_KICK_SECONDS));
+    if ($at < $cutoff) {
+        try {
+            $pdo->prepare('DELETE FROM sys_user_mobile_device_kick WHERE user_id = ?')->execute([$userId]);
+        } catch (Throwable $e) {
+        }
+
+        return null;
+    }
+
+    return [
+        'active' => true,
+        'other_count' => 1,
+        'message' => 'تم إخراج هذا الجهاز من شاشة الجلسات المفتوحة. يمكن الدخول من جهاز آخر الآن.',
+    ];
+}
+
+function mobile_device_session_mark_kicked(PDO $pdo, int $userId, string $deviceId): void
+{
+    if ($userId < 1 || trim($deviceId) === '') {
+        return;
+    }
+    mobile_device_session_ensure_schema($pdo);
+    $deviceId = substr(preg_replace('/[^a-zA-Z0-9._-]/', '', $deviceId) ?? '', 0, 64);
+    if ($deviceId === '') {
+        return;
+    }
+    try {
+        $pdo->prepare(
+            'INSERT INTO sys_user_mobile_device_kick (user_id, device_id, kicked_at)
+             VALUES (?, ?, ?)
+             ON DUPLICATE KEY UPDATE device_id = VALUES(device_id), kicked_at = VALUES(kicked_at)'
+        )->execute([$userId, $deviceId, mobile_device_session_now_sql()]);
+    } catch (Throwable $e) {
+        error_log('mobile_device_session_mark_kicked: ' . $e->getMessage());
     }
 }
 

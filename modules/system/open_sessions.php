@@ -119,7 +119,7 @@ $cssUrl = app_url('assets/css/settings-oracle12.css')
             </form>
             <p class="field-hint" style="margin:0.75rem 0 0;">
                 تُعرض الجلسات النشطة فقط (Windows خلال 30 دقيقة، Mobile خلال 3 دقائق).
-                إنهاء الجلسة يفصل المستخدم عند الطلب التالي.
+                زر الإخراج يفصل الجهاز ويحرّر الحساب للدخول فوراً من جهاز آخر.
             </p>
         </div>
     </section>
@@ -188,7 +188,7 @@ $cssUrl = app_url('assets/css/settings-oracle12.css')
                                         <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
                                         <input type="hidden" name="action" value="kill">
                                         <input type="hidden" name="session_id" value="<?= (int) ($r['id'] ?? 0) ?>">
-                                        <button type="submit" class="btn btn-sm btn-danger os-kill-btn">إنهاء</button>
+                                        <button type="submit" class="btn btn-sm btn-danger os-kill-btn">إخراج</button>
                                     </form>
                                 </td>
                             </tr>
@@ -209,9 +209,9 @@ $cssUrl = app_url('assets/css/settings-oracle12.css')
       e.preventDefault();
       var submitForm = function () { form.submit(); };
       if (window.AppDialog && typeof AppDialog.confirm === 'function') {
-        AppDialog.confirm('إنهاء جلسة هذا المستخدم؟', {
-          title: 'إنهاء الجلسة',
-          okText: 'إنهاء',
+        AppDialog.confirm('إخراج هذا المستخدم من الجلسة؟', {
+          title: 'إخراج الجلسة',
+          okText: 'إخراج',
           cancelText: 'إلغاء',
           type: 'warning',
           danger: true,
@@ -220,7 +220,7 @@ $cssUrl = app_url('assets/css/settings-oracle12.css')
         });
         return;
       }
-      if (window.confirm('إنهاء جلسة هذا المستخدم؟')) {
+      if (window.confirm('إخراج هذا المستخدم من الجلسة؟')) {
         submitForm();
       }
     });
