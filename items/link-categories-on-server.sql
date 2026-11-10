@@ -1,85 +1,178 @@
 USE hypex;
 SET SQL_SAFE_UPDATES = 0;
 
--- فئات ملف الإكسل فقط
+-- نفّذ هذا الملف على اتصال السيرفر فقط (176.29.176.192).
+-- Local instance MySQL80 يعدّل هذا الكمبيوتر، والمواد هنا مربوطة أصلاً.
+
 INSERT INTO inv_item_category (code, name_ar, is_active)
-SELECT 'XL-BLEACH', 'Bleach', 1 FROM DUAL
-WHERE NOT EXISTS (
-  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Bleach')
-);
-INSERT INTO inv_item_category (code, name_ar, is_active)
-SELECT 'XL-DETERGANET', 'Deterganet', 1 FROM DUAL
-WHERE NOT EXISTS (
-  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Deterganet')
-);
-INSERT INTO inv_item_category (code, name_ar, is_active)
-SELECT 'XL-DISHWASH', 'Dishwashing', 1 FROM DUAL
-WHERE NOT EXISTS (
-  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Dishwashing')
-);
-INSERT INTO inv_item_category (code, name_ar, is_active)
-SELECT 'XL-HANDWASH', 'Hand Wash', 1 FROM DUAL
-WHERE NOT EXISTS (
-  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Hand Wash')
-);
-INSERT INTO inv_item_category (code, name_ar, is_active)
-SELECT 'XL-OTHERS', 'Others', 1 FROM DUAL
+SELECT 'XL-1', 'Others', 1 FROM DUAL
 WHERE NOT EXISTS (
   SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Others')
 );
 
-UPDATE inv_item
-SET category_id = (
-  SELECT id FROM inv_item_category
-  WHERE LOWER(TRIM(name_ar)) = LOWER('Bleach')
-  ORDER BY id
-  LIMIT 1
-)
-WHERE barcode IN ('6253500761399', '6253500763041', '6253500765564', '6253500765571', '6253500765557', '6253500765540', '6253500760019', '6253500760194', '6253500760200', '6253500760026', '6253500760255', '6253500760231', '6253500760033', '6253500760224', '6253500760248', '6253500760705', '6253500760712')
-   OR sku IN ('130080', '130082', '130150', '130151', '130154', '130155', '200001', '200002', '200003', '200004', '200005', '200006', '200007', '200008', '200009', '200011', '200018');
+INSERT INTO inv_item_category (code, name_ar, is_active)
+SELECT 'XL-2', 'Bleach', 1 FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Bleach')
+);
 
-UPDATE inv_item
-SET category_id = (
-  SELECT id FROM inv_item_category
-  WHERE LOWER(TRIM(name_ar)) = LOWER('Deterganet')
-  ORDER BY id
-  LIMIT 1
-)
-WHERE barcode IN ('6253500765519', '6253500765526', '621102391127', '6253500762648', '6253500761429', '6253500762914', '6253500761412', '6253500762662', '6253500762655', '6253500762679', '6253500764383', '6253500761696', '6253500765175', '6211023913527', '6253500765533')
-   OR sku IN ('200027', '200028-2', '400020-2', '600031', '600032', '600033', '600034', '600043', '600044', '600045', '600110', '600110-2', '600127', '600129', '600136');
+INSERT INTO inv_item_category (code, name_ar, is_active)
+SELECT 'XL-3', 'Dishwashing', 1 FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Dishwashing')
+);
 
-UPDATE inv_item
-SET category_id = (
-  SELECT id FROM inv_item_category
-  WHERE LOWER(TRIM(name_ar)) = LOWER('Dishwashing')
-  ORDER BY id
-  LIMIT 1
-)
-WHERE barcode IN ('6253500760057', '6253500760064', '6253500760187', '6253500761313', '6253500761450', '6253500761467', '6253500761498', '6253500761474', '6253500765489', '6253500761481', '6253500761504', '6253500761511', '6253500763607')
-   OR sku IN ('300001', '300002', '300004', '300005', '300006', '300007', '300008', '300009', '300010', '300011', '300012', '300021', '300024');
+INSERT INTO inv_item_category (code, name_ar, is_active)
+SELECT 'XL-4', 'Deterganet', 1 FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Deterganet')
+);
 
-UPDATE inv_item
-SET category_id = (
-  SELECT id FROM inv_item_category
-  WHERE LOWER(TRIM(name_ar)) = LOWER('Hand Wash')
-  ORDER BY id
-  LIMIT 1
-)
-WHERE barcode IN ('6253011995436', '6253011995467', '6253500760903', '6253500760910', '6253011995528', '6253011995450', '6253500761306', '6253500761337', '6253500763010', '6253500761320', '6253011995474', '6253500763652', '6253500763454', '6253500763683')
-   OR sku IN ('600009', '600011', '600014', '600015', '600037', '600056', '600057', '600058', '600059', '600060', '600061', '600088', '600089', '600092');
+INSERT INTO inv_item_category (code, name_ar, is_active)
+SELECT 'XL-5', 'Hand Wash', 1 FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM inv_item_category WHERE LOWER(TRIM(name_ar)) = LOWER('Hand Wash')
+);
 
-UPDATE inv_item
-SET category_id = (
-  SELECT id FROM inv_item_category
-  WHERE LOWER(TRIM(name_ar)) = LOWER('Others')
-  ORDER BY id
-  LIMIT 1
-)
-WHERE barcode IN ('6253500760323', '6253500760361', '6253500760279', '6253500760378', '6253500765113', '6253500765090', '6253500765083', '6253500760408', '6253500765076', '6253500670125', '6253500760132', '6253500760095', '6253500760156', '6253500760736', '6253500761184', '6253500763034', '6253500761221', '6253500761191', '6253500763195', '6253011995245', '6253500763249', '6253500765021', '6253500763256', '6253500763287', '6253500763294', '6253500763324', '6253500763300', '6253500763317', '6253500763331', '6253500763263', '6253500763270', '6253500764963', '6253500764932', '6253500764949', '6253500764925', '6253500764956', '6253500765052', '6253500765038', '6253500765069', '6253500765045')
-   OR sku IN ('200028', '400001', '400002', '400003', '400020', '400021', '400022', '400022-2', '400024', '400024-2', '500001', '500003', '600018', '600019', '600020', '600023', '600025', '600029', '600030', '600040', '600064', '600065', '600065-2', '600066', '600067', '600068', '600069', '600070', '600071', '600072', '600073', '600130', '600131', '600132', '600133', '600134', '600140', '600140-2', '600140-3', '600140-4');
+DROP TEMPORARY TABLE IF EXISTS tmp_xl_item_cat;
+CREATE TEMPORARY TABLE tmp_xl_item_cat (
+  sku VARCHAR(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  barcode VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  cat_name VARCHAR(200) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  PRIMARY KEY (barcode),
+  KEY (sku)
+) ENGINE=Memory;
 
--- حذف الفئات القديمة بعد نقل المواد
+INSERT INTO tmp_xl_item_cat (sku, barcode, cat_name) VALUES
+('400021','6253500765090','Others'),
+('400024','6253500765076','Others'),
+('400022','6253500765083','Others'),
+('400020','6253500765113','Others'),
+('200001','6253500760019','Bleach'),
+('200003','6253500760200','Bleach'),
+('200002','6253500760194','Bleach'),
+('200004','6253500760026','Bleach'),
+('200006','6253500760231','Bleach'),
+('200005','6253500760255','Bleach'),
+('200007','6253500760033','Bleach'),
+('200009','6253500760248','Bleach'),
+('200008','6253500760224','Bleach'),
+('200018','6253500760712','Bleach'),
+('200011','6253500760705','Bleach'),
+('130080','6253500761399','Bleach'),
+('130151','6253500765571','Bleach'),
+('130150','6253500765564','Bleach'),
+('130082','6253500763041','Bleach'),
+('130155','6253500765540','Bleach'),
+('130154','6253500765557','Bleach'),
+('500003','6253500760095','Others'),
+('300002','6253500760064','Dishwashing'),
+('300005','6253500761313','Dishwashing'),
+('300004','6253500760187','Dishwashing'),
+('300010','6253500765489','Dishwashing'),
+('300001','6253500760057','Dishwashing'),
+('300021','6253500761511','Dishwashing'),
+('300008','6253500761498','Dishwashing'),
+('300007','6253500761467','Dishwashing'),
+('300012','6253500761504','Dishwashing'),
+('300009','6253500761474','Dishwashing'),
+('300006','6253500761450','Dishwashing'),
+('300011','6253500761481','Dishwashing'),
+('300024','6253500763607','Dishwashing'),
+('500001','6253500760132','Others'),
+('600045','6253500762679','Deterganet'),
+('600043','6253500762662','Deterganet'),
+('600044','6253500762655','Deterganet'),
+('600031','6253500762648','Deterganet'),
+('600032','6253500761429','Deterganet'),
+('600033','6253500762914','Deterganet'),
+('600019','6253500760736','Others'),
+('600023','6253500763034','Others'),
+('600020','6253500761184','Others'),
+('600029','6253500761191','Others'),
+('600030','6253500763195','Others'),
+('600025','6253500761221','Others'),
+('600018','6253500760156','Others'),
+('600040','6253011995245','Others'),
+('600132','6253500764949','Others'),
+('600130','6253500764963','Others'),
+('600134','6253500764956','Others'),
+('600131','6253500764932','Others'),
+('600133','6253500764925','Others'),
+('600140','6253500765052','Others'),
+('600140','6253500765038','Others'),
+('600140','6253500765069','Others'),
+('600140','6253500765045','Others'),
+('600065','6253500765021','Others'),
+('600065','6253500763256','Others'),
+('600073','6253500763270','Others'),
+('600064','6253500763249','Others'),
+('600069','6253500763300','Others'),
+('600067','6253500763294','Others'),
+('600068','6253500763324','Others'),
+('600072','6253500763263','Others'),
+('600070','6253500763317','Others'),
+('600071','6253500763331','Others'),
+('600066','6253500763287','Others'),
+('400001','6253500760361','Others'),
+('400002','6253500760279','Others'),
+('600060','6253500761320','Hand Wash'),
+('600059','6253500763010','Hand Wash'),
+('600057','6253500761306','Hand Wash'),
+('600015','6253500760910','Hand Wash'),
+('600014','6253500760903','Hand Wash'),
+('600058','6253500761337','Hand Wash'),
+('600061','6253011995474','Hand Wash'),
+('600009','6253011995436','Hand Wash'),
+('600056','6253011995450','Hand Wash'),
+('600011','6253011995467','Hand Wash'),
+('600092','6253500763683','Hand Wash'),
+('600089','6253500763454','Hand Wash'),
+('600088','6253500763652','Hand Wash'),
+('600037','6253011995528','Hand Wash'),
+('600110','6253500764383','Deterganet'),
+('600110','6253500761696','Deterganet'),
+('400024','6253500670125','Others'),
+('400022','6253500760408','Others'),
+('200028','6253500760323','Others'),
+('400003','6253500760378','Others'),
+('400020','621102391127','Deterganet'),
+('600034','6253500761412','Deterganet'),
+('600129','6211023913527','Deterganet'),
+('600136','6253500765533','Deterganet'),
+('600127','6253500765175','Deterganet'),
+('200027','6253500765519','Deterganet'),
+('200028','6253500765526','Deterganet');
+
+UPDATE inv_item i
+INNER JOIN tmp_xl_item_cat m ON TRIM(i.barcode) = m.barcode
+INNER JOIN inv_item_category c ON LOWER(TRIM(c.name_ar)) = LOWER(TRIM(m.cat_name))
+SET i.category_id = c.id;
+
+UPDATE inv_item i
+INNER JOIN (
+  SELECT sku, MIN(cat_name) AS cat_name
+  FROM tmp_xl_item_cat
+  GROUP BY sku
+  HAVING COUNT(DISTINCT cat_name) = 1
+) m ON TRIM(i.sku) = m.sku
+INNER JOIN inv_item_category c ON LOWER(TRIM(c.name_ar)) = LOWER(TRIM(m.cat_name))
+SET i.category_id = c.id
+WHERE i.category_id IS NULL
+   OR i.category_id NOT IN (
+        SELECT id FROM inv_item_category
+        WHERE LOWER(TRIM(name_ar)) IN (LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash'))
+      );
+
 DELETE FROM inv_item_category
-WHERE LOWER(TRIM(name_ar)) NOT IN (LOWER('Bleach'), LOWER('Deterganet'), LOWER('Dishwashing'), LOWER('Hand Wash'), LOWER('Others'));
+WHERE LOWER(TRIM(name_ar)) NOT IN (LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash'));
+
+SELECT c.name_ar, COUNT(i.id) AS items
+FROM inv_item_category c
+LEFT JOIN inv_item i ON i.category_id = c.id
+GROUP BY c.id, c.name_ar
+ORDER BY c.name_ar;
+
+SELECT COUNT(*) AS unlinked FROM inv_item WHERE category_id IS NULL;
 
 SET SQL_SAFE_UPDATES = 1;
