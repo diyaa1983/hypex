@@ -628,7 +628,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
             </label>
             <label class="field">
                 <span class="field-label">العميل</span>
-                <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
+                <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء" data-ora-collapse-all="1">
                     <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
                     <div class="ora-multi-panel" data-ora-multi-panel hidden>
                         <div class="ora-multi-actions">
@@ -1061,14 +1061,27 @@ function initOraMulti(root, items, selected) {
   var list = root.querySelector('[data-ora-multi-list]');
   var name = root.getAttribute('data-ora-name');
   var emptyLabel = root.getAttribute('data-ora-empty') || 'الكل';
+  var collapseAll = root.getAttribute('data-ora-collapse-all') === '1';
   var allItems = Array.isArray(items) ? items.slice() : [];
   var visible = allItems.slice();
   var sel = {};
   (selected || []).forEach(function (id) { sel[String(id)] = true; });
   function selectedIds() { return Object.keys(sel).filter(function (k) { return sel[k]; }); }
+  function allVisibleSelected() {
+    if (!visible.length) return false;
+    for (var i = 0; i < visible.length; i += 1) {
+      if (!sel[String(visible[i].id)]) return false;
+    }
+    return true;
+  }
+  function emitIds() {
+    var ids = selectedIds();
+    if (collapseAll && allVisibleSelected()) return [];
+    return ids;
+  }
   function labelOf() {
     var ids = selectedIds();
-    if (!ids.length) return emptyLabel;
+    if (!ids.length || (collapseAll && allVisibleSelected())) return emptyLabel;
     if (ids.length === 1) {
       var one = allItems.find(function (it) { return String(it.id) === ids[0]; })
         || visible.find(function (it) { return String(it.id) === ids[0]; });
@@ -1078,7 +1091,7 @@ function initOraMulti(root, items, selected) {
   }
   function syncHidden() {
     root.querySelectorAll('input[data-ora-hidden]').forEach(function (n) { n.remove(); });
-    selectedIds().forEach(function (id) {
+    emitIds().forEach(function (id) {
       var input = document.createElement('input');
       input.type = 'hidden';
       input.name = name;

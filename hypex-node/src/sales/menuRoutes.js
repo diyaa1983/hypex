@@ -2178,6 +2178,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
 /* ═══════════════ مبيعات المندوب حسب المادة والفئة Oracle ═══════════════ */
 const oracleRepItemsHandler = async (req, res) => {
   const BASE = '/sales/reports/oracle-rep-items';
+  try {
   // POST لتجنب 414 عند اختيار كثير من العملاء/المندوبين؛ GET لفتح الصفحة فقط
   const q = req.method === 'POST'
     ? { ...(req.query || {}), ...(req.body || {}) }
@@ -2416,6 +2417,8 @@ const oracleRepItemsHandler = async (req, res) => {
       err = 'عملاء المندوبين المحددين غير مربوطين بحساب في Oracle.';
     } else if (customerIds.length && !custAccs.length) {
       err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
+    } else if (custAccs.length > 1500) {
+      err = 'عدد العملاء المحددين كبير جداً. اختر مندوباً أو قلّل العملاء، أو اترك «كل العملاء».';
     } else {
     const data = await accNative.run('oracle_rep_item_sales', uid, {
       from: range.from,
@@ -2798,7 +2801,7 @@ const oracleRepItemsHandler = async (req, res) => {
             </div>
           </label>
           <label>العميل
-            <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
+            <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء" data-ora-collapse-all="1">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
                 <div class="ora-multi-actions">
@@ -3087,14 +3090,28 @@ const oracleRepItemsHandler = async (req, res) => {
         var list = root.querySelector('[data-ora-multi-list]');
         var name = root.getAttribute('data-ora-name');
         var emptyLabel = root.getAttribute('data-ora-empty') || 'الكل';
+        var collapseAll = root.getAttribute('data-ora-collapse-all') === '1';
         var allItems = Array.isArray(items) ? items.slice() : [];
         var visible = allItems.slice();
         var sel = {};
         (selected || []).forEach(function (id) { sel[String(id)] = true; });
         function selectedIds() { return Object.keys(sel).filter(function (k) { return sel[k]; }); }
+        function allVisibleSelected() {
+          if (!visible.length) return false;
+          for (var i = 0; i < visible.length; i += 1) {
+            if (!sel[String(visible[i].id)]) return false;
+          }
+          return true;
+        }
+        function emitIds() {
+          var ids = selectedIds();
+          // عند تحديد كل الظاهر: لا نرسل المعرّفات (يعني «الكل») لتفادي 414/500
+          if (collapseAll && allVisibleSelected()) return [];
+          return ids;
+        }
         function labelOf() {
           var ids = selectedIds();
-          if (!ids.length) return emptyLabel;
+          if (!ids.length || (collapseAll && allVisibleSelected())) return emptyLabel;
           if (ids.length === 1) {
             var one = allItems.find(function (it) { return String(it.id) === ids[0]; })
               || visible.find(function (it) { return String(it.id) === ids[0]; });
@@ -3104,7 +3121,7 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         function syncHidden() {
           root.querySelectorAll('input[data-ora-hidden]').forEach(function (n) { n.remove(); });
-          selectedIds().forEach(function (id) {
+          emitIds().forEach(function (id) {
             var input = document.createElement('input');
             input.type = 'hidden';
             input.name = name;
@@ -3305,6 +3322,19 @@ const oracleRepItemsHandler = async (req, res) => {
       js: ['/assets/js/sales-print.js'],
     })
   );
+  } catch (e) {
+    console.error('oracle-rep-items', e);
+    return res.status(500).send(
+      ui.salesPage({
+        user: req.session && req.session.user,
+        title: 'مبيعات المندوب حسب المادة والفئة Oracle',
+        bodyHtml: `<div class="si-stage"><div class="alert alert-error">${esc(
+          String((e && e.message) || e || 'خطأ داخلي')
+        )}</div><p class="muted"><a href="${esc(BASE)}">العودة للتقرير</a></p></div>`,
+        css: ['/assets/css/report-sales.css'],
+      })
+    );
+  }
 };
 router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sales'), oracleRepItemsHandler);
 router.post('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sales'), oracleRepItemsHandler);

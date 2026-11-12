@@ -83,6 +83,10 @@ function middleware() {
       if (req.method === 'GET' || req.method === 'HEAD') {
         return res.redirect(302, basePath + (raw.startsWith('/') ? raw : '/' + raw));
       }
+      // POST/PUT بدون بادئة /hypex → 307 للحفاظ على الطريقة والجسم (تجنّب 404/500)
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(String(req.method || '').toUpperCase())) {
+        return res.redirect(307, basePath + (raw.startsWith('/') ? raw : '/' + raw));
+      }
     }
 
     if (hasBase()) {
