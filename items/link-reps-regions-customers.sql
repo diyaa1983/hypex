@@ -1,6 +1,16 @@
--- ربط المندوبين بالمناطق والعملاء وتحديث الأسماء من ملف المندوبين.xlsx
--- نفّذه على قاعدة السيرفر (hypex) من Workbench على الجهاز البعيد، وليس على MySQL المحلي.
--- لا يحذف عملاء ولا مواد. يلغي ربط المندوبين القديم (العملاء والمناطق) ثم يعيد الربط من الملف فقط.
+-- ربط المندوبين من ملف المندوبين.xlsx — مصدر العدد: ورقة Sheet1 (عميل + مندوب)
+-- نفّذه على قاعدة السيرفر (hypex) من Workbench. يلغي الربط القديم ثم يعيده من الملف.
+-- عملاء في الملف: 908 | تعارض اسم مندوب لنفس العميل في Sheet1: 0
+-- مندوب 3 سامي عريقات: 54 عميل في الإكسل
+-- مندوب 12 علي حياصات: 176 عميل في الإكسل
+-- مندوب 30 محمد حسن: 86 عميل في الإكسل
+-- مندوب 36 وجدي: 144 عميل في الإكسل
+-- مندوب 37 سامر ابو جاموس: 10 عميل في الإكسل
+-- مندوب 38 جاد الحاج: 40 عميل في الإكسل
+-- مندوب 39 إبراهيم: 25 عميل في الإكسل
+-- مندوب 40 شريف: 130 عميل في الإكسل
+-- مندوب 41 ركان: 116 عميل في الإكسل
+-- مندوب 43 فادي: 127 عميل في الإكسل
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS crm_sales_rep_region (
@@ -196,7 +206,6 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200190', '12', 'الجنوب'),
   ('11200191', '12', NULL),
   ('11200192', '12', 'الجنوب'),
-  ('11200193', '40', 'عمان الشرقية'),
   ('11200194', '36', NULL),
   ('11200195', '30', 'عمان الغربية'),
   ('11200196', '40', NULL),
@@ -242,9 +251,9 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200236', '12', NULL),
   ('11200237', '41', NULL),
   ('11200238', '43', 'شمال عمان'),
-  ('11200239', '43', 'عمان الغربية');
+  ('11200239', '43', 'عمان الغربية'),
+  ('11200240', '40', 'عمان الشرقية');
 INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
-  ('11200240', '40', 'عمان الشرقية'),
   ('11200241', '40', 'عمان الشرقية'),
   ('11200242', '43', 'وسط عمان'),
   ('11200243', '36', NULL),
@@ -318,15 +327,14 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200312', '43', 'عمان الغربية'),
   ('11200313', '43', NULL),
   ('11200314', '36', 'الزرقاء'),
-  ('11200315', '41', 'الشمال'),
   ('11200316', '36', NULL),
   ('11200317', '12', 'الجنوب'),
   ('11200318', '12', 'الجنوب'),
   ('11200319', '12', 'الجنوب'),
-  ('11200320', '12', 'الجنوب');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200320', '12', 'الجنوب'),
   ('11200321', '12', NULL),
-  ('11200322', '12', NULL),
+  ('11200322', '12', NULL);
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200323', '12', 'الجنوب'),
   ('11200324', '12', NULL),
   ('11200325', '12', 'الجنوب'),
@@ -356,7 +364,7 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200349', '12', NULL),
   ('11200350', '3', 'عمان الشرقية'),
   ('11200351', '12', 'عمان الغربية'),
-  ('11200352', '38', 'الشمال'),
+  ('11200352', '41', 'الشمال'),
   ('11200353', '41', 'الشمال'),
   ('11200354', '38', 'الشمال'),
   ('11200355', '41', 'الشمال'),
@@ -404,10 +412,10 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200397', '43', 'عمان الغربية'),
   ('11200398', '12', 'الجنوب'),
   ('11200399', '12', 'الجنوب'),
-  ('11200400', '12', 'الجنوب');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200400', '12', 'الجنوب'),
   ('11200401', '12', 'الجنوب'),
-  ('11200402', '40', 'عمان الشرقية'),
+  ('11200402', '40', 'عمان الشرقية');
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200403', '43', 'عمان الغربية'),
   ('11200404', '43', 'عمان الغربية'),
   ('11200405', '40', NULL),
@@ -483,14 +491,12 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200475', '12', 'الجنوب'),
   ('11200476', '41', 'الشمال'),
   ('11200477', '41', 'الشمال'),
-  ('11200478', '38', 'الشمال'),
+  ('11200478', '41', 'الشمال'),
   ('11200479', '36', 'الزرقاء'),
-  ('11200480', '41', 'الشمال');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200481', '41', 'الشمال'),
-  ('11200482', '12', 'الجنوب'),
   ('11200483', '43', 'شمال عمان'),
-  ('11200484', '43', 'شمال عمان'),
+  ('11200484', '43', 'شمال عمان');
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200485', '36', 'الزرقاء'),
   ('11200486', '12', 'الجنوب'),
   ('11200487', '43', 'وسط عمان'),
@@ -538,7 +544,7 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200530', '12', NULL),
   ('11200531', '36', NULL),
   ('11200532', '30', 'عمان الغربية'),
-  ('11200533', '38', 'الشمال'),
+  ('11200533', '41', 'الشمال'),
   ('11200534', '38', 'الشمال'),
   ('11200535', '36', 'الزرقاء'),
   ('11200536', '30', 'عمان الغربية'),
@@ -566,12 +572,12 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200559', '41', NULL),
   ('11200560', '30', 'شمال عمان'),
   ('11200561', '43', 'شمال عمان'),
-  ('11200562', '30', 'شمال عمان');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200562', '30', 'شمال عمان'),
   ('11200563', '12', 'الجنوب'),
   ('11200564', '12', 'الجنوب'),
   ('11200565', '12', 'عمان الغربية'),
-  ('11200566', '36', NULL),
+  ('11200566', '36', NULL);
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200567', '30', 'شمال عمان'),
   ('11200568', '36', 'الزرقاء'),
   ('11200569', '36', NULL),
@@ -621,7 +627,7 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200613', '41', NULL),
   ('11200614', '38', 'الشمال'),
   ('11200615', '3', 'عمان الشرقية'),
-  ('11200616', '38', 'الشمال'),
+  ('11200616', '41', 'الشمال'),
   ('11200617', '36', NULL),
   ('11200618', '41', 'الشمال'),
   ('11200619', '36', NULL),
@@ -647,14 +653,14 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200639', '41', NULL),
   ('11200640', '43', 'شمال عمان'),
   ('11200641', '43', NULL),
-  ('11200642', '38', 'الشمال');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200642', '38', 'الشمال'),
   ('11200643', '30', 'شمال عمان'),
   ('11200644', '30', 'شمال عمان'),
   ('11200645', '41', NULL),
-  ('11200647', '41', 'الشمال'),
+  ('11200647', '41', 'الشمال');
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200648', '41', 'الشمال'),
-  ('11200649', '38', 'الشمال'),
+  ('11200649', '41', 'الشمال'),
   ('11200650', '30', NULL),
   ('11200651', '36', NULL),
   ('11200652', '36', 'الزرقاء'),
@@ -694,7 +700,6 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200686', '43', 'وسط عمان'),
   ('11200687', '41', 'الشمال'),
   ('11200688', '40', 'عمان الشرقية'),
-  ('11200689', '39', 'وسط عمان'),
   ('11200690', '40', 'عمان الشرقية'),
   ('11200691', '40', 'عمان الشرقية'),
   ('11200692', '40', 'عمان الشرقية'),
@@ -726,16 +731,15 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200718', '40', 'عمان الشرقية'),
   ('11200719', '40', 'عمان الشرقية'),
   ('11200720', '43', 'وسط عمان'),
-  ('11200721', '39', 'شمال عمان'),
   ('11200722', '43', 'وسط عمان'),
-  ('11200723', '12', 'الجنوب');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200723', '12', 'الجنوب'),
   ('11200724', '40', 'عمان الشرقية'),
   ('11200725', '40', NULL),
   ('11200726', '41', 'الشمال'),
   ('11200727', '40', 'عمان الشرقية'),
   ('11200728', '40', 'عمان الشرقية'),
-  ('11200729', '40', 'عمان الشرقية'),
+  ('11200729', '40', 'عمان الشرقية');
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200730', '43', 'عمان الغربية'),
   ('11200731', '12', 'الجنوب'),
   ('11200732', '37', 'عمان الشرقية'),
@@ -807,17 +811,16 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200802', '43', 'عمان الغربية'),
   ('11200803', '43', 'عمان الغربية'),
   ('11200804', '40', 'عمان الشرقية'),
-  ('11200806', '39', 'شمال عمان'),
   ('11200807', '30', 'شمال عمان'),
-  ('11200808', '40', 'عمان الشرقية');
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200808', '40', 'عمان الشرقية'),
   ('11200809', '40', 'عمان الشرقية'),
   ('11200810', '40', 'عمان الشرقية'),
   ('11200811', '43', 'شمال عمان'),
   ('11200812', '40', 'عمان الشرقية'),
   ('11200813', '43', 'عمان الغربية'),
   ('11200814', '43', 'عمان الغربية'),
-  ('11200815', '12', 'عمان الغربية'),
+  ('11200815', '12', 'عمان الغربية');
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200816', '12', NULL),
   ('11200817', '30', 'وسط عمان'),
   ('11200818', '43', 'عمان الغربية'),
@@ -829,7 +832,6 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200824', '39', NULL),
   ('11200825', '40', 'عمان الشرقية'),
   ('11200826', '30', 'وسط عمان'),
-  ('11200827', '39', 'عمان الغربية'),
   ('11200829', '40', 'عمان الشرقية'),
   ('11200830', '40', 'عمان الشرقية'),
   ('11200831', '43', 'شمال عمان'),
@@ -837,7 +839,6 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200833', '36', NULL),
   ('11200834', '12', NULL),
   ('11200835', '30', 'عمان الغربية'),
-  ('11200836', '39', 'شمال عمان'),
   ('11200837', '40', 'عمان الشرقية'),
   ('11200838', '30', NULL),
   ('11200839', '43', 'عمان الغربية'),
@@ -890,8 +891,7 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200890', '43', NULL),
   ('11200891', '30', NULL),
   ('11200892', '40', NULL),
-  ('11200893', '39', NULL);
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200893', '39', NULL),
   ('11200894', '43', NULL),
   ('11200895', '12', NULL),
   ('11200896', '43', NULL),
@@ -900,7 +900,8 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200899', '39', NULL),
   ('11200900', '39', NULL),
   ('11200901', '30', NULL),
-  ('11200902', '36', NULL),
+  ('11200902', '36', NULL);
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200903', '43', NULL),
   ('11200904', '12', NULL),
   ('11200905', '12', NULL),
@@ -971,8 +972,7 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200974', '12', NULL),
   ('11200975', '38', NULL),
   ('11200976', '30', NULL),
-  ('11200978', '40', NULL);
-INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
+  ('11200978', '40', NULL),
   ('11200979', '40', NULL),
   ('11200980', '41', NULL),
   ('11200981', '12', NULL),
@@ -981,7 +981,8 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200984', '3', NULL),
   ('11200985', '12', NULL),
   ('11200986', '37', NULL),
-  ('11200987', '40', NULL),
+  ('11200987', '40', NULL);
+INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11200988', '12', NULL),
   ('11200990', '40', NULL),
   ('11200991', '41', NULL),
@@ -1031,119 +1032,89 @@ INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 3
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'الجنوب'
-WHERE r.code = '3';
+WHERE r.code = '12';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 4
 FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'الجنوب'
+JOIN crm_region g ON g.name_ar = 'عمان الغربية'
 WHERE r.code = '12';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 5
 FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الغربية'
-WHERE r.code = '12';
+JOIN crm_region g ON g.name_ar = 'شمال عمان'
+WHERE r.code = '30';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 6
 FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'شمال عمان'
+JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
 WHERE r.code = '30';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 7
 FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
+JOIN crm_region g ON g.name_ar = 'عمان الغربية'
 WHERE r.code = '30';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 8
 FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الغربية'
+JOIN crm_region g ON g.name_ar = 'وسط عمان'
 WHERE r.code = '30';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 9
 FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'وسط عمان'
-WHERE r.code = '30';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 10
-FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'الزرقاء'
 WHERE r.code = '36';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 11
+SELECT r.id, g.id, 10
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'عمان الغربية'
 WHERE r.code = '37';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 12
+SELECT r.id, g.id, 11
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
 WHERE r.code = '37';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 13
+SELECT r.id, g.id, 12
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'الشمال'
 WHERE r.code = '38';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 14
+SELECT r.id, g.id, 13
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'الزرقاء'
+WHERE r.code = '38';
+INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
+SELECT r.id, g.id, 14
+FROM crm_sales_rep r
+JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
 WHERE r.code = '38';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 15
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
-WHERE r.code = '38';
+WHERE r.code = '40';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 16
-FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'وسط عمان'
-WHERE r.code = '39';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 17
-FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'شمال عمان'
-WHERE r.code = '39';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 18
-FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الغربية'
-WHERE r.code = '39';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 19
-FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
-WHERE r.code = '39';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 20
-FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
-WHERE r.code = '40';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 21
-FROM crm_sales_rep r
-JOIN crm_region g ON g.name_ar = 'عمان الغربية'
-WHERE r.code = '40';
-INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 22
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'الشمال'
 WHERE r.code = '41';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 23
+SELECT r.id, g.id, 17
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'عمان الغربية'
 WHERE r.code = '43';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 24
+SELECT r.id, g.id, 18
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'شمال عمان'
 WHERE r.code = '43';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 25
+SELECT r.id, g.id, 19
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'وسط عمان'
 WHERE r.code = '43';
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
-SELECT r.id, g.id, 26
+SELECT r.id, g.id, 20
 FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
 WHERE r.code = '43';
@@ -1152,7 +1123,11 @@ UPDATE crm_customer SET sales_rep_id = NULL, region_id = NULL WHERE id > 0;
 DELETE FROM crm_customer_sales_rep WHERE customer_id > 0;
 
 UPDATE crm_customer c
-JOIN tmp_rep_cust t ON (TRIM(c.code) = t.cust_code OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code)
+JOIN tmp_rep_cust t ON (
+  TRIM(c.code) = t.cust_code
+  OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code
+  OR REGEXP_REPLACE(TRIM(c.code), '[^0-9]', '') = t.cust_code
+)
 JOIN crm_sales_rep r ON r.code = t.rep_code
 LEFT JOIN crm_region g ON g.name_ar = t.region_name
 SET c.sales_rep_id = r.id,
@@ -1162,8 +1137,33 @@ WHERE c.id > 0;
 INSERT INTO crm_customer_sales_rep (customer_id, sales_rep_id, sort_order)
 SELECT c.id, r.id, 0
 FROM crm_customer c
-JOIN tmp_rep_cust t ON (TRIM(c.code) = t.cust_code OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code)
+JOIN tmp_rep_cust t ON (
+  TRIM(c.code) = t.cust_code
+  OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code
+  OR REGEXP_REPLACE(TRIM(c.code), '[^0-9]', '') = t.cust_code
+)
 JOIN crm_sales_rep r ON r.code = t.rep_code
 GROUP BY c.id, r.id;
+
+-- مقارنة أعداد الإكسل (tmp) مع ما رُبط فعلياً في النظام
+SELECT r.code AS rep_code, r.name_ar AS rep_name,
+       SUM(CASE WHEN t.cust_code IS NOT NULL THEN 1 ELSE 0 END) AS excel_rows,
+       COUNT(DISTINCT c.id) AS linked_customers
+FROM crm_sales_rep r
+LEFT JOIN tmp_rep_cust t ON t.rep_code = r.code
+LEFT JOIN crm_customer c ON c.sales_rep_id = r.id
+WHERE r.code IN ('3', '12', '30', '36', '37', '38', '39', '40', '41', '43')
+GROUP BY r.id, r.code, r.name_ar
+ORDER BY CAST(r.code AS UNSIGNED);
+
+SELECT t.cust_code, t.rep_code, 'غير موجود في crm_customer' AS note
+FROM tmp_rep_cust t
+WHERE NOT EXISTS (
+  SELECT 1 FROM crm_customer c
+  WHERE TRIM(c.code) = t.cust_code
+     OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code
+     OR REGEXP_REPLACE(TRIM(c.code), '[^0-9]', '') = t.cust_code
+)
+LIMIT 50;
 
 DROP TEMPORARY TABLE IF EXISTS tmp_rep_cust;
