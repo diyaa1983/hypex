@@ -1034,6 +1034,14 @@ body.co-ora-body .si-stage .si-table-card , .co-ora-skin .si-table-card {
   overflow: hidden;
 }
 
+/* التقارير: الجدول كاملاً على الشاشة، والصفحة هي التي تتمرر */
+body.co-ora-body .si-stage.si-report-page .si-surface,
+body.co-ora-body .si-stage.si-report-page .si-table-wrap {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
+}
+
 body.co-ora-body .si-stage .si-surface-head, .co-ora-skin .si-surface-head,
 body.co-ora-body .si-stage .si-table-head , .co-ora-skin .si-table-head {
   background: linear-gradient(180deg, #316ac5 0%, #1a4480 100%) !important;
