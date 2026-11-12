@@ -124,10 +124,20 @@ function oracle_statement_cell_str(mixed $v): string
 }
 
 /**
- * قيود Oracle القديمة مخزّنة بترميز Windows-1256. حذف البايتات غير الصالحة
- * يُبقي الأرقام والتواريخ ويميّع الحروف. التحويل من 1256 يعيد العربية متصلة.
+ * قيود Oracle القديمة: إمّا Windows-1256، أو حروف عربية بشكلها المطبعي،
+ * أو نص محفوظ بالاتجاه البصري (الحروف مقلوبة) فلا تتصل في المتصفح.
  */
 function oracle_statement_to_utf8(string $s): string
+{
+    $s = oracle_statement_decode_legacy(trim($s));
+    if ($s === '') {
+        return '';
+    }
+
+    return oracle_statement_fix_arabic_order($s);
+}
+
+function oracle_statement_decode_legacy(string $s): string
 {
     if ($s === '') {
         return '';
@@ -157,6 +167,154 @@ function oracle_statement_to_utf8(string $s): string
     }
 
     return $s;
+}
+
+function oracle_statement_mb_rev(string $s): string
+{
+    $chars = preg_split('//u', $s, -1, PREG_SPLIT_NO_EMPTY);
+    if (!is_array($chars)) {
+        return $s;
+    }
+
+    return implode('', array_reverse($chars));
+}
+
+/** أشكال الحروف المطبعية (المعزولة) → الحرف الأساسي حتى تتصل في المتصفح. */
+function oracle_statement_nominalize_arabic(string $s): string
+{
+    static $map = null;
+    if ($map === null) {
+        $groups = [
+            'ء' => ["\u{FE80}"],
+            'آ' => ["\u{FE81}", "\u{FE82}"],
+            'أ' => ["\u{FE83}", "\u{FE84}"],
+            'ؤ' => ["\u{FE85}", "\u{FE86}"],
+            'إ' => ["\u{FE87}", "\u{FE88}"],
+            'ئ' => ["\u{FE89}", "\u{FE8A}", "\u{FE8B}", "\u{FE8C}"],
+            'ا' => ["\u{FE8D}", "\u{FE8E}"],
+            'ب' => ["\u{FE8F}", "\u{FE90}", "\u{FE91}", "\u{FE92}"],
+            'ة' => ["\u{FE93}", "\u{FE94}"],
+            'ت' => ["\u{FE95}", "\u{FE96}", "\u{FE97}", "\u{FE98}"],
+            'ث' => ["\u{FE99}", "\u{FE9A}", "\u{FE9B}", "\u{FE9C}"],
+            'ج' => ["\u{FE9D}", "\u{FE9E}", "\u{FE9F}", "\u{FEA0}"],
+            'ح' => ["\u{FEA1}", "\u{FEA2}", "\u{FEA3}", "\u{FEA4}"],
+            'خ' => ["\u{FEA5}", "\u{FEA6}", "\u{FEA7}", "\u{FEA8}"],
+            'د' => ["\u{FEA9}", "\u{FEAA}"],
+            'ذ' => ["\u{FEAB}", "\u{FEAC}"],
+            'ر' => ["\u{FEAD}", "\u{FEAE}"],
+            'ز' => ["\u{FEAF}", "\u{FEB0}"],
+            'س' => ["\u{FEB1}", "\u{FEB2}", "\u{FEB3}", "\u{FEB4}"],
+            'ش' => ["\u{FEB5}", "\u{FEB6}", "\u{FEB7}", "\u{FEB8}"],
+            'ص' => ["\u{FEB9}", "\u{FEBA}", "\u{FEBB}", "\u{FEBC}"],
+            'ض' => ["\u{FEBD}", "\u{FEBE}", "\u{FEBF}", "\u{FEC0}"],
+            'ط' => ["\u{FEC1}", "\u{FEC2}", "\u{FEC3}", "\u{FEC4}"],
+            'ظ' => ["\u{FEC5}", "\u{FEC6}", "\u{FEC7}", "\u{FEC8}"],
+            'ع' => ["\u{FEC9}", "\u{FECA}", "\u{FECB}", "\u{FECC}"],
+            'غ' => ["\u{FECD}", "\u{FECE}", "\u{FECF}", "\u{FED0}"],
+            'ف' => ["\u{FED1}", "\u{FED2}", "\u{FED3}", "\u{FED4}"],
+            'ق' => ["\u{FED5}", "\u{FED6}", "\u{FED7}", "\u{FED8}"],
+            'ك' => ["\u{FED9}", "\u{FEDA}", "\u{FEDB}", "\u{FEDC}"],
+            'ل' => ["\u{FEDD}", "\u{FEDE}", "\u{FEDF}", "\u{FEE0}"],
+            'م' => ["\u{FEE1}", "\u{FEE2}", "\u{FEE3}", "\u{FEE4}"],
+            'ن' => ["\u{FEE5}", "\u{FEE6}", "\u{FEE7}", "\u{FEE8}"],
+            'ه' => ["\u{FEE9}", "\u{FEEA}", "\u{FEEB}", "\u{FEEC}"],
+            'و' => ["\u{FEED}", "\u{FEEE}"],
+            'ى' => ["\u{FEEF}", "\u{FEF0}"],
+            'ي' => ["\u{FEF1}", "\u{FEF2}", "\u{FEF3}", "\u{FEF4}"],
+            'لا' => ["\u{FEF5}", "\u{FEF6}", "\u{FEFB}", "\u{FEFC}"],
+            'لأ' => ["\u{FEF7}", "\u{FEF8}"],
+            'لإ' => ["\u{FEF9}", "\u{FEFA}"],
+        ];
+        $map = [];
+        foreach ($groups as $base => $forms) {
+            foreach ($forms as $ch) {
+                if ($ch !== '') {
+                    $map[$ch] = $base;
+                }
+            }
+        }
+    }
+    if ($map === []) {
+        return $s;
+    }
+
+    return strtr($s, $map);
+}
+
+function oracle_statement_arabic_score(string $s): int
+{
+    $words = [
+        'فاتورة', 'مبيعات', 'مشتريات', 'مردودات', 'مردود', 'بضاعة', 'بتاريخ',
+        'المورد', 'العميل', 'خصم', 'شيك', 'سند', 'قبض', 'ضريبة', 'مستودع',
+        'تحويل', 'نقدي', 'شراء', 'مرتجع', 'كمبيالة', 'حوالة', 'ايداع', 'إيداع',
+    ];
+    $score = 0;
+    foreach ($words as $w) {
+        if (mb_strpos($s, $w) !== false) {
+            $score += mb_strlen($w);
+        }
+    }
+
+    return $score;
+}
+
+function oracle_statement_flip_arabic_tokens(string $s, bool $reverseOrder): string
+{
+    $parts = preg_split('/(\P{Arabic}+)/u', $s, -1, PREG_SPLIT_DELIM_CAPTURE);
+    if (!is_array($parts)) {
+        return $s;
+    }
+    $out = [];
+    foreach ($parts as $p) {
+        if ($p === '') {
+            continue;
+        }
+        if (preg_match('/\p{Arabic}/u', $p) === 1) {
+            $p = oracle_statement_mb_rev($p);
+        }
+        $out[] = $p;
+    }
+    if ($reverseOrder) {
+        $out = array_reverse($out);
+    }
+
+    return implode('', $out);
+}
+
+function oracle_statement_fix_arabic_order(string $s): string
+{
+    $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s) ?? $s;
+    $s = oracle_statement_nominalize_arabic($s);
+    if (preg_match('/\p{Arabic}/u', $s) !== 1) {
+        return $s;
+    }
+    $rank = static function (string $text): array {
+        preg_match_all(
+            '/(?:19|20)\d{2}[\/\-]\d{1,2}[\/\-]\d{1,2}|\d{1,2}[\/\-]\d{1,2}[\/\-](?:19|20)\d{2}/u',
+            $text,
+            $m
+        );
+
+        return [oracle_statement_arabic_score($text), count($m[0] ?? [])];
+    };
+    $best = $s;
+    $bestRank = $rank($s);
+    foreach ([
+        oracle_statement_flip_arabic_tokens($s, false),
+        oracle_statement_flip_arabic_tokens($s, true),
+        oracle_statement_mb_rev($s),
+    ] as $cand) {
+        $candRank = $rank($cand);
+        if (
+            $candRank[0] > $bestRank[0]
+            || ($candRank[0] > 0 && $candRank[0] === $bestRank[0] && $candRank[1] > $bestRank[1])
+        ) {
+            $best = $cand;
+            $bestRank = $candRank;
+        }
+    }
+
+    return $best;
 }
 
 /**
