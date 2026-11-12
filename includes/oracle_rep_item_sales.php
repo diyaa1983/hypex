@@ -173,6 +173,8 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
             'cat_code' => $cat,
             'cat_name' => $catName,
             'item_code' => $item,
+            'item_sku' => is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '',
+            'item_barcode' => is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '',
             'item_name' => $itemName !== '' ? $itemName : $item,
             'qty' => $qty,
             'bonus' => $bonus,
@@ -483,7 +485,12 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
     foreach ($rows as $r) {
         $name = trim((string) ($r['name_ar'] ?? ''));
         $cat = trim((string) ($r['cat_name'] ?? ''));
-        $pack = ['name_ar' => $name, 'cat_name' => $cat];
+        $pack = [
+            'name_ar' => $name,
+            'cat_name' => $cat,
+            'sku' => trim((string) ($r['sku'] ?? '')),
+            'barcode' => trim((string) ($r['barcode'] ?? '')),
+        ];
         foreach (['sku', 'barcode'] as $col) {
             $key = trim((string) ($r[$col] ?? ''));
             if ($key !== '' && isset($codes[$key]) && !isset($out[$key])) {
