@@ -2293,10 +2293,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         }
         customers.push(slice);
       }
-      const repSpan = repRows.length + customers.length;
       let repQty = 0;
       let repAmt = 0;
-      let repCell = true;
       customers.forEach((slice) => {
         const custLabel = String(slice[0].customer_name || slice[0].customer_acc || '—');
         let custQty = 0;
@@ -2308,24 +2306,21 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           custAmt += amount;
           const codes = itemCodesOf(r);
           rowsHtml += '<tr>';
-          if (repCell) {
-            rowsHtml += `<td class="ora-span" rowspan="${repSpan}">${esc(repLabel)}</td>`;
-            repCell = false;
-          }
           if (k === 0) {
+            rowsHtml += `<td class="ora-span" rowspan="${slice.length}">${esc(repLabel)}</td>`;
             rowsHtml += `<td class="ora-span" rowspan="${slice.length}">${esc(custLabel)}</td>`;
           }
           rowsHtml += `<td>${esc(r.cat_name || 'بدون فئة')}</td>
-            <td class="si-num" dir="ltr">${esc(codes.id)}</td>
-            <td class="si-num" dir="ltr">${esc(codes.code)}</td>
-            <td>${esc(r.item_name || '')}</td>
+            <td class="si-num ora-code" dir="ltr">${esc(codes.id)}</td>
+            <td class="si-num ora-code" dir="ltr">${esc(codes.code)}</td>
+            <td class="ora-name">${esc(r.item_name || '')}</td>
             <td class="si-num" dir="ltr">${esc(fmtQty(qty))}</td>
             <td class="si-num" dir="ltr">${esc(fmtAmt(amount))}</td></tr>`;
         });
         repQty += custQty;
         repAmt += custAmt;
         rowsHtml += `<tr class="ora-cust-total">
-          <td colspan="5">مجموع البيع — ${esc(custLabel)}</td>
+          <td colspan="6">مجموع البيع — ${esc(custLabel)}</td>
           <td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td>
           <td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td>
         </tr>`;
@@ -2409,28 +2404,42 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         </form>
       </div>
       <style>
-        .ora-portrait-wrap { max-width: 190mm; margin-inline: auto; overflow: visible; }
-        .ora-portrait-table { width: 100%; table-layout: fixed; }
+        .ora-portrait-wrap { max-width: none; overflow-x: auto; }
+        .ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
         .ora-portrait-table th.ora-vhead {
           writing-mode: horizontal-tb;
-          text-orientation: mixed;
-          white-space: normal;
+          white-space: nowrap;
           height: auto;
           vertical-align: middle;
           text-align: center;
-          font-size: .78rem;
-          padding: .45rem .3rem;
+          font-size: .82rem;
+          padding: .55rem .45rem;
+          position: sticky;
+          top: 0;
+          background: #f1f5f9;
+          z-index: 2;
         }
-        .ora-portrait-table .ora-col-party { width: 13%; }
-        .ora-portrait-table .ora-col-name { width: 22%; }
-        .ora-portrait-table .ora-col-num { width: 8%; }
-        .ora-portrait-table td { vertical-align: top; word-break: break-word; }
-        .ora-span { vertical-align: middle; font-weight: 800; background: #f4f7fb; }
+        .ora-portrait-table td { vertical-align: middle; padding: .4rem .45rem; }
+        .ora-portrait-table td.si-num,
+        .ora-portrait-table td.ora-code {
+          white-space: nowrap;
+          word-break: keep-all;
+          font-variant-numeric: tabular-nums;
+        }
+        .ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
+        .ora-span {
+          vertical-align: top;
+          font-weight: 800;
+          background: #f4f7fb;
+          white-space: normal;
+          min-width: 9rem;
+        }
         .ora-cust-total td { background: #e7f4ea; font-weight: 800; }
         .ora-rep-total td { background: #f8fafc; font-weight: 800; }
         @media print {
           @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
-          .ora-portrait-wrap { max-width: none; }
+          .ora-portrait-table th.ora-vhead { position: static; }
+          .ora-portrait-table { font-size: 9pt; }
         }
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>

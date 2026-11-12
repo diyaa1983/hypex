@@ -168,28 +168,42 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <style>
-.ora-portrait-wrap { max-width: 190mm; margin-inline: auto; }
-.ora-portrait-table { width: 100%; table-layout: fixed; }
+.ora-portrait-wrap { max-width: none; overflow-x: auto; }
+.ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
 .ora-portrait-table th.ora-vhead {
   writing-mode: horizontal-tb;
-  text-orientation: mixed;
-  white-space: normal;
+  white-space: nowrap;
   height: auto;
   vertical-align: middle;
   text-align: center;
-  font-size: .78rem;
-  padding: .45rem .3rem;
+  font-size: .82rem;
+  padding: .55rem .45rem;
+  position: sticky;
+  top: 0;
+  background: #f1f5f9;
+  z-index: 2;
 }
-.ora-portrait-table .ora-col-party { width: 13%; }
-.ora-portrait-table .ora-col-name { width: 22%; }
-.ora-portrait-table .ora-col-num { width: 8%; }
-.ora-portrait-table td { vertical-align: top; word-break: break-word; }
-.ora-span { vertical-align: middle; font-weight: 800; background: #f4f7fb; }
+.ora-portrait-table td { vertical-align: middle; padding: .4rem .45rem; }
+.ora-portrait-table td.ora-code,
+.ora-portrait-table td[dir="ltr"] {
+  white-space: nowrap;
+  word-break: keep-all;
+  font-variant-numeric: tabular-nums;
+}
+.ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
+.ora-span {
+  vertical-align: top;
+  font-weight: 800;
+  background: #f4f7fb;
+  white-space: normal;
+  min-width: 9rem;
+}
 .ora-cust-total td { background: #e7f4ea; font-weight: 800; }
 .ora-rep-total td { background: #f8fafc; font-weight: 800; }
 @media print {
   @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
-  .ora-portrait-wrap { max-width: none; }
+  .ora-portrait-table th.ora-vhead { position: static; }
+  .ora-portrait-table { font-size: 9pt; }
 }
 </style>
 <div class="card report-sales-page" data-report-title="<?= esc($reportTitle) ?>" data-report-route="<?= esc($routeKey) ?>">
@@ -294,15 +308,14 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                     }
                                     $customers[] = $slice;
                                 }
-                                $repSpan = $repCount + count($customers);
                                 $repQty = 0.0;
                                 $repAmt = 0.0;
-                                $repCell = true;
                                 foreach ($customers as $slice):
                                     $custAcc = (string) ($slice[0]['customer_acc'] ?? '');
                                     $custLabel = trim((string) ($slice[0]['customer_name'] ?? '')) ?: ($custAcc !== '' ? $custAcc : '—');
                                     $custQty = 0.0;
                                     $custAmt = 0.0;
+                                    $itemCount = count($slice);
                                     foreach ($slice as $k => $r):
                                         $qty = (float) ($r['qty'] ?? 0);
                                         $amt = (float) ($r['amount'] ?? 0);
@@ -314,17 +327,14 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                         $code = $barcode !== '' ? $barcode : ($sku !== '' && $sku !== $idCode ? $sku : '');
                                         ?>
                                         <tr>
-                                            <?php if ($repCell): ?>
-                                                <td class="ora-span" rowspan="<?= (int) $repSpan ?>"><?= esc($repLabel) ?></td>
-                                                <?php $repCell = false; ?>
-                                            <?php endif; ?>
                                             <?php if ($k === 0): ?>
-                                                <td class="ora-span" rowspan="<?= count($slice) ?>"><?= esc($custLabel) ?></td>
+                                                <td class="ora-span" rowspan="<?= (int) $itemCount ?>"><?= esc($repLabel) ?></td>
+                                                <td class="ora-span" rowspan="<?= (int) $itemCount ?>"><?= esc($custLabel) ?></td>
                                             <?php endif; ?>
                                             <td><?= esc(trim((string) ($r['cat_name'] ?? '')) ?: 'بدون فئة') ?></td>
-                                            <td dir="ltr"><?= esc($idCode) ?></td>
-                                            <td dir="ltr"><?= esc($code) ?></td>
-                                            <td><?= esc((string) ($r['item_name'] ?? '')) ?></td>
+                                            <td class="ora-code" dir="ltr"><?= esc($idCode) ?></td>
+                                            <td class="ora-code" dir="ltr"><?= esc($code) ?></td>
+                                            <td class="ora-name"><?= esc((string) ($r['item_name'] ?? '')) ?></td>
                                             <td dir="ltr"><?= esc($fmtQty($qty)) ?></td>
                                             <td class="col-money" dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
                                         </tr>
@@ -333,7 +343,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                     $repAmt += $custAmt;
                                     ?>
                                     <tr class="ora-cust-total">
-                                        <td colspan="5">مجموع البيع — <?= esc($custLabel) ?></td>
+                                        <td colspan="6">مجموع البيع — <?= esc($custLabel) ?></td>
                                         <td dir="ltr"><?= esc($fmtQty($custQty)) ?></td>
                                         <td class="col-money" dir="ltr"><?= esc($fmtAmt($custAmt)) ?></td>
                                     </tr>
