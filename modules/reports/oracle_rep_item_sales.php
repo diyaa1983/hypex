@@ -195,18 +195,9 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
 .ora-tools { display: flex; gap: .5rem; margin: 0 0 .75rem; }
 .ora-view[hidden] { display: none !important; }
-.ora-detail-cell { vertical-align: top; min-width: 13rem; }
-.ora-item-line {
-  display: flex;
-  justify-content: space-between;
-  gap: .6rem;
-  padding: .18rem 0;
-  border-bottom: 1px dashed #e2e8f0;
-  font-weight: 600;
-}
-.ora-item-line:last-child { border-bottom: 0; }
-.ora-item-name { text-align: right; }
-.ora-item-meta { white-space: nowrap; color: #334155; font-variant-numeric: tabular-nums; }
+.ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
+.ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
+.ora-cat-sum td { background: #e8eef8; font-weight: 800; }
 .ora-cust-block { margin: 0 0 1.35rem; }
 .ora-cust-head {
   background: #f4f7fb;
@@ -534,54 +525,65 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                             <div class="ora-rep">المندوب: <?= esc($repLabel) ?></div>
                         </header>
                         <div class="report-sales-table-wrap ora-portrait-wrap">
-                            <table class="report-sales-table ora-portrait-table" data-export-table>
+                            <table class="report-sales-table ora-portrait-table ora-detail-table" data-export-table>
                                 <thead>
                                     <tr>
-                                        <th class="ora-vhead">العميل</th>
-                                        <?php foreach ($catOrder as $cat): ?>
-                                            <th class="ora-vhead ora-cat-col"><?= esc($cat) ?></th>
-                                        <?php endforeach; ?>
-                                        <th class="ora-vhead">المجموع</th>
+                                        <th class="ora-vhead">الفئة</th>
+                                        <th class="ora-vhead">المادة</th>
+                                        <th class="ora-vhead">الكمية</th>
+                                        <th class="ora-vhead">المبلغ</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php
-                                    $detailRowAmts = [];
-                                    foreach ($custMap as $accKey => $slot) {
-                                        $detailRowAmts[$accKey] = 0.0;
+                                    <?php foreach ($custMap as $slot):
+                                        $custQty = 0.0;
+                                        $custAmt = 0.0;
+                                        $chunks = '';
                                         foreach ($catOrder as $cat) {
-                                            $detailRowAmts[$accKey] += (float) ($slot['cats'][$cat]['amt'] ?? 0);
-                                        }
-                                    }
-                                    foreach ($custMap as $accKey => $slot):
-                                        ?>
-                                        <tr>
-                                            <td class="ora-cust-name"><?= esc($slot['label']) ?></td>
-                                            <?php foreach ($catOrder as $cat):
-                                                $items = array_values($slot['cats'][$cat]['items'] ?? []);
-                                                usort($items, static function (array $a, array $b): int {
-                                                    return strcmp((string) $a['name'], (string) $b['name']);
-                                                });
+                                            $items = array_values($slot['cats'][$cat]['items'] ?? []);
+                                            if ($items === []) {
+                                                continue;
+                                            }
+                                            usort($items, static function (array $a, array $b): int {
+                                                return strcmp((string) $a['name'], (string) $b['name']);
+                                            });
+                                            $catQty = 0.0;
+                                            ob_start();
+                                            foreach ($items as $it) {
+                                                $catQty += (float) $it['qty'];
+                                                $showName = trim((string) preg_replace('/\s+/', ' ', (string) preg_replace('/\d{8,}/', ' ', (string) $it['name'])));
+                                                if ($showName === '') {
+                                                    $showName = (string) $it['name'];
+                                                }
                                                 ?>
-                                                <td class="ora-detail-cell">
-                                                    <?php foreach ($items as $it): ?>
-                                                        <div class="ora-item-line">
-                                                            <span class="ora-item-name"><?= esc((string) $it['name']) ?></span>
-                                                            <span class="ora-item-meta" dir="ltr"><?= esc($fmtQty((float) $it['qty'])) ?> · <?= esc($fmtAmt((float) $it['amount'])) ?></span>
-                                                        </div>
-                                                    <?php endforeach; ?>
-                                                </td>
-                                            <?php endforeach; ?>
-                                            <td class="col-money" dir="ltr"><?= esc($fmtAmt($detailRowAmts[$accKey])) ?></td>
+                                                <tr>
+                                                    <td><?= esc($cat) ?></td>
+                                                    <td class="ora-name"><?= esc($showName) ?></td>
+                                                    <td dir="ltr"><?= esc($fmtQty((float) $it['qty'])) ?></td>
+                                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) $it['amount'])) ?></td>
+                                                </tr>
+                                                <?php
+                                            }
+                                            $itemRows = (string) ob_get_clean();
+                                            $chunks .= $itemRows;
+                                            $chunks .= '<tr class="ora-cat-sum"><td colspan="2">مجموع ' . esc($cat) . '</td><td dir="ltr">'
+                                                . esc($fmtQty($catQty)) . '</td><td class="col-money" dir="ltr">'
+                                                . esc($fmtAmt((float) ($slot['cats'][$cat]['amt'] ?? 0))) . '</td></tr>';
+                                            $custQty += $catQty;
+                                            $custAmt += (float) ($slot['cats'][$cat]['amt'] ?? 0);
+                                        }
+                                        if ($chunks === '') {
+                                            continue;
+                                        }
+                                        ?>
+                                        <tr class="ora-cust-band"><td colspan="4"><?= esc($slot['label']) ?></td></tr>
+                                        <?= $chunks ?>
+                                        <tr class="ora-cust-final">
+                                            <td colspan="2">المجموع النهائي لمبيعات العميل</td>
+                                            <td dir="ltr"><?= esc($fmtQty($custQty)) ?></td>
+                                            <td class="col-money" dir="ltr"><?= esc($fmtAmt($custAmt)) ?></td>
                                         </tr>
                                     <?php endforeach; ?>
-                                    <tr class="ora-cust-final">
-                                        <td>المجموع</td>
-                                        <?php foreach ($colTotals as $amt): ?>
-                                            <td dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
-                                        <?php endforeach; ?>
-                                        <td class="col-money" dir="ltr"><?= esc($fmtAmt($repAmt)) ?></td>
-                                    </tr>
                                 </tbody>
                             </table>
                         </div>

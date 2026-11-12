@@ -2428,16 +2428,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       let summaryBody = '';
       let detailBody = '';
       let repAmt = 0;
-      const itemLines = (bag) => {
-        if (!bag || !bag.items.length) return '';
-        return bag.items
-          .slice()
-          .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
-          .map(
-            (it) => `<div class="ora-item-line"><span class="ora-item-name">${esc(it.name)}</span><span class="ora-item-meta" dir="ltr">${esc(fmtQty(it.qty))} · ${esc(fmtAmt(it.amount))}</span></div>`
-          )
-          .join('');
-      };
+      const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
       custMap.forEach((slot) => {
         let rowAmt = 0;
         const sumCells = catOrder.map((cat, idx) => {
@@ -2446,14 +2437,35 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           rowAmt += amt;
           return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
         }).join('');
-        const detCells = catOrder
-          .map((cat) => `<td class="ora-detail-cell">${itemLines(slot.cats.get(cat))}</td>`)
-          .join('');
         repAmt += rowAmt;
-        const nameCell = `<td class="ora-cust-name">${esc(slot.label)}</td>`;
-        const totalCell = `<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td>`;
-        summaryBody += `<tr>${nameCell}${sumCells}${totalCell}</tr>`;
-        detailBody += `<tr>${nameCell}${detCells}${totalCell}</tr>`;
+        summaryBody += `<tr><td class="ora-cust-name">${esc(slot.label)}</td>${sumCells}<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td></tr>`;
+        let custQty = 0;
+        let custAmt = 0;
+        let lines = '';
+        catOrder.forEach((cat) => {
+          const bag = slot.cats.get(cat);
+          if (!bag || !bag.items.length) return;
+          let catQty = 0;
+          bag.items
+            .slice()
+            .sort((a, b) => cleanName(a.name).localeCompare(cleanName(b.name), 'ar'))
+            .forEach((it) => {
+              catQty += it.qty;
+              const label = cleanName(it.name) || it.name;
+              lines += `<tr>
+                <td>${esc(cat)}</td>
+                <td class="ora-name">${esc(label)}</td>
+                <td class="si-num" dir="ltr">${esc(fmtQty(it.qty))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(it.amount))}</td>
+              </tr>`;
+            });
+          lines += `<tr class="ora-cat-sum"><td colspan="2">مجموع ${esc(cat)}</td><td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
+          custQty += catQty;
+          custAmt += bag.amt;
+        });
+        if (!lines) return;
+        detailBody += `<tr class="ora-cust-band"><td colspan="4">${esc(slot.label)}</td></tr>${lines}`;
+        detailBody += `<tr class="ora-cust-final"><td colspan="2">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
       });
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
@@ -2474,7 +2486,22 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
-      detailHtml += sectionOf(detailBody);
+      detailHtml += `<section class="ora-cust-block">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+        </header>
+        <div class="si-table-wrap ora-portrait-wrap">
+          <table class="si-table ora-portrait-table ora-detail-table">
+            <thead><tr>
+              <th class="ora-vhead">الفئة</th>
+              <th class="ora-vhead">المادة</th>
+              <th class="ora-vhead">الكمية</th>
+              <th class="ora-vhead">المبلغ</th>
+            </tr></thead>
+            <tbody>${detailBody}</tbody>
+          </table>
+        </div>
+      </section>`;
     }
     const grand = `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
     rowsHtml = `<div class="ora-tools no-print">
@@ -2562,18 +2589,9 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
         .ora-tools { display: flex; gap: .5rem; margin: 0 1rem .75rem; }
         .ora-view[hidden] { display: none !important; }
-        .ora-detail-cell { vertical-align: top; min-width: 13rem; }
-        .ora-item-line {
-          display: flex;
-          justify-content: space-between;
-          gap: .6rem;
-          padding: .18rem 0;
-          border-bottom: 1px dashed #e2e8f0;
-          font-weight: 600;
-        }
-        .ora-item-line:last-child { border-bottom: 0; }
-        .ora-item-name { text-align: right; }
-        .ora-item-meta { white-space: nowrap; color: #334155; font-variant-numeric: tabular-nums; }
+        .ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
+        .ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
+        .ora-cat-sum td { background: #e8eef8; font-weight: 800; }
         .ora-cust-block { margin: 0 1rem 1.35rem; }
         .ora-cust-head {
           background: #f4f7fb;
