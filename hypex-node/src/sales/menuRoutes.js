@@ -2460,12 +2460,15 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         bag.amt += amount;
         const name = String(r.item_name || r.item_code || '').trim();
         const code = String(r.item_code || '');
+        const fromName = (name.match(/\d{8,}/) || [])[0] || '';
+        const barcode = String(r.item_barcode || '').trim() || fromName;
         const found = bag.items.find((it) => it.code === code && it.name === name);
         if (found) {
           found.amount += amount;
           found.qty += qty;
+          if (!found.barcode && barcode) found.barcode = barcode;
         } else {
-          bag.items.push({ name, code, qty, amount });
+          bag.items.push({ name, code, barcode, qty, amount });
         }
       });
       catOrder.sort((a, b) => {
@@ -2504,17 +2507,18 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
               lines += `<tr>
                 <td>${esc(cat)}</td>
                 <td class="ora-name">${esc(label)}</td>
+                <td class="ora-code" dir="ltr">${esc(it.barcode || '')}</td>
                 <td class="si-num" dir="ltr">${esc(fmtQty(it.qty))}</td>
                 <td class="si-num" dir="ltr">${esc(fmtAmt(it.amount))}</td>
               </tr>`;
             });
-          lines += `<tr class="ora-cat-sum"><td colspan="2">مجموع ${esc(cat)}</td><td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
+          lines += `<tr class="ora-cat-sum"><td colspan="3">مجموع ${esc(cat)}</td><td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
           custQty += catQty;
           custAmt += bag.amt;
         });
         if (!lines) return;
-        detailBody += `<tr class="ora-cust-band"><td colspan="4">${esc(slot.label)}</td></tr>${lines}`;
-        detailBody += `<tr class="ora-cust-final"><td colspan="2">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
+        detailBody += `<tr class="ora-cust-band"><td colspan="5">${esc(slot.label)}</td></tr>${lines}`;
+        detailBody += `<tr class="ora-cust-final"><td colspan="3">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
       });
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
@@ -2544,6 +2548,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             <thead><tr>
               <th class="ora-vhead">الفئة</th>
               <th class="ora-vhead">المادة</th>
+              <th class="ora-vhead">الباركود</th>
               <th class="ora-vhead">الكمية</th>
               <th class="ora-vhead">المبلغ</th>
             </tr></thead>
@@ -2598,22 +2603,26 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         kicker: 'تقارير المبيعات',
         title: 'مبيعات المندوب حسب المادة والفئة (Oracle)',
         subtitle: 'كل مندوب، العميل، المواد التي باعها، وفئة كل مادة',
-        actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
+        actions: [
+          ui.printAction(),
+          { label: 'عرض التقرير', submit: true, form: 'ora-rep-filter', primary: true },
+          { label: 'لوحة المبيعات', href: '/sales' },
+        ],
       })}
       <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. الفئة من ربط المادة في النظام. كل عمود فئة يعرض مبلغ مبيعات العميل فيها، والمبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
       <div class="si-rail no-print">
-        <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
+        <form id="ora-rep-filter" method="get" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
           <input type="hidden" name="run" value="1" />
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب
-            <div class="report-cust-pick" id="report-sales-rep-pick" style="margin-top:.25rem">
+          <label>المندوب
+            <div class="report-cust-pick" id="report-sales-rep-pick">
               <input type="hidden" name="sales_rep_id" data-rep-id value="${oracleRepNo > 0 ? oracleRepNo : ''}">
               <input type="text" class="si-field report-cust-pick-inp" data-rep-search
                      placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
-                     aria-label="بحث عن مندوب" style="min-width:100%;width:100%">
+                     aria-label="بحث عن مندوب">
               <div class="report-cust-pick-list" data-rep-list hidden></div>
             </div>
           </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">العميل
+          <label>العميل
             <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
@@ -2622,7 +2631,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
               </div>
             </div>
           </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 14rem;min-width:12rem">الفئة
+          <label>الفئة
             <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
@@ -2631,24 +2640,43 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
               </div>
             </div>
           </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
+          <label>من تاريخ
             <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(range.from))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
-                   style="margin-top:.25rem;min-width:9.5rem">
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
           </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
+          <label>إلى تاريخ
             <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(range.to))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
-                   style="margin-top:.25rem;min-width:9.5rem">
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
           </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">المستودع
-            <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr"
-                   style="margin-top:.25rem;width:5.5rem">
+          <label>المستودع
+            <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr">
           </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
         </form>
       </div>
       <style>
+        .ora-filter-row {
+          display: flex !important;
+          flex-wrap: nowrap !important;
+          align-items: flex-end;
+          gap: .55rem;
+          width: 100%;
+          margin: 0;
+          overflow-x: auto;
+        }
+        .ora-filter-row > label {
+          display: flex;
+          flex-direction: column;
+          gap: .25rem;
+          flex: 1 1 0;
+          min-width: 8.5rem;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 13px;
+          font-weight: 700;
+          color: #334155;
+        }
+        .ora-filter-row > label:nth-child(5),
+        .ora-filter-row > label:nth-child(6) { flex: 0 0 8.2rem; min-width: 8.2rem; }
+        .ora-filter-row > label:nth-child(7) { flex: 0 0 5.2rem; min-width: 5.2rem; }
         .ora-portrait-wrap { max-width: none; overflow-x: auto; }
         .ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
         .ora-portrait-table th.ora-vhead {

@@ -418,7 +418,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
-        <div class="form-row">
+        <div class="form-row" style="display:flex;flex-wrap:nowrap;align-items:flex-end;gap:.55rem;overflow-x:auto;">
             <label class="field" style="flex:1 1 16rem;">
                 <span class="field-label">المندوب</span>
                 <div class="report-cust-pick" id="report-sales-rep-pick">
@@ -645,13 +645,20 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                         if ($itemName === '') {
                             $itemName = trim((string) ($r['item_code'] ?? ''));
                         }
+                        $barcode = trim((string) ($r['item_barcode'] ?? ''));
+                        if ($barcode === '' && preg_match('/\d{8,}/', $itemName, $bm)) {
+                            $barcode = $bm[0];
+                        }
                         $itemKey = trim((string) ($r['item_code'] ?? '')) . "\n" . $itemName;
                         if (!isset($custMap[$acc]['cats'][$cat]['items'][$itemKey])) {
                             $custMap[$acc]['cats'][$cat]['items'][$itemKey] = [
                                 'name' => $itemName,
+                                'barcode' => $barcode,
                                 'qty' => 0.0,
                                 'amount' => 0.0,
                             ];
+                        } elseif ($custMap[$acc]['cats'][$cat]['items'][$itemKey]['barcode'] === '' && $barcode !== '') {
+                            $custMap[$acc]['cats'][$cat]['items'][$itemKey]['barcode'] = $barcode;
                         }
                         $lineAmt = (float) ($r['amount'] ?? 0);
                         $lineQty = (float) ($r['qty'] ?? 0);
@@ -729,6 +736,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                     <tr>
                                         <th class="ora-vhead">الفئة</th>
                                         <th class="ora-vhead">المادة</th>
+                                        <th class="ora-vhead">الباركود</th>
                                         <th class="ora-vhead">الكمية</th>
                                         <th class="ora-vhead">المبلغ</th>
                                     </tr>
@@ -758,6 +766,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                                 <tr>
                                                     <td><?= esc($cat) ?></td>
                                                     <td class="ora-name"><?= esc($showName) ?></td>
+                                                    <td class="ora-code" dir="ltr"><?= esc((string) ($it['barcode'] ?? '')) ?></td>
                                                     <td dir="ltr"><?= esc($fmtQty((float) $it['qty'])) ?></td>
                                                     <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) $it['amount'])) ?></td>
                                                 </tr>
@@ -765,7 +774,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                             }
                                             $itemRows = (string) ob_get_clean();
                                             $chunks .= $itemRows;
-                                            $chunks .= '<tr class="ora-cat-sum"><td colspan="2">مجموع ' . esc($cat) . '</td><td dir="ltr">'
+                                            $chunks .= '<tr class="ora-cat-sum"><td colspan="3">مجموع ' . esc($cat) . '</td><td dir="ltr">'
                                                 . esc($fmtQty($catQty)) . '</td><td class="col-money" dir="ltr">'
                                                 . esc($fmtAmt((float) ($slot['cats'][$cat]['amt'] ?? 0))) . '</td></tr>';
                                             $custQty += $catQty;
@@ -775,10 +784,10 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                             continue;
                                         }
                                         ?>
-                                        <tr class="ora-cust-band"><td colspan="4"><?= esc($slot['label']) ?></td></tr>
+                                        <tr class="ora-cust-band"><td colspan="5"><?= esc($slot['label']) ?></td></tr>
                                         <?= $chunks ?>
                                         <tr class="ora-cust-final">
-                                            <td colspan="2">المجموع النهائي لمبيعات العميل</td>
+                                            <td colspan="3">المجموع النهائي لمبيعات العميل</td>
                                             <td dir="ltr"><?= esc($fmtQty($custQty)) ?></td>
                                             <td class="col-money" dir="ltr"><?= esc($fmtAmt($custAmt)) ?></td>
                                         </tr>
