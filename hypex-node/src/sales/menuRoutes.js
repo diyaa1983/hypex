@@ -2617,7 +2617,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <input type="text" class="si-field" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
+                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
             </div>
@@ -2626,7 +2626,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <input type="text" class="si-field" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
+                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
             </div>
@@ -2678,14 +2678,28 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         .ora-multi { position: relative; margin-top: .25rem; }
         .ora-multi-btn { width: 100%; text-align: right; cursor: pointer; background: #fff; }
         .ora-multi-panel {
-          position: absolute; z-index: 40; top: calc(100% + 4px); right: 0; left: 0;
-          background: #fff; border: 1px solid #d5deea; border-radius: 8px;
-          max-height: 280px; display: flex; flex-direction: column;
-          box-shadow: 0 8px 24px rgba(15,23,42,.12); padding: .4rem;
+          position: fixed; z-index: 100600; display: flex; flex-direction: column; gap: .35rem;
+          padding: .45rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;
+          box-shadow: 0 12px 32px rgba(15,23,42,.18); max-height: min(22rem, 70vh);
+          min-width: 16rem; box-sizing: border-box;
         }
         .ora-multi-panel[hidden] { display: none !important; }
-        .ora-multi-list { overflow: auto; margin-top: .35rem; }
-        .ora-multi-item { display: flex; gap: .45rem; align-items: flex-start; padding: .28rem .15rem; cursor: pointer; }
+        .ora-multi-q {
+          width: 100%; box-sizing: border-box; background: #fff; border: 1px solid #cbd5e1;
+          border-radius: 6px; padding: .4rem .55rem; color: #0f172a;
+        }
+        .ora-multi-q:focus { outline: none; border-color: #1e3a5f; background: #fff; }
+        .ora-multi-list {
+          overflow: auto; max-height: 16rem; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+        }
+        .ora-multi-item {
+          display: flex !important; flex-direction: row; justify-content: flex-start !important;
+          align-items: center; gap: .55rem; width: 100%; margin: 0; padding: .42rem .6rem;
+          direction: rtl; text-align: right; cursor: pointer; box-sizing: border-box; font-weight: 600;
+        }
+        .ora-multi-item:hover { background: #eef2ff; }
+        .ora-multi-item input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; flex: 0 0 auto; }
+        .ora-multi-item span { flex: 1 1 auto; min-width: 0; text-align: right; }
         .ora-view[hidden] { display: none !important; }
         .ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
         .ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
@@ -2767,7 +2781,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             var code = String(it.code || '');
             var hay = (text + ' ' + code).toLowerCase();
             if (needle && hay.indexOf(needle) < 0) return;
-            var row = document.createElement('label');
+            var row = document.createElement('div');
             row.className = 'ora-multi-item';
             var cb = document.createElement('input');
             cb.type = 'checkbox';
@@ -2781,28 +2795,42 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             span.textContent = code ? text + ' — ' + code : text;
             row.appendChild(cb);
             row.appendChild(span);
+            row.addEventListener('click', function (ev) {
+              if (ev.target === cb) return;
+              cb.checked = !cb.checked;
+              cb.dispatchEvent(new Event('change'));
+            });
             list.appendChild(row);
           });
         }
-        btn.addEventListener('click', function () {
-          panel.hidden = !panel.hidden;
-          if (!panel.hidden) {
-            var rect = btn.getBoundingClientRect();
-            panel.style.position = 'fixed';
-            panel.style.top = Math.round(rect.bottom + 4) + 'px';
-            panel.style.left = Math.round(rect.left) + 'px';
-            panel.style.width = Math.max(Math.round(rect.width), 240) + 'px';
-            panel.style.right = 'auto';
-            panel.style.zIndex = '100600';
-            render();
-            q.focus();
-          }
+        function place() {
+          var rect = btn.getBoundingClientRect();
+          if (panel.parentElement !== document.body) document.body.appendChild(panel);
+          var width = Math.max(rect.width, 280);
+          var left = rect.left;
+          if (left + width > window.innerWidth - 8) left = Math.max(8, window.innerWidth - width - 8);
+          var top = rect.bottom + 4;
+          panel.style.position = 'fixed';
+          panel.style.top = Math.round(top) + 'px';
+          panel.style.left = Math.round(left) + 'px';
+          panel.style.width = Math.round(width) + 'px';
+          panel.style.right = 'auto';
+          panel.style.zIndex = '100600';
+        }
+        btn.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          var open = panel.hidden;
+          document.querySelectorAll('[data-ora-multi-panel]').forEach(function (p) { p.hidden = true; });
+          panel.hidden = !open;
+          if (!panel.hidden) { place(); render(); q.focus(); }
         });
         q.addEventListener('input', render);
         q.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ev.preventDefault(); });
         document.addEventListener('click', function (ev) {
-          if (!root.contains(ev.target)) panel.hidden = true;
+          if (!root.contains(ev.target) && !panel.contains(ev.target)) panel.hidden = true;
         });
+        window.addEventListener('resize', function () { if (!panel.hidden) place(); });
         syncHidden();
       }
       document.addEventListener('DOMContentLoaded', function () {
