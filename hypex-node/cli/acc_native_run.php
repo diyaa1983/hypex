@@ -22,9 +22,50 @@ if (!is_array($payload)) {
 
 require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
 
+/**
+ * Oracle أحياناً يُرجع نصاً فيه بايتات غير صالحة كـ UTF-8 (بيان حركة أو اسم شيك).
+ * json_encode يفشل حينها ويخرج PHP بلا سطر، فيظهر «لا استجابة من PHP».
+ *
+ * @param mixed $value
+ * @return mixed
+ */
+function cli_utf8(mixed $value): mixed
+{
+    if (is_string($value)) {
+        if ($value === '' || preg_match('//u', $value) === 1) {
+            return $value;
+        }
+        $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+        if (is_string($clean) && $clean !== '') {
+            return $clean;
+        }
+        $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $value);
+
+        return is_string($asArabic) ? $asArabic : '';
+    }
+    if (is_float($value) && !is_finite($value)) {
+        return 0.0;
+    }
+    if (is_array($value)) {
+        foreach ($value as $k => $item) {
+            $value[$k] = cli_utf8($item);
+        }
+    }
+
+    return $value;
+}
+
 function cli_out(array $data, int $code = 0): void
 {
-    echo json_encode($data, JSON_UNESCAPED_UNICODE) . "\n";
+    $flags = JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR;
+    $json = json_encode(cli_utf8($data), $flags);
+    if (!is_string($json) || $json === '') {
+        $json = json_encode([
+            'ok' => false,
+            'error' => 'تعذر تجهيز كشف الحساب: ' . json_last_error_msg(),
+        ], JSON_UNESCAPED_UNICODE);
+    }
+    echo $json . "\n";
     exit($code);
 }
 

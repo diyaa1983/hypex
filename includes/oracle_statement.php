@@ -120,7 +120,17 @@ function oracle_statement_cell_str(mixed $v): string
         return $v->format('Y-m-d');
     }
 
-    return trim((string) $v);
+    $s = trim((string) $v);
+    if ($s === '' || preg_match('//u', $s) === 1) {
+        return $s;
+    }
+    $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $s);
+    if (is_string($clean) && $clean !== '') {
+        return $clean;
+    }
+    $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $s);
+
+    return is_string($asArabic) ? $asArabic : '';
 }
 
 /**
