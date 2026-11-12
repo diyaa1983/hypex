@@ -71,7 +71,18 @@ foreach ($hypexNameByMan as $manNo => $nm) {
 }
 usort($reps, static fn (array $a, array $b): int => strcmp((string) $a['name_ar'], (string) $b['name_ar']));
 
-$rawSalesRepIds = $_GET['sales_rep_id'] ?? [];
+// POST لتجنب 414 عند اختيار كثير من القيم؛ GET لفتح الصفحة
+$oraReq = static function (string $key, mixed $default = null): mixed {
+    if (array_key_exists($key, $_POST)) {
+        return $_POST[$key];
+    }
+    if (array_key_exists($key, $_GET)) {
+        return $_GET[$key];
+    }
+
+    return $default;
+};
+$rawSalesRepIds = $oraReq('sales_rep_id', []);
 if (!is_array($rawSalesRepIds)) {
     $rawSalesRepIds = $rawSalesRepIds !== '' && $rawSalesRepIds !== null ? [$rawSalesRepIds] : [];
 }
@@ -84,7 +95,7 @@ foreach ($rawSalesRepIds as $rid) {
 }
 $salesRepIds = array_values($salesRepIds);
 $salesRepId = count($salesRepIds) === 1 ? $salesRepIds[0] : 0;
-$rawCustomerIds = $_GET['customer_id'] ?? [];
+$rawCustomerIds = $oraReq('customer_id', []);
 if (!is_array($rawCustomerIds)) {
     $rawCustomerIds = $rawCustomerIds !== '' && $rawCustomerIds !== null ? [$rawCustomerIds] : [];
 }
@@ -96,7 +107,7 @@ foreach ($rawCustomerIds as $cid) {
     }
 }
 $customerIds = array_values($customerIds);
-$rawCategoryIds = $_GET['category_id'] ?? [];
+$rawCategoryIds = $oraReq('category_id', []);
 if (!is_array($rawCategoryIds)) {
     $rawCategoryIds = $rawCategoryIds !== '' && $rawCategoryIds !== null ? [$rawCategoryIds] : [];
 }
@@ -108,7 +119,7 @@ foreach ($rawCategoryIds as $cid) {
     }
 }
 $categoryIds = array_values($categoryIds);
-$rawYears = $_GET['report_year'] ?? [];
+$rawYears = $oraReq('report_year', []);
 if (!is_array($rawYears)) {
     $rawYears = $rawYears !== '' && $rawYears !== null ? [$rawYears] : [];
 }
@@ -120,7 +131,7 @@ foreach ($rawYears as $y) {
     }
 }
 $reportYears = array_values($reportYears);
-$rawMonths = $_GET['report_month'] ?? [];
+$rawMonths = $oraReq('report_month', []);
 if (!is_array($rawMonths)) {
     $rawMonths = $rawMonths !== '' && $rawMonths !== null ? [$rawMonths] : [];
 }
@@ -178,7 +189,7 @@ $categories = $pdo->query(
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $from = date('Y-01-01');
 $to = function_exists('app_default_date_to') ? app_default_date_to() : date('Y-m-d');
-$store = (int) ($_GET['store'] ?? $cfg['default_store']);
+$store = (int) ($oraReq('store', $cfg['default_store']));
 if ($store < 1) {
     $store = (int) $cfg['default_store'];
 }
@@ -197,7 +208,7 @@ $showResult = false;
 $rows = [];
 $totals = ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'reps' => 0, 'items' => 0];
 $repName = '';
-$submitted = isset($_GET['run']);
+$submitted = $oraReq('run') !== null;
 
 if ($submitted) {
     $period = oracle_rep_item_sales_periods($from, $to, $reportYears, $reportMonths);
@@ -597,7 +608,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
     <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;">
         المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).
     </p>
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print ora-filter-row" id="ora-rep-filter">
+    <form method="post" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print ora-filter-row" id="ora-rep-filter">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
         <div class="form-row ora-filter-grid">

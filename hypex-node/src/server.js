@@ -79,7 +79,7 @@ app.use((req, res, next) => {
 });
 
 app.use(cookieParser());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: '4mb' }));
 app.use(express.json({ limit: '2mb' }));
 // جلسة في MySQL — لا تُفقد عند إيقاف/تشغيل Node
 app.use(createSessionMiddleware());

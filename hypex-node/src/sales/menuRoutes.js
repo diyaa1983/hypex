@@ -2176,19 +2176,23 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
 });
 
 /* ═══════════════ مبيعات المندوب حسب المادة والفئة Oracle ═══════════════ */
-router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sales'), async (req, res) => {
+const oracleRepItemsHandler = async (req, res) => {
   const BASE = '/sales/reports/oracle-rep-items';
-  const store = Number(req.query.store || 4) || 4;
+  // POST لتجنب 414 عند اختيار كثير من العملاء/المندوبين؛ GET لفتح الصفحة فقط
+  const q = req.method === 'POST'
+    ? { ...(req.query || {}), ...(req.body || {}) }
+    : (req.query || {});
+  const store = Number(q.store || 4) || 4;
   const asList = (value) => {
     const raw = Array.isArray(value) ? value : value != null && String(value) !== '' ? [value] : [];
     return [...new Set(raw.map((v) => String(v).trim()).filter(Boolean))];
   };
-  const oracleRepNos = asList(req.query.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
-  const customerIds = asList(req.query.customer_id).map((id) => Number(id)).filter((id) => id > 0);
-  const categoryIds = asList(req.query.category_id);
-  const reportYears = asList(req.query.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
-  const reportMonths = asList(req.query.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
-  const run = String(req.query.run || '') === '1';
+  const oracleRepNos = asList(q.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
+  const customerIds = asList(q.customer_id).map((id) => Number(id)).filter((id) => id > 0);
+  const categoryIds = asList(q.category_id);
+  const reportYears = asList(q.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
+  const reportMonths = asList(q.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
+  const run = String(q.run || '') === '1';
   const uid = Number(req.session.user?.id || 0) || 0;
   const yearNow = new Date().getFullYear();
   const todayIso = () => {
@@ -2778,7 +2782,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       })}
       <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر). الفئة من ربط المادة في النظام.</p>
       <div class="si-rail no-print">
-        <form id="ora-rep-filter" method="get" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
+        <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
           <input type="hidden" name="run" value="1" />
           <label>المندوب
             <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل المندوبين">
@@ -3301,7 +3305,9 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       js: ['/assets/js/sales-print.js'],
     })
   );
-});
+};
+router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sales'), oracleRepItemsHandler);
+router.post('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sales'), oracleRepItemsHandler);
 
 /* صورة QR المحفوظة من Oracle Forms — لا نكشف مسار القرص للمتصفح */
 router.get(
