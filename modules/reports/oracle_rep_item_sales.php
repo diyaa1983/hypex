@@ -193,6 +193,20 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 .ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
 .ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
 .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
+.ora-tools { display: flex; gap: .5rem; margin: 0 0 .75rem; }
+.ora-view[hidden] { display: none !important; }
+.ora-detail-cell { vertical-align: top; min-width: 13rem; }
+.ora-item-line {
+  display: flex;
+  justify-content: space-between;
+  gap: .6rem;
+  padding: .18rem 0;
+  border-bottom: 1px dashed #e2e8f0;
+  font-weight: 600;
+}
+.ora-item-line:last-child { border-bottom: 0; }
+.ora-item-name { text-align: right; }
+.ora-item-meta { white-space: nowrap; color: #334155; font-variant-numeric: tabular-nums; }
 .ora-cust-block { margin: 0 0 1.35rem; }
 .ora-cust-head {
   background: #f4f7fb;
@@ -404,6 +418,8 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                 <p class="ora-grand">الإجمالي — الكمية <?= esc($fmtQty((float) ($totals['qty'] ?? 0))) ?> — المبلغ <?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></p>
             <?php else: ?>
                 <?php
+                $summaryParts = [];
+                $detailParts = [];
                 $n = count($rows);
                 $i = 0;
                 while ($i < $n):
@@ -432,7 +448,26 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                 'cats' => [],
                             ];
                         }
-                        $custMap[$acc]['cats'][$cat] = ($custMap[$acc]['cats'][$cat] ?? 0) + (float) ($r['amount'] ?? 0);
+                        if (!isset($custMap[$acc]['cats'][$cat])) {
+                            $custMap[$acc]['cats'][$cat] = ['amt' => 0.0, 'items' => []];
+                        }
+                        $itemName = trim((string) ($r['item_name'] ?? ''));
+                        if ($itemName === '') {
+                            $itemName = trim((string) ($r['item_code'] ?? ''));
+                        }
+                        $itemKey = trim((string) ($r['item_code'] ?? '')) . "\n" . $itemName;
+                        if (!isset($custMap[$acc]['cats'][$cat]['items'][$itemKey])) {
+                            $custMap[$acc]['cats'][$cat]['items'][$itemKey] = [
+                                'name' => $itemName,
+                                'qty' => 0.0,
+                                'amount' => 0.0,
+                            ];
+                        }
+                        $lineAmt = (float) ($r['amount'] ?? 0);
+                        $lineQty = (float) ($r['qty'] ?? 0);
+                        $custMap[$acc]['cats'][$cat]['amt'] += $lineAmt;
+                        $custMap[$acc]['cats'][$cat]['items'][$itemKey]['qty'] += $lineQty;
+                        $custMap[$acc]['cats'][$cat]['items'][$itemKey]['amount'] += $lineAmt;
                     }
                     usort($catOrder, static function (string $a, string $b): int {
                         if ($a === 'بدون فئة') {
@@ -445,6 +480,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     });
                     $colTotals = array_fill(0, count($catOrder), 0.0);
                     $repAmt = 0.0;
+                    ob_start();
                     ?>
                     <section class="ora-cust-block">
                         <header class="ora-cust-head">
@@ -468,7 +504,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                         <tr>
                                             <td class="ora-cust-name"><?= esc($slot['label']) ?></td>
                                             <?php foreach ($catOrder as $idx => $cat):
-                                                $amt = (float) ($slot['cats'][$cat] ?? 0);
+                                                $amt = (float) ($slot['cats'][$cat]['amt'] ?? 0);
                                                 $colTotals[$idx] += $amt;
                                                 $rowAmt += $amt;
                                                 ?>
@@ -489,8 +525,78 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                             </table>
                         </div>
                     </section>
-                <?php endwhile; ?>
-                <p class="ora-grand">الإجمالي — المبلغ <?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></p>
+                    <?php
+                    $summaryParts[] = (string) ob_get_clean();
+                    ob_start();
+                    ?>
+                    <section class="ora-cust-block">
+                        <header class="ora-cust-head">
+                            <div class="ora-rep">المندوب: <?= esc($repLabel) ?></div>
+                        </header>
+                        <div class="report-sales-table-wrap ora-portrait-wrap">
+                            <table class="report-sales-table ora-portrait-table" data-export-table>
+                                <thead>
+                                    <tr>
+                                        <th class="ora-vhead">العميل</th>
+                                        <?php foreach ($catOrder as $cat): ?>
+                                            <th class="ora-vhead ora-cat-col"><?= esc($cat) ?></th>
+                                        <?php endforeach; ?>
+                                        <th class="ora-vhead">المجموع</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php
+                                    $detailRowAmts = [];
+                                    foreach ($custMap as $accKey => $slot) {
+                                        $detailRowAmts[$accKey] = 0.0;
+                                        foreach ($catOrder as $cat) {
+                                            $detailRowAmts[$accKey] += (float) ($slot['cats'][$cat]['amt'] ?? 0);
+                                        }
+                                    }
+                                    foreach ($custMap as $accKey => $slot):
+                                        ?>
+                                        <tr>
+                                            <td class="ora-cust-name"><?= esc($slot['label']) ?></td>
+                                            <?php foreach ($catOrder as $cat):
+                                                $items = array_values($slot['cats'][$cat]['items'] ?? []);
+                                                usort($items, static function (array $a, array $b): int {
+                                                    return strcmp((string) $a['name'], (string) $b['name']);
+                                                });
+                                                ?>
+                                                <td class="ora-detail-cell">
+                                                    <?php foreach ($items as $it): ?>
+                                                        <div class="ora-item-line">
+                                                            <span class="ora-item-name"><?= esc((string) $it['name']) ?></span>
+                                                            <span class="ora-item-meta" dir="ltr"><?= esc($fmtQty((float) $it['qty'])) ?> · <?= esc($fmtAmt((float) $it['amount'])) ?></span>
+                                                        </div>
+                                                    <?php endforeach; ?>
+                                                </td>
+                                            <?php endforeach; ?>
+                                            <td class="col-money" dir="ltr"><?= esc($fmtAmt($detailRowAmts[$accKey])) ?></td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                    <tr class="ora-cust-final">
+                                        <td>المجموع</td>
+                                        <?php foreach ($colTotals as $amt): ?>
+                                            <td dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
+                                        <?php endforeach; ?>
+                                        <td class="col-money" dir="ltr"><?= esc($fmtAmt($repAmt)) ?></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                    <?php
+                    $detailParts[] = (string) ob_get_clean();
+                endwhile;
+                $grandHtml = '<p class="ora-grand">الإجمالي — المبلغ ' . esc($fmtAmt((float) ($totals['amount'] ?? 0))) . '</p>';
+                ?>
+                <div class="ora-tools no-print">
+                    <button type="button" class="btn" id="ora-excel-btn">Excel</button>
+                    <button type="button" class="btn" id="ora-detail-btn">تفصيلي</button>
+                </div>
+                <div class="ora-view" id="ora-view-summary"><?= implode('', $summaryParts) . $grandHtml ?></div>
+                <div class="ora-view" id="ora-view-detail" hidden><?= implode('', $detailParts) . $grandHtml ?></div>
             <?php endif; ?>
         </div>
     <?php endif; ?>
@@ -510,6 +616,38 @@ document.addEventListener('DOMContentLoaded', function () {
   window.ReportRepPicker.init(root, reps, { initialId: initialId });
 });
 document.addEventListener('click', function (ev) {
+  var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');
+  if (excelBtn) {
+    var view = document.querySelector('.ora-view:not([hidden])');
+    if (!view) return;
+    var html = '<html><head><meta charset="UTF-8"></head><body dir="rtl">' + view.innerHTML + '</body></html>';
+    var blob = new Blob(['\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'مبيعات-المندوب-حسب-الفئة.xls';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 200);
+    return;
+  }
+  var detailBtn = ev.target.closest && ev.target.closest('#ora-detail-btn');
+  if (detailBtn) {
+    var sum = document.getElementById('ora-view-summary');
+    var det = document.getElementById('ora-view-detail');
+    if (!sum || !det) return;
+    var openDetail = det.hasAttribute('hidden');
+    if (openDetail) {
+      det.removeAttribute('hidden');
+      sum.setAttribute('hidden', '');
+      detailBtn.textContent = 'ملخص';
+    } else {
+      sum.removeAttribute('hidden');
+      det.setAttribute('hidden', '');
+      detailBtn.textContent = 'تفصيلي';
+    }
+    return;
+  }
   var head = ev.target.closest && ev.target.closest('[data-ora-toggle]');
   if (!head) return;
   var id = head.getAttribute('data-ora-toggle');

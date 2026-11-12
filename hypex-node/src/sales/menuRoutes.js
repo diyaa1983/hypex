@@ -2375,6 +2375,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     }
     rowsHtml += `<p class="ora-grand">الإجمالي — الكمية ${esc(fmtQty(totals.qty))} — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
   } else if (rows.length) {
+    let summaryHtml = '';
+    let detailHtml = '';
     let i = 0;
     while (i < rows.length) {
       const repStart = i;
@@ -2399,7 +2401,23 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           });
         }
         const slot = custMap.get(acc);
-        slot.cats.set(cat, (slot.cats.get(cat) || 0) + (Number(r.amount) || 0));
+        let bag = slot.cats.get(cat);
+        if (!bag) {
+          bag = { amt: 0, items: [] };
+          slot.cats.set(cat, bag);
+        }
+        const amount = Number(r.amount) || 0;
+        const qty = Number(r.qty) || 0;
+        bag.amt += amount;
+        const name = String(r.item_name || r.item_code || '').trim();
+        const code = String(r.item_code || '');
+        const found = bag.items.find((it) => it.code === code && it.name === name);
+        if (found) {
+          found.amount += amount;
+          found.qty += qty;
+        } else {
+          bag.items.push({ name, code, qty, amount });
+        }
       });
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
@@ -2407,23 +2425,40 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         return a.localeCompare(b, 'ar');
       });
       const colTotals = catOrder.map(() => 0);
-      let body = '';
+      let summaryBody = '';
+      let detailBody = '';
       let repAmt = 0;
+      const itemLines = (bag) => {
+        if (!bag || !bag.items.length) return '';
+        return bag.items
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+          .map(
+            (it) => `<div class="ora-item-line"><span class="ora-item-name">${esc(it.name)}</span><span class="ora-item-meta" dir="ltr">${esc(fmtQty(it.qty))} · ${esc(fmtAmt(it.amount))}</span></div>`
+          )
+          .join('');
+      };
       custMap.forEach((slot) => {
         let rowAmt = 0;
-        const cells = catOrder.map((cat, idx) => {
-          const amt = slot.cats.get(cat) || 0;
+        const sumCells = catOrder.map((cat, idx) => {
+          const amt = slot.cats.get(cat)?.amt || 0;
           colTotals[idx] += amt;
           rowAmt += amt;
           return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
         }).join('');
+        const detCells = catOrder
+          .map((cat) => `<td class="ora-detail-cell">${itemLines(slot.cats.get(cat))}</td>`)
+          .join('');
         repAmt += rowAmt;
-        body += `<tr><td class="ora-cust-name">${esc(slot.label)}</td>${cells}<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td></tr>`;
+        const nameCell = `<td class="ora-cust-name">${esc(slot.label)}</td>`;
+        const totalCell = `<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td>`;
+        summaryBody += `<tr>${nameCell}${sumCells}${totalCell}</tr>`;
+        detailBody += `<tr>${nameCell}${detCells}${totalCell}</tr>`;
       });
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
-      body += `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
+      const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
       const heads = catOrder.map((cat) => `<th class="ora-vhead ora-cat-col">${esc(cat)}</th>`).join('');
-      rowsHtml += `<section class="ora-cust-block">
+      const sectionOf = (body) => `<section class="ora-cust-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
@@ -2434,12 +2469,20 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
               ${heads}
               <th class="ora-vhead">المجموع</th>
             </tr></thead>
-            <tbody>${body}</tbody>
+            <tbody>${body}${footRow}</tbody>
           </table>
         </div>
       </section>`;
+      summaryHtml += sectionOf(summaryBody);
+      detailHtml += sectionOf(detailBody);
     }
-    rowsHtml += `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+    const grand = `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+    rowsHtml = `<div class="ora-tools no-print">
+        <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
+        <button type="button" class="si-btn" id="ora-detail-btn">تفصيلي</button>
+      </div>
+      <div class="ora-view" id="ora-view-summary">${summaryHtml}${grand}</div>
+      <div class="ora-view" id="ora-view-detail" hidden>${detailHtml}${grand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -2517,6 +2560,20 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         .ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
         .ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
         .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
+        .ora-tools { display: flex; gap: .5rem; margin: 0 1rem .75rem; }
+        .ora-view[hidden] { display: none !important; }
+        .ora-detail-cell { vertical-align: top; min-width: 13rem; }
+        .ora-item-line {
+          display: flex;
+          justify-content: space-between;
+          gap: .6rem;
+          padding: .18rem 0;
+          border-bottom: 1px dashed #e2e8f0;
+          font-weight: 600;
+        }
+        .ora-item-line:last-child { border-bottom: 0; }
+        .ora-item-name { text-align: right; }
+        .ora-item-meta { white-space: nowrap; color: #334155; font-variant-numeric: tabular-nums; }
         .ora-cust-block { margin: 0 1rem 1.35rem; }
         .ora-cust-head {
           background: #f4f7fb;
@@ -2562,6 +2619,38 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         window.ReportRepPicker.init(root, reps, { initialId: initialId });
       });
       document.addEventListener('click', function (ev) {
+        var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');
+        if (excelBtn) {
+          var view = document.querySelector('.ora-view:not([hidden])');
+          if (!view) return;
+          var html = '<html><head><meta charset="UTF-8"></head><body dir="rtl">' + view.innerHTML + '</body></html>';
+          var blob = new Blob(['\\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'مبيعات-المندوب-حسب-الفئة.xls';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 200);
+          return;
+        }
+        var detailBtn = ev.target.closest && ev.target.closest('#ora-detail-btn');
+        if (detailBtn) {
+          var sum = document.getElementById('ora-view-summary');
+          var det = document.getElementById('ora-view-detail');
+          if (!sum || !det) return;
+          var openDetail = det.hasAttribute('hidden');
+          if (openDetail) {
+            det.removeAttribute('hidden');
+            sum.setAttribute('hidden', '');
+            detailBtn.textContent = 'ملخص';
+          } else {
+            sum.removeAttribute('hidden');
+            det.setAttribute('hidden', '');
+            detailBtn.textContent = 'تفصيلي';
+          }
+          return;
+        }
         var head = ev.target.closest && ev.target.closest('[data-ora-toggle]');
         if (!head) return;
         var id = head.getAttribute('data-ora-toggle');
