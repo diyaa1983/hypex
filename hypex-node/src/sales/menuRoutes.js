@@ -2237,11 +2237,39 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   let customers = [];
   try {
     customers = await db.query(
-      `SELECT id, name_ar, code, IFNULL(oracle_key, '') AS oracle_key
-       FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 4000`
+      `SELECT c.id, c.name_ar, c.code, IFNULL(c.oracle_key, '') AS oracle_key,
+              IFNULL(r.code, '') AS primary_rep_code
+       FROM crm_customer c
+       LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
+       WHERE c.is_active = 1
+       ORDER BY c.name_ar
+       LIMIT 4000`
     );
   } catch (e) {
     customers = [];
+  }
+  const custRepCodes = new Map();
+  try {
+    const linkRows = await db.query(
+      `SELECT csr.customer_id, r.code
+       FROM crm_customer_sales_rep csr
+       INNER JOIN crm_sales_rep r ON r.id = csr.sales_rep_id`
+    );
+    for (const row of linkRows || []) {
+      const cid = String(Number(row.customer_id) || 0);
+      const code = String(row.code || '').trim();
+      if (!cid || cid === '0' || !code) continue;
+      if (!custRepCodes.has(cid)) custRepCodes.set(cid, new Set());
+      custRepCodes.get(cid).add(code);
+    }
+  } catch (e) {
+    /* optional table */
+  }
+  for (const c of customers || []) {
+    const cid = String(Number(c.id) || 0);
+    if (!custRepCodes.has(cid)) custRepCodes.set(cid, new Set());
+    const primary = String(c.primary_rep_code || '').trim();
+    if (primary) custRepCodes.get(cid).add(primary);
   }
   let categories = [];
   try {
@@ -2611,11 +2639,15 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
   const customersJson = JSON.stringify(
-    (customers || []).map((c) => ({
-      id: String(Number(c.id) || 0),
-      label: String(c.name_ar || ''),
-      code: String(c.code || ''),
-    }))
+    (customers || []).map((c) => {
+      const cid = String(Number(c.id) || 0);
+      return {
+        id: cid,
+        label: String(c.name_ar || ''),
+        code: String(c.code || ''),
+        rep_codes: [...(custRepCodes.get(cid) || [])],
+      };
+    })
   ).replace(/</g, '\\u003c');
   const categoriesJson = JSON.stringify(
     [{ id: 'none', label: 'بدون فئة', code: '' }].concat(
@@ -2933,13 +2965,15 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       <script type="application/json" id="ora-filter-selected">${selectedJson}</script>
       <script>
       function initOraMulti(root, items, selected) {
-        if (!root) return;
+        if (!root) return null;
         var btn = root.querySelector('[data-ora-multi-btn]');
         var panel = root.querySelector('[data-ora-multi-panel]');
         var q = root.querySelector('[data-ora-multi-q]');
         var list = root.querySelector('[data-ora-multi-list]');
         var name = root.getAttribute('data-ora-name');
         var emptyLabel = root.getAttribute('data-ora-empty') || 'الكل';
+        var allItems = Array.isArray(items) ? items.slice() : [];
+        var visible = allItems.slice();
         var sel = {};
         (selected || []).forEach(function (id) { sel[String(id)] = true; });
         function selectedIds() { return Object.keys(sel).filter(function (k) { return sel[k]; }); }
@@ -2947,7 +2981,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           var ids = selectedIds();
           if (!ids.length) return emptyLabel;
           if (ids.length === 1) {
-            var one = items.find(function (it) { return String(it.id) === ids[0]; });
+            var one = allItems.find(function (it) { return String(it.id) === ids[0]; })
+              || visible.find(function (it) { return String(it.id) === ids[0]; });
             return one ? one.label : ids[0];
           }
           return ids.length + ' محدد';
@@ -2967,7 +3002,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         function render() {
           var needle = String(q.value || '').trim().toLowerCase();
           list.innerHTML = '';
-          items.forEach(function (it) {
+          visible.forEach(function (it) {
             var text = String(it.label || '');
             var code = String(it.code || '');
             var hay = (text + ' ' + code).toLowerCase();
@@ -3015,6 +3050,16 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           panel.style.right = 'auto';
           panel.style.zIndex = '100600';
         }
+        function setVisible(next) {
+          visible = Array.isArray(next) ? next.slice() : [];
+          var allowed = {};
+          visible.forEach(function (it) { allowed[String(it.id)] = true; });
+          Object.keys(sel).forEach(function (id) {
+            if (!allowed[id]) delete sel[id];
+          });
+          syncHidden();
+          if (!panel.hidden) render();
+        }
         btn.addEventListener('click', function (ev) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -3030,17 +3075,9 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         });
         window.addEventListener('resize', function () { if (!panel.hidden) place(); });
         syncHidden();
+        return { setVisible: setVisible, allItems: function () { return allItems; } };
       }
       document.addEventListener('DOMContentLoaded', function () {
-        var el = document.getElementById('report-sales-reps-json');
-        var root = document.getElementById('report-sales-rep-pick');
-        if (el && root && window.ReportRepPicker) {
-          var reps = [];
-          try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
-          var hidden = root.querySelector('[data-rep-id]');
-          var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
-          window.ReportRepPicker.init(root, reps, { initialId: initialId });
-        }
         var selected = { customers: [], categories: [], years: [], months: [] };
         var selEl = document.getElementById('ora-filter-selected');
         try { selected = JSON.parse(selEl && selEl.textContent || '{}'); } catch (e3) {}
@@ -3052,10 +3089,37 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
         try { yearItems = JSON.parse(document.getElementById('report-sales-years-json').textContent || '[]'); } catch (e6) {}
         try { monthItems = JSON.parse(document.getElementById('report-sales-months-json').textContent || '[]'); } catch (e7) {}
-        initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
+        var custMulti = initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
         initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
         initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
         initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
+        function filterCustomersByRep(repNo) {
+          if (!custMulti) return;
+          var n = Number(repNo) || 0;
+          var code = n > 0 ? String(n) : '';
+          var next = !code
+            ? custItems
+            : custItems.filter(function (it) {
+                var codes = Array.isArray(it.rep_codes) ? it.rep_codes : [];
+                return codes.some(function (c) { return String(c) === code; });
+              });
+          custMulti.setVisible(next);
+        }
+        var el = document.getElementById('report-sales-reps-json');
+        var root = document.getElementById('report-sales-rep-pick');
+        var hidden = root ? root.querySelector('[data-rep-id]') : null;
+        if (el && root && window.ReportRepPicker) {
+          var reps = [];
+          try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
+          var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
+          window.ReportRepPicker.init(root, reps, {
+            initialId: initialId,
+            onChange: function (id) { filterCustomersByRep(id); },
+          });
+          filterCustomersByRep(initialId);
+        } else {
+          filterCustomersByRep(hidden && hidden.value ? hidden.value : 0);
+        }
       });
       document.addEventListener('click', function (ev) {
         var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');

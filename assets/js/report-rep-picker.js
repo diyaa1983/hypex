@@ -91,7 +91,7 @@
       return name || code;
     }
 
-    function setSelection(rep) {
+    function setSelection(rep, optsSilent) {
       if (rep) {
         hidden.value = String(rep.id);
         input.value = labelOf(rep);
@@ -99,6 +99,9 @@
         hidden.value = '';
       }
       closeDropdown();
+      if (!optsSilent && typeof opts.onChange === 'function') {
+        opts.onChange(rep ? rep.id : 0, rep || null);
+      }
     }
 
     var listNav = null;
@@ -141,7 +144,9 @@
     });
 
     input.addEventListener('input', function () {
+      var had = hidden.value;
       hidden.value = '';
+      if (had && typeof opts.onChange === 'function') opts.onChange(0, null);
       renderList(input.value);
     });
 
@@ -194,7 +199,7 @@
 
     var initial = findById(opts.initialId || hidden.value);
     if (initial) {
-      setSelection(initial);
+      setSelection(initial, true);
     }
   }
 
