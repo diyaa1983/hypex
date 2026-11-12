@@ -1,6 +1,6 @@
 -- ربط المندوبين بالمناطق والعملاء وتحديث الأسماء من ملف المندوبين.xlsx
 -- نفّذه على قاعدة السيرفر (hypex) من Workbench على الجهاز البعيد، وليس على MySQL المحلي.
--- لا يحذف عملاء ولا مواد. يحدّث أسماء المندوبين حسب رقم المندوب، ويضيف المناطق الناقصة، ويربط عملاء الملف فقط.
+-- لا يحذف عملاء ولا مواد. يلغي ربط المندوبين القديم (العملاء والمناطق) ثم يعيد الربط من الملف فقط.
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS crm_sales_rep_region (
@@ -1011,9 +1011,7 @@ INSERT INTO tmp_rep_cust (cust_code, rep_code, region_name) VALUES
   ('11201016', '40', NULL),
   ('11201017', '36', NULL);
 
-DELETE rr FROM crm_sales_rep_region rr
-JOIN crm_sales_rep r ON r.id = rr.sales_rep_id
-WHERE r.code IN ('3', '12', '30', '36', '37', '38', '39', '40', '41', '43');
+DELETE FROM crm_sales_rep_region WHERE sales_rep_id > 0;
 INSERT IGNORE INTO crm_sales_rep_region (sales_rep_id, region_id, sort_order)
 SELECT r.id, g.id, 0
 FROM crm_sales_rep r
@@ -1150,16 +1148,16 @@ FROM crm_sales_rep r
 JOIN crm_region g ON g.name_ar = 'عمان الشرقية'
 WHERE r.code = '43';
 
+UPDATE crm_customer SET sales_rep_id = NULL, region_id = NULL WHERE id > 0;
+DELETE FROM crm_customer_sales_rep WHERE customer_id > 0;
+
 UPDATE crm_customer c
 JOIN tmp_rep_cust t ON (TRIM(c.code) = t.cust_code OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code)
 JOIN crm_sales_rep r ON r.code = t.rep_code
 LEFT JOIN crm_region g ON g.name_ar = t.region_name
 SET c.sales_rep_id = r.id,
-    c.region_id = IF(g.id IS NULL, c.region_id, g.id);
-
-DELETE csr FROM crm_customer_sales_rep csr
-JOIN crm_customer c ON c.id = csr.customer_id
-JOIN tmp_rep_cust t ON (TRIM(c.code) = t.cust_code OR TRIM(IFNULL(c.oracle_key, '')) = t.cust_code);
+    c.region_id = g.id
+WHERE c.id > 0;
 
 INSERT INTO crm_customer_sales_rep (customer_id, sales_rep_id, sort_order)
 SELECT c.id, r.id, 0
