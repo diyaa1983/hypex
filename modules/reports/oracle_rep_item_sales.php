@@ -200,7 +200,11 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 }
 .ora-cust-head .ora-rep { font-weight: 800; color: #1e3a5f; }
 .ora-cust-head .ora-who { font-weight: 800; font-size: 1.02rem; margin-top: .25rem; }
-.ora-cat-total td { background: #e8eef8; font-weight: 800; }
+.ora-cat-head { cursor: pointer; }
+.ora-cat-head td { background: #e8eef8; font-weight: 800; }
+.ora-arrow { display: inline-block; width: 1.1rem; }
+.ora-arrow::before { content: "◂"; }
+.ora-cat-head[data-open="1"] .ora-arrow::before { content: "▾"; }
 .ora-cust-final td { background: #e7f4ea; font-weight: 800; }
 .ora-rep-total, .ora-grand {
   margin: .35rem 0 1rem;
@@ -214,6 +218,8 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
   @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
   .ora-portrait-table th.ora-vhead { position: static; }
   .ora-portrait-table { font-size: 9pt; }
+  tr.ora-item[hidden] { display: table-row !important; }
+  .ora-arrow { display: none; }
 }
 </style>
 <div class="card report-sales-page" data-report-title="<?= esc($reportTitle) ?>" data-report-route="<?= esc($routeKey) ?>">
@@ -280,6 +286,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                 <?php
                 $n = count($rows);
                 $i = 0;
+                $oraGid = 0;
                 while ($i < $n):
                     $repStart = $i;
                     $no = (int) ($rows[$i]['rep_no'] ?? 0);
@@ -351,14 +358,22 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php foreach ($cats as $g): ?>
+                                        <?php foreach ($cats as $g):
+                                            $oraGid++;
+                                            $groupId = 'ora-g-' . $oraGid;
+                                            ?>
+                                            <tr class="ora-cat-head" data-ora-toggle="<?= esc($groupId) ?>" data-open="0">
+                                                <td colspan="4"><span class="ora-arrow" aria-hidden="true"></span><?= esc($g['cat']) ?></td>
+                                                <td dir="ltr"><?= esc($fmtQty($g['qty'])) ?></td>
+                                                <td class="col-money" dir="ltr"><?= esc($fmtAmt($g['amt'])) ?></td>
+                                            </tr>
                                             <?php foreach ($g['lines'] as $r):
                                                 $idCode = trim((string) ($r['item_code'] ?? ''));
                                                 $barcode = trim((string) ($r['item_barcode'] ?? ''));
                                                 $sku = trim((string) ($r['item_sku'] ?? ''));
                                                 $code = $barcode !== '' ? $barcode : ($sku !== '' && $sku !== $idCode ? $sku : '');
                                                 ?>
-                                                <tr>
+                                                <tr class="ora-item" data-ora-lines="<?= esc($groupId) ?>" hidden>
                                                     <td><?= esc($g['cat']) ?></td>
                                                     <td class="ora-code" dir="ltr"><?= esc($idCode) ?></td>
                                                     <td class="ora-code" dir="ltr"><?= esc($code) ?></td>
@@ -367,13 +382,6 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                                     <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($r['amount'] ?? 0))) ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
-                                        <?php endforeach; ?>
-                                        <?php foreach ($cats as $g): ?>
-                                            <tr class="ora-cat-total">
-                                                <td colspan="4">مجموع الفئة: <?= esc($g['cat']) ?></td>
-                                                <td dir="ltr"><?= esc($fmtQty($g['qty'])) ?></td>
-                                                <td class="col-money" dir="ltr"><?= esc($fmtAmt($g['amt'])) ?></td>
-                                            </tr>
                                         <?php endforeach; ?>
                                         <tr class="ora-cust-final">
                                             <td colspan="4">المجموع النهائي لمبيعات العميل</td>

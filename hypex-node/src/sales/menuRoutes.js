@@ -2273,11 +2273,11 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     const code = barcode || (sku && sku !== id ? sku : '');
     return { id, code };
   };
-  const itemRow = (r) => {
+  const itemRow = (r, groupId) => {
     const qty = Number(r.qty) || 0;
     const amount = Number(r.amount) || 0;
     const codes = itemCodesOf(r);
-    return `<tr>
+    return `<tr class="ora-item" data-ora-lines="${groupId}" hidden>
       <td>${esc(r.cat_name || 'بدون فئة')}</td>
       <td class="si-num ora-code" dir="ltr">${esc(codes.id)}</td>
       <td class="si-num ora-code" dir="ltr">${esc(codes.code)}</td>
@@ -2287,6 +2287,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     </tr>`;
   };
   let rowsHtml = '';
+  let groupSeq = 0;
   if (rows.length) {
     let i = 0;
     while (i < rows.length) {
@@ -2331,15 +2332,17 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         const custAmt = cats.reduce((s, x) => s + x.catAmt, 0);
         repQty += custQty;
         repAmt += custAmt;
-        let body = cats.map((g) => g.lines.map(itemRow).join('')).join('');
-        body += cats
-          .map(
-            (g) => `<tr class="ora-cat-total">
-              <td colspan="4">مجموع الفئة: ${esc(g.cat)}</td>
+        let body = cats
+          .map((g) => {
+            groupSeq += 1;
+            const id = `ora-g-${groupSeq}`;
+            const head = `<tr class="ora-cat-head" data-ora-toggle="${id}" data-open="0">
+              <td colspan="4"><span class="ora-arrow" aria-hidden="true"></span>${esc(g.cat)}</td>
               <td class="si-num" dir="ltr">${esc(fmtQty(g.catQty))}</td>
               <td class="si-num" dir="ltr">${esc(fmtAmt(g.catAmt))}</td>
-            </tr>`
-          )
+            </tr>`;
+            return head + g.lines.map((line) => itemRow(line, id)).join('');
+          })
           .join('');
         body += `<tr class="ora-cust-final">
           <td colspan="4">المجموع النهائي لمبيعات العميل</td>
@@ -2453,7 +2456,11 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         }
         .ora-cust-head .ora-rep { font-weight: 800; color: #1e3a5f; }
         .ora-cust-head .ora-who { font-weight: 800; font-size: 1.02rem; margin-top: .25rem; }
-        .ora-cat-total td { background: #e8eef8; font-weight: 800; }
+        .ora-cat-head { cursor: pointer; }
+        .ora-cat-head td { background: #e8eef8; font-weight: 800; }
+        .ora-arrow { display: inline-block; width: 1.1rem; }
+        .ora-arrow::before { content: "◂"; }
+        .ora-cat-head[data-open="1"] .ora-arrow::before { content: "▾"; }
         .ora-cust-final td { background: #e7f4ea; font-weight: 800; }
         .ora-rep-total, .ora-grand {
           margin: .35rem 1rem 1rem;
@@ -2467,6 +2474,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
           .ora-portrait-table th.ora-vhead { position: static; }
           .ora-portrait-table { font-size: 9pt; }
+          tr.ora-item[hidden] { display: table-row !important; }
+          .ora-arrow { display: none; }
         }
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
