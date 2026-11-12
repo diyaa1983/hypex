@@ -71,7 +71,19 @@ foreach ($hypexNameByMan as $manNo => $nm) {
 }
 usort($reps, static fn (array $a, array $b): int => strcmp((string) $a['name_ar'], (string) $b['name_ar']));
 
-$salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
+$rawSalesRepIds = $_GET['sales_rep_id'] ?? [];
+if (!is_array($rawSalesRepIds)) {
+    $rawSalesRepIds = $rawSalesRepIds !== '' && $rawSalesRepIds !== null ? [$rawSalesRepIds] : [];
+}
+$salesRepIds = [];
+foreach ($rawSalesRepIds as $rid) {
+    $rid = (int) $rid;
+    if ($rid > 0) {
+        $salesRepIds[$rid] = $rid;
+    }
+}
+$salesRepIds = array_values($salesRepIds);
+$salesRepId = count($salesRepIds) === 1 ? $salesRepIds[0] : 0;
 $rawCustomerIds = $_GET['customer_id'] ?? [];
 if (!is_array($rawCustomerIds)) {
     $rawCustomerIds = $rawCustomerIds !== '' && $rawCustomerIds !== null ? [$rawCustomerIds] : [];
@@ -164,15 +176,9 @@ foreach ($customers as $cust) {
 $categories = $pdo->query(
     'SELECT id, name_ar FROM inv_item_category ORDER BY name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-$from = trim((string) ($_GET['from'] ?? ''));
-$to = trim((string) ($_GET['to'] ?? ''));
+$from = date('Y-01-01');
+$to = function_exists('app_default_date_to') ? app_default_date_to() : date('Y-m-d');
 $store = (int) ($_GET['store'] ?? $cfg['default_store']);
-if ($from === '') {
-    $from = date('Y-m-01');
-}
-if ($to === '') {
-    $to = function_exists('app_default_date_to') ? app_default_date_to() : date('Y-m-d');
-}
 if ($store < 1) {
     $store = (int) $cfg['default_store'];
 }
@@ -191,39 +197,29 @@ $showResult = false;
 $rows = [];
 $totals = ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'reps' => 0, 'items' => 0];
 $repName = '';
-$submitted = isset($_GET['run']) || isset($_GET['from']) || isset($_GET['to']);
+$submitted = isset($_GET['run']);
 
 if ($submitted) {
-    $fromIso = function_exists('parse_date_to_iso') ? parse_date_to_iso($from) : null;
-    $toIso = function_exists('parse_date_to_iso') ? parse_date_to_iso($to) : null;
-    if ($fromIso === null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) {
-        $fromIso = $from;
-    }
-    if ($toIso === null && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
-        $toIso = $to;
-    }
-    if ($fromIso === null && preg_match('/^(\d{2})-(\d{2})-(\d{4})$/', $from, $m)) {
-        $fromIso = $m[3] . '-' . $m[2] . '-' . $m[1];
-    }
-    if ($toIso === null && preg_match('/^(\d{2})-(\d{2})-(\d{4})$/', $to, $m)) {
-        $toIso = $m[3] . '-' . $m[2] . '-' . $m[1];
-    }
-    if ($fromIso === null || $toIso === null) {
-        $err = 'تاريخ البداية والنهاية غير صالحين.';
-    } elseif ($fromIso > $toIso) {
-        $err = 'تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية.';
+    $period = oracle_rep_item_sales_periods($from, $to, $reportYears, $reportMonths);
+    $from = $period['from'];
+    $to = $period['to'];
+    if ($from > $to) {
+        $err = 'فترة السنة/الشهر غير صالحة.';
     } else {
-        $from = $fromIso;
-        $to = $toIso;
-        if ($salesRepId > 0) {
-            $repName = $hypexNameByMan[$salesRepId] ?? ('مندوب ' . $salesRepId);
+        if (count($salesRepIds) === 1) {
+            $repName = $hypexNameByMan[$salesRepIds[0]] ?? ('مندوب ' . $salesRepIds[0]);
+        } elseif (count($salesRepIds) > 1) {
+            $repName = count($salesRepIds) . ' مندوبين';
         }
         $scopeCustomerIds = $customerIds;
         $filterOracleRep = true;
-        if ($salesRepId > 0) {
-            // مندوب هايبكس الحالي: كل مبيعات عملائه الحاليين (حتى ما بيع تحت مندوب قديم في Oracle)
+        $selectedRepCodes = [];
+        foreach ($salesRepIds as $rid) {
+            $selectedRepCodes[(string) $rid] = (string) $rid;
+        }
+        $accToRep = [];
+        if ($salesRepIds !== []) {
             $filterOracleRep = false;
-            $repCode = (string) $salesRepId;
             $linkedIds = [];
             foreach ($customers as $cust) {
                 $cid = (int) ($cust['id'] ?? 0);
@@ -231,7 +227,14 @@ if ($submitted) {
                     continue;
                 }
                 $codes = $custRepCodes[(string) $cid] ?? [];
-                if (isset($codes[$repCode])) {
+                $hit = false;
+                foreach ($selectedRepCodes as $code) {
+                    if (isset($codes[$code])) {
+                        $hit = true;
+                        break;
+                    }
+                }
+                if ($hit) {
                     $linkedIds[$cid] = $cid;
                 }
             }
@@ -248,7 +251,7 @@ if ($submitted) {
             }
         }
         $custAccs = [];
-        $accSource = $scopeCustomerIds !== [] ? $scopeCustomerIds : ($salesRepId > 0 ? [] : $customerIds);
+        $accSource = $scopeCustomerIds !== [] ? $scopeCustomerIds : ($salesRepIds !== [] ? [] : $customerIds);
         foreach ($accSource as $cid) {
             foreach ($customers as $cust) {
                 if ((int) ($cust['id'] ?? 0) !== $cid) {
@@ -261,6 +264,26 @@ if ($submitted) {
                 $digits = ltrim(preg_replace('/\D+/', '', $raw) ?? '', '0');
                 if ($digits !== '') {
                     $custAccs[$digits] = $digits;
+                    $codes = $custRepCodes[(string) $cid] ?? [];
+                    $primary = trim((string) ($cust['primary_rep_code'] ?? ''));
+                    $prefer = '';
+                    if ($selectedRepCodes !== []) {
+                        if ($primary !== '' && isset($selectedRepCodes[$primary])) {
+                            $prefer = $primary;
+                        } else {
+                            foreach ($codes as $code) {
+                                if (isset($selectedRepCodes[$code])) {
+                                    $prefer = $code;
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        $prefer = $primary !== '' ? $primary : (string) (array_values($codes)[0] ?? '');
+                    }
+                    if ($prefer !== '') {
+                        $accToRep[$digits] = (int) $prefer;
+                    }
                 }
                 break;
             }
@@ -284,13 +307,10 @@ if ($submitted) {
             }
         }
         $catNames = array_values($catNames);
-        $period = oracle_rep_item_sales_periods($from, $to, $reportYears, $reportMonths);
-        $from = $period['from'];
-        $to = $period['to'];
-        if ($salesRepId > 0 && $scopeCustomerIds === []) {
-            $err = 'لا يوجد عملاء مربوطون بهذا المندوب في النظام.';
-        } elseif ($salesRepId > 0 && $custAccs === []) {
-            $err = 'عملاء هذا المندوب غير مربوطين بحساب في Oracle.';
+        if ($salesRepIds !== [] && $scopeCustomerIds === []) {
+            $err = 'لا يوجد عملاء مربوطون بالمندوبين المحددين في النظام.';
+        } elseif ($salesRepIds !== [] && $custAccs === []) {
+            $err = 'عملاء المندوبين المحددين غير مربوطين بحساب في Oracle.';
         } elseif ($customerIds !== [] && $custAccs === []) {
             $err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
         } else {
@@ -298,7 +318,7 @@ if ($submitted) {
             $from,
             $to,
             $store,
-            $salesRepId > 0 ? $salesRepId : null,
+            count($salesRepIds) === 1 ? $salesRepIds[0] : null,
             $custAccs,
             $catNames,
             $period['year_months'],
@@ -318,7 +338,12 @@ if ($submitted) {
                 }
             }
             foreach ($rows as &$row) {
+                $accKey = ltrim(preg_replace('/\D+/', '', (string) ($row['customer_acc'] ?? '')) ?? '', '0');
                 $no = (int) ($row['rep_no'] ?? 0);
+                if ($filterOracleRep === false && $accKey !== '' && isset($accToRep[$accKey])) {
+                    $no = (int) $accToRep[$accKey];
+                    $row['rep_no'] = $no;
+                }
                 $current = trim((string) ($row['rep_name'] ?? ''));
                 if ($no > 0 && isset($hypexNameByMan[$no])) {
                     $row['rep_name'] = $hypexNameByMan[$no];
@@ -336,7 +361,6 @@ if ($submitted) {
     }
 }
 
-$repsJson = json_encode($reps, JSON_UNESCAPED_UNICODE) ?: '[]';
 $pickerCustomers = [];
 foreach ($customers as $cust) {
     $cid = (string) (int) ($cust['id'] ?? 0);
@@ -373,7 +397,17 @@ foreach ($monthLabels as $num => $label) {
 }
 $yearsJson = str_replace('<', '\u003c', json_encode($pickerYears, JSON_UNESCAPED_UNICODE) ?: '[]');
 $monthsJson = str_replace('<', '\u003c', json_encode($pickerMonths, JSON_UNESCAPED_UNICODE) ?: '[]');
+$pickerReps = [];
+foreach ($reps as $rp) {
+    $pickerReps[] = [
+        'id' => (string) (int) ($rp['id'] ?? 0),
+        'label' => (string) ($rp['name_ar'] ?? ''),
+        'code' => (string) ($rp['code'] ?? ''),
+    ];
+}
+$repsJson = str_replace('<', '\u003c', json_encode($pickerReps, JSON_UNESCAPED_UNICODE) ?: '[]');
 $selectedJson = str_replace('<', '\u003c', json_encode([
+    'reps' => array_map('strval', $salesRepIds),
     'customers' => array_map('strval', $customerIds),
     'categories' => array_values($categoryIds),
     'years' => array_map('strval', $reportYears),
@@ -381,13 +415,16 @@ $selectedJson = str_replace('<', '\u003c', json_encode([
 ], JSON_UNESCAPED_UNICODE) ?: '{}');
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
-$repJsPath = app_path('assets/js/report-rep-picker.js');
-$repJsUrl = app_url('assets/js/report-rep-picker.js') . (is_file($repJsPath) ? '?v=' . (string) filemtime($repJsPath) : '');
 $exportJsPath = app_path('assets/js/report-sales-export.js');
 $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsPath) ? '?v=' . (string) filemtime($exportJsPath) : '');
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
 <style>
+.ora-multi-actions { display:flex; gap:.35rem; flex-wrap:wrap; }
+.ora-multi-actions button {
+  flex:1 1 auto; border:1px solid #cbd5e1; background:#f8fafc; border-radius:6px;
+  padding:.35rem .45rem; font:700 12px Arial, Helvetica, sans-serif; color:#1e3a5f; cursor:pointer;
+}
 .ora-portrait-wrap { max-width: none; overflow-x: auto; }
 .ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
 .ora-portrait-table th.ora-vhead {
@@ -499,13 +536,11 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 #ora-rep-filter .ora-filter-grid {
   display: grid;
   grid-template-columns:
-    minmax(0, 1.45fr)
+    minmax(0, 1.35fr)
     minmax(0, 1.35fr)
     minmax(0, 1.05fr)
-    minmax(6.8rem, .78fr)
-    minmax(6.8rem, .78fr)
-    minmax(8.6rem, .9fr)
-    minmax(8.6rem, .9fr)
+    minmax(7.2rem, .85fr)
+    minmax(7.2rem, .85fr)
     4.5rem;
   gap: .35rem .5rem;
   align-items: end;
@@ -560,32 +595,41 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
     <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;">
-        المبيعات من Oracle حسب المندوب. الفئة من ربط المادة في النظام، وتظهر كعمود. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.
+        المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).
     </p>
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print ora-filter-row" id="ora-rep-filter">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
         <div class="form-row ora-filter-grid">
-            <label class="field" style="flex:1 1 16rem;">
+            <label class="field">
                 <span class="field-label">المندوب</span>
-                <div class="report-cust-pick" id="report-sales-rep-pick">
-                    <input type="hidden" name="sales_rep_id" data-rep-id value="<?= $salesRepId > 0 ? (int) $salesRepId : '' ?>">
-                    <input type="text" class="input report-cust-pick-inp" data-rep-search
-                           placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false">
-                    <div class="report-cust-pick-list" data-rep-list hidden></div>
+                <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل المندوبين">
+                    <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل المندوبين</button>
+                    <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <div class="ora-multi-actions">
+                            <button type="button" data-ora-all>تحديد الكل</button>
+                            <button type="button" data-ora-none>كل المندوبين</button>
+                        </div>
+                        <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرقم…" autocomplete="off">
+                        <div class="ora-multi-list" data-ora-multi-list></div>
+                    </div>
                 </div>
             </label>
-            <label class="field" style="flex:1 1 16rem;">
+            <label class="field">
                 <span class="field-label">العميل</span>
                 <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
                     <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
                     <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <div class="ora-multi-actions">
+                            <button type="button" data-ora-all>تحديد الكل</button>
+                            <button type="button" data-ora-none>كل العملاء</button>
+                        </div>
                         <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
                         <div class="ora-multi-list" data-ora-multi-list></div>
                     </div>
                 </div>
             </label>
-            <label class="field" style="flex:1 1 14rem;">
+            <label class="field">
                 <span class="field-label">الفئة</span>
                 <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
                     <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
@@ -595,35 +639,33 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     </div>
                 </div>
             </label>
-            <label class="field" style="flex:0 0 8rem;">
+            <label class="field">
                 <span class="field-label">السنة</span>
                 <div class="ora-multi" id="ora-year-multi" data-ora-name="report_year" data-ora-empty="كل السنوات">
                     <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل السنوات</button>
                     <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <div class="ora-multi-actions">
+                            <button type="button" data-ora-all>تحديد الكل</button>
+                            <button type="button" data-ora-none>كل السنوات</button>
+                        </div>
                         <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث عن سنة…" autocomplete="off">
                         <div class="ora-multi-list" data-ora-multi-list></div>
                     </div>
                 </div>
             </label>
-            <label class="field" style="flex:0 0 9rem;">
+            <label class="field">
                 <span class="field-label">الشهر</span>
                 <div class="ora-multi" id="ora-month-multi" data-ora-name="report_month" data-ora-empty="كل الأشهر">
                     <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل الأشهر</button>
                     <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <div class="ora-multi-actions">
+                            <button type="button" data-ora-all>تحديد الكل</button>
+                            <button type="button" data-ora-none>كل الأشهر</button>
+                        </div>
                         <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث عن شهر…" autocomplete="off">
                         <div class="ora-multi-list" data-ora-multi-list></div>
                     </div>
                 </div>
-            </label>
-            <label class="field">
-                <span class="field-label">من تاريخ *</span>
-                <input class="input js-date-dmy" type="text" name="from" value="<?= esc(format_date_dmY($from)) ?>"
-                       placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" required>
-            </label>
-            <label class="field">
-                <span class="field-label">إلى تاريخ *</span>
-                <input class="input js-date-dmy" type="text" name="to" value="<?= esc(format_date_dmY($to)) ?>"
-                       placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" required>
             </label>
             <label class="field">
                 <span class="field-label">المستودع</span>
@@ -816,11 +858,13 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                         if ($barcode === '' && preg_match('/\d{8,}/', $itemName, $bm)) {
                             $barcode = $bm[0];
                         }
-                        $itemKey = trim((string) ($r['item_code'] ?? '')) . "\n" . $itemName;
+                        $saleDate = trim((string) ($r['sale_date'] ?? ''));
+                        $itemKey = trim((string) ($r['item_code'] ?? '')) . "\n" . $itemName . "\n" . $saleDate;
                         if (!isset($custMap[$acc]['cats'][$cat]['items'][$itemKey])) {
                             $custMap[$acc]['cats'][$cat]['items'][$itemKey] = [
                                 'name' => $itemName,
                                 'barcode' => $barcode,
+                                'sale_date' => $saleDate,
                                 'qty' => 0.0,
                                 'amount' => 0.0,
                             ];
@@ -901,6 +945,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                             <table class="report-sales-table ora-portrait-table ora-detail-table" data-export-table>
                                 <thead>
                                     <tr>
+                                        <th class="ora-vhead">التاريخ</th>
                                         <th class="ora-vhead">الفئة</th>
                                         <th class="ora-vhead">المادة</th>
                                         <th class="ora-vhead">الباركود</th>
@@ -919,6 +964,11 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                                 continue;
                                             }
                                             usort($items, static function (array $a, array $b): int {
+                                                $d = strcmp((string) ($a['sale_date'] ?? ''), (string) ($b['sale_date'] ?? ''));
+                                                if ($d !== 0) {
+                                                    return $d;
+                                                }
+
                                                 return strcmp((string) $a['name'], (string) $b['name']);
                                             });
                                             $catQty = 0.0;
@@ -929,8 +979,14 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                                 if ($showName === '') {
                                                     $showName = (string) $it['name'];
                                                 }
+                                                $saleIso = trim((string) ($it['sale_date'] ?? ''));
+                                                $saleShow = $saleIso;
+                                                if (preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $saleIso, $dm)) {
+                                                    $saleShow = $dm[3] . '-' . $dm[2] . '-' . $dm[1];
+                                                }
                                                 ?>
                                                 <tr>
+                                                    <td dir="ltr"><?= esc($saleShow !== '' ? $saleShow : '—') ?></td>
                                                     <td><?= esc($cat) ?></td>
                                                     <td class="ora-name"><?= esc($showName) ?></td>
                                                     <td class="ora-code" dir="ltr"><?= esc((string) ($it['barcode'] ?? '')) ?></td>
@@ -941,7 +997,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                             }
                                             $itemRows = (string) ob_get_clean();
                                             $chunks .= $itemRows;
-                                            $chunks .= '<tr class="ora-cat-sum"><td colspan="3">مجموع ' . esc($cat) . '</td><td dir="ltr">'
+                                            $chunks .= '<tr class="ora-cat-sum"><td colspan="4">مجموع ' . esc($cat) . '</td><td dir="ltr">'
                                                 . esc($fmtQty($catQty)) . '</td><td class="col-money" dir="ltr">'
                                                 . esc($fmtAmt((float) ($slot['cats'][$cat]['amt'] ?? 0))) . '</td></tr>';
                                             $custQty += $catQty;
@@ -951,10 +1007,10 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                             continue;
                                         }
                                         ?>
-                                        <tr class="ora-cust-band"><td colspan="5"><?= esc($slot['label']) ?></td></tr>
+                                        <tr class="ora-cust-band"><td colspan="6"><?= esc($slot['label']) ?></td></tr>
                                         <?= $chunks ?>
                                         <tr class="ora-cust-final">
-                                            <td colspan="3">المجموع النهائي لمبيعات العميل</td>
+                                            <td colspan="4">المجموع النهائي لمبيعات العميل</td>
                                             <td dir="ltr"><?= esc($fmtQty($custQty)) ?></td>
                                             <td class="col-money" dir="ltr"><?= esc($fmtAmt($custAmt)) ?></td>
                                         </tr>
@@ -984,7 +1040,6 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 <script type="application/json" id="report-sales-years-json"><?= $yearsJson ?></script>
 <script type="application/json" id="report-sales-months-json"><?= $monthsJson ?></script>
 <script type="application/json" id="ora-filter-selected"><?= $selectedJson ?></script>
-<script src="<?= esc($repJsUrl) ?>" defer></script>
 <script src="<?= esc($exportJsUrl) ?>"></script>
 <script>
 function initOraMulti(root, items, selected) {
@@ -1082,6 +1137,28 @@ function initOraMulti(root, items, selected) {
     syncHidden();
     if (!panel.hidden) render();
   }
+  function selectedNow() { return selectedIds(); }
+  var allBtn = panel.querySelector('[data-ora-all]');
+  var noneBtn = panel.querySelector('[data-ora-none]');
+  if (allBtn) {
+    allBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      sel = {};
+      visible.forEach(function (it) { sel[String(it.id)] = true; });
+      syncHidden();
+      render();
+    });
+  }
+  if (noneBtn) {
+    noneBtn.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      ev.stopPropagation();
+      sel = {};
+      syncHidden();
+      render();
+    });
+  }
   btn.addEventListener('click', function (ev) {
     ev.preventDefault();
     ev.stopPropagation();
@@ -1097,50 +1174,43 @@ function initOraMulti(root, items, selected) {
   });
   window.addEventListener('resize', function () { if (!panel.hidden) place(); });
   syncHidden();
-  return { setVisible: setVisible };
+  return { setVisible: setVisible, selectedIds: selectedNow };
 }
 document.addEventListener('DOMContentLoaded', function () {
-  var selected = { customers: [], categories: [], years: [], months: [] };
+  var selected = { reps: [], customers: [], categories: [], years: [], months: [] };
   try { selected = JSON.parse((document.getElementById('ora-filter-selected') || {}).textContent || '{}'); } catch (e3) {}
+  var repItems = [];
   var custItems = [];
   var catItems = [];
   var yearItems = [];
   var monthItems = [];
+  try { repItems = JSON.parse(document.getElementById('report-sales-reps-json').textContent || '[]'); } catch (eR) {}
   try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
   try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
   try { yearItems = JSON.parse(document.getElementById('report-sales-years-json').textContent || '[]'); } catch (e6) {}
   try { monthItems = JSON.parse(document.getElementById('report-sales-months-json').textContent || '[]'); } catch (e7) {}
+  var repMulti = initOraMulti(document.getElementById('ora-rep-multi'), repItems, selected.reps || []);
   var custMulti = initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
   initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
   initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
   initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
-  function filterCustomersByRep(repNo) {
+  function filterCustomersByReps() {
     if (!custMulti) return;
-    var n = Number(repNo) || 0;
-    var code = n > 0 ? String(n) : '';
-    var next = !code
+    var codes = repMulti && repMulti.selectedIds ? repMulti.selectedIds() : [];
+    var next = !codes.length
       ? custItems
       : custItems.filter(function (it) {
-          var codes = Array.isArray(it.rep_codes) ? it.rep_codes : [];
-          return codes.some(function (c) { return String(c) === code; });
+          var rc = Array.isArray(it.rep_codes) ? it.rep_codes : [];
+          return codes.some(function (c) { return rc.indexOf(String(c)) >= 0; });
         });
     custMulti.setVisible(next);
   }
-  var el = document.getElementById('report-sales-reps-json');
-  var root = document.getElementById('report-sales-rep-pick');
-  var hidden = root ? root.querySelector('[data-rep-id]') : null;
-  if (el && root && window.ReportRepPicker) {
-    var reps = [];
-    try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
-    var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
-    window.ReportRepPicker.init(root, reps, {
-      initialId: initialId,
-      onChange: function (id) { filterCustomersByRep(id); }
-    });
-    filterCustomersByRep(initialId);
-  } else {
-    filterCustomersByRep(hidden && hidden.value ? hidden.value : 0);
+  var repRoot = document.getElementById('ora-rep-multi');
+  if (repRoot) {
+    repRoot.addEventListener('change', filterCustomersByReps);
+    repRoot.addEventListener('click', function () { setTimeout(filterCustomersByReps, 0); });
   }
+  filterCustomersByReps();
 });
 document.addEventListener('click', function (ev) {
   var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');

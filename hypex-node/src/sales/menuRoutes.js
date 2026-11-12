@@ -2178,19 +2178,27 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
 /* ═══════════════ مبيعات المندوب حسب المادة والفئة Oracle ═══════════════ */
 router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sales'), async (req, res) => {
   const BASE = '/sales/reports/oracle-rep-items';
-  const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const store = Number(req.query.store || 4) || 4;
-  const oracleRepNo = Number(req.query.sales_rep_id || 0) || 0;
   const asList = (value) => {
     const raw = Array.isArray(value) ? value : value != null && String(value) !== '' ? [value] : [];
     return [...new Set(raw.map((v) => String(v).trim()).filter(Boolean))];
   };
+  const oracleRepNos = asList(req.query.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
   const customerIds = asList(req.query.customer_id).map((id) => Number(id)).filter((id) => id > 0);
   const categoryIds = asList(req.query.category_id);
   const reportYears = asList(req.query.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
   const reportMonths = asList(req.query.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
   const run = String(req.query.run || '') === '1';
   const uid = Number(req.session.user?.id || 0) || 0;
+  const yearNow = new Date().getFullYear();
+  const todayIso = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  const range = {
+    from: `${yearNow}-01-01`,
+    to: todayIso(),
+  };
 
   const parseManNo = (code) => {
     const c = String(code || '').trim();
@@ -2285,14 +2293,16 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   };
   let scopeCustomerIds = customerIds.slice();
   let filterOracleRep = true;
-  if (oracleRepNo > 0) {
-    // مندوب هايبكس الحالي: كل مبيعات عملائه الحاليين (حتى ما بيع تحت مندوب قديم في Oracle)
+  const selectedRepCodes = new Set(oracleRepNos.map(String));
+  // خريطة حساب Oracle → رقم مندوب هايبكس الحالي
+  const accToRep = new Map();
+  if (oracleRepNos.length) {
+    // مندوبو هايبكس الحاليون: كل مبيعات عملائهم (حتى ما بيع تحت مندوب قديم في Oracle)
     filterOracleRep = false;
-    const repCode = String(oracleRepNo);
     const linkedIds = (customers || [])
       .filter((c) => {
         const codes = custRepCodes.get(String(Number(c.id) || 0)) || new Set();
-        return codes.has(repCode);
+        return [...selectedRepCodes].some((code) => codes.has(code));
       })
       .map((c) => Number(c.id) || 0)
       .filter((id) => id > 0);
@@ -2310,13 +2320,24 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     if (!acc || seenAcc.has(acc)) return;
     seenAcc.add(acc);
     custAccs.push(acc);
+    const cid = String(Number(picked.id) || 0);
+    const codes = [...(custRepCodes.get(cid) || [])];
+    const primary = String(picked.primary_rep_code || '').trim();
+    let prefer = '';
+    if (selectedRepCodes.size) {
+      if (primary && selectedRepCodes.has(primary)) prefer = primary;
+      else prefer = codes.find((c) => selectedRepCodes.has(c)) || '';
+    } else {
+      prefer = primary || codes[0] || '';
+    }
+    if (prefer) accToRep.set(acc, Number(prefer) || 0);
   };
   if (scopeCustomerIds.length) {
     scopeCustomerIds.forEach((id) => {
       const picked = (customers || []).find((c) => Number(c.id) === id);
       if (picked) pushAcc(picked);
     });
-  } else if (!oracleRepNo) {
+  } else if (!oracleRepNos.length) {
     customerIds.forEach((id) => {
       const picked = (customers || []).find((c) => Number(c.id) === id);
       if (picked) pushAcc(picked);
@@ -2376,16 +2397,19 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   let repName = '';
 
   if (run) {
-    if (oracleRepNo > 0) {
+    if (oracleRepNos.length === 1) {
+      const one = oracleRepNos[0];
       repName =
-        hypexNameByMan.get(oracleRepNo) ||
-        reps.find((r) => Number(r.id) === oracleRepNo)?.name_ar ||
-        `مندوب ${oracleRepNo}`;
+        hypexNameByMan.get(one) ||
+        reps.find((r) => Number(r.id) === one)?.name_ar ||
+        `مندوب ${one}`;
+    } else if (oracleRepNos.length > 1) {
+      repName = `${oracleRepNos.length} مندوبين`;
     }
-    if (oracleRepNo > 0 && !scopeCustomerIds.length) {
-      err = 'لا يوجد عملاء مربوطون بهذا المندوب في النظام.';
-    } else if (oracleRepNo > 0 && !custAccs.length) {
-      err = 'عملاء هذا المندوب غير مربوطين بحساب في Oracle.';
+    if (oracleRepNos.length && !scopeCustomerIds.length) {
+      err = 'لا يوجد عملاء مربوطون بالمندوبين المحددين في النظام.';
+    } else if (oracleRepNos.length && !custAccs.length) {
+      err = 'عملاء المندوبين المحددين غير مربوطين بحساب في Oracle.';
     } else if (customerIds.length && !custAccs.length) {
       err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
     } else {
@@ -2393,7 +2417,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       from: range.from,
       to: range.to,
       store,
-      rep_no: oracleRepNo > 0 ? oracleRepNo : null,
+      rep_no: oracleRepNos.length === 1 ? oracleRepNos[0] : null,
       cust_accs: custAccs,
       cat_names: catNames,
       year_months: period.yearMonths,
@@ -2403,13 +2427,18 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
     } else {
       rows = (Array.isArray(data.rows) ? data.rows : []).map((r) => {
-        const no = Number(r.rep_no) || 0;
+        const accKey = String(r.customer_acc || '').replace(/\D+/g, '').replace(/^0+/, '');
+        let no = Number(r.rep_no) || 0;
+        if (filterOracleRep === false) {
+          const mapped = accToRep.get(accKey) || accToRep.get(String(r.customer_acc || '').trim()) || 0;
+          if (mapped > 0) no = mapped;
+        }
         const hx = no > 0 ? hypexNameByMan.get(no) : '';
         const current = String(r.rep_name || '').trim();
         const fromList = no > 0 ? String(reps.find((x) => Number(x.id) === no)?.name_ar || '').trim() : '';
         const named = current && !/^مندوب\s+\d+$/.test(current) ? current : '';
         const rep_name = hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
-        return { ...r, rep_name };
+        return { ...r, rep_no: no, rep_name };
       });
       totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
       if (!rows.length && data.message) err = String(data.message);
@@ -2562,15 +2591,16 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         bag.amt += amount;
         const name = String(r.item_name || r.item_code || '').trim();
         const code = String(r.item_code || '');
+        const saleDate = String(r.sale_date || '').trim();
         const fromName = (name.match(/\d{8,}/) || [])[0] || '';
         const barcode = String(r.item_barcode || '').trim() || fromName;
-        const found = bag.items.find((it) => it.code === code && it.name === name);
+        const found = bag.items.find((it) => it.code === code && it.name === name && it.saleDate === saleDate);
         if (found) {
           found.amount += amount;
           found.qty += qty;
           if (!found.barcode && barcode) found.barcode = barcode;
         } else {
-          bag.items.push({ name, code, barcode, qty, amount });
+          bag.items.push({ name, code, barcode, saleDate, qty, amount });
         }
       });
       catOrder.sort((a, b) => {
@@ -2583,6 +2613,11 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       let detailBody = '';
       let repAmt = 0;
       const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
+      const fmtSaleDate = (iso) => {
+        const s = String(iso || '');
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+      };
       custMap.forEach((slot) => {
         let rowAmt = 0;
         const sumCells = catOrder.map((cat, idx) => {
@@ -2602,11 +2637,16 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           let catQty = 0;
           bag.items
             .slice()
-            .sort((a, b) => cleanName(a.name).localeCompare(cleanName(b.name), 'ar'))
+            .sort((a, b) => {
+              const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
+              if (d) return d;
+              return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
+            })
             .forEach((it) => {
               catQty += it.qty;
               const label = cleanName(it.name) || it.name;
               lines += `<tr>
+                <td class="si-num" dir="ltr">${esc(fmtSaleDate(it.saleDate) || '—')}</td>
                 <td>${esc(cat)}</td>
                 <td class="ora-name">${esc(label)}</td>
                 <td class="ora-code" dir="ltr">${esc(it.barcode || '')}</td>
@@ -2614,13 +2654,13 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
                 <td class="si-num" dir="ltr">${esc(fmtAmt(it.amount))}</td>
               </tr>`;
             });
-          lines += `<tr class="ora-cat-sum"><td colspan="3">مجموع ${esc(cat)}</td><td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
+          lines += `<tr class="ora-cat-sum"><td colspan="4">مجموع ${esc(cat)}</td><td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
           custQty += catQty;
           custAmt += bag.amt;
         });
         if (!lines) return;
-        detailBody += `<tr class="ora-cust-band"><td colspan="5">${esc(slot.label)}</td></tr>${lines}`;
-        detailBody += `<tr class="ora-cust-final"><td colspan="3">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
+        detailBody += `<tr class="ora-cust-band"><td colspan="6">${esc(slot.label)}</td></tr>${lines}`;
+        detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
       });
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
@@ -2648,6 +2688,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         <div class="si-table-wrap ora-portrait-wrap">
           <table class="si-table ora-portrait-table ora-detail-table">
             <thead><tr>
+              <th class="ora-vhead">التاريخ</th>
               <th class="ora-vhead">الفئة</th>
               <th class="ora-vhead">المادة</th>
               <th class="ora-vhead">الباركود</th>
@@ -2699,7 +2740,6 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     )
   ).replace(/</g, '\\u003c');
   const monthLabels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
-  const yearNow = new Date().getFullYear();
   const yearsJson = JSON.stringify(
     Array.from({ length: 9 }, (_, i) => {
       const y = String(yearNow - i);
@@ -2710,11 +2750,19 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     monthLabels.map((label, i) => ({ id: String(i + 1), label, code: '' }))
   ).replace(/</g, '\\u003c');
   const selectedJson = JSON.stringify({
+    reps: oracleRepNos.map(String),
     customers: customerIds.map(String),
     categories: categoryIds,
     years: reportYears.map(String),
     months: reportMonths.map(String),
   }).replace(/</g, '\\u003c');
+  const repsPickerJson = JSON.stringify(
+    (reps || []).map((r) => ({
+      id: String(Number(r.id) || 0),
+      label: String(r.name_ar || ''),
+      code: String(r.code || ''),
+    }))
+  ).replace(/</g, '\\u003c');
   const body = `
     <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_item_sales">
       ${ui.hero({
@@ -2728,23 +2776,31 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين في هايبكس (بما فيها ما بيع سابقاً تحت مندوب آخر). الفئة من ربط المادة في النظام. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
+      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر). الفئة من ربط المادة في النظام.</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="get" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
           <input type="hidden" name="run" value="1" />
           <label>المندوب
-            <div class="report-cust-pick" id="report-sales-rep-pick">
-              <input type="hidden" name="sales_rep_id" data-rep-id value="${oracleRepNo > 0 ? oracleRepNo : ''}">
-              <input type="text" class="si-field report-cust-pick-inp" data-rep-search
-                     placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
-                     aria-label="بحث عن مندوب">
-              <div class="report-cust-pick-list" data-rep-list hidden></div>
+            <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل المندوبين">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل المندوبين</button>
+              <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <div class="ora-multi-actions">
+                  <button type="button" data-ora-all>تحديد الكل</button>
+                  <button type="button" data-ora-none>كل المندوبين</button>
+                </div>
+                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرقم…" autocomplete="off">
+                <div class="ora-multi-list" data-ora-multi-list></div>
+              </div>
             </div>
           </label>
           <label>العميل
             <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <div class="ora-multi-actions">
+                  <button type="button" data-ora-all>تحديد الكل</button>
+                  <button type="button" data-ora-none>كل العملاء</button>
+                </div>
                 <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
@@ -2763,6 +2819,10 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             <div class="ora-multi" id="ora-year-multi" data-ora-name="report_year" data-ora-empty="كل السنوات">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل السنوات</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <div class="ora-multi-actions">
+                  <button type="button" data-ora-all>تحديد الكل</button>
+                  <button type="button" data-ora-none>كل السنوات</button>
+                </div>
                 <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن سنة…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
@@ -2772,18 +2832,14 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
             <div class="ora-multi" id="ora-month-multi" data-ora-name="report_month" data-ora-empty="كل الأشهر">
               <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الأشهر</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <div class="ora-multi-actions">
+                  <button type="button" data-ora-all>تحديد الكل</button>
+                  <button type="button" data-ora-none>كل الأشهر</button>
+                </div>
                 <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن شهر…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
             </div>
-          </label>
-          <label>من تاريخ
-            <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(range.from))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
-          </label>
-          <label>إلى تاريخ
-            <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(range.to))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
           </label>
           <label>المستودع
             <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr">
@@ -2800,13 +2856,11 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         #ora-rep-filter.ora-filter-row {
           display: grid !important;
           grid-template-columns:
-            minmax(0, 1.45fr)
+            minmax(0, 1.35fr)
             minmax(0, 1.35fr)
             minmax(0, 1.05fr)
-            minmax(6.8rem, .78fr)
-            minmax(6.8rem, .78fr)
-            minmax(8.6rem, .9fr)
-            minmax(8.6rem, .9fr)
+            minmax(7.2rem, .85fr)
+            minmax(7.2rem, .85fr)
             4.5rem;
           gap: .35rem .5rem;
           align-items: end;
@@ -2819,6 +2873,23 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           background: transparent !important;
           box-shadow: none !important;
           overflow: visible;
+        }
+        .ora-multi-actions {
+          display: flex;
+          gap: .35rem;
+          flex-wrap: wrap;
+        }
+        .ora-multi-actions button {
+          flex: 1 1 auto;
+          border: 1px solid #cbd5e1;
+          background: #f8fafc;
+          border-radius: 6px;
+          padding: .35rem .45rem;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 12px;
+          font-weight: 700;
+          color: #1e3a5f;
+          cursor: pointer;
         }
         #ora-rep-filter.ora-filter-row > label {
           display: flex;
@@ -2997,7 +3068,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         }
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
-      <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
+      <script type="application/json" id="report-sales-reps-json">${repsPickerJson}</script>
       <script type="application/json" id="report-sales-customers-json">${customersJson}</script>
       <script type="application/json" id="report-sales-categories-json">${categoriesJson}</script>
       <script type="application/json" id="report-sales-years-json">${yearsJson}</script>
@@ -3100,6 +3171,28 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           syncHidden();
           if (!panel.hidden) render();
         }
+        function selectedNow() { return selectedIds(); }
+        var allBtn = panel.querySelector('[data-ora-all]');
+        var noneBtn = panel.querySelector('[data-ora-none]');
+        if (allBtn) {
+          allBtn.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            sel = {};
+            visible.forEach(function (it) { sel[String(it.id)] = true; });
+            syncHidden();
+            render();
+          });
+        }
+        if (noneBtn) {
+          noneBtn.addEventListener('click', function (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            sel = {};
+            syncHidden();
+            render();
+          });
+        }
         btn.addEventListener('click', function (ev) {
           ev.preventDefault();
           ev.stopPropagation();
@@ -3115,51 +3208,44 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         });
         window.addEventListener('resize', function () { if (!panel.hidden) place(); });
         syncHidden();
-        return { setVisible: setVisible, allItems: function () { return allItems; } };
+        return { setVisible: setVisible, selectedIds: selectedNow, allItems: function () { return allItems; } };
       }
       document.addEventListener('DOMContentLoaded', function () {
-        var selected = { customers: [], categories: [], years: [], months: [] };
+        var selected = { reps: [], customers: [], categories: [], years: [], months: [] };
         var selEl = document.getElementById('ora-filter-selected');
         try { selected = JSON.parse(selEl && selEl.textContent || '{}'); } catch (e3) {}
+        var repItems = [];
         var custItems = [];
         var catItems = [];
         var yearItems = [];
         var monthItems = [];
+        try { repItems = JSON.parse(document.getElementById('report-sales-reps-json').textContent || '[]'); } catch (eR) {}
         try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
         try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
         try { yearItems = JSON.parse(document.getElementById('report-sales-years-json').textContent || '[]'); } catch (e6) {}
         try { monthItems = JSON.parse(document.getElementById('report-sales-months-json').textContent || '[]'); } catch (e7) {}
+        var repMulti = initOraMulti(document.getElementById('ora-rep-multi'), repItems, selected.reps || []);
         var custMulti = initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
         initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
         initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
         initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
-        function filterCustomersByRep(repNo) {
+        function filterCustomersByReps() {
           if (!custMulti) return;
-          var n = Number(repNo) || 0;
-          var code = n > 0 ? String(n) : '';
-          var next = !code
+          var codes = repMulti && repMulti.selectedIds ? repMulti.selectedIds() : [];
+          var next = !codes.length
             ? custItems
             : custItems.filter(function (it) {
-                var codes = Array.isArray(it.rep_codes) ? it.rep_codes : [];
-                return codes.some(function (c) { return String(c) === code; });
+                var rc = Array.isArray(it.rep_codes) ? it.rep_codes : [];
+                return codes.some(function (c) { return rc.indexOf(String(c)) >= 0; });
               });
           custMulti.setVisible(next);
         }
-        var el = document.getElementById('report-sales-reps-json');
-        var root = document.getElementById('report-sales-rep-pick');
-        var hidden = root ? root.querySelector('[data-rep-id]') : null;
-        if (el && root && window.ReportRepPicker) {
-          var reps = [];
-          try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
-          var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
-          window.ReportRepPicker.init(root, reps, {
-            initialId: initialId,
-            onChange: function (id) { filterCustomersByRep(id); },
-          });
-          filterCustomersByRep(initialId);
-        } else {
-          filterCustomersByRep(hidden && hidden.value ? hidden.value : 0);
+        var repRoot = document.getElementById('ora-rep-multi');
+        if (repRoot) {
+          repRoot.addEventListener('change', filterCustomersByReps);
+          repRoot.addEventListener('click', function () { setTimeout(filterCustomersByReps, 0); });
         }
+        filterCustomersByReps();
       });
       document.addEventListener('click', function (ev) {
         var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');
@@ -3212,7 +3298,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       title: 'مبيعات المندوب حسب المادة والفئة Oracle',
       bodyHtml: body,
       css: ['/assets/css/report-sales.css'],
-      js: ['/assets/js/report-rep-picker.js', '/assets/js/sales-print.js'],
+      js: ['/assets/js/sales-print.js'],
     })
   );
 });

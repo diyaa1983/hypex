@@ -127,16 +127,14 @@ function oracle_fetch_rep_item_sales(
       END";
 
     $byCurrentLink = !$filterOracleRep && $custAccs !== [];
-    if ($byCurrentLink && $repNo !== null && $repNo > 0) {
-        $repSelect = ((int) $repNo) . ' AS REP_NO';
-    } else {
-        $repSelect = 'd.MAN_NUM AS REP_NO';
-    }
+    // عند الربط الحالي من هايبكس تُعاد نسبة المندوب بعد الجلب حسب بطاقة العميل.
+    $repSelect = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
     $sql = "
 SELECT {$repSelect},
        TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
        TRIM(TO_CHAR(d.CAT)) AS CAT_CODE,
+       TO_CHAR(TRUNC(d.VDATE), 'YYYY-MM-DD') AS SALE_DATE,
        SUM(NVL(d.QTY, 0)) AS QTY,
        SUM(NVL(d.BONUS, 0)) AS BONUS,
        ROUND(SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})), 3) AS AMOUNT
@@ -197,15 +195,15 @@ WHERE d.COMP_NUM = :comp_num
         }
         $sql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
     }
-    if ($byCurrentLink && $repNo !== null && $repNo > 0) {
+    if ($byCurrentLink) {
         $sql .= "
-GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
-ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
+GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), TRUNC(d.VDATE)
+ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
     } else {
         $sql .= "
-GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
-ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
+GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), TRUNC(d.VDATE)
+ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
     }
 
@@ -285,6 +283,10 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         if ($repName === '') {
             $repName = 'مندوب ' . $rep;
         }
+        $saleDate = trim((string) oracle_statement_row_val($r, 'SALE_DATE'));
+        if ($saleDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $saleDate)) {
+            $saleDate = '';
+        }
         $rows[] = [
             'rep_no' => $rep,
             'rep_name' => $repName,
@@ -296,6 +298,7 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
             'item_sku' => is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '',
             'item_barcode' => is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '',
             'item_name' => $itemName !== '' ? $itemName : $item,
+            'sale_date' => $saleDate,
             'qty' => $qty,
             'bonus' => $bonus,
             'amount' => round($amount, 3),
@@ -308,7 +311,7 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
 
     $merged = [];
     foreach ($rows as $row) {
-        $key = (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n" . (string) $row['item_code'] . "\n" . (string) $row['cat_name'];
+        $key = (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n" . (string) $row['item_code'] . "\n" . (string) $row['cat_name'] . "\n" . (string) ($row['sale_date'] ?? '');
         if (!isset($merged[$key])) {
             $merged[$key] = $row;
             continue;
@@ -329,6 +332,10 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
             return $c;
         }
         $c = strcmp((string) $a['customer_acc'], (string) $b['customer_acc']);
+        if ($c !== 0) {
+            return $c;
+        }
+        $c = strcmp((string) ($a['sale_date'] ?? ''), (string) ($b['sale_date'] ?? ''));
         if ($c !== 0) {
             return $c;
         }
