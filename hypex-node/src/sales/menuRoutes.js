@@ -2719,31 +2719,66 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         </form>
       </div>
       <style>
-        .ora-filter-row {
-          display: flex !important;
-          flex-wrap: nowrap !important;
-          align-items: flex-end;
-          gap: .55rem;
-          width: 100%;
-          margin: 0;
-          overflow-x: auto;
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-rail {
+          display: block;
+          border-radius: 12px;
+          padding: .7rem .8rem .75rem;
+          background: #f8fafc;
         }
-        .ora-filter-row > label {
+        #ora-rep-filter.ora-filter-row {
+          display: grid !important;
+          grid-template-columns:
+            minmax(0, 1.45fr)
+            minmax(0, 1.35fr)
+            minmax(0, 1.05fr)
+            minmax(6.8rem, .78fr)
+            minmax(6.8rem, .78fr)
+            minmax(8.6rem, .9fr)
+            minmax(8.6rem, .9fr)
+            4.5rem;
+          gap: .35rem .5rem;
+          align-items: end;
+          width: 100% !important;
+          max-width: none !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          border: 0 !important;
+          border-radius: 0 !important;
+          background: transparent !important;
+          box-shadow: none !important;
+          overflow: visible;
+        }
+        #ora-rep-filter.ora-filter-row > label {
           display: flex;
           flex-direction: column;
-          gap: .25rem;
-          flex: 1 1 0;
-          min-width: 8.5rem;
+          gap: .22rem;
+          min-width: 0;
           font-family: Arial, Helvetica, sans-serif;
           font-size: 13px;
           font-weight: 700;
           color: #334155;
+          white-space: nowrap;
         }
-        .ora-filter-row > label:nth-child(5),
-        .ora-filter-row > label:nth-child(6) { flex: 0 0 7.4rem; min-width: 7.4rem; }
-        .ora-filter-row > label:nth-child(7),
-        .ora-filter-row > label:nth-child(8) { flex: 0 0 8.2rem; min-width: 8.2rem; }
-        .ora-filter-row > label:nth-child(9) { flex: 0 0 5.2rem; min-width: 5.2rem; }
+        #ora-rep-filter .si-field,
+        #ora-rep-filter .ora-multi-btn,
+        #ora-rep-filter .report-cust-pick-inp,
+        #ora-rep-filter .date-dmy-field {
+          width: 100% !important;
+          min-width: 0 !important;
+          max-width: none !important;
+          height: 2.35rem;
+          min-height: 2.35rem;
+          box-sizing: border-box;
+        }
+        #ora-rep-filter .ora-multi-btn,
+        #ora-rep-filter .report-cust-pick-inp,
+        #ora-rep-filter .si-field {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          border: 1px solid #cbd5e1 !important;
+          background: #fff !important;
+        }
         .ora-portrait-wrap { max-width: none; overflow-x: auto; }
         .ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
         .ora-portrait-table th.ora-vhead {

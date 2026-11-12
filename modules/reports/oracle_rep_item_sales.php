@@ -420,6 +420,32 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 .ora-multi-code { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #64748b; direction: ltr; }
 .report-cust-pick-list.is-floating .report-cust-pick-empty { cursor: default; color: #64748b; font-weight: 600; }
 .ora-view[hidden] { display: none !important; }
+#ora-rep-filter.ora-filter-row { max-width: none; margin-bottom: .75rem; }
+#ora-rep-filter .ora-filter-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.45fr)
+    minmax(0, 1.35fr)
+    minmax(0, 1.05fr)
+    minmax(6.8rem, .78fr)
+    minmax(6.8rem, .78fr)
+    minmax(8.6rem, .9fr)
+    minmax(8.6rem, .9fr)
+    4.5rem;
+  gap: .35rem .5rem;
+  align-items: end;
+  width: 100%;
+}
+#ora-rep-filter .ora-filter-grid > label { min-width: 0 !important; flex: none !important; }
+#ora-rep-filter .ora-filter-grid .input,
+#ora-rep-filter .ora-filter-grid .ora-multi-btn,
+#ora-rep-filter .date-dmy-field {
+  width: 100% !important;
+  min-width: 0 !important;
+  height: 2.35rem;
+  box-sizing: border-box;
+}
+#ora-rep-filter .ora-multi-btn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
 .ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
 .ora-cat-sum td { background: #e8eef8; font-weight: 800; }
@@ -461,10 +487,10 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
     <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;">
         المبيعات من Oracle حسب المندوب. الفئة من ربط المادة في النظام، وتظهر كعمود. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.
     </p>
-    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
+    <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print ora-filter-row" id="ora-rep-filter">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
         <input type="hidden" name="run" value="1">
-        <div class="form-row" style="display:flex;flex-wrap:nowrap;align-items:flex-end;gap:.55rem;overflow-x:auto;">
+        <div class="form-row ora-filter-grid">
             <label class="field" style="flex:1 1 16rem;">
                 <span class="field-label">المندوب</span>
                 <div class="report-cust-pick" id="report-sales-rep-pick">
