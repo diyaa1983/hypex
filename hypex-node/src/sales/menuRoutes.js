@@ -2187,6 +2187,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   };
   const customerIds = asList(req.query.customer_id).map((id) => Number(id)).filter((id) => id > 0);
   const categoryIds = asList(req.query.category_id);
+  const reportYears = asList(req.query.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
+  const reportMonths = asList(req.query.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
   const run = String(req.query.run || '') === '1';
   const uid = Number(req.session.user?.id || 0) || 0;
 
@@ -2268,6 +2270,37 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     if (name) catNames.push(name);
   });
 
+  const period = (() => {
+    let years = [...new Set(reportYears)].sort((a, b) => a - b);
+    let months = [...new Set(reportMonths)].sort((a, b) => a - b);
+    if (!years.length && !months.length) {
+      return { from: range.from, to: range.to, yearMonths: [] };
+    }
+    if (!years.length) {
+      const y1 = Number(String(range.from).slice(0, 4)) || new Date().getFullYear();
+      const y2 = Number(String(range.to).slice(0, 4)) || y1;
+      for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y += 1) years.push(y);
+    }
+    if (!months.length) months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const yearMonths = [];
+    let from = range.from;
+    let to = range.to;
+    years.forEach((y) => {
+      months.forEach((m) => {
+        const ym = `${y}-${String(m).padStart(2, '0')}`;
+        yearMonths.push(ym);
+        const start = `${ym}-01`;
+        const endDate = new Date(y, m, 0);
+        const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
+        if (start < from) from = start;
+        if (end > to) to = end;
+      });
+    });
+    return { from, to, yearMonths };
+  })();
+  range.from = period.from;
+  range.to = period.to;
+
   const fmtQty = (n) => {
     const x = Number(n);
     if (!Number.isFinite(x)) return '0';
@@ -2296,6 +2329,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       rep_no: oracleRepNo > 0 ? oracleRepNo : null,
       cust_accs: custAccs,
       cat_names: catNames,
+      year_months: period.yearMonths,
     });
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
@@ -2592,9 +2626,22 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       }))
     )
   ).replace(/</g, '\\u003c');
+  const monthLabels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
+  const yearNow = new Date().getFullYear();
+  const yearsJson = JSON.stringify(
+    Array.from({ length: 9 }, (_, i) => {
+      const y = String(yearNow - i);
+      return { id: y, label: y, code: '' };
+    })
+  ).replace(/</g, '\\u003c');
+  const monthsJson = JSON.stringify(
+    monthLabels.map((label, i) => ({ id: String(i + 1), label, code: '' }))
+  ).replace(/</g, '\\u003c');
   const selectedJson = JSON.stringify({
     customers: customerIds.map(String),
     categories: categoryIds,
+    years: reportYears.map(String),
+    months: reportMonths.map(String),
   }).replace(/</g, '\\u003c');
   const body = `
     <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_item_sales">
@@ -2640,6 +2687,24 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
               </div>
             </div>
           </label>
+          <label>السنة
+            <div class="ora-multi" id="ora-year-multi" data-ora-name="report_year" data-ora-empty="كل السنوات">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل السنوات</button>
+              <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن سنة…" autocomplete="off">
+                <div class="ora-multi-list" data-ora-multi-list></div>
+              </div>
+            </div>
+          </label>
+          <label>الشهر
+            <div class="ora-multi" id="ora-month-multi" data-ora-name="report_month" data-ora-empty="كل الأشهر">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الأشهر</button>
+              <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن شهر…" autocomplete="off">
+                <div class="ora-multi-list" data-ora-multi-list></div>
+              </div>
+            </div>
+          </label>
           <label>من تاريخ
             <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(range.from))}"
                    placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
@@ -2675,8 +2740,10 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           color: #334155;
         }
         .ora-filter-row > label:nth-child(5),
-        .ora-filter-row > label:nth-child(6) { flex: 0 0 8.2rem; min-width: 8.2rem; }
-        .ora-filter-row > label:nth-child(7) { flex: 0 0 5.2rem; min-width: 5.2rem; }
+        .ora-filter-row > label:nth-child(6) { flex: 0 0 7.4rem; min-width: 7.4rem; }
+        .ora-filter-row > label:nth-child(7),
+        .ora-filter-row > label:nth-child(8) { flex: 0 0 8.2rem; min-width: 8.2rem; }
+        .ora-filter-row > label:nth-child(9) { flex: 0 0 5.2rem; min-width: 5.2rem; }
         .ora-portrait-wrap { max-width: none; overflow-x: auto; }
         .ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
         .ora-portrait-table th.ora-vhead {
@@ -2826,6 +2893,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
       <script type="application/json" id="report-sales-customers-json">${customersJson}</script>
       <script type="application/json" id="report-sales-categories-json">${categoriesJson}</script>
+      <script type="application/json" id="report-sales-years-json">${yearsJson}</script>
+      <script type="application/json" id="report-sales-months-json">${monthsJson}</script>
       <script type="application/json" id="ora-filter-selected">${selectedJson}</script>
       <script>
       function initOraMulti(root, items, selected) {
@@ -2937,15 +3006,21 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
           window.ReportRepPicker.init(root, reps, { initialId: initialId });
         }
-        var selected = { customers: [], categories: [] };
+        var selected = { customers: [], categories: [], years: [], months: [] };
         var selEl = document.getElementById('ora-filter-selected');
         try { selected = JSON.parse(selEl && selEl.textContent || '{}'); } catch (e3) {}
         var custItems = [];
         var catItems = [];
+        var yearItems = [];
+        var monthItems = [];
         try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
         try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
+        try { yearItems = JSON.parse(document.getElementById('report-sales-years-json').textContent || '[]'); } catch (e6) {}
+        try { monthItems = JSON.parse(document.getElementById('report-sales-months-json').textContent || '[]'); } catch (e7) {}
         initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
         initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
+        initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
+        initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
       });
       document.addEventListener('click', function (ev) {
         var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');

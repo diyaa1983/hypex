@@ -96,6 +96,30 @@ foreach ($rawCategoryIds as $cid) {
     }
 }
 $categoryIds = array_values($categoryIds);
+$rawYears = $_GET['report_year'] ?? [];
+if (!is_array($rawYears)) {
+    $rawYears = $rawYears !== '' && $rawYears !== null ? [$rawYears] : [];
+}
+$reportYears = [];
+foreach ($rawYears as $y) {
+    $y = (int) $y;
+    if ($y >= 2000 && $y <= 2100) {
+        $reportYears[$y] = $y;
+    }
+}
+$reportYears = array_values($reportYears);
+$rawMonths = $_GET['report_month'] ?? [];
+if (!is_array($rawMonths)) {
+    $rawMonths = $rawMonths !== '' && $rawMonths !== null ? [$rawMonths] : [];
+}
+$reportMonths = [];
+foreach ($rawMonths as $m) {
+    $m = (int) $m;
+    if ($m >= 1 && $m <= 12) {
+        $reportMonths[$m] = $m;
+    }
+}
+$reportMonths = array_values($reportMonths);
 $customers = $pdo->query(
     'SELECT id, name_ar, code, oracle_key FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -192,6 +216,9 @@ if ($submitted) {
             }
         }
         $catNames = array_values($catNames);
+        $period = oracle_rep_item_sales_periods($from, $to, $reportYears, $reportMonths);
+        $from = $period['from'];
+        $to = $period['to'];
         if ($customerIds !== [] && $custAccs === []) {
             $err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
         } else {
@@ -201,7 +228,8 @@ if ($submitted) {
             $store,
             $salesRepId > 0 ? $salesRepId : null,
             $custAccs,
-            $catNames
+            $catNames,
+            $period['year_months']
         );
         if (empty($result['ok'])) {
             $err = (string) ($result['message'] ?? 'تعذر الاستعلام من Oracle.');
@@ -254,9 +282,27 @@ foreach ($categories as $cat) {
 }
 $customersJson = str_replace('<', '\u003c', json_encode($pickerCustomers, JSON_UNESCAPED_UNICODE) ?: '[]');
 $categoriesJson = str_replace('<', '\u003c', json_encode($pickerCategories, JSON_UNESCAPED_UNICODE) ?: '[]');
+$monthLabels = [
+    1 => 'يناير', 2 => 'فبراير', 3 => 'مارس', 4 => 'أبريل',
+    5 => 'مايو', 6 => 'يونيو', 7 => 'يوليو', 8 => 'أغسطس',
+    9 => 'سبتمبر', 10 => 'أكتوبر', 11 => 'نوفمبر', 12 => 'ديسمبر',
+];
+$pickerYears = [];
+$yearNow = (int) date('Y');
+for ($y = $yearNow; $y >= $yearNow - 8; $y--) {
+    $pickerYears[] = ['id' => (string) $y, 'label' => (string) $y, 'code' => ''];
+}
+$pickerMonths = [];
+foreach ($monthLabels as $num => $label) {
+    $pickerMonths[] = ['id' => (string) $num, 'label' => $label, 'code' => ''];
+}
+$yearsJson = str_replace('<', '\u003c', json_encode($pickerYears, JSON_UNESCAPED_UNICODE) ?: '[]');
+$monthsJson = str_replace('<', '\u003c', json_encode($pickerMonths, JSON_UNESCAPED_UNICODE) ?: '[]');
 $selectedJson = str_replace('<', '\u003c', json_encode([
     'customers' => array_map('strval', $customerIds),
     'categories' => array_values($categoryIds),
+    'years' => array_map('strval', $reportYears),
+    'months' => array_map('strval', $reportMonths),
 ], JSON_UNESCAPED_UNICODE) ?: '{}');
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
@@ -444,6 +490,26 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
                     <div class="ora-multi-panel" data-ora-multi-panel hidden>
                         <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
+                        <div class="ora-multi-list" data-ora-multi-list></div>
+                    </div>
+                </div>
+            </label>
+            <label class="field" style="flex:0 0 8rem;">
+                <span class="field-label">السنة</span>
+                <div class="ora-multi" id="ora-year-multi" data-ora-name="report_year" data-ora-empty="كل السنوات">
+                    <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل السنوات</button>
+                    <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث عن سنة…" autocomplete="off">
+                        <div class="ora-multi-list" data-ora-multi-list></div>
+                    </div>
+                </div>
+            </label>
+            <label class="field" style="flex:0 0 9rem;">
+                <span class="field-label">الشهر</span>
+                <div class="ora-multi" id="ora-month-multi" data-ora-name="report_month" data-ora-empty="كل الأشهر">
+                    <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل الأشهر</button>
+                    <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <input type="text" class="input ora-multi-q" data-ora-multi-q placeholder="بحث عن شهر…" autocomplete="off">
                         <div class="ora-multi-list" data-ora-multi-list></div>
                     </div>
                 </div>
@@ -814,6 +880,8 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 <script type="application/json" id="report-sales-reps-json"><?= $repsJson ?></script>
 <script type="application/json" id="report-sales-customers-json"><?= $customersJson ?></script>
 <script type="application/json" id="report-sales-categories-json"><?= $categoriesJson ?></script>
+<script type="application/json" id="report-sales-years-json"><?= $yearsJson ?></script>
+<script type="application/json" id="report-sales-months-json"><?= $monthsJson ?></script>
 <script type="application/json" id="ora-filter-selected"><?= $selectedJson ?></script>
 <script src="<?= esc($repJsUrl) ?>" defer></script>
 <script src="<?= esc($exportJsUrl) ?>"></script>
@@ -926,14 +994,20 @@ document.addEventListener('DOMContentLoaded', function () {
     var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
     window.ReportRepPicker.init(root, reps, { initialId: initialId });
   }
-  var selected = { customers: [], categories: [] };
+  var selected = { customers: [], categories: [], years: [], months: [] };
   try { selected = JSON.parse((document.getElementById('ora-filter-selected') || {}).textContent || '{}'); } catch (e3) {}
   var custItems = [];
   var catItems = [];
+  var yearItems = [];
+  var monthItems = [];
   try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
   try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
+  try { yearItems = JSON.parse(document.getElementById('report-sales-years-json').textContent || '[]'); } catch (e6) {}
+  try { monthItems = JSON.parse(document.getElementById('report-sales-months-json').textContent || '[]'); } catch (e7) {}
   initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
   initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
+  initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
+  initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
 });
 document.addEventListener('click', function (ev) {
   var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');

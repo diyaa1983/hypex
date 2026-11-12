@@ -10,19 +10,82 @@ declare(strict_types=1);
 require_once app_path('includes/oracle_rep_net_sales.php');
 
 /**
- * @return array{
- *   ok:bool, message:string,
- *   rows:list<array<string,mixed>>,
- *   totals:array{qty:float,bonus:float,amount:float,reps:int,items:int}
- * }
+ * أشهر محددة (YYYY-MM). فارغ = كل الفترة بين التاريخين.
+ * إن حُددت سنة أو شهر تُوسَّع الفترة لتغطيها، والشهور غير المحددة تُستبعد.
+ *
+ * @param list<int|string> $years
+ * @param list<int|string> $months
+ * @return array{from:string,to:string,year_months:list<string>}
  */
+function oracle_rep_item_sales_periods(string $fromIso, string $toIso, array $years, array $months): array
+{
+    $yearNums = [];
+    foreach ($years as $y) {
+        $y = (int) $y;
+        if ($y >= 2000 && $y <= 2100) {
+            $yearNums[$y] = $y;
+        }
+    }
+    $monthNums = [];
+    foreach ($months as $m) {
+        $m = (int) $m;
+        if ($m >= 1 && $m <= 12) {
+            $monthNums[$m] = $m;
+        }
+    }
+    $yearNums = array_values($yearNums);
+    $monthNums = array_values($monthNums);
+    sort($yearNums);
+    sort($monthNums);
+    if ($yearNums === [] && $monthNums === []) {
+        return ['from' => $fromIso, 'to' => $toIso, 'year_months' => []];
+    }
+    if ($yearNums === []) {
+        $y1 = (int) substr($fromIso, 0, 4);
+        $y2 = (int) substr($toIso, 0, 4);
+        if ($y1 < 2000) {
+            $y1 = (int) date('Y');
+        }
+        if ($y2 < $y1) {
+            $y2 = $y1;
+        }
+        for ($y = $y1; $y <= $y2; $y++) {
+            $yearNums[] = $y;
+        }
+    }
+    if ($monthNums === []) {
+        $monthNums = range(1, 12);
+    }
+    $keys = [];
+    $min = $fromIso;
+    $max = $toIso;
+    foreach ($yearNums as $y) {
+        foreach ($monthNums as $m) {
+            $ym = sprintf('%04d-%02d', $y, $m);
+            $keys[] = $ym;
+            $start = $ym . '-01';
+            $endTs = strtotime($start . ' +1 month -1 day');
+            $end = $endTs ? date('Y-m-d', $endTs) : $start;
+            if ($start < $min) {
+                $min = $start;
+            }
+            if ($end > $max) {
+                $max = $end;
+            }
+        }
+    }
+
+    return ['from' => $min, 'to' => $max, 'year_months' => $keys];
+}
+
 function oracle_fetch_rep_item_sales(
     string $fromIso,
     string $toIso,
     ?int $store = null,
     ?int $repNo = null,
     array $custAccs = [],
-    array $catNames = []
+    array $catNames = [],
+    array $yearMonths = []
 ): array {
     $empty = [
         'ok' => false,
@@ -103,6 +166,24 @@ WHERE d.COMP_NUM = :comp_num
             $binds[$name] = $key;
         }
         $sql .= "  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), '0') IN (" . implode(',', $ph) . ")\n";
+    }
+    $ymKeys = [];
+    foreach ($yearMonths as $ym) {
+        $ym = trim((string) $ym);
+        if (preg_match('/^\d{4}-\d{2}$/', $ym)) {
+            $ymKeys[$ym] = $ym;
+        }
+    }
+    if ($ymKeys !== []) {
+        $ph = [];
+        $i = 0;
+        foreach ($ymKeys as $ym) {
+            $name = 'ym' . $i;
+            $ph[] = ':' . $name;
+            $binds[$name] = $ym;
+            $i++;
+        }
+        $sql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
     }
     $sql .= "
 GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))

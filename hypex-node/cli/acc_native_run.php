@@ -485,6 +485,10 @@ try {
         if (!is_array($catNames)) {
             $catNames = trim((string) $catNames) !== '' ? [$catNames] : [];
         }
+        $yearMonths = $payload['year_months'] ?? [];
+        if (!is_array($yearMonths)) {
+            $yearMonths = trim((string) $yearMonths) !== '' ? [$yearMonths] : [];
+        }
         try {
             $result = oracle_fetch_rep_item_sales(
                 $from,
@@ -492,7 +496,8 @@ try {
                 $store > 0 ? $store : null,
                 $repNo,
                 $custAccs,
-                $catNames
+                $catNames,
+                $yearMonths
             );
             cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
         } catch (Throwable $e) {
