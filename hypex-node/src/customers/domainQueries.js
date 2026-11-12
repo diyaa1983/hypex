@@ -47,7 +47,7 @@ function customerListWhere({
     where.push(`(
       c.name_ar LIKE ? OR c.code LIKE ? OR IFNULL(c.phone,'') LIKE ?
       OR IFNULL(c.email,'') LIKE ? OR IFNULL(c.tax_number,'') LIKE ?
-      OR IFNULL(rg.name_ar,'') LIKE ? OR IFNULL(COALESCE(repn.names, r.name_ar),'') LIKE ?
+      OR IFNULL(rg.name_ar,'') LIKE ? OR IFNULL(COALESCE(repn.names, CONCAT(r.name_ar, IF(IFNULL(TRIM(r.code),'') = '', '', CONCAT(' (', r.code, ')')))),'') LIKE ?
     )`);
     params.push(like, like, like, like, like, like, like);
   }
@@ -62,7 +62,10 @@ const CUSTOMER_LIST_FROM_CORE = `FROM crm_customer c
 const CUSTOMER_LIST_FROM = `${CUSTOMER_LIST_FROM_CORE}
      LEFT JOIN (
        SELECT csr.customer_id,
-              GROUP_CONCAT(r2.name_ar ORDER BY csr.sort_order, r2.name_ar SEPARATOR '، ') AS names
+              GROUP_CONCAT(
+                CONCAT(r2.name_ar, IF(IFNULL(TRIM(r2.code), '') = '', '', CONCAT(' (', r2.code, ')')))
+                ORDER BY csr.sort_order, r2.name_ar SEPARATOR '، '
+              ) AS names
        FROM crm_customer_sales_rep csr
        INNER JOIN crm_sales_rep r2 ON r2.id = csr.sales_rep_id
        GROUP BY csr.customer_id
@@ -100,7 +103,7 @@ async function listCustomers({
             c.oracle_key, c.oracle_pending, c.payment_period, c.region_id,
             rg.name_ar AS region_name,
             ra.name_ar AS region_address_name,
-            COALESCE(repn.names, r.name_ar) AS sales_rep_name
+            COALESCE(repn.names, CONCAT(r.name_ar, IF(IFNULL(TRIM(r.code), '') = '', '', CONCAT(' (', r.code, ')')))) AS sales_rep_name
      ${CUSTOMER_LIST_FROM}
      WHERE ${where.join(' AND ')}
      ORDER BY c.id DESC

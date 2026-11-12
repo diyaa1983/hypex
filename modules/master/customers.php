@@ -678,7 +678,7 @@ $search = trim((string) ($_GET['q'] ?? ''));
 $showInactive = ((string) ($_GET['all'] ?? '') === '1');
 $regionFilterId = (int) ($_GET['region_id'] ?? 0);
 
-$repNamesSub = '(SELECT GROUP_CONCAT(r2.name_ar ORDER BY csr2.sort_order, r2.name_ar SEPARATOR \'، \')
+$repNamesSub = '(SELECT GROUP_CONCAT(CONCAT(r2.name_ar, IF(IFNULL(TRIM(r2.code), \'\') = \'\', \'\', CONCAT(\' (\', r2.code, \')\'))) ORDER BY csr2.sort_order, r2.name_ar SEPARATOR \'، \')
                 FROM crm_customer_sales_rep csr2
                 INNER JOIN crm_sales_rep r2 ON r2.id = csr2.sales_rep_id
                 WHERE csr2.customer_id = c.id)';
@@ -687,7 +687,7 @@ $sql = "SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_act
                c.latitude, c.longitude, c.oracle_key, c.region_id, c.payment_period,
                rg.name_ar AS region_name,
                ra.name_ar AS region_address_name,
-               COALESCE({$repNamesSub}, r.name_ar) AS sales_rep_name
+               COALESCE({$repNamesSub}, CONCAT(r.name_ar, IF(IFNULL(TRIM(r.code), '') = '', '', CONCAT(' (', r.code, ')')))) AS sales_rep_name
         FROM crm_customer c
         LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
         LEFT JOIN crm_region rg ON rg.id = c.region_id
