@@ -2412,14 +2412,14 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         .ora-portrait-wrap { max-width: 190mm; margin-inline: auto; overflow: visible; }
         .ora-portrait-table { width: 100%; table-layout: fixed; }
         .ora-portrait-table th.ora-vhead {
-          writing-mode: vertical-rl;
+          writing-mode: horizontal-tb;
           text-orientation: mixed;
-          white-space: nowrap;
-          height: 8.4rem;
-          vertical-align: bottom;
-          text-align: right;
+          white-space: normal;
+          height: auto;
+          vertical-align: middle;
+          text-align: center;
           font-size: .78rem;
-          padding: .35rem .12rem;
+          padding: .45rem .3rem;
         }
         .ora-portrait-table .ora-col-party { width: 13%; }
         .ora-portrait-table .ora-col-name { width: 22%; }
