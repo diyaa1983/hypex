@@ -120,17 +120,43 @@ function oracle_statement_cell_str(mixed $v): string
         return $v->format('Y-m-d');
     }
 
-    $s = trim((string) $v);
-    if ($s === '' || preg_match('//u', $s) === 1) {
+    return oracle_statement_to_utf8(trim((string) $v));
+}
+
+/**
+ * قيود Oracle القديمة مخزّنة بترميز Windows-1256. حذف البايتات غير الصالحة
+ * يُبقي الأرقام والتواريخ ويميّع الحروف. التحويل من 1256 يعيد العربية متصلة.
+ */
+function oracle_statement_to_utf8(string $s): string
+{
+    if ($s === '') {
+        return '';
+    }
+    if (preg_match('//u', $s) !== 1) {
+        $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $s);
+        if (is_string($asArabic) && $asArabic !== '' && preg_match('/\p{Arabic}/u', $asArabic) === 1) {
+            return $asArabic;
+        }
+        $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $s);
+
+        return is_string($clean) ? $clean : '';
+    }
+    if (preg_match('/\p{Arabic}/u', $s) === 1) {
         return $s;
     }
-    $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $s);
-    if (is_string($clean) && $clean !== '') {
-        return $clean;
+    if (preg_match('/[\x{00C0}-\x{00FF}]/u', $s) !== 1) {
+        return $s;
     }
-    $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $s);
+    $bytes = @iconv('UTF-8', 'Windows-1252//IGNORE', $s);
+    if (!is_string($bytes) || $bytes === '') {
+        return $s;
+    }
+    $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $bytes);
+    if (is_string($asArabic) && preg_match('/\p{Arabic}/u', $asArabic) === 1) {
+        return $asArabic;
+    }
 
-    return is_string($asArabic) ? $asArabic : '';
+    return $s;
 }
 
 /**

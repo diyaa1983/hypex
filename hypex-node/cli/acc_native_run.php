@@ -32,16 +32,28 @@ require_once dirname(__DIR__, 2) . '/includes/bootstrap.php';
 function cli_utf8(mixed $value): mixed
 {
     if (is_string($value)) {
-        if ($value === '' || preg_match('//u', $value) === 1) {
+        if ($value === '') {
+            return '';
+        }
+        if (preg_match('//u', $value) !== 1) {
+            $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $value);
+            if (is_string($asArabic) && $asArabic !== '' && preg_match('/\p{Arabic}/u', $asArabic) === 1) {
+                return $asArabic;
+            }
+            $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
+
+            return is_string($clean) ? $clean : '';
+        }
+        if (preg_match('/\p{Arabic}/u', $value) === 1 || preg_match('/[\x{00C0}-\x{00FF}]/u', $value) !== 1) {
             return $value;
         }
-        $clean = @iconv('UTF-8', 'UTF-8//IGNORE', $value);
-        if (is_string($clean) && $clean !== '') {
-            return $clean;
+        $bytes = @iconv('UTF-8', 'Windows-1252//IGNORE', $value);
+        if (!is_string($bytes) || $bytes === '') {
+            return $value;
         }
-        $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $value);
+        $asArabic = @iconv('Windows-1256', 'UTF-8//IGNORE', $bytes);
 
-        return is_string($asArabic) ? $asArabic : '';
+        return (is_string($asArabic) && preg_match('/\p{Arabic}/u', $asArabic) === 1) ? $asArabic : $value;
     }
     if (is_float($value) && !is_finite($value)) {
         return 0.0;
