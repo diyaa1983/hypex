@@ -268,7 +268,7 @@ function oracle_rep_item_sales_customer_names(array $conn, array $accounts): arr
     $glDesc = strtoupper(trim((string) ($gl['acc_desc'] ?? 'ACC_DESC'))) ?: 'ACC_DESC';
     $in = [];
     foreach ($missing as $acc) {
-        $digits = preg_replace('/\D+/', '', $acc) ?? '';
+        $digits = preg_replace('/\D+/', '', (string) $acc) ?? '';
         if ($digits !== '') {
             $in[$digits] = true;
         }
