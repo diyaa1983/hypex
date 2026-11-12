@@ -2675,31 +2675,90 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         .ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
         .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
         .ora-tools { display: flex; gap: .5rem; margin: 0 1rem .75rem; }
-        .ora-multi { position: relative; margin-top: .25rem; }
-        .ora-multi-btn { width: 100%; text-align: right; cursor: pointer; background: #fff; }
+        .ora-multi-btn,
+        .si-report-page .report-cust-pick-inp {
+          width: 100%;
+          height: 2.4rem;
+          text-align: right;
+          cursor: pointer;
+          background: #fff !important;
+          color: #0f172a;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 15px;
+          font-weight: 700;
+          line-height: 1.4;
+          border: 1px solid #cbd5e1;
+          border-radius: 8px;
+          padding: 0 .7rem;
+          box-sizing: border-box;
+        }
+        .si-report-page .report-sales-filters > label {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 13px;
+          font-weight: 700;
+          color: #334155;
+        }
+        .ora-multi-panel,
+        .report-cust-pick-list.is-floating {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 15px;
+          line-height: 1.45;
+          color: #0f172a;
+          background: #fff;
+          border: 1px solid #cbd5e1;
+          border-radius: 10px;
+          box-shadow: 0 12px 32px rgba(15, 23, 42, .16);
+          padding: .35rem;
+        }
         .ora-multi-panel {
           position: fixed; z-index: 100600; display: flex; flex-direction: column; gap: .35rem;
-          padding: .45rem; background: #fff; border: 1px solid #cbd5e1; border-radius: 10px;
-          box-shadow: 0 12px 32px rgba(15,23,42,.18); max-height: min(22rem, 70vh);
-          min-width: 16rem; box-sizing: border-box;
+          max-height: min(22rem, 70vh); min-width: 18rem; box-sizing: border-box;
         }
         .ora-multi-panel[hidden] { display: none !important; }
         .ora-multi-q {
           width: 100%; box-sizing: border-box; background: #fff; border: 1px solid #cbd5e1;
-          border-radius: 6px; padding: .4rem .55rem; color: #0f172a;
+          border-radius: 6px; padding: .45rem .6rem; color: #0f172a;
+          font-family: Arial, Helvetica, sans-serif; font-size: 14px; font-weight: 600;
         }
         .ora-multi-q:focus { outline: none; border-color: #1e3a5f; background: #fff; }
-        .ora-multi-list {
-          overflow: auto; max-height: 16rem; border: 1px solid #e2e8f0; border-radius: 6px; background: #fff;
+        .ora-multi-list { overflow: auto; max-height: 16rem; background: #fff; }
+        .ora-multi-item,
+        .report-cust-pick-list.is-floating .report-cust-pick-item,
+        .report-cust-pick-list.is-floating .report-cust-pick-empty {
+          display: flex !important;
+          flex-direction: row;
+          justify-content: flex-start !important;
+          align-items: center;
+          gap: .6rem;
+          width: 100%;
+          margin: 0;
+          padding: .5rem .7rem;
+          direction: rtl;
+          text-align: right;
+          cursor: pointer;
+          box-sizing: border-box;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 15px;
+          font-weight: 600;
+          line-height: 1.45;
+          color: #0f172a;
+          background: #fff;
+          border: 0;
+          border-bottom: 1px solid #f1f5f9;
+          border-radius: 0;
         }
-        .ora-multi-item {
-          display: flex !important; flex-direction: row; justify-content: flex-start !important;
-          align-items: center; gap: .55rem; width: 100%; margin: 0; padding: .42rem .6rem;
-          direction: rtl; text-align: right; cursor: pointer; box-sizing: border-box; font-weight: 600;
+        .ora-multi-item:hover,
+        .report-cust-pick-list.is-floating .report-cust-pick-item:hover {
+          background: #eef2ff;
         }
-        .ora-multi-item:hover { background: #eef2ff; }
         .ora-multi-item input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; flex: 0 0 auto; }
-        .ora-multi-item span { flex: 1 1 auto; min-width: 0; text-align: right; }
+        .ora-multi-name { flex: 1 1 auto; min-width: 0; text-align: right; }
+        .ora-multi-code {
+          flex: 0 0 auto; font-size: 12px; font-weight: 700; color: #64748b; direction: ltr;
+        }
+        .report-cust-pick-list.is-floating .report-cust-pick-empty {
+          cursor: default; color: #64748b; font-weight: 600;
+        }
         .ora-view[hidden] { display: none !important; }
         .ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
         .ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
@@ -2792,9 +2851,16 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
               syncHidden();
             });
             var span = document.createElement('span');
-            span.textContent = code ? text + ' — ' + code : text;
+            span.className = 'ora-multi-name';
+            span.textContent = text;
             row.appendChild(cb);
             row.appendChild(span);
+            if (code) {
+              var codeEl = document.createElement('span');
+              codeEl.className = 'ora-multi-code';
+              codeEl.textContent = code;
+              row.appendChild(codeEl);
+            }
             row.addEventListener('click', function (ev) {
               if (ev.target === cb) return;
               cb.checked = !cb.checked;
