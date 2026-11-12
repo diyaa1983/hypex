@@ -191,15 +191,25 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
   font-variant-numeric: tabular-nums;
 }
 .ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
-.ora-span {
-  vertical-align: top;
-  font-weight: 800;
+.ora-cust-block { margin: 0 0 1.35rem; }
+.ora-cust-head {
   background: #f4f7fb;
-  white-space: normal;
-  min-width: 9rem;
+  border: 1px solid #d5deea;
+  border-bottom: 0;
+  padding: .7rem .9rem;
 }
-.ora-cust-total td { background: #e7f4ea; font-weight: 800; }
-.ora-rep-total td { background: #f8fafc; font-weight: 800; }
+.ora-cust-head .ora-rep { font-weight: 800; color: #1e3a5f; }
+.ora-cust-head .ora-who { font-weight: 800; font-size: 1.02rem; margin-top: .25rem; }
+.ora-cat-total td { background: #e8eef8; font-weight: 800; }
+.ora-cust-final td { background: #e7f4ea; font-weight: 800; }
+.ora-rep-total, .ora-grand {
+  margin: .35rem 0 1rem;
+  font-weight: 800;
+  padding: .45rem .7rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.ora-grand { background: #eef2f7; }
 @media print {
   @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
   .ora-portrait-table th.ora-vhead { position: static; }
@@ -264,109 +274,121 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     </tr>
                 </table>
             </div>
-            <div class="report-sales-table-wrap ora-portrait-wrap">
-                <table class="report-sales-table ora-portrait-table" data-export-table>
-                    <thead>
-                        <tr>
-                            <th class="ora-vhead ora-col-party">اسم المندوب</th>
-                            <th class="ora-vhead ora-col-party">اسم العميل</th>
-                            <th class="ora-vhead">فئة</th>
-                            <th class="ora-vhead ora-col-num">ايدي</th>
-                            <th class="ora-vhead ora-col-num">كود</th>
-                            <th class="ora-vhead ora-col-name">اسم المادة</th>
-                            <th class="ora-vhead ora-col-num">الكمية</th>
-                            <th class="ora-vhead ora-col-num">المبلغ</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if ($rows === []): ?>
-                            <tr><td colspan="8" class="muted" style="text-align:center;padding:1.25rem;">لا توجد مبيعات في الفترة المحددة.</td></tr>
-                        <?php else: ?>
-                            <?php
-                            $n = count($rows);
-                            $i = 0;
-                            while ($i < $n):
-                                $repStart = $i;
-                                $no = (int) ($rows[$i]['rep_no'] ?? 0);
-                                while ($i < $n && (int) ($rows[$i]['rep_no'] ?? 0) === $no) {
-                                    $i++;
-                                }
-                                $repRows = array_slice($rows, $repStart, $i - $repStart);
-                                $repLabel = trim((string) ($repRows[0]['rep_name'] ?? ''));
-                                if ($repLabel === '' && $no > 0) {
-                                    $repLabel = 'مندوب ' . $no;
-                                }
-                                $customers = [];
-                                $j = 0;
-                                $repCount = count($repRows);
-                                while ($j < $repCount) {
-                                    $acc = (string) ($repRows[$j]['customer_acc'] ?? '');
-                                    $slice = [];
-                                    while ($j < $repCount && (string) ($repRows[$j]['customer_acc'] ?? '') === $acc) {
-                                        $slice[] = $repRows[$j];
-                                        $j++;
-                                    }
-                                    $customers[] = $slice;
-                                }
-                                $repQty = 0.0;
-                                $repAmt = 0.0;
-                                foreach ($customers as $slice):
-                                    $custAcc = (string) ($slice[0]['customer_acc'] ?? '');
-                                    $custLabel = trim((string) ($slice[0]['customer_name'] ?? '')) ?: ($custAcc !== '' ? $custAcc : '—');
-                                    $custQty = 0.0;
-                                    $custAmt = 0.0;
-                                    $itemCount = count($slice);
-                                    foreach ($slice as $k => $r):
-                                        $qty = (float) ($r['qty'] ?? 0);
-                                        $amt = (float) ($r['amount'] ?? 0);
-                                        $custQty += $qty;
-                                        $custAmt += $amt;
-                                        $idCode = trim((string) ($r['item_code'] ?? ''));
-                                        $barcode = trim((string) ($r['item_barcode'] ?? ''));
-                                        $sku = trim((string) ($r['item_sku'] ?? ''));
-                                        $code = $barcode !== '' ? $barcode : ($sku !== '' && $sku !== $idCode ? $sku : '');
-                                        ?>
+            <?php if ($rows === []): ?>
+                <p class="muted">لا توجد مبيعات في الفترة المحددة.</p>
+            <?php else: ?>
+                <?php
+                $n = count($rows);
+                $i = 0;
+                while ($i < $n):
+                    $repStart = $i;
+                    $no = (int) ($rows[$i]['rep_no'] ?? 0);
+                    while ($i < $n && (int) ($rows[$i]['rep_no'] ?? 0) === $no) {
+                        $i++;
+                    }
+                    $repRows = array_slice($rows, $repStart, $i - $repStart);
+                    $repLabel = trim((string) ($repRows[0]['rep_name'] ?? ''));
+                    if ($repLabel === '' && $no > 0) {
+                        $repLabel = 'مندوب ' . $no;
+                    }
+                    $customers = [];
+                    $j = 0;
+                    $repCount = count($repRows);
+                    while ($j < $repCount) {
+                        $acc = (string) ($repRows[$j]['customer_acc'] ?? '');
+                        $slice = [];
+                        while ($j < $repCount && (string) ($repRows[$j]['customer_acc'] ?? '') === $acc) {
+                            $slice[] = $repRows[$j];
+                            $j++;
+                        }
+                        $customers[] = $slice;
+                    }
+                    $repQty = 0.0;
+                    $repAmt = 0.0;
+                    foreach ($customers as $slice):
+                        $custAcc = (string) ($slice[0]['customer_acc'] ?? '');
+                        $custLabel = trim((string) ($slice[0]['customer_name'] ?? '')) ?: ($custAcc !== '' ? $custAcc : '—');
+                        $cats = [];
+                        $c = 0;
+                        $sliceCount = count($slice);
+                        while ($c < $sliceCount) {
+                            $cat = trim((string) ($slice[$c]['cat_name'] ?? '')) ?: 'بدون فئة';
+                            $lines = [];
+                            $catQty = 0.0;
+                            $catAmt = 0.0;
+                            while ($c < $sliceCount && (trim((string) ($slice[$c]['cat_name'] ?? '')) ?: 'بدون فئة') === $cat) {
+                                $catQty += (float) ($slice[$c]['qty'] ?? 0);
+                                $catAmt += (float) ($slice[$c]['amount'] ?? 0);
+                                $lines[] = $slice[$c];
+                                $c++;
+                            }
+                            $cats[] = ['cat' => $cat, 'lines' => $lines, 'qty' => $catQty, 'amt' => $catAmt];
+                        }
+                        $custQty = 0.0;
+                        $custAmt = 0.0;
+                        foreach ($cats as $g) {
+                            $custQty += $g['qty'];
+                            $custAmt += $g['amt'];
+                        }
+                        $repQty += $custQty;
+                        $repAmt += $custAmt;
+                        ?>
+                        <section class="ora-cust-block">
+                            <header class="ora-cust-head">
+                                <div class="ora-rep">المندوب: <?= esc($repLabel) ?></div>
+                                <div class="ora-who">العميل: <?= esc($custLabel) ?></div>
+                            </header>
+                            <div class="report-sales-table-wrap ora-portrait-wrap">
+                                <table class="report-sales-table ora-portrait-table" data-export-table>
+                                    <thead>
                                         <tr>
-                                            <?php if ($k === 0): ?>
-                                                <td class="ora-span" rowspan="<?= (int) $itemCount ?>"><?= esc($repLabel) ?></td>
-                                                <td class="ora-span" rowspan="<?= (int) $itemCount ?>"><?= esc($custLabel) ?></td>
-                                            <?php endif; ?>
-                                            <td><?= esc(trim((string) ($r['cat_name'] ?? '')) ?: 'بدون فئة') ?></td>
-                                            <td class="ora-code" dir="ltr"><?= esc($idCode) ?></td>
-                                            <td class="ora-code" dir="ltr"><?= esc($code) ?></td>
-                                            <td class="ora-name"><?= esc((string) ($r['item_name'] ?? '')) ?></td>
-                                            <td dir="ltr"><?= esc($fmtQty($qty)) ?></td>
-                                            <td class="col-money" dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
+                                            <th class="ora-vhead">فئة</th>
+                                            <th class="ora-vhead">ايدي</th>
+                                            <th class="ora-vhead">كود</th>
+                                            <th class="ora-vhead">اسم المادة</th>
+                                            <th class="ora-vhead">الكمية</th>
+                                            <th class="ora-vhead">المبلغ</th>
                                         </tr>
-                                    <?php endforeach;
-                                    $repQty += $custQty;
-                                    $repAmt += $custAmt;
-                                    ?>
-                                    <tr class="ora-cust-total">
-                                        <td colspan="6">مجموع البيع — <?= esc($custLabel) ?></td>
-                                        <td dir="ltr"><?= esc($fmtQty($custQty)) ?></td>
-                                        <td class="col-money" dir="ltr"><?= esc($fmtAmt($custAmt)) ?></td>
-                                    </tr>
-                                <?php endforeach; ?>
-                                <tr class="ora-rep-total">
-                                    <td colspan="6">إجمالي المندوب <?= esc($repLabel) ?></td>
-                                    <td dir="ltr"><?= esc($fmtQty($repQty)) ?></td>
-                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt($repAmt)) ?></td>
-                                </tr>
-                            <?php endwhile; ?>
-                        <?php endif; ?>
-                    </tbody>
-                    <?php if ($rows !== []): ?>
-                        <tfoot>
-                            <tr>
-                                <td colspan="6">الإجمالي</td>
-                                <td dir="ltr"><?= esc($fmtQty((float) ($totals['qty'] ?? 0))) ?></td>
-                                <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></td>
-                            </tr>
-                        </tfoot>
-                    <?php endif; ?>
-                </table>
-            </div>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($cats as $g): ?>
+                                            <?php foreach ($g['lines'] as $r):
+                                                $idCode = trim((string) ($r['item_code'] ?? ''));
+                                                $barcode = trim((string) ($r['item_barcode'] ?? ''));
+                                                $sku = trim((string) ($r['item_sku'] ?? ''));
+                                                $code = $barcode !== '' ? $barcode : ($sku !== '' && $sku !== $idCode ? $sku : '');
+                                                ?>
+                                                <tr>
+                                                    <td><?= esc($g['cat']) ?></td>
+                                                    <td class="ora-code" dir="ltr"><?= esc($idCode) ?></td>
+                                                    <td class="ora-code" dir="ltr"><?= esc($code) ?></td>
+                                                    <td class="ora-name"><?= esc((string) ($r['item_name'] ?? '')) ?></td>
+                                                    <td dir="ltr"><?= esc($fmtQty((float) ($r['qty'] ?? 0))) ?></td>
+                                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($r['amount'] ?? 0))) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        <?php endforeach; ?>
+                                        <?php foreach ($cats as $g): ?>
+                                            <tr class="ora-cat-total">
+                                                <td colspan="4">مجموع الفئة: <?= esc($g['cat']) ?></td>
+                                                <td dir="ltr"><?= esc($fmtQty($g['qty'])) ?></td>
+                                                <td class="col-money" dir="ltr"><?= esc($fmtAmt($g['amt'])) ?></td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                        <tr class="ora-cust-final">
+                                            <td colspan="4">المجموع النهائي لمبيعات العميل</td>
+                                            <td dir="ltr"><?= esc($fmtQty($custQty)) ?></td>
+                                            <td class="col-money" dir="ltr"><?= esc($fmtAmt($custAmt)) ?></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    <?php endforeach; ?>
+                    <p class="ora-rep-total">إجمالي المندوب <?= esc($repLabel) ?> — الكمية <?= esc($fmtQty($repQty)) ?> — المبلغ <?= esc($fmtAmt($repAmt)) ?></p>
+                <?php endwhile; ?>
+                <p class="ora-grand">الإجمالي — الكمية <?= esc($fmtQty((float) ($totals['qty'] ?? 0))) ?> — المبلغ <?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></p>
+            <?php endif; ?>
         </div>
     <?php endif; ?>
 </div>
