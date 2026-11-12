@@ -2180,20 +2180,20 @@ const oracleRepItemsHandler = async (req, res) => {
   const BASE = '/sales/reports/oracle-rep-items';
   try {
   // POST لتجنب 414 عند اختيار كثير من العملاء/المندوبين؛ GET لفتح الصفحة فقط
-  const q = req.method === 'POST'
+  const params = req.method === 'POST'
     ? { ...(req.query || {}), ...(req.body || {}) }
     : (req.query || {});
-  const store = Number(q.store || 4) || 4;
+  const store = Number(params.store || 4) || 4;
   const asList = (value) => {
     const raw = Array.isArray(value) ? value : value != null && String(value) !== '' ? [value] : [];
     return [...new Set(raw.map((v) => String(v).trim()).filter(Boolean))];
   };
-  const oracleRepNos = asList(q.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
-  const customerIds = asList(q.customer_id).map((id) => Number(id)).filter((id) => id > 0);
-  const categoryIds = asList(q.category_id);
-  const reportYears = asList(q.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
-  const reportMonths = asList(q.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
-  const run = String(q.run || '') === '1';
+  const oracleRepNos = asList(params.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
+  const customerIds = asList(params.customer_id).map((id) => Number(id)).filter((id) => id > 0);
+  const categoryIds = asList(params.category_id);
+  const reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
+  const reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
+  const run = String(params.run || '') === '1';
   const uid = Number(req.session.user?.id || 0) || 0;
   const yearNow = new Date().getFullYear();
   const todayIso = () => {
