@@ -107,10 +107,12 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
     $itemCodes = [];
     $catCodes = [];
     $custAccs = [];
+    $repNos = [];
     foreach ($raw as $r) {
         $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
         $cat = trim((string) oracle_statement_row_val($r, 'CAT_CODE'));
         $cust = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
+        $repNo = (int) oracle_statement_row_val($r, 'REP_NO');
         if ($item !== '') {
             $itemCodes[$item] = true;
         }
@@ -120,12 +122,16 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         if ($cust !== '') {
             $custAccs[$cust] = true;
         }
+        if ($repNo > 0) {
+            $repNos[$repNo] = true;
+        }
     }
 
     $itemNames = oracle_sales_invoice_item_names($conn, array_keys($itemCodes));
     $catNames = oracle_rep_item_sales_category_names($conn, array_keys($catCodes));
     $hypex = oracle_rep_item_sales_hypex_map(array_keys($itemCodes));
     $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
+    $repNames = oracle_rep_item_sales_rep_names($conn, array_keys($repNos));
 
     $rows = [];
     $totQty = 0.0;
@@ -155,9 +161,13 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         if ($itemName === '' && is_array($hx)) {
             $itemName = trim((string) ($hx['name_ar'] ?? ''));
         }
+        $repName = trim((string) ($repNames[$rep] ?? ''));
+        if ($repName === '') {
+            $repName = 'مندوب ' . $rep;
+        }
         $rows[] = [
             'rep_no' => $rep,
-            'rep_name' => 'مندوب ' . $rep,
+            'rep_name' => $repName,
             'customer_acc' => $custAcc,
             'customer_name' => $customers[$custAcc] ?? ($custAcc !== '' ? $custAcc : '—'),
             'cat_code' => $cat,
@@ -203,6 +213,89 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
             'items' => count($rows),
         ],
     ];
+}
+
+/**
+ * اسم المندوب: بطاقة هايبكس (الرمز = MAN_NUM) ثم EMP_INFO.
+ *
+ * @param list<int> $repNos
+ * @return array<int,string>
+ */
+function oracle_rep_item_sales_rep_names(array $conn, array $repNos): array
+{
+    $ids = [];
+    foreach ($repNos as $n) {
+        $n = (int) $n;
+        if ($n > 0) {
+            $ids[$n] = true;
+        }
+    }
+    if ($ids === []) {
+        return [];
+    }
+
+    $out = [];
+    try {
+        $pdo = db();
+        $rows = $pdo->query(
+            'SELECT code, name_ar FROM crm_sales_rep WHERE is_active = 1'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $r) {
+            $name = trim((string) ($r['name_ar'] ?? ''));
+            $code = trim((string) ($r['code'] ?? ''));
+            if ($name === '' || $code === '') {
+                continue;
+            }
+            $no = 0;
+            if (preg_match('/^[1-9]\d*$/', $code)) {
+                $no = (int) $code;
+            } elseif (preg_match('/(\d+)/', $code, $m)) {
+                $n = (int) $m[1];
+                if ($n > 0 && $n < 100000) {
+                    $no = $n;
+                }
+            }
+            if ($no > 0 && isset($ids[$no]) && !isset($out[$no])) {
+                $out[$no] = $name;
+            }
+        }
+    } catch (Throwable $e) {
+        // الاسم من Oracle يكفي
+    }
+
+    $missing = [];
+    foreach (array_keys($ids) as $no) {
+        if (!isset($out[$no])) {
+            $missing[] = (int) $no;
+        }
+    }
+    if ($missing === [] || empty($conn['ok'])) {
+        return $out;
+    }
+
+    $c = oracle_rep_net_sales_cfg();
+    $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
+    foreach (array_chunk($missing, 400) as $chunk) {
+        $list = implode(',', $chunk);
+        try {
+            $raw = oracle_query_all(
+                $conn,
+                "SELECT EMP_NO, TRIM(EMP_NAME) AS EMP_NAME FROM {$empQ} WHERE EMP_NO IN ({$list})",
+                []
+            );
+            foreach ($raw as $r) {
+                $no = (int) oracle_statement_row_val($r, 'EMP_NO');
+                $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
+                if ($no > 0 && $name !== '' && !isset($out[$no])) {
+                    $out[$no] = $name;
+                }
+            }
+        } catch (Throwable $e) {
+            // يبقى «مندوب + الرقم»
+        }
+    }
+
+    return $out;
 }
 
 /**

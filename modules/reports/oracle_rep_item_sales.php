@@ -132,10 +132,21 @@ if ($submitted) {
         } else {
             $showResult = true;
             $rows = is_array($result['rows'] ?? null) ? $result['rows'] : [];
+            $nameByMan = $hypexNameByMan;
+            foreach ($reps as $rp) {
+                $id = (int) ($rp['id'] ?? 0);
+                $nm = trim((string) ($rp['name_ar'] ?? ''));
+                if ($id > 0 && $nm !== '' && !isset($nameByMan[$id])) {
+                    $nameByMan[$id] = $nm;
+                }
+            }
             foreach ($rows as &$row) {
                 $no = (int) ($row['rep_no'] ?? 0);
+                $current = trim((string) ($row['rep_name'] ?? ''));
                 if ($no > 0 && isset($hypexNameByMan[$no])) {
                     $row['rep_name'] = $hypexNameByMan[$no];
+                } elseif ($current === '' || preg_match('/^مندوب\s+\d+$/u', $current)) {
+                    $row['rep_name'] = $nameByMan[$no] ?? ($no > 0 ? ('مندوب ' . $no) : $current);
                 }
             }
             unset($row);
@@ -156,6 +167,26 @@ $exportJsPath = app_path('assets/js/report-sales-export.js');
 $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsPath) ? '?v=' . (string) filemtime($exportJsPath) : '');
 ?>
 <link rel="stylesheet" href="<?= esc($cssUrl) ?>">
+<style>
+.ora-cat-sum { background:#e8eef8; font-weight:800; cursor:pointer; }
+.ora-cat-sum:hover { background:#dbe6f6; }
+.ora-cat-arrow {
+  display:inline-block; width:0; height:0; vertical-align:middle;
+  margin-inline-end:.4rem;
+  border-top:5px solid transparent; border-bottom:5px solid transparent;
+  border-right:7px solid #1e3a5f;
+}
+.ora-cat-sum[data-open="1"] .ora-cat-arrow {
+  border:0; border-left:5px solid transparent; border-right:5px solid transparent;
+  border-top:7px solid #1e3a5f;
+}
+.ora-rep-total { font-weight:800; background:#f8fafc; }
+tr.ora-cat-line[hidden] { display:none !important; }
+@media print {
+  tr.ora-cat-line[hidden] { display:table-row !important; }
+  .ora-cat-arrow { display:none !important; }
+}
+</style>
 <div class="card report-sales-page" data-report-title="<?= esc($reportTitle) ?>" data-report-route="<?= esc($routeKey) ?>">
     <?php if ($err !== ''): ?>
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
@@ -232,65 +263,83 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                         <?php else: ?>
                             <?php
                             $curRep = null;
-                            $curCat = null;
-                            $catLabel = '';
                             $repQty = 0.0;
                             $repAmt = 0.0;
-                            $catQty = 0.0;
-                            $catAmt = 0.0;
-                            $flushCat = static function () use (&$curCat, &$catLabel, &$catQty, &$catAmt, $fmtQty, $fmtAmt): void {
-                                if ($curCat === null) {
-                                    return;
-                                }
-                                echo '<tr style="font-weight:800;background:#eef6e8"><td colspan="4">إجمالي فئة '
-                                    . esc($catLabel) . ' — المبيعات</td><td dir="ltr">' . esc($fmtQty($catQty))
-                                    . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($catAmt)) . '</td></tr>';
-                                $curCat = null;
-                                $catQty = 0.0;
-                                $catAmt = 0.0;
-                            };
-                            $flushRep = static function () use (&$curRep, &$repQty, &$repAmt, $flushCat, $fmtQty, $fmtAmt): void {
+                            $repLabel = '';
+                            $gid = 0;
+                            $n = count($rows);
+                            $i = 0;
+                            $flushRep = static function () use (&$curRep, &$repQty, &$repAmt, &$repLabel, $fmtQty, $fmtAmt): void {
                                 if ($curRep === null) {
                                     return;
                                 }
-                                $flushCat();
-                                echo '<tr style="font-weight:800;background:#f8fafc"><td colspan="4">إجمالي المندوب</td><td dir="ltr">'
-                                    . esc($fmtQty($repQty)) . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($repAmt)) . '</td></tr>';
+                                echo '<tr class="ora-rep-total"><td colspan="4">إجمالي المندوب ' . esc($repLabel)
+                                    . '</td><td dir="ltr">' . esc($fmtQty($repQty))
+                                    . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($repAmt)) . '</td></tr>';
                                 $curRep = null;
                                 $repQty = 0.0;
                                 $repAmt = 0.0;
+                                $repLabel = '';
                             };
-                            foreach ($rows as $r):
-                                $no = (int) ($r['rep_no'] ?? 0);
-                                $catName = trim((string) ($r['cat_name'] ?? '')) ?: 'بدون فئة';
-                                $catKey = $no . '|' . (string) ($r['customer_acc'] ?? '') . '|' . $catName;
+                            while ($i < $n):
+                                $head = $rows[$i];
+                                $no = (int) ($head['rep_no'] ?? 0);
+                                $catName = trim((string) ($head['cat_name'] ?? '')) ?: 'بدون فئة';
+                                $custAcc = (string) ($head['customer_acc'] ?? '');
+                                $name = trim((string) ($head['rep_name'] ?? ''));
+                                if ($name === '' && $no > 0) {
+                                    $name = 'مندوب ' . $no;
+                                }
+                                $custLabel = trim((string) ($head['customer_name'] ?? '')) ?: $custAcc;
                                 if ($curRep !== null && $curRep !== $no) {
                                     $flushRep();
-                                } elseif ($curCat !== null && $curCat !== $catKey) {
-                                    $flushCat();
-                                }
-                                if ($curCat !== $catKey) {
-                                    echo '<tr style="background:#e8eef8;font-weight:800"><td colspan="6">الفئة: ' . esc($catName) . '</td></tr>';
-                                    $curCat = $catKey;
-                                    $catLabel = $catName;
                                 }
                                 $curRep = $no;
-                                $qty = (float) ($r['qty'] ?? 0);
-                                $amt = (float) ($r['amount'] ?? 0);
-                                $repQty += $qty;
-                                $repAmt += $amt;
-                                $catQty += $qty;
-                                $catAmt += $amt;
+                                $repLabel = $name;
+                                $catQty = 0.0;
+                                $catAmt = 0.0;
+                                $lines = [];
+                                while ($i < $n) {
+                                    $r = $rows[$i];
+                                    $rNo = (int) ($r['rep_no'] ?? 0);
+                                    $rCat = trim((string) ($r['cat_name'] ?? '')) ?: 'بدون فئة';
+                                    $rAcc = (string) ($r['customer_acc'] ?? '');
+                                    if ($rNo !== $no || $rAcc !== $custAcc || $rCat !== $catName) {
+                                        break;
+                                    }
+                                    $qty = (float) ($r['qty'] ?? 0);
+                                    $amt = (float) ($r['amount'] ?? 0);
+                                    $catQty += $qty;
+                                    $catAmt += $amt;
+                                    $lines[] = $r;
+                                    $i++;
+                                }
+                                $repQty += $catQty;
+                                $repAmt += $catAmt;
+                                $gid++;
+                                $id = 'c' . $gid;
                                 ?>
-                                <tr>
-                                    <td><?= esc((string) ($r['rep_name'] ?? '')) ?></td>
-                                    <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
-                                    <td dir="ltr"><?= esc((string) ($r['item_code'] ?? '')) ?></td>
-                                    <td><?= esc((string) ($r['item_name'] ?? '')) ?></td>
-                                    <td dir="ltr"><?= esc($fmtQty($qty)) ?></td>
-                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
+                                <tr class="ora-cat-sum" data-ora-toggle="<?= esc($id) ?>" data-open="0">
+                                    <td><span class="ora-cat-arrow" aria-hidden="true"></span><?= esc($name) ?></td>
+                                    <td><?= esc($custLabel) ?></td>
+                                    <td colspan="2">الفئة: <?= esc($catName) ?></td>
+                                    <td dir="ltr"><?= esc($fmtQty($catQty)) ?></td>
+                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt($catAmt)) ?></td>
                                 </tr>
-                            <?php endforeach; $flushRep(); ?>
+                                <?php foreach ($lines as $r):
+                                    $qty = (float) ($r['qty'] ?? 0);
+                                    $amt = (float) ($r['amount'] ?? 0);
+                                    ?>
+                                    <tr class="ora-cat-line" data-ora-lines="<?= esc($id) ?>" hidden>
+                                        <td><?= esc($name) ?></td>
+                                        <td><?= esc($custLabel) ?></td>
+                                        <td dir="ltr"><?= esc((string) ($r['item_code'] ?? '')) ?></td>
+                                        <td><?= esc((string) ($r['item_name'] ?? '')) ?></td>
+                                        <td dir="ltr"><?= esc($fmtQty($qty)) ?></td>
+                                        <td class="col-money" dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endwhile; $flushRep(); ?>
                         <?php endif; ?>
                     </tbody>
                     <?php if ($rows !== []): ?>
@@ -320,5 +369,15 @@ document.addEventListener('DOMContentLoaded', function () {
   var hidden = root.querySelector('[data-rep-id]');
   var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
   window.ReportRepPicker.init(root, reps, { initialId: initialId });
+});
+document.addEventListener('click', function (ev) {
+  var head = ev.target.closest && ev.target.closest('[data-ora-toggle]');
+  if (!head) return;
+  var id = head.getAttribute('data-ora-toggle');
+  var open = head.getAttribute('data-open') === '1';
+  head.setAttribute('data-open', open ? '0' : '1');
+  document.querySelectorAll('[data-ora-lines="' + id + '"]').forEach(function (tr) {
+    tr.hidden = open;
+  });
 });
 </script>
