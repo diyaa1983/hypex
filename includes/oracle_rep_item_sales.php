@@ -596,45 +596,103 @@ function oracle_rep_item_sales_category_names(array $conn, array $codes): array
 }
 
 /**
+ * تطبيع رمز مادة Oracle للمقارنة (أرقام مع تجاهل الأصفار البادئة).
+ */
+function oracle_rep_item_sales_item_norm(string $code): string
+{
+    $code = trim($code);
+    if ($code === '') {
+        return '';
+    }
+    if (function_exists('oracle_order_oracle_num_norm')) {
+        return oracle_order_oracle_num_norm($code);
+    }
+    $digits = preg_replace('/\D+/', '', $code) ?? '';
+    $stripped = ltrim($digits, '0');
+
+    return $stripped !== '' ? $stripped : ($digits !== '' ? '0' : '');
+}
+
+/**
+ * ربط ITEM من Oracle ببطاقة المادة في هايبكس (فئة + اسم).
+ * يطابق oracle_key ثم sku ثم barcode، مع تطبيع الأرقام/الأصفار،
+ * ويُسجَّل تحت رمز Oracle الأصلي حتى يعمل $hypex[$item].
+ *
  * @param list<string> $itemCodes
- * @return array<string,array{name_ar:string,cat_name:string}>
+ * @return array<string,array{name_ar:string,cat_name:string,sku:string,barcode:string}>
  */
 function oracle_rep_item_sales_hypex_map(array $itemCodes): array
 {
     $out = [];
     $codes = [];
+    /** @var array<string,list<string>> */
+    $codesNorm = [];
     foreach ($itemCodes as $code) {
         $code = trim((string) $code);
-        if ($code !== '') {
-            $codes[$code] = true;
+        if ($code === '') {
+            continue;
+        }
+        $codes[$code] = true;
+        $norm = oracle_rep_item_sales_item_norm($code);
+        if ($norm !== '') {
+            $codesNorm[$norm][] = $code;
         }
     }
     if ($codes === []) {
         return $out;
     }
+
+    $rows = [];
     try {
         $pdo = db();
         $rows = $pdo->query(
-            'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name
+            'SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name
              FROM inv_item i
              LEFT JOIN inv_item_category c ON c.id = i.category_id'
         )->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
-        return $out;
+        try {
+            $pdo = db();
+            $rows = $pdo->query(
+                'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name
+                 FROM inv_item i
+                 LEFT JOIN inv_item_category c ON c.id = i.category_id'
+            )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        } catch (Throwable $e2) {
+            return $out;
+        }
     }
+
+    $assign = static function (string $oracleCode, array $pack) use (&$out): void {
+        if ($oracleCode === '' || isset($out[$oracleCode])) {
+            return;
+        }
+        $out[$oracleCode] = $pack;
+    };
+
     foreach ($rows as $r) {
-        $name = trim((string) ($r['name_ar'] ?? ''));
-        $cat = trim((string) ($r['cat_name'] ?? ''));
         $pack = [
-            'name_ar' => $name,
-            'cat_name' => $cat,
+            'name_ar' => trim((string) ($r['name_ar'] ?? '')),
+            'cat_name' => trim((string) ($r['cat_name'] ?? '')),
             'sku' => trim((string) ($r['sku'] ?? '')),
             'barcode' => trim((string) ($r['barcode'] ?? '')),
         ];
-        foreach (['sku', 'barcode'] as $col) {
+        foreach (['oracle_key', 'sku', 'barcode'] as $col) {
+            if (!array_key_exists($col, $r)) {
+                continue;
+            }
             $key = trim((string) ($r[$col] ?? ''));
-            if ($key !== '' && isset($codes[$key]) && !isset($out[$key])) {
-                $out[$key] = $pack;
+            if ($key === '') {
+                continue;
+            }
+            if (isset($codes[$key])) {
+                $assign($key, $pack);
+            }
+            $norm = oracle_rep_item_sales_item_norm($key);
+            if ($norm !== '' && isset($codesNorm[$norm])) {
+                foreach ($codesNorm[$norm] as $orig) {
+                    $assign($orig, $pack);
+                }
             }
         }
     }

@@ -2193,7 +2193,15 @@ const oracleRepItemsHandler = async (req, res) => {
   const categoryIds = asList(params.category_id);
   const reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
   const reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
-  const run = String(params.run || '') === '1';
+  // أي POST من النموذج = تشغيل؛ وrun=1 للتوافق مع GET
+  const run =
+    req.method === 'POST' ||
+    String(params.run || '') === '1' ||
+    oracleRepNos.length > 0 ||
+    customerIds.length > 0 ||
+    categoryIds.length > 0 ||
+    reportYears.length > 0 ||
+    reportMonths.length > 0;
   const uid = Number(req.session.user?.id || 0) || 0;
   const yearNow = new Date().getFullYear();
   const todayIso = () => {
@@ -2214,6 +2222,13 @@ const oracleRepItemsHandler = async (req, res) => {
       if (n > 0 && n < 100000) return n;
     }
     return 0;
+  };
+  const addRepCodeKeys = (set, code) => {
+    const raw = String(code || '').trim();
+    if (!raw) return;
+    set.add(raw);
+    const man = parseManNo(raw);
+    if (man > 0) set.add(String(man));
   };
 
   const hypexReps = await q.listRepsSimple();
@@ -2273,7 +2288,7 @@ const oracleRepItemsHandler = async (req, res) => {
       const code = String(row.code || '').trim();
       if (!cid || cid === '0' || !code) continue;
       if (!custRepCodes.has(cid)) custRepCodes.set(cid, new Set());
-      custRepCodes.get(cid).add(code);
+      addRepCodeKeys(custRepCodes.get(cid), code);
     }
   } catch (e) {
     /* optional table */
@@ -2281,8 +2296,7 @@ const oracleRepItemsHandler = async (req, res) => {
   for (const c of customers || []) {
     const cid = String(Number(c.id) || 0);
     if (!custRepCodes.has(cid)) custRepCodes.set(cid, new Set());
-    const primary = String(c.primary_rep_code || '').trim();
-    if (primary) custRepCodes.get(cid).add(primary);
+    addRepCodeKeys(custRepCodes.get(cid), c.primary_rep_code);
   }
   let categories = [];
   try {
@@ -2372,8 +2386,8 @@ const oracleRepItemsHandler = async (req, res) => {
     }
     if (!months.length) months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
     const yearMonths = [];
-    let from = range.from;
-    let to = range.to;
+    let from = '';
+    let to = '';
     years.forEach((y) => {
       months.forEach((m) => {
         const ym = `${y}-${String(m).padStart(2, '0')}`;
@@ -2381,11 +2395,11 @@ const oracleRepItemsHandler = async (req, res) => {
         const start = `${ym}-01`;
         const endDate = new Date(y, m, 0);
         const end = `${endDate.getFullYear()}-${String(endDate.getMonth() + 1).padStart(2, '0')}-${String(endDate.getDate()).padStart(2, '0')}`;
-        if (start < from) from = start;
-        if (end > to) to = end;
+        if (!from || start < from) from = start;
+        if (!to || end > to) to = end;
       });
     });
-    return { from, to, yearMonths };
+    return { from: from || range.from, to: to || range.to, yearMonths };
   })();
   range.from = period.from;
   range.to = period.to;
@@ -2723,6 +2737,8 @@ const oracleRepItemsHandler = async (req, res) => {
     tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
   } else if (run) {
     tableBlock = rowsHtml;
+  } else {
+    tableBlock = `<p class="muted" style="padding:.5rem 0">حدّد الفلاتر ثم اضغط «عرض».</p>`;
   }
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
@@ -2851,6 +2867,9 @@ const oracleRepItemsHandler = async (req, res) => {
           <label>المستودع
             <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr">
           </label>
+          <div class="ora-filter-actions">
+            <button type="submit" class="si-btn si-btn--primary">عرض</button>
+          </div>
         </form>
       </div>
       <style>
@@ -2868,7 +2887,8 @@ const oracleRepItemsHandler = async (req, res) => {
             minmax(0, 1.05fr)
             minmax(7.2rem, .85fr)
             minmax(7.2rem, .85fr)
-            4.5rem;
+            4.5rem
+            auto;
           gap: .35rem .5rem;
           align-items: end;
           width: 100% !important;
@@ -2880,6 +2900,11 @@ const oracleRepItemsHandler = async (req, res) => {
           background: transparent !important;
           box-shadow: none !important;
           overflow: visible;
+        }
+        #ora-rep-filter .ora-filter-actions {
+          display: flex;
+          align-items: end;
+          padding-bottom: 1px;
         }
         .ora-multi-actions {
           display: flex;
@@ -3250,14 +3275,34 @@ const oracleRepItemsHandler = async (req, res) => {
         initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
         initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
         initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
+        function parseManNoJs(code) {
+          var c = String(code || '').trim();
+          if (/^[1-9]\\d*$/.test(c)) return Number(c);
+          var m = c.match(/(\\d+)/);
+          if (m) {
+            var n = Number(m[1]);
+            if (n > 0 && n < 100000) return n;
+          }
+          return 0;
+        }
         function filterCustomersByReps() {
           if (!custMulti) return;
           var codes = repMulti && repMulti.selectedIds ? repMulti.selectedIds() : [];
+          var want = {};
+          codes.forEach(function (c) {
+            want[String(c)] = true;
+            var man = parseManNoJs(c);
+            if (man > 0) want[String(man)] = true;
+          });
           var next = !codes.length
             ? custItems
             : custItems.filter(function (it) {
                 var rc = Array.isArray(it.rep_codes) ? it.rep_codes : [];
-                return codes.some(function (c) { return rc.indexOf(String(c)) >= 0; });
+                return rc.some(function (x) {
+                  if (want[String(x)]) return true;
+                  var man = parseManNoJs(x);
+                  return man > 0 && want[String(man)];
+                });
               });
           custMulti.setVisible(next);
         }

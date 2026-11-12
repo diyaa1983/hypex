@@ -489,8 +489,13 @@ try {
         if (!is_array($yearMonths)) {
             $yearMonths = trim((string) $yearMonths) !== '' ? [$yearMonths] : [];
         }
-        $filterOracleRep = !array_key_exists('filter_oracle_rep', $payload)
-            || !empty($payload['filter_oracle_rep']);
+        // JSON false يجب أن يعطّل فلتر MAN_NUM (empty(false)=true في PHP)
+        if (!array_key_exists('filter_oracle_rep', $payload)) {
+            $filterOracleRep = true;
+        } else {
+            $v = $payload['filter_oracle_rep'];
+            $filterOracleRep = !($v === false || $v === 0 || $v === '0' || $v === '' || $v === null);
+        }
         try {
             $result = oracle_fetch_rep_item_sales(
                 $from,
