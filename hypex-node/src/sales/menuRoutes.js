@@ -2393,7 +2393,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         subtitle: 'كل مندوب، العميل، المواد التي باعها، وفئة كل مادة',
         actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
       })}
-      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">البيانات من Oracle. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة. اسم الفئة من Oracle، وإن لم يوجد يُؤخذ من بطاقة المادة.</p>
+      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. الفئة من ربط المادة في النظام، والمبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
       <div class="si-rail no-print">
         <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
           <input type="hidden" name="run" value="1" />

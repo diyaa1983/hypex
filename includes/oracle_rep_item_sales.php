@@ -3,7 +3,8 @@ declare(strict_types=1);
 
 /**
  * مبيعات المندوب من Oracle حسب المادة والفئة (قراءة فقط).
- * المصدر: MAS.DAILY (TYPE بيع) + اسم المادة من MASCARD + اسم الفئة من MAS.CODE.
+ * المصدر: MAS.DAILY (TYPE بيع) + اسم المادة من MASCARD.
+ * الفئة من بطاقة المادة في هايبكس (ربط inv_item.category_id)، لا من Oracle.
  */
 
 require_once app_path('includes/oracle_rep_net_sales.php');
@@ -105,19 +106,14 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
     }
 
     $itemCodes = [];
-    $catCodes = [];
     $custAccs = [];
     $repNos = [];
     foreach ($raw as $r) {
         $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
-        $cat = trim((string) oracle_statement_row_val($r, 'CAT_CODE'));
         $cust = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
         $repNo = (int) oracle_statement_row_val($r, 'REP_NO');
         if ($item !== '') {
             $itemCodes[$item] = true;
-        }
-        if ($cat !== '') {
-            $catCodes[$cat] = true;
         }
         if ($cust !== '') {
             $custAccs[$cust] = true;
@@ -128,7 +124,6 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
     }
 
     $itemNames = oracle_sales_invoice_item_names($conn, array_keys($itemCodes));
-    $catNames = oracle_rep_item_sales_category_names($conn, array_keys($catCodes));
     $hypex = oracle_rep_item_sales_hypex_map(array_keys($itemCodes));
     $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
     $repNames = oracle_rep_item_sales_rep_names($conn, array_keys($repNos));
@@ -142,7 +137,6 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         $rep = (int) oracle_statement_row_val($r, 'REP_NO');
         $custAcc = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
         $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
-        $cat = trim((string) oracle_statement_row_val($r, 'CAT_CODE'));
         $qty = (float) oracle_statement_row_val($r, 'QTY');
         $bonus = (float) oracle_statement_row_val($r, 'BONUS');
         $amount = (float) oracle_statement_row_val($r, 'AMOUNT');
@@ -150,12 +144,9 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
             continue;
         }
         $hx = $hypex[$item] ?? null;
-        $catName = $catNames[$cat] ?? '';
-        if ($catName === '' && is_array($hx) && trim((string) ($hx['cat_name'] ?? '')) !== '') {
-            $catName = (string) $hx['cat_name'];
-        }
+        $catName = is_array($hx) ? trim((string) ($hx['cat_name'] ?? '')) : '';
         if ($catName === '') {
-            $catName = $cat !== '' ? $cat : 'بدون فئة';
+            $catName = 'بدون فئة';
         }
         $itemName = trim((string) ($itemNames[$item] ?? ''));
         if ($itemName === '' && is_array($hx)) {
@@ -170,7 +161,7 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
             'rep_name' => $repName,
             'customer_acc' => $custAcc,
             'customer_name' => $customers[$custAcc] ?? ($custAcc !== '' ? $custAcc : '—'),
-            'cat_code' => $cat,
+            'cat_code' => '',
             'cat_name' => $catName,
             'item_code' => $item,
             'item_sku' => is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '',
@@ -185,6 +176,19 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         $totAmt += $amount;
         $reps[$rep] = true;
     }
+
+    $merged = [];
+    foreach ($rows as $row) {
+        $key = (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n" . (string) $row['item_code'] . "\n" . (string) $row['cat_name'];
+        if (!isset($merged[$key])) {
+            $merged[$key] = $row;
+            continue;
+        }
+        $merged[$key]['qty'] = (float) $merged[$key]['qty'] + (float) $row['qty'];
+        $merged[$key]['bonus'] = (float) $merged[$key]['bonus'] + (float) $row['bonus'];
+        $merged[$key]['amount'] = round((float) $merged[$key]['amount'] + (float) $row['amount'], 3);
+    }
+    $rows = array_values($merged);
 
     usort($rows, static function (array $a, array $b): int {
         $c = ($a['rep_no'] <=> $b['rep_no']);

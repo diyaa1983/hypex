@@ -227,7 +227,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
     <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;">
-        المبيعات من Oracle حسب المندوب. كل سطر مادة مع فئتها. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.
+        المبيعات من Oracle حسب المندوب. فئة المادة من ربطها في النظام. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.
     </p>
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
