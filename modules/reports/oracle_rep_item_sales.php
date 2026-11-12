@@ -72,6 +72,36 @@ foreach ($hypexNameByMan as $manNo => $nm) {
 usort($reps, static fn (array $a, array $b): int => strcmp((string) $a['name_ar'], (string) $b['name_ar']));
 
 $salesRepId = (int) ($_GET['sales_rep_id'] ?? 0);
+$rawCustomerIds = $_GET['customer_id'] ?? [];
+if (!is_array($rawCustomerIds)) {
+    $rawCustomerIds = $rawCustomerIds !== '' && $rawCustomerIds !== null ? [$rawCustomerIds] : [];
+}
+$customerIds = [];
+foreach ($rawCustomerIds as $cid) {
+    $cid = (int) $cid;
+    if ($cid > 0) {
+        $customerIds[$cid] = $cid;
+    }
+}
+$customerIds = array_values($customerIds);
+$rawCategoryIds = $_GET['category_id'] ?? [];
+if (!is_array($rawCategoryIds)) {
+    $rawCategoryIds = $rawCategoryIds !== '' && $rawCategoryIds !== null ? [$rawCategoryIds] : [];
+}
+$categoryIds = [];
+foreach ($rawCategoryIds as $cid) {
+    $cid = trim((string) $cid);
+    if ($cid === 'none' || ctype_digit($cid)) {
+        $categoryIds[$cid] = $cid;
+    }
+}
+$categoryIds = array_values($categoryIds);
+$customers = $pdo->query(
+    'SELECT id, name_ar, code, oracle_key FROM crm_customer WHERE is_active = 1 ORDER BY name_ar'
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+$categories = $pdo->query(
+    'SELECT id, name_ar FROM inv_item_category ORDER BY name_ar'
+)->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $from = trim((string) ($_GET['from'] ?? ''));
 $to = trim((string) ($_GET['to'] ?? ''));
 $store = (int) ($_GET['store'] ?? $cfg['default_store']);
@@ -126,7 +156,53 @@ if ($submitted) {
         if ($salesRepId > 0) {
             $repName = $hypexNameByMan[$salesRepId] ?? ('مندوب ' . $salesRepId);
         }
-        $result = oracle_fetch_rep_item_sales($from, $to, $store, $salesRepId > 0 ? $salesRepId : null);
+        $custAccs = [];
+        foreach ($customerIds as $cid) {
+            foreach ($customers as $cust) {
+                if ((int) ($cust['id'] ?? 0) !== $cid) {
+                    continue;
+                }
+                $raw = trim((string) ($cust['oracle_key'] ?? ''));
+                if ($raw === '') {
+                    $raw = trim((string) ($cust['code'] ?? ''));
+                }
+                $digits = ltrim(preg_replace('/\D+/', '', $raw) ?? '', '0');
+                if ($digits !== '') {
+                    $custAccs[$digits] = $digits;
+                }
+                break;
+            }
+        }
+        $custAccs = array_values($custAccs);
+        $catNames = [];
+        foreach ($categoryIds as $cid) {
+            if ($cid === 'none') {
+                $catNames['بدون فئة'] = 'بدون فئة';
+                continue;
+            }
+            foreach ($categories as $cat) {
+                if ((string) ($cat['id'] ?? '') !== $cid) {
+                    continue;
+                }
+                $name = trim((string) ($cat['name_ar'] ?? ''));
+                if ($name !== '') {
+                    $catNames[$name] = $name;
+                }
+                break;
+            }
+        }
+        $catNames = array_values($catNames);
+        if ($customerIds !== [] && $custAccs === []) {
+            $err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
+        } else {
+        $result = oracle_fetch_rep_item_sales(
+            $from,
+            $to,
+            $store,
+            $salesRepId > 0 ? $salesRepId : null,
+            $custAccs,
+            $catNames
+        );
         if (empty($result['ok'])) {
             $err = (string) ($result['message'] ?? 'تعذر الاستعلام من Oracle.');
         } else {
@@ -155,10 +231,33 @@ if ($submitted) {
                 $err = (string) $result['message'];
             }
         }
+        }
     }
 }
 
 $repsJson = json_encode($reps, JSON_UNESCAPED_UNICODE) ?: '[]';
+$pickerCustomers = [];
+foreach ($customers as $cust) {
+    $pickerCustomers[] = [
+        'id' => (string) (int) ($cust['id'] ?? 0),
+        'label' => (string) ($cust['name_ar'] ?? ''),
+        'code' => (string) ($cust['code'] ?? ''),
+    ];
+}
+$pickerCategories = [['id' => 'none', 'label' => 'بدون فئة', 'code' => '']];
+foreach ($categories as $cat) {
+    $pickerCategories[] = [
+        'id' => (string) (int) ($cat['id'] ?? 0),
+        'label' => (string) ($cat['name_ar'] ?? ''),
+        'code' => '',
+    ];
+}
+$customersJson = str_replace('<', '\u003c', json_encode($pickerCustomers, JSON_UNESCAPED_UNICODE) ?: '[]');
+$categoriesJson = str_replace('<', '\u003c', json_encode($pickerCategories, JSON_UNESCAPED_UNICODE) ?: '[]');
+$selectedJson = str_replace('<', '\u003c', json_encode([
+    'customers' => array_map('strval', $customerIds),
+    'categories' => array_values($categoryIds),
+], JSON_UNESCAPED_UNICODE) ?: '{}');
 $cssPath = app_path('assets/css/report-sales.css');
 $cssUrl = app_url('assets/css/report-sales.css') . (is_file($cssPath) ? '?v=' . (string) filemtime($cssPath) : '');
 $repJsPath = app_path('assets/js/report-rep-picker.js');
@@ -194,6 +293,17 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
 .ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
 .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
 .ora-tools { display: flex; gap: .5rem; margin: 0 0 .75rem; }
+.ora-multi { position: relative; }
+.ora-multi-btn { width: 100%; text-align: right; cursor: pointer; background: #fff; }
+.ora-multi-panel {
+  position: absolute; z-index: 40; top: calc(100% + 4px); right: 0; left: 0;
+  background: #fff; border: 1px solid #d5deea; border-radius: 8px;
+  max-height: 280px; display: flex; flex-direction: column;
+  box-shadow: 0 8px 24px rgba(15,23,42,.12); padding: .4rem;
+}
+.ora-multi-panel[hidden] { display: none !important; }
+.ora-multi-list { overflow: auto; margin-top: .35rem; }
+.ora-multi-item { display: flex; gap: .45rem; align-items: flex-start; padding: .28rem .15rem; cursor: pointer; }
 .ora-view[hidden] { display: none !important; }
 .ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
 .ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
@@ -247,6 +357,26 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     <input type="text" class="input report-cust-pick-inp" data-rep-search
                            placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false">
                     <div class="report-cust-pick-list" data-rep-list hidden></div>
+                </div>
+            </label>
+            <label class="field" style="flex:1 1 16rem;">
+                <span class="field-label">العميل</span>
+                <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
+                    <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
+                    <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <input type="text" class="input" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
+                        <div class="ora-multi-list" data-ora-multi-list></div>
+                    </div>
+                </div>
+            </label>
+            <label class="field" style="flex:1 1 14rem;">
+                <span class="field-label">الفئة</span>
+                <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
+                    <button type="button" class="input ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
+                    <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                        <input type="text" class="input" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
+                        <div class="ora-multi-list" data-ora-multi-list></div>
+                    </div>
                 </div>
             </label>
             <label class="field">
@@ -604,18 +734,108 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
     <?php endif; ?>
 </div>
 <script type="application/json" id="report-sales-reps-json"><?= $repsJson ?></script>
+<script type="application/json" id="report-sales-customers-json"><?= $customersJson ?></script>
+<script type="application/json" id="report-sales-categories-json"><?= $categoriesJson ?></script>
+<script type="application/json" id="ora-filter-selected"><?= $selectedJson ?></script>
 <script src="<?= esc($repJsUrl) ?>" defer></script>
 <script src="<?= esc($exportJsUrl) ?>"></script>
 <script>
+function initOraMulti(root, items, selected) {
+  if (!root) return;
+  var btn = root.querySelector('[data-ora-multi-btn]');
+  var panel = root.querySelector('[data-ora-multi-panel]');
+  var q = root.querySelector('[data-ora-multi-q]');
+  var list = root.querySelector('[data-ora-multi-list]');
+  var name = root.getAttribute('data-ora-name');
+  var emptyLabel = root.getAttribute('data-ora-empty') || 'الكل';
+  var sel = {};
+  (selected || []).forEach(function (id) { sel[String(id)] = true; });
+  function selectedIds() { return Object.keys(sel).filter(function (k) { return sel[k]; }); }
+  function labelOf() {
+    var ids = selectedIds();
+    if (!ids.length) return emptyLabel;
+    if (ids.length === 1) {
+      var one = items.find(function (it) { return String(it.id) === ids[0]; });
+      return one ? one.label : ids[0];
+    }
+    return ids.length + ' محدد';
+  }
+  function syncHidden() {
+    root.querySelectorAll('input[data-ora-hidden]').forEach(function (n) { n.remove(); });
+    selectedIds().forEach(function (id) {
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = id;
+      input.setAttribute('data-ora-hidden', '1');
+      root.appendChild(input);
+    });
+    btn.textContent = labelOf();
+  }
+  function render() {
+    var needle = String(q.value || '').trim().toLowerCase();
+    list.innerHTML = '';
+    items.forEach(function (it) {
+      var text = String(it.label || '');
+      var code = String(it.code || '');
+      var hay = (text + ' ' + code).toLowerCase();
+      if (needle && hay.indexOf(needle) < 0) return;
+      var row = document.createElement('label');
+      row.className = 'ora-multi-item';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!sel[String(it.id)];
+      cb.addEventListener('change', function () {
+        if (cb.checked) sel[String(it.id)] = true;
+        else delete sel[String(it.id)];
+        syncHidden();
+      });
+      var span = document.createElement('span');
+      span.textContent = code ? text + ' — ' + code : text;
+      row.appendChild(cb);
+      row.appendChild(span);
+      list.appendChild(row);
+    });
+  }
+  btn.addEventListener('click', function () {
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) {
+      var rect = btn.getBoundingClientRect();
+      panel.style.position = 'fixed';
+      panel.style.top = Math.round(rect.bottom + 4) + 'px';
+      panel.style.left = Math.round(rect.left) + 'px';
+      panel.style.width = Math.max(Math.round(rect.width), 240) + 'px';
+      panel.style.right = 'auto';
+      panel.style.zIndex = '100600';
+      render();
+      q.focus();
+    }
+  });
+  q.addEventListener('input', render);
+  q.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ev.preventDefault(); });
+  document.addEventListener('click', function (ev) {
+    if (!root.contains(ev.target)) panel.hidden = true;
+  });
+  syncHidden();
+}
 document.addEventListener('DOMContentLoaded', function () {
   var el = document.getElementById('report-sales-reps-json');
   var root = document.getElementById('report-sales-rep-pick');
-  if (!el || !root || !window.ReportRepPicker) return;
-  var reps = [];
-  try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
-  var hidden = root.querySelector('[data-rep-id]');
-  var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
-  window.ReportRepPicker.init(root, reps, { initialId: initialId });
+  if (el && root && window.ReportRepPicker) {
+    var reps = [];
+    try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
+    var hidden = root.querySelector('[data-rep-id]');
+    var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
+    window.ReportRepPicker.init(root, reps, { initialId: initialId });
+  }
+  var selected = { customers: [], categories: [] };
+  try { selected = JSON.parse((document.getElementById('ora-filter-selected') || {}).textContent || '{}'); } catch (e3) {}
+  var custItems = [];
+  var catItems = [];
+  try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
+  try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
+  initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
+  initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
 });
 document.addEventListener('click', function (ev) {
   var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');

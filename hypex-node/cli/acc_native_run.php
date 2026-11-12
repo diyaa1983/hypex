@@ -474,8 +474,26 @@ try {
         $repNo = isset($payload['rep_no']) && $payload['rep_no'] !== '' && $payload['rep_no'] !== null
             ? (int) $payload['rep_no']
             : null;
+        $custAccs = $payload['cust_accs'] ?? [];
+        if (!is_array($custAccs)) {
+            $custAccs = trim((string) $custAccs) !== '' ? [$custAccs] : [];
+        }
+        if ($custAccs === [] && trim((string) ($payload['cust_acc'] ?? '')) !== '') {
+            $custAccs = [(string) $payload['cust_acc']];
+        }
+        $catNames = $payload['cat_names'] ?? [];
+        if (!is_array($catNames)) {
+            $catNames = trim((string) $catNames) !== '' ? [$catNames] : [];
+        }
         try {
-            $result = oracle_fetch_rep_item_sales($from, $to, $store > 0 ? $store : null, $repNo);
+            $result = oracle_fetch_rep_item_sales(
+                $from,
+                $to,
+                $store > 0 ? $store : null,
+                $repNo,
+                $custAccs,
+                $catNames
+            );
             cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
         } catch (Throwable $e) {
             cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'تعذر الاتصال بـ Oracle.'], 1);

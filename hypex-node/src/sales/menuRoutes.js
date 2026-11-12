@@ -2181,6 +2181,12 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
   const store = Number(req.query.store || 4) || 4;
   const oracleRepNo = Number(req.query.sales_rep_id || 0) || 0;
+  const asList = (value) => {
+    const raw = Array.isArray(value) ? value : value != null && String(value) !== '' ? [value] : [];
+    return [...new Set(raw.map((v) => String(v).trim()).filter(Boolean))];
+  };
+  const customerIds = asList(req.query.customer_id).map((id) => Number(id)).filter((id) => id > 0);
+  const categoryIds = asList(req.query.category_id);
   const run = String(req.query.run || '') === '1';
   const uid = Number(req.session.user?.id || 0) || 0;
 
@@ -2225,6 +2231,43 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   }
   reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
 
+  const db = require('../db');
+  let customers = [];
+  try {
+    customers = await db.query(
+      `SELECT id, name_ar, code, IFNULL(oracle_key, '') AS oracle_key
+       FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 4000`
+    );
+  } catch (e) {
+    customers = [];
+  }
+  let categories = [];
+  try {
+    categories = await db.query(
+      `SELECT id, name_ar FROM inv_item_category ORDER BY name_ar`
+    );
+  } catch (e) {
+    categories = [];
+  }
+  const custAccs = [];
+  customerIds.forEach((id) => {
+    const picked = (customers || []).find((c) => Number(c.id) === id);
+    if (!picked) return;
+    const raw = String(picked.oracle_key || '').trim() || String(picked.code || '').trim();
+    const acc = String(raw).replace(/\D+/g, '').replace(/^0+/, '');
+    if (acc) custAccs.push(acc);
+  });
+  const catNames = [];
+  categoryIds.forEach((id) => {
+    if (id === 'none') {
+      catNames.push('بدون فئة');
+      return;
+    }
+    const row = (categories || []).find((c) => String(c.id) === id);
+    const name = String(row?.name_ar || '').trim();
+    if (name) catNames.push(name);
+  });
+
   const fmtQty = (n) => {
     const x = Number(n);
     if (!Number.isFinite(x)) return '0';
@@ -2243,11 +2286,16 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         reps.find((r) => Number(r.id) === oracleRepNo)?.name_ar ||
         `مندوب ${oracleRepNo}`;
     }
+    if (customerIds.length && !custAccs.length) {
+      err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
+    } else {
     const data = await accNative.run('oracle_rep_item_sales', uid, {
       from: range.from,
       to: range.to,
       store,
       rep_no: oracleRepNo > 0 ? oracleRepNo : null,
+      cust_accs: custAccs,
+      cat_names: catNames,
     });
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
@@ -2263,6 +2311,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       });
       totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
       if (!rows.length && data.message) err = String(data.message);
+    }
     }
   }
 
@@ -2522,6 +2571,26 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   }
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
+  const customersJson = JSON.stringify(
+    (customers || []).map((c) => ({
+      id: String(Number(c.id) || 0),
+      label: String(c.name_ar || ''),
+      code: String(c.code || ''),
+    }))
+  ).replace(/</g, '\\u003c');
+  const categoriesJson = JSON.stringify(
+    [{ id: 'none', label: 'بدون فئة', code: '' }].concat(
+      (categories || []).map((c) => ({
+        id: String(Number(c.id) || 0),
+        label: String(c.name_ar || ''),
+        code: '',
+      }))
+    )
+  ).replace(/</g, '\\u003c');
+  const selectedJson = JSON.stringify({
+    customers: customerIds.map(String),
+    categories: categoryIds,
+  }).replace(/</g, '\\u003c');
   const body = `
     <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_item_sales">
       ${ui.hero({
@@ -2542,6 +2611,24 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
                      placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
                      aria-label="بحث عن مندوب" style="min-width:100%;width:100%">
               <div class="report-cust-pick-list" data-rep-list hidden></div>
+            </div>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">العميل
+            <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
+              <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <input type="text" class="si-field" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
+                <div class="ora-multi-list" data-ora-multi-list></div>
+              </div>
+            </div>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 14rem;min-width:12rem">الفئة
+            <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
+              <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                <input type="text" class="si-field" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
+                <div class="ora-multi-list" data-ora-multi-list></div>
+              </div>
             </div>
           </label>
           <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
@@ -2588,6 +2675,17 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         .ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
         .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
         .ora-tools { display: flex; gap: .5rem; margin: 0 1rem .75rem; }
+        .ora-multi { position: relative; margin-top: .25rem; }
+        .ora-multi-btn { width: 100%; text-align: right; cursor: pointer; background: #fff; }
+        .ora-multi-panel {
+          position: absolute; z-index: 40; top: calc(100% + 4px); right: 0; left: 0;
+          background: #fff; border: 1px solid #d5deea; border-radius: 8px;
+          max-height: 280px; display: flex; flex-direction: column;
+          box-shadow: 0 8px 24px rgba(15,23,42,.12); padding: .4rem;
+        }
+        .ora-multi-panel[hidden] { display: none !important; }
+        .ora-multi-list { overflow: auto; margin-top: .35rem; }
+        .ora-multi-item { display: flex; gap: .45rem; align-items: flex-start; padding: .28rem .15rem; cursor: pointer; }
         .ora-view[hidden] { display: none !important; }
         .ora-detail-table td.ora-name { min-width: 18rem; white-space: normal; }
         .ora-cust-band td { background: #f4f7fb; font-weight: 800; font-size: 1rem; }
@@ -2625,16 +2723,107 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
       <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
+      <script type="application/json" id="report-sales-customers-json">${customersJson}</script>
+      <script type="application/json" id="report-sales-categories-json">${categoriesJson}</script>
+      <script type="application/json" id="ora-filter-selected">${selectedJson}</script>
       <script>
+      function initOraMulti(root, items, selected) {
+        if (!root) return;
+        var btn = root.querySelector('[data-ora-multi-btn]');
+        var panel = root.querySelector('[data-ora-multi-panel]');
+        var q = root.querySelector('[data-ora-multi-q]');
+        var list = root.querySelector('[data-ora-multi-list]');
+        var name = root.getAttribute('data-ora-name');
+        var emptyLabel = root.getAttribute('data-ora-empty') || 'الكل';
+        var sel = {};
+        (selected || []).forEach(function (id) { sel[String(id)] = true; });
+        function selectedIds() { return Object.keys(sel).filter(function (k) { return sel[k]; }); }
+        function labelOf() {
+          var ids = selectedIds();
+          if (!ids.length) return emptyLabel;
+          if (ids.length === 1) {
+            var one = items.find(function (it) { return String(it.id) === ids[0]; });
+            return one ? one.label : ids[0];
+          }
+          return ids.length + ' محدد';
+        }
+        function syncHidden() {
+          root.querySelectorAll('input[data-ora-hidden]').forEach(function (n) { n.remove(); });
+          selectedIds().forEach(function (id) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = name;
+            input.value = id;
+            input.setAttribute('data-ora-hidden', '1');
+            root.appendChild(input);
+          });
+          btn.textContent = labelOf();
+        }
+        function render() {
+          var needle = String(q.value || '').trim().toLowerCase();
+          list.innerHTML = '';
+          items.forEach(function (it) {
+            var text = String(it.label || '');
+            var code = String(it.code || '');
+            var hay = (text + ' ' + code).toLowerCase();
+            if (needle && hay.indexOf(needle) < 0) return;
+            var row = document.createElement('label');
+            row.className = 'ora-multi-item';
+            var cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.checked = !!sel[String(it.id)];
+            cb.addEventListener('change', function () {
+              if (cb.checked) sel[String(it.id)] = true;
+              else delete sel[String(it.id)];
+              syncHidden();
+            });
+            var span = document.createElement('span');
+            span.textContent = code ? text + ' — ' + code : text;
+            row.appendChild(cb);
+            row.appendChild(span);
+            list.appendChild(row);
+          });
+        }
+        btn.addEventListener('click', function () {
+          panel.hidden = !panel.hidden;
+          if (!panel.hidden) {
+            var rect = btn.getBoundingClientRect();
+            panel.style.position = 'fixed';
+            panel.style.top = Math.round(rect.bottom + 4) + 'px';
+            panel.style.left = Math.round(rect.left) + 'px';
+            panel.style.width = Math.max(Math.round(rect.width), 240) + 'px';
+            panel.style.right = 'auto';
+            panel.style.zIndex = '100600';
+            render();
+            q.focus();
+          }
+        });
+        q.addEventListener('input', render);
+        q.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ev.preventDefault(); });
+        document.addEventListener('click', function (ev) {
+          if (!root.contains(ev.target)) panel.hidden = true;
+        });
+        syncHidden();
+      }
       document.addEventListener('DOMContentLoaded', function () {
         var el = document.getElementById('report-sales-reps-json');
         var root = document.getElementById('report-sales-rep-pick');
-        if (!el || !root || !window.ReportRepPicker) return;
-        var reps = [];
-        try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
-        var hidden = root.querySelector('[data-rep-id]');
-        var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
-        window.ReportRepPicker.init(root, reps, { initialId: initialId });
+        if (el && root && window.ReportRepPicker) {
+          var reps = [];
+          try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
+          var hidden = root.querySelector('[data-rep-id]');
+          var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
+          window.ReportRepPicker.init(root, reps, { initialId: initialId });
+        }
+        var selected = { customers: [], categories: [] };
+        var selEl = document.getElementById('ora-filter-selected');
+        try { selected = JSON.parse(selEl && selEl.textContent || '{}'); } catch (e3) {}
+        var custItems = [];
+        var catItems = [];
+        try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
+        try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
+        initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
+        initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
       });
       document.addEventListener('click', function (ev) {
         var excelBtn = ev.target.closest && ev.target.closest('#ora-excel-btn');

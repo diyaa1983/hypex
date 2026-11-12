@@ -20,7 +20,9 @@ function oracle_fetch_rep_item_sales(
     string $fromIso,
     string $toIso,
     ?int $store = null,
-    ?int $repNo = null
+    ?int $repNo = null,
+    array $custAccs = [],
+    array $catNames = []
 ): array {
     $empty = [
         'ok' => false,
@@ -85,6 +87,23 @@ WHERE d.COMP_NUM = :comp_num
         $sql .= "  AND d.MAN_NUM = :rep_no\n";
         $binds['rep_no'] = $repNo;
     }
+    $custKeys = [];
+    foreach ($custAccs as $acc) {
+        $key = ltrim(preg_replace('/\D+/', '', (string) $acc) ?? '', '0');
+        if ($key !== '') {
+            $custKeys[$key] = true;
+        }
+    }
+    $custKeys = array_keys($custKeys);
+    if ($custKeys !== []) {
+        $ph = [];
+        foreach ($custKeys as $i => $key) {
+            $name = 'cacc' . $i;
+            $ph[] = ':' . $name;
+            $binds[$name] = $key;
+        }
+        $sql .= "  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), '0') IN (" . implode(',', $ph) . ")\n";
+    }
     $sql .= "
 GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
 ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
@@ -133,6 +152,13 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
     $totBonus = 0.0;
     $totAmt = 0.0;
     $reps = [];
+    $wantCats = [];
+    foreach ($catNames as $name) {
+        $name = trim((string) $name);
+        if ($name !== '') {
+            $wantCats[$name] = true;
+        }
+    }
     foreach ($raw as $r) {
         $rep = (int) oracle_statement_row_val($r, 'REP_NO');
         $custAcc = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
@@ -147,6 +173,9 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         $catName = is_array($hx) ? trim((string) ($hx['cat_name'] ?? '')) : '';
         if ($catName === '') {
             $catName = 'بدون فئة';
+        }
+        if ($wantCats !== [] && !isset($wantCats[$catName])) {
+            continue;
         }
         $itemName = trim((string) ($itemNames[$item] ?? ''));
         if ($itemName === '' && is_array($hx)) {
