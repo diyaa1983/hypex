@@ -2269,7 +2269,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     const flush = () => {
       if (cur == null) return;
       rowsHtml += `<tr style="font-weight:800;background:#f8fafc">
-        <td colspan="4">إجمالي المندوب</td>
+        <td colspan="5">إجمالي المندوب</td>
         <td class="si-num" dir="ltr">${esc(fmtQty(sub.qty))}</td>
         <td class="si-num" dir="ltr">${esc(fmtQty(sub.bonus))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(sub.amount))}</td>
@@ -2285,6 +2285,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       sub.amount += Number(r.amount) || 0;
       rowsHtml += `<tr>
         <td>${esc(r.rep_name || '')}</td>
+        <td>${esc(r.customer_name || r.customer_acc || '')}</td>
         <td>${esc(r.cat_name || '')}</td>
         <td class="si-num" dir="ltr">${esc(r.item_code || '')}</td>
         <td>${esc(r.item_name || '')}</td>
@@ -2295,13 +2296,13 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     }
     flush();
     rowsHtml += `<tr>
-      <td colspan="4" style="font-weight:800">الإجمالي</td>
+      <td colspan="5" style="font-weight:800">الإجمالي</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtQty(totals.qty))}</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtQty(totals.bonus))}</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.amount))}</td>
     </tr>`;
   } else if (run && !err) {
-    rowsHtml = ui.emptyRow(7, 'لا توجد مبيعات في الفترة المحددة.');
+    rowsHtml = ui.emptyRow(8, 'لا توجد مبيعات في الفترة المحددة.');
   }
 
   let tableBlock = '';
@@ -2311,7 +2312,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     tableBlock = ui.tableSurface(
       repName ? `مندوب: ${esc(repName)}` : 'مبيعات المناديب حسب المادة والفئة',
       `${Number(totals.reps) || 0} مندوب · ${Number(totals.items) || 0} سطر`,
-      ['المندوب', 'الفئة', 'رقم المادة', 'المادة', 'الكمية', 'البونص', 'المبلغ'],
+      ['المندوب', 'العميل', 'الفئة', 'رقم المادة', 'المادة', 'الكمية', 'البونص', 'المبلغ'],
       rowsHtml
     );
   }
@@ -2323,7 +2324,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         mark: '📦',
         kicker: 'تقارير المبيعات',
         title: 'مبيعات المندوب حسب المادة والفئة (Oracle)',
-        subtitle: 'كل مندوب، المواد التي باعها، وفئة كل مادة',
+        subtitle: 'كل مندوب، العميل، المواد التي باعها، وفئة كل مادة',
         actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
       })}
       <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">البيانات من Oracle. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة. اسم الفئة من Oracle، وإن لم يوجد يُؤخذ من بطاقة المادة.</p>

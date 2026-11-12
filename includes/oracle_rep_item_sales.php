@@ -57,6 +57,7 @@ function oracle_fetch_rep_item_sales(
 
     $sql = "
 SELECT d.MAN_NUM AS REP_NO,
+       TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
        TRIM(TO_CHAR(d.CAT)) AS CAT_CODE,
        SUM(NVL(d.QTY, 0)) AS QTY,
@@ -84,8 +85,8 @@ WHERE d.COMP_NUM = :comp_num
         $binds['rep_no'] = $repNo;
     }
     $sql .= "
-GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
-ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
+GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
+ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
 
     $conn = oracle_connect();
@@ -105,20 +106,26 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 
     $itemCodes = [];
     $catCodes = [];
+    $custAccs = [];
     foreach ($raw as $r) {
         $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
         $cat = trim((string) oracle_statement_row_val($r, 'CAT_CODE'));
+        $cust = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
         if ($item !== '') {
             $itemCodes[$item] = true;
         }
         if ($cat !== '') {
             $catCodes[$cat] = true;
         }
+        if ($cust !== '') {
+            $custAccs[$cust] = true;
+        }
     }
 
     $itemNames = oracle_sales_invoice_item_names($conn, array_keys($itemCodes));
     $catNames = oracle_rep_item_sales_category_names($conn, array_keys($catCodes));
     $hypex = oracle_rep_item_sales_hypex_map(array_keys($itemCodes));
+    $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
 
     $rows = [];
     $totQty = 0.0;
@@ -127,6 +134,7 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
     $reps = [];
     foreach ($raw as $r) {
         $rep = (int) oracle_statement_row_val($r, 'REP_NO');
+        $custAcc = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
         $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
         $cat = trim((string) oracle_statement_row_val($r, 'CAT_CODE'));
         $qty = (float) oracle_statement_row_val($r, 'QTY');
@@ -150,6 +158,8 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
         $rows[] = [
             'rep_no' => $rep,
             'rep_name' => 'مندوب ' . $rep,
+            'customer_acc' => $custAcc,
+            'customer_name' => $customers[$custAcc] ?? ($custAcc !== '' ? $custAcc : '—'),
             'cat_code' => $cat,
             'cat_name' => $catName,
             'item_code' => $item,
@@ -166,6 +176,10 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 
     usort($rows, static function (array $a, array $b): int {
         $c = ($a['rep_no'] <=> $b['rep_no']);
+        if ($c !== 0) {
+            return $c;
+        }
+        $c = strcmp((string) $a['customer_name'], (string) $b['customer_name']);
         if ($c !== 0) {
             return $c;
         }
@@ -189,6 +203,101 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
             'items' => count($rows),
         ],
     ];
+}
+
+/**
+ * اسم العميل: بطاقة هايبكس أولاً، ثم دليل Oracle.
+ *
+ * @param list<string> $accounts
+ * @return array<string,string>
+ */
+function oracle_rep_item_sales_customer_names(array $conn, array $accounts): array
+{
+    $want = [];
+    foreach ($accounts as $acc) {
+        $acc = trim((string) $acc);
+        if ($acc !== '') {
+            $want[$acc] = true;
+        }
+    }
+    if ($want === []) {
+        return [];
+    }
+
+    $out = [];
+    try {
+        $pdo = db();
+        $rows = $pdo->query(
+            "SELECT name_ar, code, oracle_key FROM crm_customer WHERE is_active = 1"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as $r) {
+            $name = trim((string) ($r['name_ar'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            foreach (['oracle_key', 'code'] as $col) {
+                $key = preg_replace('/\D+/', '', (string) ($r[$col] ?? '')) ?? '';
+                if ($key !== '' && isset($want[$key]) && !isset($out[$key])) {
+                    $out[$key] = $name;
+                }
+                $raw = trim((string) ($r[$col] ?? ''));
+                if ($raw !== '' && isset($want[$raw]) && !isset($out[$raw])) {
+                    $out[$raw] = $name;
+                }
+            }
+        }
+    } catch (Throwable $e) {
+        // الاسم من Oracle يكفي
+    }
+
+    $missing = [];
+    foreach (array_keys($want) as $acc) {
+        if (!isset($out[$acc])) {
+            $missing[] = $acc;
+        }
+    }
+    if ($missing === [] || empty($conn['ok'])) {
+        return $out;
+    }
+
+    $cfg = oracle_config();
+    $gl = is_array($cfg['customers']['name_from_gl'] ?? null) ? $cfg['customers']['name_from_gl'] : [];
+    $glOwn = strtoupper(trim((string) ($gl['owner'] ?? 'ACCINV'))) ?: 'ACCINV';
+    $glTbl = strtoupper(trim((string) ($gl['table'] ?? 'GLACTMF'))) ?: 'GLACTMF';
+    $glNum = strtoupper(trim((string) ($gl['acc_num'] ?? 'ACC_NUM'))) ?: 'ACC_NUM';
+    $glDesc = strtoupper(trim((string) ($gl['acc_desc'] ?? 'ACC_DESC'))) ?: 'ACC_DESC';
+    $in = [];
+    foreach ($missing as $acc) {
+        $digits = preg_replace('/\D+/', '', $acc) ?? '';
+        if ($digits !== '') {
+            $in[$digits] = true;
+        }
+    }
+    if ($in === []) {
+        return $out;
+    }
+    $chunks = array_chunk(array_keys($in), 400);
+    foreach ($chunks as $chunk) {
+        $list = implode(',', $chunk);
+        $sql = 'SELECT TRIM(TO_CHAR(' . oracle_stmt_q($glNum) . ')) AS ACC, TRIM('
+            . oracle_stmt_q($glDesc) . ') AS N FROM '
+            . oracle_stmt_q($glOwn) . '.' . oracle_stmt_q($glTbl)
+            . ' WHERE TO_CHAR(' . oracle_stmt_q($glNum) . ') IN (' . $list . ')';
+        try {
+            $raw = oracle_query_all($conn, $sql, []);
+            foreach ($raw as $r) {
+                $acc = trim((string) oracle_statement_row_val($r, 'ACC'));
+                $name = trim((string) oracle_statement_row_val($r, 'N'));
+                if ($acc !== '' && $name !== '' && isset($want[$acc]) && !isset($out[$acc])) {
+                    $out[$acc] = $name;
+                }
+            }
+        } catch (Throwable $e) {
+            // يبقى رقم الحساب
+        }
+    }
+
+    return $out;
 }
 
 /**

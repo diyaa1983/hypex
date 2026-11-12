@@ -219,6 +219,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     <thead>
                         <tr>
                             <th>المندوب</th>
+                            <th>العميل</th>
                             <th>الفئة</th>
                             <th>رقم المادة</th>
                             <th>المادة</th>
@@ -229,7 +230,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     </thead>
                     <tbody>
                         <?php if ($rows === []): ?>
-                            <tr><td colspan="7" class="muted" style="text-align:center;padding:1.25rem;">لا توجد مبيعات في الفترة المحددة.</td></tr>
+                            <tr><td colspan="8" class="muted" style="text-align:center;padding:1.25rem;">لا توجد مبيعات في الفترة المحددة.</td></tr>
                         <?php else: ?>
                             <?php
                             $curRep = null;
@@ -240,7 +241,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                 if ($curRep === null) {
                                     return;
                                 }
-                                echo '<tr style="font-weight:800;background:#f8fafc"><td colspan="4">إجمالي المندوب</td><td dir="ltr">'
+                                echo '<tr style="font-weight:800;background:#f8fafc"><td colspan="5">إجمالي المندوب</td><td dir="ltr">'
                                     . esc($fmtQty($subQty)) . '</td><td dir="ltr">' . esc($fmtQty($subBonus))
                                     . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($subAmt)) . '</td></tr>';
                                 $subQty = 0.0;
@@ -259,6 +260,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                                 ?>
                                 <tr>
                                     <td><?= esc((string) ($r['rep_name'] ?? '')) ?></td>
+                                    <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
                                     <td><?= esc((string) ($r['cat_name'] ?? '')) ?></td>
                                     <td dir="ltr"><?= esc((string) ($r['item_code'] ?? '')) ?></td>
                                     <td><?= esc((string) ($r['item_name'] ?? '')) ?></td>
@@ -272,7 +274,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     <?php if ($rows !== []): ?>
                         <tfoot>
                             <tr>
-                                <td colspan="4">الإجمالي</td>
+                                <td colspan="5">الإجمالي</td>
                                 <td dir="ltr"><?= esc($fmtQty((float) ($totals['qty'] ?? 0))) ?></td>
                                 <td dir="ltr"><?= esc($fmtQty((float) ($totals['bonus'] ?? 0))) ?></td>
                                 <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></td>
