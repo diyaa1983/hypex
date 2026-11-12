@@ -281,10 +281,56 @@ function oracle_statement_flip_arabic_tokens(string $s, bool $reverseOrder): str
     return implode('', $out);
 }
 
+/** حروف عربية مفردة مفصولة بمسافة → كلمة واحدة. لا يمس «فاتورة مبيعات». */
+function oracle_statement_collapse_spaced_letters(string $s): string
+{
+    $out = preg_replace_callback(
+        '/(?<![\p{Arabic}])\p{Arabic}(?:[ \x{00A0}]+\p{Arabic}){3,}(?![\p{Arabic}])/u',
+        static function (array $m): string {
+            return preg_replace('/[ \x{00A0}]+/u', '', $m[0]) ?? $m[0];
+        },
+        $s
+    );
+
+    return is_string($out) ? $out : $s;
+}
+
+/**
+ * درجة اتجاه النص: الكلمات المنطقية تبدأ بـ«ال» وتنتهي بـ«ة/ات»،
+ * والنص البصري المقلوب يبدأ بـ«ة».
+ */
+function oracle_statement_order_score(string $s): int
+{
+    $score = oracle_statement_arabic_score($s) * 5;
+    if (preg_match_all('/\p{Arabic}{3,}/u', $s, $m) < 1 || !is_array($m[0] ?? null)) {
+        return $score;
+    }
+    foreach ($m[0] as $w) {
+        if (str_starts_with($w, 'ال')) {
+            $score += 4;
+        }
+        if (str_ends_with($w, 'ة')) {
+            $score += 2;
+        }
+        if (preg_match('/(?:ات|ون|ين|ها|ية)$/u', $w) === 1) {
+            $score += 2;
+        }
+        if (str_starts_with($w, 'ة')) {
+            $score -= 4;
+        }
+        if (str_ends_with($w, 'ال')) {
+            $score -= 3;
+        }
+    }
+
+    return $score;
+}
+
 function oracle_statement_fix_arabic_order(string $s): string
 {
-    $s = preg_replace('/[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s) ?? $s;
+    $s = preg_replace('/[\p{Cf}\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}\x{FEFF}]/u', '', $s) ?? $s;
     $s = oracle_statement_nominalize_arabic($s);
+    $s = oracle_statement_collapse_spaced_letters($s);
     if (preg_match('/\p{Arabic}/u', $s) !== 1) {
         return $s;
     }
@@ -295,15 +341,20 @@ function oracle_statement_fix_arabic_order(string $s): string
             $m
         );
 
-        return [oracle_statement_arabic_score($text), count($m[0] ?? [])];
+        return [oracle_statement_order_score($text), count($m[0] ?? [])];
     };
-    $best = $s;
-    $bestRank = $rank($s);
-    foreach ([
+    $cands = [
         oracle_statement_flip_arabic_tokens($s, false),
         oracle_statement_flip_arabic_tokens($s, true),
         oracle_statement_mb_rev($s),
-    ] as $cand) {
+    ];
+    $bytes = @iconv('UTF-8', 'Windows-1256//IGNORE', $s);
+    if (is_string($bytes) && $bytes !== '' && preg_match('//u', $bytes) === 1 && preg_match('/\p{Arabic}/u', $bytes) === 1) {
+        $cands[] = $bytes;
+    }
+    $best = $s;
+    $bestRank = $rank($s);
+    foreach ($cands as $cand) {
         $candRank = $rank($cand);
         if (
             $candRank[0] > $bestRank[0]
