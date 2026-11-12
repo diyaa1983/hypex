@@ -2264,45 +2264,69 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
 
   let rowsHtml = '';
   if (rows.length) {
-    let cur = null;
-    let sub = { qty: 0, bonus: 0, amount: 0 };
-    const flush = () => {
-      if (cur == null) return;
-      rowsHtml += `<tr style="font-weight:800;background:#f8fafc">
-        <td colspan="5">إجمالي المندوب</td>
-        <td class="si-num" dir="ltr">${esc(fmtQty(sub.qty))}</td>
-        <td class="si-num" dir="ltr">${esc(fmtQty(sub.bonus))}</td>
-        <td class="si-num" dir="ltr">${esc(fmtAmt(sub.amount))}</td>
+    let curRep = null;
+    let curCat = null;
+    let catLabel = '';
+    let repSub = { qty: 0, amount: 0 };
+    let catSub = { qty: 0, amount: 0 };
+    const flushCat = () => {
+      if (curCat == null) return;
+      rowsHtml += `<tr style="font-weight:800;background:#eef6e8">
+        <td colspan="4">إجمالي فئة ${esc(catLabel)} — المبيعات</td>
+        <td class="si-num" dir="ltr">${esc(fmtQty(catSub.qty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(catSub.amount))}</td>
       </tr>`;
-      sub = { qty: 0, bonus: 0, amount: 0 };
+      curCat = null;
+      catSub = { qty: 0, amount: 0 };
+    };
+    const flushRep = () => {
+      if (curRep == null) return;
+      flushCat();
+      rowsHtml += `<tr style="font-weight:800;background:#f8fafc">
+        <td colspan="4">إجمالي المندوب</td>
+        <td class="si-num" dir="ltr">${esc(fmtQty(repSub.qty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(repSub.amount))}</td>
+      </tr>`;
+      curRep = null;
+      repSub = { qty: 0, amount: 0 };
     };
     for (const r of rows) {
       const no = Number(r.rep_no) || 0;
-      if (cur != null && cur !== no) flush();
-      cur = no;
-      sub.qty += Number(r.qty) || 0;
-      sub.bonus += Number(r.bonus) || 0;
-      sub.amount += Number(r.amount) || 0;
+      const catName = String(r.cat_name || 'بدون فئة');
+      const catKey = `${no}|${r.customer_acc || ''}|${catName}`;
+      if (curRep != null && curRep !== no) flushRep();
+      else if (curCat != null && curCat !== catKey) flushCat();
+      if (curCat !== catKey) {
+        rowsHtml += `<tr style="background:#e8eef8;font-weight:800">
+          <td colspan="6">الفئة: ${esc(catName)}</td>
+        </tr>`;
+        curCat = catKey;
+        catLabel = catName;
+      }
+      curRep = no;
+      const qty = Number(r.qty) || 0;
+      const amount = Number(r.amount) || 0;
+      repSub.qty += qty;
+      repSub.amount += amount;
+      catSub.qty += qty;
+      catSub.amount += amount;
       rowsHtml += `<tr>
         <td>${esc(r.rep_name || '')}</td>
         <td>${esc(r.customer_name || r.customer_acc || '')}</td>
-        <td>${esc(r.cat_name || '')}</td>
         <td class="si-num" dir="ltr">${esc(r.item_code || '')}</td>
         <td>${esc(r.item_name || '')}</td>
-        <td class="si-num" dir="ltr">${esc(fmtQty(r.qty))}</td>
-        <td class="si-num" dir="ltr">${esc(fmtQty(r.bonus))}</td>
-        <td class="si-num" dir="ltr">${esc(fmtAmt(r.amount))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtQty(qty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(amount))}</td>
       </tr>`;
     }
-    flush();
+    flushRep();
     rowsHtml += `<tr>
-      <td colspan="5" style="font-weight:800">الإجمالي</td>
+      <td colspan="4" style="font-weight:800">الإجمالي</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtQty(totals.qty))}</td>
-      <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtQty(totals.bonus))}</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.amount))}</td>
     </tr>`;
   } else if (run && !err) {
-    rowsHtml = ui.emptyRow(8, 'لا توجد مبيعات في الفترة المحددة.');
+    rowsHtml = ui.emptyRow(6, 'لا توجد مبيعات في الفترة المحددة.');
   }
 
   let tableBlock = '';
@@ -2312,7 +2336,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     tableBlock = ui.tableSurface(
       repName ? `مندوب: ${esc(repName)}` : 'مبيعات المناديب حسب المادة والفئة',
       `${Number(totals.reps) || 0} مندوب · ${Number(totals.items) || 0} سطر`,
-      ['المندوب', 'العميل', 'الفئة', 'رقم المادة', 'المادة', 'الكمية', 'البونص', 'المبلغ'],
+      ['المندوب', 'العميل', 'رقم المادة', 'المادة', 'الكمية', 'المبلغ'],
       rowsHtml
     );
   }

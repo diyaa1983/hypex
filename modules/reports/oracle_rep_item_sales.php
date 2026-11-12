@@ -220,63 +220,84 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                         <tr>
                             <th>المندوب</th>
                             <th>العميل</th>
-                            <th>الفئة</th>
                             <th>رقم المادة</th>
                             <th>المادة</th>
                             <th>الكمية</th>
-                            <th>البونص</th>
                             <th>المبلغ</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if ($rows === []): ?>
-                            <tr><td colspan="8" class="muted" style="text-align:center;padding:1.25rem;">لا توجد مبيعات في الفترة المحددة.</td></tr>
+                            <tr><td colspan="6" class="muted" style="text-align:center;padding:1.25rem;">لا توجد مبيعات في الفترة المحددة.</td></tr>
                         <?php else: ?>
                             <?php
                             $curRep = null;
-                            $subQty = 0.0;
-                            $subBonus = 0.0;
-                            $subAmt = 0.0;
-                            $flush = static function () use (&$curRep, &$subQty, &$subBonus, &$subAmt, $fmtQty, $fmtAmt): void {
+                            $curCat = null;
+                            $catLabel = '';
+                            $repQty = 0.0;
+                            $repAmt = 0.0;
+                            $catQty = 0.0;
+                            $catAmt = 0.0;
+                            $flushCat = static function () use (&$curCat, &$catLabel, &$catQty, &$catAmt, $fmtQty, $fmtAmt): void {
+                                if ($curCat === null) {
+                                    return;
+                                }
+                                echo '<tr style="font-weight:800;background:#eef6e8"><td colspan="4">إجمالي فئة '
+                                    . esc($catLabel) . ' — المبيعات</td><td dir="ltr">' . esc($fmtQty($catQty))
+                                    . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($catAmt)) . '</td></tr>';
+                                $curCat = null;
+                                $catQty = 0.0;
+                                $catAmt = 0.0;
+                            };
+                            $flushRep = static function () use (&$curRep, &$repQty, &$repAmt, $flushCat, $fmtQty, $fmtAmt): void {
                                 if ($curRep === null) {
                                     return;
                                 }
-                                echo '<tr style="font-weight:800;background:#f8fafc"><td colspan="5">إجمالي المندوب</td><td dir="ltr">'
-                                    . esc($fmtQty($subQty)) . '</td><td dir="ltr">' . esc($fmtQty($subBonus))
-                                    . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($subAmt)) . '</td></tr>';
-                                $subQty = 0.0;
-                                $subBonus = 0.0;
-                                $subAmt = 0.0;
+                                $flushCat();
+                                echo '<tr style="font-weight:800;background:#f8fafc"><td colspan="4">إجمالي المندوب</td><td dir="ltr">'
+                                    . esc($fmtQty($repQty)) . '</td><td class="col-money" dir="ltr">' . esc($fmtAmt($repAmt)) . '</td></tr>';
+                                $curRep = null;
+                                $repQty = 0.0;
+                                $repAmt = 0.0;
                             };
                             foreach ($rows as $r):
                                 $no = (int) ($r['rep_no'] ?? 0);
+                                $catName = trim((string) ($r['cat_name'] ?? '')) ?: 'بدون فئة';
+                                $catKey = $no . '|' . (string) ($r['customer_acc'] ?? '') . '|' . $catName;
                                 if ($curRep !== null && $curRep !== $no) {
-                                    $flush();
+                                    $flushRep();
+                                } elseif ($curCat !== null && $curCat !== $catKey) {
+                                    $flushCat();
+                                }
+                                if ($curCat !== $catKey) {
+                                    echo '<tr style="background:#e8eef8;font-weight:800"><td colspan="6">الفئة: ' . esc($catName) . '</td></tr>';
+                                    $curCat = $catKey;
+                                    $catLabel = $catName;
                                 }
                                 $curRep = $no;
-                                $subQty += (float) ($r['qty'] ?? 0);
-                                $subBonus += (float) ($r['bonus'] ?? 0);
-                                $subAmt += (float) ($r['amount'] ?? 0);
+                                $qty = (float) ($r['qty'] ?? 0);
+                                $amt = (float) ($r['amount'] ?? 0);
+                                $repQty += $qty;
+                                $repAmt += $amt;
+                                $catQty += $qty;
+                                $catAmt += $amt;
                                 ?>
                                 <tr>
                                     <td><?= esc((string) ($r['rep_name'] ?? '')) ?></td>
                                     <td><?= esc((string) ($r['customer_name'] ?? '')) ?></td>
-                                    <td><?= esc((string) ($r['cat_name'] ?? '')) ?></td>
                                     <td dir="ltr"><?= esc((string) ($r['item_code'] ?? '')) ?></td>
                                     <td><?= esc((string) ($r['item_name'] ?? '')) ?></td>
-                                    <td dir="ltr"><?= esc($fmtQty((float) ($r['qty'] ?? 0))) ?></td>
-                                    <td dir="ltr"><?= esc($fmtQty((float) ($r['bonus'] ?? 0))) ?></td>
-                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($r['amount'] ?? 0))) ?></td>
+                                    <td dir="ltr"><?= esc($fmtQty($qty)) ?></td>
+                                    <td class="col-money" dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
                                 </tr>
-                            <?php endforeach; $flush(); ?>
+                            <?php endforeach; $flushRep(); ?>
                         <?php endif; ?>
                     </tbody>
                     <?php if ($rows !== []): ?>
                         <tfoot>
                             <tr>
-                                <td colspan="5">الإجمالي</td>
+                                <td colspan="4">الإجمالي</td>
                                 <td dir="ltr"><?= esc($fmtQty((float) ($totals['qty'] ?? 0))) ?></td>
-                                <td dir="ltr"><?= esc($fmtQty((float) ($totals['bonus'] ?? 0))) ?></td>
                                 <td class="col-money" dir="ltr"><?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></td>
                             </tr>
                         </tfoot>
