@@ -489,6 +489,8 @@ try {
         if (!is_array($yearMonths)) {
             $yearMonths = trim((string) $yearMonths) !== '' ? [$yearMonths] : [];
         }
+        $filterOracleRep = !array_key_exists('filter_oracle_rep', $payload)
+            || !empty($payload['filter_oracle_rep']);
         try {
             $result = oracle_fetch_rep_item_sales(
                 $from,
@@ -497,7 +499,8 @@ try {
                 $repNo,
                 $custAccs,
                 $catNames,
-                $yearMonths
+                $yearMonths,
+                $filterOracleRep
             );
             cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
         } catch (Throwable $e) {

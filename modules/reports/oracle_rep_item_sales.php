@@ -218,8 +218,38 @@ if ($submitted) {
         if ($salesRepId > 0) {
             $repName = $hypexNameByMan[$salesRepId] ?? ('مندوب ' . $salesRepId);
         }
+        $scopeCustomerIds = $customerIds;
+        $filterOracleRep = true;
+        if ($salesRepId > 0) {
+            // مندوب هايبكس الحالي: كل مبيعات عملائه الحاليين (حتى ما بيع تحت مندوب قديم في Oracle)
+            $filterOracleRep = false;
+            $repCode = (string) $salesRepId;
+            $linkedIds = [];
+            foreach ($customers as $cust) {
+                $cid = (int) ($cust['id'] ?? 0);
+                if ($cid < 1) {
+                    continue;
+                }
+                $codes = $custRepCodes[(string) $cid] ?? [];
+                if (isset($codes[$repCode])) {
+                    $linkedIds[$cid] = $cid;
+                }
+            }
+            if ($scopeCustomerIds !== []) {
+                $allow = array_fill_keys($scopeCustomerIds, true);
+                $scopeCustomerIds = [];
+                foreach ($linkedIds as $cid) {
+                    if (isset($allow[$cid])) {
+                        $scopeCustomerIds[] = $cid;
+                    }
+                }
+            } else {
+                $scopeCustomerIds = array_values($linkedIds);
+            }
+        }
         $custAccs = [];
-        foreach ($customerIds as $cid) {
+        $accSource = $scopeCustomerIds !== [] ? $scopeCustomerIds : ($salesRepId > 0 ? [] : $customerIds);
+        foreach ($accSource as $cid) {
             foreach ($customers as $cust) {
                 if ((int) ($cust['id'] ?? 0) !== $cid) {
                     continue;
@@ -257,7 +287,11 @@ if ($submitted) {
         $period = oracle_rep_item_sales_periods($from, $to, $reportYears, $reportMonths);
         $from = $period['from'];
         $to = $period['to'];
-        if ($customerIds !== [] && $custAccs === []) {
+        if ($salesRepId > 0 && $scopeCustomerIds === []) {
+            $err = 'لا يوجد عملاء مربوطون بهذا المندوب في النظام.';
+        } elseif ($salesRepId > 0 && $custAccs === []) {
+            $err = 'عملاء هذا المندوب غير مربوطين بحساب في Oracle.';
+        } elseif ($customerIds !== [] && $custAccs === []) {
             $err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
         } else {
         $result = oracle_fetch_rep_item_sales(
@@ -267,7 +301,8 @@ if ($submitted) {
             $salesRepId > 0 ? $salesRepId : null,
             $custAccs,
             $catNames,
-            $period['year_months']
+            $period['year_months'],
+            $filterOracleRep
         );
         if (empty($result['ok'])) {
             $err = (string) ($result['message'] ?? 'تعذر الاستعلام من Oracle.');

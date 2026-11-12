@@ -78,6 +78,10 @@ function oracle_rep_item_sales_periods(string $fromIso, string $toIso, array $ye
     return ['from' => $min, 'to' => $max, 'year_months' => $keys];
 }
 
+/**
+ * @param bool $filterOracleRep true = تصفية بـ MAN_NUM في Oracle.
+ *   false = تصفية بعملاء هايبكس فقط، وتُنسَب المبيعات لـ $repNo الحالي (يشمل مبيعات العميل القديمة تحت مندوب آخر).
+ */
 function oracle_fetch_rep_item_sales(
     string $fromIso,
     string $toIso,
@@ -85,7 +89,8 @@ function oracle_fetch_rep_item_sales(
     ?int $repNo = null,
     array $custAccs = [],
     array $catNames = [],
-    array $yearMonths = []
+    array $yearMonths = [],
+    bool $filterOracleRep = true
 ): array {
     $empty = [
         'ok' => false,
@@ -121,8 +126,14 @@ function oracle_fetch_rep_item_sales(
         ELSE NVL(d.DISC, 0)
       END";
 
+    $byCurrentLink = !$filterOracleRep && $custAccs !== [];
+    if ($byCurrentLink && $repNo !== null && $repNo > 0) {
+        $repSelect = ((int) $repNo) . ' AS REP_NO';
+    } else {
+        $repSelect = 'd.MAN_NUM AS REP_NO';
+    }
     $sql = "
-SELECT d.MAN_NUM AS REP_NO,
+SELECT {$repSelect},
        TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
        TRIM(TO_CHAR(d.CAT)) AS CAT_CODE,
@@ -135,8 +146,6 @@ WHERE d.COMP_NUM = :comp_num
   AND d.STORE = :store_num
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-  AND d.MAN_NUM IS NOT NULL
-  AND d.MAN_NUM > 0
   AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
 ";
     $binds = [
@@ -146,9 +155,12 @@ WHERE d.COMP_NUM = :comp_num
         'd_from' => $fromIso,
         'd_to' => $toIso,
     ];
-    if ($repNo !== null && $repNo > 0) {
-        $sql .= "  AND d.MAN_NUM = :rep_no\n";
-        $binds['rep_no'] = $repNo;
+    if (!$byCurrentLink) {
+        $sql .= "  AND d.MAN_NUM IS NOT NULL\n  AND d.MAN_NUM > 0\n";
+        if ($filterOracleRep && $repNo !== null && $repNo > 0) {
+            $sql .= "  AND d.MAN_NUM = :rep_no\n";
+            $binds['rep_no'] = $repNo;
+        }
     }
     $custKeys = [];
     foreach ($custAccs as $acc) {
@@ -185,10 +197,17 @@ WHERE d.COMP_NUM = :comp_num
         }
         $sql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
     }
-    $sql .= "
+    if ($byCurrentLink && $repNo !== null && $repNo > 0) {
+        $sql .= "
+GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
+ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
+";
+    } else {
+        $sql .= "
 GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT))
 ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
+    }
 
     $conn = oracle_connect();
     if (empty($conn['ok'])) {

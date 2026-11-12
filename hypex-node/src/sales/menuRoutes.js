@@ -2279,14 +2279,49 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   } catch (e) {
     categories = [];
   }
+  const custAccOf = (picked) => {
+    const raw = String(picked?.oracle_key || '').trim() || String(picked?.code || '').trim();
+    return String(raw).replace(/\D+/g, '').replace(/^0+/, '');
+  };
+  let scopeCustomerIds = customerIds.slice();
+  let filterOracleRep = true;
+  if (oracleRepNo > 0) {
+    // مندوب هايبكس الحالي: كل مبيعات عملائه الحاليين (حتى ما بيع تحت مندوب قديم في Oracle)
+    filterOracleRep = false;
+    const repCode = String(oracleRepNo);
+    const linkedIds = (customers || [])
+      .filter((c) => {
+        const codes = custRepCodes.get(String(Number(c.id) || 0)) || new Set();
+        return codes.has(repCode);
+      })
+      .map((c) => Number(c.id) || 0)
+      .filter((id) => id > 0);
+    if (scopeCustomerIds.length) {
+      const allow = new Set(scopeCustomerIds);
+      scopeCustomerIds = linkedIds.filter((id) => allow.has(id));
+    } else {
+      scopeCustomerIds = linkedIds;
+    }
+  }
   const custAccs = [];
-  customerIds.forEach((id) => {
-    const picked = (customers || []).find((c) => Number(c.id) === id);
-    if (!picked) return;
-    const raw = String(picked.oracle_key || '').trim() || String(picked.code || '').trim();
-    const acc = String(raw).replace(/\D+/g, '').replace(/^0+/, '');
-    if (acc) custAccs.push(acc);
-  });
+  const seenAcc = new Set();
+  const pushAcc = (picked) => {
+    const acc = custAccOf(picked);
+    if (!acc || seenAcc.has(acc)) return;
+    seenAcc.add(acc);
+    custAccs.push(acc);
+  };
+  if (scopeCustomerIds.length) {
+    scopeCustomerIds.forEach((id) => {
+      const picked = (customers || []).find((c) => Number(c.id) === id);
+      if (picked) pushAcc(picked);
+    });
+  } else if (!oracleRepNo) {
+    customerIds.forEach((id) => {
+      const picked = (customers || []).find((c) => Number(c.id) === id);
+      if (picked) pushAcc(picked);
+    });
+  }
   const catNames = [];
   categoryIds.forEach((id) => {
     if (id === 'none') {
@@ -2347,7 +2382,11 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         reps.find((r) => Number(r.id) === oracleRepNo)?.name_ar ||
         `مندوب ${oracleRepNo}`;
     }
-    if (customerIds.length && !custAccs.length) {
+    if (oracleRepNo > 0 && !scopeCustomerIds.length) {
+      err = 'لا يوجد عملاء مربوطون بهذا المندوب في النظام.';
+    } else if (oracleRepNo > 0 && !custAccs.length) {
+      err = 'عملاء هذا المندوب غير مربوطين بحساب في Oracle.';
+    } else if (customerIds.length && !custAccs.length) {
       err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
     } else {
     const data = await accNative.run('oracle_rep_item_sales', uid, {
@@ -2358,6 +2397,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       cust_accs: custAccs,
       cat_names: catNames,
       year_months: period.yearMonths,
+      filter_oracle_rep: filterOracleRep,
     });
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
@@ -2688,7 +2728,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. الفئة من ربط المادة في النظام. كل عمود فئة يعرض مبلغ مبيعات العميل فيها، والمبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
+      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين في هايبكس (بما فيها ما بيع سابقاً تحت مندوب آخر). الفئة من ربط المادة في النظام. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="get" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
           <input type="hidden" name="run" value="1" />
