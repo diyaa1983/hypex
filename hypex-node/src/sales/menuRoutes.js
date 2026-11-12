@@ -2274,7 +2274,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     const flushRep = () => {
       if (curRep == null) return;
       rowsHtml += `<tr class="ora-rep-total">
-        <td colspan="4">إجمالي المندوب ${esc(repSub.name)}</td>
+        <td>إجمالي المندوب ${esc(repSub.name)}</td>
         <td class="si-num" dir="ltr">${esc(fmtQty(repSub.qty))}</td>
         <td class="si-num" dir="ltr">${esc(fmtAmt(repSub.amount))}</td>
       </tr>`;
@@ -2285,61 +2285,84 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     while (i < rows.length) {
       const head = rows[i];
       const no = Number(head.rep_no) || 0;
-      const catName = String(head.cat_name || 'بدون فئة');
-      const custAcc = String(head.customer_acc || '');
       const repLabel = String(head.rep_name || '').trim() || (no > 0 ? `مندوب ${no}` : '');
-      const custLabel = String(head.customer_name || custAcc || '');
       if (curRep != null && curRep !== no) flushRep();
+      if (curRep !== no) {
+        rowsHtml += `<tr class="ora-rep-head"><td colspan="3">المندوب: ${esc(repLabel)}</td></tr>`;
+      }
       curRep = no;
       repSub.name = repLabel;
-      let catQty = 0;
-      let catAmt = 0;
-      const lines = [];
+      const custAcc = String(head.customer_acc || '');
+      const custLabel = String(head.customer_name || custAcc || '—');
+      let custQty = 0;
+      let custAmt = 0;
+      let custHtml = '';
       while (i < rows.length) {
-        const r = rows[i];
-        const rNo = Number(r.rep_no) || 0;
-        const rCat = String(r.cat_name || 'بدون فئة');
-        const rAcc = String(r.customer_acc || '');
-        if (rNo !== no || rAcc !== custAcc || rCat !== catName) break;
-        const qty = Number(r.qty) || 0;
-        const amount = Number(r.amount) || 0;
-        catQty += qty;
-        catAmt += amount;
-        lines.push(r);
-        i += 1;
-      }
-      repSub.qty += catQty;
-      repSub.amount += catAmt;
-      gid += 1;
-      const id = `c${gid}`;
-      rowsHtml += `<tr class="ora-cat-sum" data-ora-toggle="${id}" data-open="0">
-        <td><span class="ora-cat-arrow" aria-hidden="true"></span>${esc(repLabel)}</td>
-        <td>${esc(custLabel)}</td>
-        <td colspan="2">الفئة: ${esc(catName)}</td>
-        <td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td>
-        <td class="si-num" dir="ltr">${esc(fmtAmt(catAmt))}</td>
-      </tr>`;
-      for (const r of lines) {
-        const qty = Number(r.qty) || 0;
-        const amount = Number(r.amount) || 0;
-        rowsHtml += `<tr class="ora-cat-line" data-ora-lines="${id}" hidden>
-          <td>${esc(repLabel)}</td>
-          <td>${esc(custLabel)}</td>
-          <td class="si-num" dir="ltr">${esc(r.item_code || '')}</td>
-          <td>${esc(r.item_name || '')}</td>
-          <td class="si-num" dir="ltr">${esc(fmtQty(qty))}</td>
-          <td class="si-num" dir="ltr">${esc(fmtAmt(amount))}</td>
+        const mark = rows[i];
+        const mNo = Number(mark.rep_no) || 0;
+        const mAcc = String(mark.customer_acc || '');
+        if (mNo !== no || mAcc !== custAcc) break;
+        const catName = String(mark.cat_name || 'بدون فئة');
+        let catQty = 0;
+        let catAmt = 0;
+        const lines = [];
+        while (i < rows.length) {
+          const r = rows[i];
+          const rNo = Number(r.rep_no) || 0;
+          const rAcc = String(r.customer_acc || '');
+          const rCat = String(r.cat_name || 'بدون فئة');
+          if (rNo !== no || rAcc !== custAcc || rCat !== catName) break;
+          const qty = Number(r.qty) || 0;
+          const amount = Number(r.amount) || 0;
+          catQty += qty;
+          catAmt += amount;
+          lines.push(r);
+          i += 1;
+        }
+        custQty += catQty;
+        custAmt += catAmt;
+        gid += 1;
+        const id = `c${gid}`;
+        custHtml += `<tr class="ora-cat-sum" data-ora-toggle="${id}" data-open="0">
+          <td><span class="ora-cat-arrow" aria-hidden="true"></span>الفئة: ${esc(catName)}</td>
+          <td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(catAmt))}</td>
         </tr>`;
+        for (const r of lines) {
+          const qty = Number(r.qty) || 0;
+          const amount = Number(r.amount) || 0;
+          const code = String(r.item_code || '').trim();
+          const item = String(r.item_name || '').trim();
+          const label = code && item ? `${code} — ${item}` : code || item;
+          custHtml += `<tr class="ora-cat-line" data-ora-lines="${id}" hidden>
+            <td>${esc(label)}</td>
+            <td class="si-num" dir="ltr">${esc(fmtQty(qty))}</td>
+            <td class="si-num" dir="ltr">${esc(fmtAmt(amount))}</td>
+          </tr>`;
+        }
       }
+      repSub.qty += custQty;
+      repSub.amount += custAmt;
+      rowsHtml += `<tr class="ora-cust">
+        <td>العميل: ${esc(custLabel)}</td>
+        <td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td>
+      </tr>`;
+      rowsHtml += custHtml;
+      rowsHtml += `<tr class="ora-cust-total">
+        <td>مجموع البيع — ${esc(custLabel)}</td>
+        <td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td>
+        <td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td>
+      </tr>`;
     }
     flushRep();
     rowsHtml += `<tr>
-      <td colspan="4" style="font-weight:800">الإجمالي</td>
+      <td style="font-weight:800">الإجمالي</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtQty(totals.qty))}</td>
       <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(totals.amount))}</td>
     </tr>`;
   } else if (run && !err) {
-    rowsHtml = ui.emptyRow(6, 'لا توجد مبيعات في الفترة المحددة.');
+    rowsHtml = ui.emptyRow(3, 'لا توجد مبيعات في الفترة المحددة.');
   }
 
   let tableBlock = '';
@@ -2349,7 +2372,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
     tableBlock = ui.tableSurface(
       repName ? `مندوب: ${esc(repName)}` : 'مبيعات المناديب حسب المادة والفئة',
       `${Number(totals.reps) || 0} مندوب · ${Number(totals.items) || 0} سطر`,
-      ['المندوب', 'العميل', 'رقم المادة', 'المادة', 'الكمية', 'المبلغ'],
+      ['البيان', 'الكمية', 'المبلغ'],
       rowsHtml
     );
   }
@@ -2407,7 +2430,12 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           border:0; border-left:5px solid transparent; border-right:5px solid transparent;
           border-top:7px solid #1e3a5f;
         }
+        .ora-rep-head td { background:#1e3a5f; color:#fff; font-weight:800; }
+        .ora-cust td { background:#f4f7fb; font-weight:800; }
+        .ora-cust-total td { background:#e7f4ea; font-weight:800; }
         .ora-rep-total { font-weight:800; background:#f8fafc; }
+        .ora-cat-sum td:first-child { padding-inline-start:1.15rem; }
+        .ora-cat-line td:first-child { padding-inline-start:2.2rem; }
         tr.ora-cat-line[hidden] { display:none !important; }
         @media print {
           tr.ora-cat-line[hidden] { display:table-row !important; }

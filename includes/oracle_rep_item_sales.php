@@ -193,6 +193,10 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHA
         if ($c !== 0) {
             return $c;
         }
+        $c = strcmp((string) $a['customer_acc'], (string) $b['customer_acc']);
+        if ($c !== 0) {
+            return $c;
+        }
         $c = strcmp((string) $a['cat_name'], (string) $b['cat_name']);
         if ($c !== 0) {
             return $c;
