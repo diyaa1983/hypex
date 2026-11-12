@@ -130,6 +130,7 @@ return [
                         ['r' => 'report_sales_by_region', 'label' => 'تقرير المبيعات حسب المنطقة', 'icon' => '🗺️'],
                         ['r' => 'report_sales_by_rep', 'label' => 'تقرير المبيعات حسب المندوب', 'icon' => '📊'],
                         ['r' => 'report_oracle_rep_net_sales', 'label' => 'صافي مبيعات المندوب Oracle', 'icon' => '📊'],
+                        ['r' => 'report_oracle_rep_item_sales', 'label' => 'مبيعات المندوب حسب المادة والفئة Oracle', 'icon' => '📦'],
                         ['r' => 'report_sales_detailed', 'label' => 'تقرير المبيعات التفصيلي', 'icon' => '📋'],
                         ['r' => 'report_sales_qty_extra', 'label' => 'تقرير الكميات الإضافية على الفواتير', 'icon' => '➕'],
                         ['r' => 'report_sales_invoice_discount', 'label' => 'الخصم على الفواتير', 'icon' => '🏷️'],

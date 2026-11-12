@@ -415,6 +415,20 @@ try {
         }
     }
 
+    if ($action === 'oracle_rep_item_sales') {
+        require_once app_path('includes/oracle_rep_item_sales.php');
+        $store = (int) ($payload['store'] ?? 0);
+        $repNo = isset($payload['rep_no']) && $payload['rep_no'] !== '' && $payload['rep_no'] !== null
+            ? (int) $payload['rep_no']
+            : null;
+        try {
+            $result = oracle_fetch_rep_item_sales($from, $to, $store > 0 ? $store : null, $repNo);
+            cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
+        } catch (Throwable $e) {
+            cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'تعذر الاتصال بـ Oracle.'], 1);
+        }
+    }
+
     if ($action === 'oracle_rep_net_sales') {
         require_once app_path('includes/oracle_rep_net_sales.php');
         $store = (int) ($payload['store'] ?? 0);

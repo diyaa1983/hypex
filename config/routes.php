@@ -248,6 +248,11 @@ return [
         'permission' => 'report_oracle_rep_net_sales',
         'title' => 'صافي فواتير مبيعات المندوب Oracle',
     ],
+    'report_oracle_rep_item_sales' => [
+        'file' => 'modules/reports/oracle_rep_item_sales.php',
+        'permission' => 'report_oracle_rep_item_sales',
+        'title' => 'مبيعات المندوب حسب المادة والفئة Oracle',
+    ],
     'sales_reps' => [
         'file' => 'modules/sales/sales_reps.php',
         'permission' => 'sales_reps',

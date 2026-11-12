@@ -260,6 +260,38 @@ async function ensureReportCustomerOrdersDetailedScreen() {
 }
 
 /** ضمان شاشات موافقات المدير على الموبايل (خروج يدوي + موقع عميل). */
+async function ensureOracleRepItemSalesScreen() {
+  const code = 'report_oracle_rep_item_sales';
+  const nameAr = 'مبيعات المندوب حسب المادة والفئة Oracle';
+  let rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+  let screenId = Number(rows[0]?.id || 0);
+  if (!screenId) {
+    const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+    const nextOrder = Math.max(Number(maxRows[0]?.m || 0) + 10, 253);
+    await q(
+      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'report', ?)`,
+      [code, nameAr, nextOrder]
+    );
+    rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    screenId = Number(rows[0]?.id || 0);
+  }
+  if (!screenId) return false;
+  await q(
+    `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+     SELECT gp.group_id, ?, 1
+     FROM sys_screen s_old
+     INNER JOIN sys_group_permission gp ON gp.screen_id = s_old.id AND gp.allowed = 1
+     WHERE s_old.code = 'report_oracle_rep_net_sales'`,
+    [screenId]
+  );
+  await q(
+    `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+     SELECT g.id, ?, 1 FROM sys_group g WHERE g.code IN ('ADMINS', 'administrators', 'admin')`,
+    [screenId]
+  );
+  return true;
+}
+
 async function ensureMobileManagerApprovalScreens() {
   const specs = [
     {
@@ -316,6 +348,11 @@ async function listPermissionsMatrix(groupId = 0, opts = {}) {
     await ensureReportCustomerOrdersDetailedScreen();
   } catch (e) {
     console.error('ensureReportCustomerOrdersDetailedScreen', e.message || e);
+  }
+  try {
+    await ensureOracleRepItemSalesScreen();
+  } catch (e) {
+    console.error('ensureOracleRepItemSalesScreen', e.message || e);
   }
   try {
     await ensureMobileManagerApprovalScreens();
