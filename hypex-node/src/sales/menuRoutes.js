@@ -2288,7 +2288,9 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
   };
   let rowsHtml = '';
   let groupSeq = 0;
-  if (rows.length) {
+  // by-item = التصميم السابق (مواد العميل والفئات القابلة للفتح). by-customer = الفئات أعمدة وأسماء العملاء صفوف.
+  const oraLayout = 'by-customer';
+  if (oraLayout === 'by-item' && rows.length) {
     let i = 0;
     while (i < rows.length) {
       const repStart = i;
@@ -2372,6 +2374,72 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
       rowsHtml += `<p class="ora-rep-total">إجمالي المندوب ${esc(repLabel)} — الكمية ${esc(fmtQty(repQty))} — المبلغ ${esc(fmtAmt(repAmt))}</p>`;
     }
     rowsHtml += `<p class="ora-grand">الإجمالي — الكمية ${esc(fmtQty(totals.qty))} — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+  } else if (rows.length) {
+    let i = 0;
+    while (i < rows.length) {
+      const repStart = i;
+      const no = Number(rows[i].rep_no) || 0;
+      while (i < rows.length && (Number(rows[i].rep_no) || 0) === no) i += 1;
+      const repRows = rows.slice(repStart, i);
+      const repLabel = String(repRows[0].rep_name || '').trim() || (no > 0 ? `مندوب ${no}` : '');
+      const catSeen = new Set();
+      const catOrder = [];
+      const custMap = new Map();
+      repRows.forEach((r) => {
+        const cat = String(r.cat_name || 'بدون فئة');
+        if (!catSeen.has(cat)) {
+          catSeen.add(cat);
+          catOrder.push(cat);
+        }
+        const acc = String(r.customer_acc || '');
+        if (!custMap.has(acc)) {
+          custMap.set(acc, {
+            label: String(r.customer_name || acc || '—'),
+            cats: new Map(),
+          });
+        }
+        const slot = custMap.get(acc);
+        slot.cats.set(cat, (slot.cats.get(cat) || 0) + (Number(r.amount) || 0));
+      });
+      catOrder.sort((a, b) => {
+        if (a === 'بدون فئة') return 1;
+        if (b === 'بدون فئة') return -1;
+        return a.localeCompare(b, 'ar');
+      });
+      const colTotals = catOrder.map(() => 0);
+      let body = '';
+      let repAmt = 0;
+      custMap.forEach((slot) => {
+        let rowAmt = 0;
+        const cells = catOrder.map((cat, idx) => {
+          const amt = slot.cats.get(cat) || 0;
+          colTotals[idx] += amt;
+          rowAmt += amt;
+          return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
+        }).join('');
+        repAmt += rowAmt;
+        body += `<tr><td class="ora-cust-name">${esc(slot.label)}</td>${cells}<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td></tr>`;
+      });
+      const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
+      body += `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
+      const heads = catOrder.map((cat) => `<th class="ora-vhead ora-cat-col">${esc(cat)}</th>`).join('');
+      rowsHtml += `<section class="ora-cust-block">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+        </header>
+        <div class="si-table-wrap ora-portrait-wrap">
+          <table class="si-table ora-portrait-table">
+            <thead><tr>
+              <th class="ora-vhead">العميل</th>
+              ${heads}
+              <th class="ora-vhead">المجموع</th>
+            </tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+      </section>`;
+    }
+    rowsHtml += `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -2393,7 +2461,7 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
         subtitle: 'كل مندوب، العميل، المواد التي باعها، وفئة كل مادة',
         actions: [ui.printAction(), { label: 'لوحة المبيعات', href: '/sales' }],
       })}
-      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. الفئة من ربط المادة في النظام، والمبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
+      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle. الفئة من ربط المادة في النظام. كل عمود فئة يعرض مبلغ مبيعات العميل فيها، والمبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.</p>
       <div class="si-rail no-print">
         <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
           <input type="hidden" name="run" value="1" />
@@ -2447,6 +2515,8 @@ router.get('/sales/reports/oracle-rep-items', guard('report_oracle_rep_item_sale
           font-variant-numeric: tabular-nums;
         }
         .ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
+        .ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
+        .ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
         .ora-cust-block { margin: 0 1rem 1.35rem; }
         .ora-cust-head {
           background: #f4f7fb;

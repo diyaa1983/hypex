@@ -191,6 +191,8 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
   font-variant-numeric: tabular-nums;
 }
 .ora-portrait-table td.ora-name { min-width: 14rem; white-space: normal; }
+.ora-portrait-table th.ora-cat-col { white-space: normal; min-width: 6.5rem; text-align: center; }
+.ora-portrait-table td.ora-cust-name { font-weight: 700; min-width: 12rem; white-space: normal; }
 .ora-cust-block { margin: 0 0 1.35rem; }
 .ora-cust-head {
   background: #f4f7fb;
@@ -227,7 +229,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
     <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;">
-        المبيعات من Oracle حسب المندوب. فئة المادة من ربطها في النظام. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.
+        المبيعات من Oracle حسب المندوب. الفئة من ربط المادة في النظام، وتظهر كعمود. المبلغ = الكمية × سعر الوحدة بعد خصم السطر، قبل خصم الفاتورة والضريبة.
     </p>
     <form method="get" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
@@ -280,9 +282,13 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     </tr>
                 </table>
             </div>
+            <?php
+            // by-item = التصميم السابق. by-customer = الفئات أعمدة وأسماء العملاء صفوف.
+            $oraLayout = 'by-customer';
+            ?>
             <?php if ($rows === []): ?>
                 <p class="muted">لا توجد مبيعات في الفترة المحددة.</p>
-            <?php else: ?>
+            <?php elseif ($oraLayout === 'by-item'): ?>
                 <?php
                 $n = count($rows);
                 $i = 0;
@@ -396,6 +402,95 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
                     <p class="ora-rep-total">إجمالي المندوب <?= esc($repLabel) ?> — الكمية <?= esc($fmtQty($repQty)) ?> — المبلغ <?= esc($fmtAmt($repAmt)) ?></p>
                 <?php endwhile; ?>
                 <p class="ora-grand">الإجمالي — الكمية <?= esc($fmtQty((float) ($totals['qty'] ?? 0))) ?> — المبلغ <?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></p>
+            <?php else: ?>
+                <?php
+                $n = count($rows);
+                $i = 0;
+                while ($i < $n):
+                    $repStart = $i;
+                    $no = (int) ($rows[$i]['rep_no'] ?? 0);
+                    while ($i < $n && (int) ($rows[$i]['rep_no'] ?? 0) === $no) {
+                        $i++;
+                    }
+                    $repRows = array_slice($rows, $repStart, $i - $repStart);
+                    $repLabel = trim((string) ($repRows[0]['rep_name'] ?? ''));
+                    if ($repLabel === '' && $no > 0) {
+                        $repLabel = 'مندوب ' . $no;
+                    }
+                    $catOrder = [];
+                    $custMap = [];
+                    foreach ($repRows as $r) {
+                        $cat = trim((string) ($r['cat_name'] ?? '')) ?: 'بدون فئة';
+                        if (!in_array($cat, $catOrder, true)) {
+                            $catOrder[] = $cat;
+                        }
+                        $acc = (string) ($r['customer_acc'] ?? '');
+                        if (!isset($custMap[$acc])) {
+                            $label = trim((string) ($r['customer_name'] ?? ''));
+                            $custMap[$acc] = [
+                                'label' => $label !== '' ? $label : ($acc !== '' ? $acc : '—'),
+                                'cats' => [],
+                            ];
+                        }
+                        $custMap[$acc]['cats'][$cat] = ($custMap[$acc]['cats'][$cat] ?? 0) + (float) ($r['amount'] ?? 0);
+                    }
+                    usort($catOrder, static function (string $a, string $b): int {
+                        if ($a === 'بدون فئة') {
+                            return 1;
+                        }
+                        if ($b === 'بدون فئة') {
+                            return -1;
+                        }
+                        return strcmp($a, $b);
+                    });
+                    $colTotals = array_fill(0, count($catOrder), 0.0);
+                    $repAmt = 0.0;
+                    ?>
+                    <section class="ora-cust-block">
+                        <header class="ora-cust-head">
+                            <div class="ora-rep">المندوب: <?= esc($repLabel) ?></div>
+                        </header>
+                        <div class="report-sales-table-wrap ora-portrait-wrap">
+                            <table class="report-sales-table ora-portrait-table" data-export-table>
+                                <thead>
+                                    <tr>
+                                        <th class="ora-vhead">العميل</th>
+                                        <?php foreach ($catOrder as $cat): ?>
+                                            <th class="ora-vhead ora-cat-col"><?= esc($cat) ?></th>
+                                        <?php endforeach; ?>
+                                        <th class="ora-vhead">المجموع</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($custMap as $slot):
+                                        $rowAmt = 0.0;
+                                        ?>
+                                        <tr>
+                                            <td class="ora-cust-name"><?= esc($slot['label']) ?></td>
+                                            <?php foreach ($catOrder as $idx => $cat):
+                                                $amt = (float) ($slot['cats'][$cat] ?? 0);
+                                                $colTotals[$idx] += $amt;
+                                                $rowAmt += $amt;
+                                                ?>
+                                                <td dir="ltr"><?= $amt != 0.0 ? esc($fmtAmt($amt)) : '' ?></td>
+                                            <?php endforeach; ?>
+                                            <td class="col-money" dir="ltr"><?= esc($fmtAmt($rowAmt)) ?></td>
+                                        </tr>
+                                        <?php $repAmt += $rowAmt; ?>
+                                    <?php endforeach; ?>
+                                    <tr class="ora-cust-final">
+                                        <td>المجموع</td>
+                                        <?php foreach ($colTotals as $amt): ?>
+                                            <td dir="ltr"><?= esc($fmtAmt($amt)) ?></td>
+                                        <?php endforeach; ?>
+                                        <td class="col-money" dir="ltr"><?= esc($fmtAmt($repAmt)) ?></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                <?php endwhile; ?>
+                <p class="ora-grand">الإجمالي — المبلغ <?= esc($fmtAmt((float) ($totals['amount'] ?? 0))) ?></p>
             <?php endif; ?>
         </div>
     <?php endif; ?>
