@@ -2231,32 +2231,18 @@ const oracleRepItemsHandler = async (req, res) => {
     if (man > 0) set.add(String(man));
   };
 
+  // قائمة المندوبين من هايبكس فقط (crm_sales_rep) — لا نعرض مندوبي Oracle غير الموجودين بالنظام
   const hypexReps = await q.listRepsSimple();
   const hypexNameByMan = new Map();
-  for (const r of hypexReps || []) {
-    const manNo = parseManNo(r.code);
-    if (manNo < 1 || hypexNameByMan.has(manNo)) continue;
-    const nm = String(r.name_ar || '').trim();
-    if (nm) hypexNameByMan.set(manNo, nm);
-  }
-
-  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
-  const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
   const seen = new Set();
   let reps = [];
-  for (const r of oraRows) {
-    const manNo = Number(r.id) || parseManNo(r.code);
+  for (const r of hypexReps || []) {
+    const manNo = parseManNo(r.code);
     if (manNo < 1 || seen.has(manNo)) continue;
+    const nm = String(r.name_ar || '').trim();
+    if (!nm) continue;
     seen.add(manNo);
-    reps.push({
-      id: manNo,
-      code: String(manNo),
-      name_ar: hypexNameByMan.get(manNo) || String(r.name_ar || '').trim() || `مندوب ${manNo}`,
-    });
-  }
-  for (const [manNo, nm] of hypexNameByMan.entries()) {
-    if (seen.has(manNo)) continue;
-    seen.add(manNo);
+    hypexNameByMan.set(manNo, nm);
     reps.push({ id: manNo, code: String(manNo), name_ar: nm });
   }
   reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
@@ -2298,13 +2284,20 @@ const oracleRepItemsHandler = async (req, res) => {
     if (!custRepCodes.has(cid)) custRepCodes.set(cid, new Set());
     addRepCodeKeys(custRepCodes.get(cid), c.primary_rep_code);
   }
+  // الفئات من بطاقات هايبكس فقط (inv_item_category)
   let categories = [];
   try {
     categories = await db.query(
-      `SELECT id, name_ar FROM inv_item_category ORDER BY name_ar`
+      `SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar`
     );
   } catch (e) {
-    categories = [];
+    try {
+      categories = await db.query(
+        `SELECT id, name_ar FROM inv_item_category ORDER BY name_ar`
+      );
+    } catch (e2) {
+      categories = [];
+    }
   }
   const custAccOf = (picked) => {
     const raw = String(picked?.oracle_key || '').trim() || String(picked?.code || '').trim();
@@ -2799,7 +2792,7 @@ const oracleRepItemsHandler = async (req, res) => {
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر). الفئة من ربط المادة في النظام.</p>
+      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
           <input type="hidden" name="run" value="1" />

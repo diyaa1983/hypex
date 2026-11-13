@@ -31,43 +31,29 @@ $parseOracleRepNo = static function (string $code): int {
     return 0;
 };
 
+// قائمة المندوبين من هايبكس فقط — لا نعرض مندوبي Oracle غير الموجودين بالنظام
 $hypex = $pdo->query(
     'SELECT code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 $hypexNameByMan = [];
+$reps = [];
+$seen = [];
 foreach ($hypex as $r) {
     $manNo = $parseOracleRepNo((string) ($r['code'] ?? ''));
-    if ($manNo < 1 || isset($hypexNameByMan[$manNo])) {
+    if ($manNo < 1 || isset($seen[$manNo])) {
         continue;
     }
     $nm = trim((string) ($r['name_ar'] ?? ''));
-    if ($nm !== '') {
-        $hypexNameByMan[$manNo] = $nm;
-    }
-}
-
-$oraReps = oracle_list_rep_net_sales_reps();
-$reps = [];
-$seen = [];
-if (!empty($oraReps['ok']) && is_array($oraReps['rows'] ?? null)) {
-    foreach ($oraReps['rows'] as $r) {
-        $no = (int) ($r['id'] ?? 0);
-        if ($no < 1 || isset($seen[$no])) {
-            continue;
-        }
-        $seen[$no] = true;
-        $reps[] = [
-            'id' => $no,
-            'code' => (string) $no,
-            'name_ar' => $hypexNameByMan[$no] ?? (string) ($r['name_ar'] ?? ('مندوب ' . $no)),
-        ];
-    }
-}
-foreach ($hypexNameByMan as $manNo => $nm) {
-    if (isset($seen[$manNo])) {
+    if ($nm === '') {
         continue;
     }
-    $reps[] = ['id' => (int) $manNo, 'code' => (string) $manNo, 'name_ar' => $nm];
+    $seen[$manNo] = true;
+    $hypexNameByMan[$manNo] = $nm;
+    $reps[] = [
+        'id' => $manNo,
+        'code' => (string) $manNo,
+        'name_ar' => $nm,
+    ];
 }
 usort($reps, static fn (array $a, array $b): int => strcmp((string) $a['name_ar'], (string) $b['name_ar']));
 
@@ -184,9 +170,15 @@ foreach ($customers as $cust) {
         $custRepCodes[$cid][$primary] = $primary;
     }
 }
-$categories = $pdo->query(
-    'SELECT id, name_ar FROM inv_item_category ORDER BY name_ar'
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+try {
+    $categories = $pdo->query(
+        'SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+} catch (Throwable $e) {
+    $categories = $pdo->query(
+        'SELECT id, name_ar FROM inv_item_category ORDER BY name_ar'
+    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
 $from = date('Y-01-01');
 $to = function_exists('app_default_date_to') ? app_default_date_to() : date('Y-m-d');
 $store = (int) ($oraReq('store', $cfg['default_store']));
@@ -606,7 +598,7 @@ $exportJsUrl = app_url('assets/js/report-sales-export.js') . (is_file($exportJsP
         <div class="alert alert-error no-print" style="margin-bottom:1rem;"><?= esc($err) ?></div>
     <?php endif; ?>
     <p class="muted no-print" style="margin:0 0 .5rem;font-size:.85rem;">
-        المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).
+        قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).
     </p>
     <form method="post" action="<?= esc(app_url('index.php')) ?>" class="report-sales-filters no-print ora-filter-row" id="ora-rep-filter">
         <input type="hidden" name="r" value="<?= esc($routeKey) ?>">
