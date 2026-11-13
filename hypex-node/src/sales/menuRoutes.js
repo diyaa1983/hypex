@@ -2572,6 +2572,7 @@ const oracleRepItemsHandler = async (req, res) => {
     let summaryHtml = '';
     let detailHtml = '';
     let invoiceHtml = '';
+    let invoiceSumHtml = '';
     const invBase = basePath.ensurePrefixed('/sales/reports/oracle-sales-invoice');
     let i = 0;
     while (i < rows.length) {
@@ -2650,7 +2651,10 @@ const oracleRepItemsHandler = async (req, res) => {
       let summaryBody = '';
       let detailBody = '';
       let invoiceBody = '';
+      let invoiceSumBody = '';
       let repAmt = 0;
+      let invRepQty = 0;
+      let invRepAmt = 0;
       const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
       const fmtSaleDate = (iso) => {
         const s = String(iso || '');
@@ -2739,7 +2743,23 @@ const oracleRepItemsHandler = async (req, res) => {
         invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع الفاتورة</td>
           <td class="si-num" dir="ltr">${esc(fmtQty(inv.qty))}</td>
           <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td></tr>`;
+        invRepQty += inv.qty;
+        invRepAmt += inv.amount;
+        invoiceSumBody += `<tr>
+          <td>${invTitle}</td>
+          <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
+          <td class="ora-cust-name">${esc(inv.customer)}</td>
+          <td class="si-num" dir="ltr">${esc(fmtQty(inv.qty))}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td>
+        </tr>`;
       });
+      if (invoiceSumBody) {
+        invoiceSumBody += `<tr class="ora-cust-final">
+          <td colspan="3">مجموع المندوب</td>
+          <td class="si-num" dir="ltr">${esc(fmtQty(invRepQty))}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(invRepAmt))}</td>
+        </tr>`;
+      }
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
       const heads = catOrder.map((cat) => `<th class="ora-vhead ora-cat-col">${esc(cat)}</th>`).join('');
@@ -2794,17 +2814,36 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
+      invoiceSumHtml += `<section class="ora-cust-block">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+        </header>
+        <div class="si-table-wrap ora-portrait-wrap">
+          <table class="si-table ora-portrait-table ora-detail-table">
+            <thead><tr>
+              <th class="ora-vhead">الفاتورة</th>
+              <th class="ora-vhead">التاريخ</th>
+              <th class="ora-vhead">العميل</th>
+              <th class="ora-vhead">الكمية</th>
+              <th class="ora-vhead">المبلغ</th>
+            </tr></thead>
+            <tbody>${invoiceSumBody}</tbody>
+          </table>
+        </div>
+      </section>`;
     }
     const grand = `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
         <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
-        <button type="button" class="si-btn" data-ora-view="invoice">حسب الفواتير</button>
+        <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
+        <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
       </div>
       <div class="ora-view" id="ora-view-summary">${summaryHtml}${grand}</div>
       <div class="ora-view" id="ora-view-detail" hidden>${detailHtml}${grand}</div>
-      <div class="ora-view" id="ora-view-invoice" hidden>${invoiceHtml}${grand}</div>`;
+      <div class="ora-view" id="ora-view-invoice" hidden>${invoiceHtml}${grand}</div>
+      <div class="ora-view" id="ora-view-invoice-sum" hidden>${invoiceSumHtml}${grand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -3414,7 +3453,8 @@ const oracleRepItemsHandler = async (req, res) => {
           var views = {
             summary: document.getElementById('ora-view-summary'),
             detail: document.getElementById('ora-view-detail'),
-            invoice: document.getElementById('ora-view-invoice')
+            invoice: document.getElementById('ora-view-invoice'),
+            'invoice-sum': document.getElementById('ora-view-invoice-sum')
           };
           Object.keys(views).forEach(function (k) {
             var el = views[k];
