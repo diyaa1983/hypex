@@ -65,6 +65,175 @@
   }
 
   var STORAGE_KEY = 'manager:mdi-windows-v1';
+  var PAGE_STATE_PREFIX = 'manager:mdi-page-state-v1:';
+  var RESTORE_PENDING_KEY = 'manager:mdi-restore-pending';
+
+  function pageStateStorageKey(winOrKey) {
+    if (!winOrKey) {
+      return PAGE_STATE_PREFIX + normalizeKey(global.location.href);
+    }
+    if (typeof winOrKey === 'string') {
+      return PAGE_STATE_PREFIX + winOrKey;
+    }
+    return PAGE_STATE_PREFIX + (winOrKey.key || normalizeKey(winOrKey.href || global.location.href));
+  }
+
+  function capturePageState(win) {
+    try {
+      var forms = [];
+      Array.prototype.forEach.call(document.querySelectorAll('form'), function (form) {
+        var fields = {};
+        try {
+          var fd = new FormData(form);
+          fd.forEach(function (val, key) {
+            if (Object.prototype.hasOwnProperty.call(fields, key)) {
+              if (!Array.isArray(fields[key])) {
+                fields[key] = [fields[key]];
+              }
+              fields[key].push(String(val));
+            } else {
+              fields[key] = String(val);
+            }
+          });
+        } catch (err) {
+          return;
+        }
+        forms.push({
+          id: form.id || '',
+          name: form.getAttribute('name') || '',
+          action: form.getAttribute('action') || '',
+          method: String(form.method || 'get').toLowerCase(),
+          fields: fields,
+        });
+      });
+      var key = (win && win.key) || normalizeKey((win && win.href) || global.location.href);
+      var payload = {
+        key: key,
+        href: (win && win.href) || global.location.href,
+        path: global.location.pathname,
+        scrollY: global.scrollY || 0,
+        forms: forms,
+        ts: Date.now(),
+      };
+      sessionStorage.setItem(pageStateStorageKey(key), JSON.stringify(payload));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function pickRestoreForm(forms) {
+    if (!forms || !forms.length) {
+      return null;
+    }
+    var i;
+    for (i = 0; i < forms.length; i += 1) {
+      var f = forms[i];
+      if (f && f.fields && String(f.fields.run) === '1') {
+        return f;
+      }
+    }
+    for (i = 0; i < forms.length; i += 1) {
+      var form = forms[i];
+      if (form && form.fields && Object.keys(form.fields).length) {
+        return form;
+      }
+    }
+    return forms[0] || null;
+  }
+
+  function resolveFormAction(action) {
+    if (!action) {
+      return global.location.pathname + global.location.search;
+    }
+    try {
+      return new URL(action, global.location.href).pathname + new URL(action, global.location.href).search;
+    } catch (e) {
+      return action;
+    }
+  }
+
+  function resubmitSavedState(payload) {
+    if (!payload || !payload.forms || !payload.forms.length) {
+      return false;
+    }
+    var best = pickRestoreForm(payload.forms);
+    if (!best || !best.fields || !Object.keys(best.fields).length) {
+      return false;
+    }
+    try {
+      var cur = new URL(global.location.href);
+      if (cur.searchParams.get('run') === '1' && String(best.method || 'get') === 'get') {
+        return false;
+      }
+    } catch (e0) {
+      /* ignore */
+    }
+    var form = document.createElement('form');
+    form.method = String(best.method || 'get').toLowerCase() === 'post' ? 'post' : 'get';
+    form.action = resolveFormAction(best.action);
+    form.style.display = 'none';
+    Object.keys(best.fields).forEach(function (name) {
+      var vals = best.fields[name];
+      var list = Array.isArray(vals) ? vals : [vals];
+      list.forEach(function (v) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = v == null ? '' : String(v);
+        form.appendChild(input);
+      });
+    });
+    document.body.appendChild(form);
+    global.__managerAllowUnload = true;
+    form.submit();
+    return true;
+  }
+
+  function tryRestorePendingFilters() {
+    var pending = null;
+    try {
+      pending = sessionStorage.getItem(RESTORE_PENDING_KEY);
+    } catch (e) {
+      return;
+    }
+    if (!pending) {
+      return;
+    }
+    try {
+      sessionStorage.removeItem(RESTORE_PENDING_KEY);
+    } catch (e2) {
+      /* ignore */
+    }
+    if (isMenuLikeLocation(global.location.href)) {
+      return;
+    }
+    var raw = null;
+    try {
+      raw = sessionStorage.getItem(PAGE_STATE_PREFIX + pending);
+    } catch (e3) {
+      return;
+    }
+    if (!raw) {
+      return;
+    }
+    var payload;
+    try {
+      payload = JSON.parse(raw);
+    } catch (e4) {
+      return;
+    }
+    try {
+      if (payload.path && payload.path !== global.location.pathname) {
+        var ph = new URL(payload.href || '', global.location.origin);
+        if (ph.pathname !== global.location.pathname) {
+          return;
+        }
+      }
+    } catch (e5) {
+      /* ignore */
+    }
+    resubmitSavedState(payload);
+  }
 
   function loadStoredWindows() {
     try {
@@ -315,10 +484,28 @@
     syncTaskbar();
   }
 
+  function dismissFloatingUi() {
+    try {
+      Array.prototype.forEach.call(document.querySelectorAll('[data-ora-multi-panel]'), function (el) {
+        el.hidden = true;
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.report-cust-pick-list.is-floating'), function (el) {
+        el.hidden = true;
+        el.classList.remove('is-floating');
+      });
+      Array.prototype.forEach.call(document.querySelectorAll('.si-suggest:not([hidden])'), function (el) {
+        el.hidden = true;
+      });
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function parkLivePage(win, hubUrl) {
     if (!win) {
       return;
     }
+    dismissFloatingUi();
     win.minimized = true;
     win.fullPage = true;
     win.parkedLive = true;
@@ -332,8 +519,10 @@
     if (!win || !win.parkedLive) {
       return;
     }
+    capturePageState(win);
     win.parkedLive = false;
     win.fullPage = true;
+    win.minimized = true;
     parkedLiveId = null;
     hideHubOverlay();
     persistWindowsNow();
@@ -353,6 +542,10 @@
   function navigateFromHubParent(href) {
     if (!href) {
       return;
+    }
+    var parked = parkedLiveId ? findWindow(parkedLiveId) : null;
+    if (parked) {
+      capturePageState(parked);
     }
     releaseParkedLiveForNavigation();
     hideHubOverlay();
@@ -1037,6 +1230,9 @@
     var id;
     if (existing) {
       existing.unsaved = !!minimizeDetail.dirty;
+      existing.href = href;
+      existing.key = key;
+      existing.title = currentPageTitle();
       id = existing.id;
     } else {
       id = registerWindow({
@@ -1047,21 +1243,30 @@
         unsaved: !!minimizeDetail.dirty,
       });
     }
-    if (goMenu !== false && id) {
-      var win = findWindow(id);
-      if (win) {
-        win.unsaved = !!minimizeDetail.dirty;
-        win.minimized = true;
-        win.fullPage = true;
-        win.parkedLive = false;
+    var win = findWindow(id);
+    if (win) {
+      win.unsaved = !!minimizeDetail.dirty;
+      win.href = href;
+      win.key = key;
+      win.title = currentPageTitle();
+      win.fullPage = true;
+    }
+    capturePageState(win || { key: key, href: href });
+    if (goMenu !== false && id && win) {
+      if (!isMenuLikeLocation(global.location.href)) {
+        parkLivePage(win, defaultHubUrl());
+        persistWindowsNow();
+        return id;
       }
+      win.minimized = true;
+      win.parkedLive = false;
       persistWindowsNow();
       syncTaskbar();
-      if (!isMenuLikeLocation(global.location.href)) {
-        global.__managerAllowUnload = true;
-        global.location.href = defaultHubUrl();
-      }
       return id;
+    }
+    if (win) {
+      win.minimized = true;
+      win.parkedLive = false;
     }
     persistWindows();
     return id;
@@ -1252,7 +1457,7 @@
     if (!win) {
       return;
     }
-    if (isParkedLiveWindow(win)) {
+    if (isParkedLiveWindow(win) || (win.parkedLive && isWindowCurrentPage(win))) {
       unparkLiveWindow(win);
       return;
     }
@@ -1270,6 +1475,11 @@
       document.body.classList.remove('app-mdi-page-parked');
       syncTaskbar();
       return;
+    }
+    try {
+      sessionStorage.setItem(RESTORE_PENDING_KEY, win.key || normalizeKey(win.href));
+    } catch (e) {
+      /* ignore */
     }
     prefetchHref(win.href);
     global.__managerAllowUnload = true;
@@ -1527,6 +1737,7 @@
     restorePersistedWindows();
     convertLegacyIframeWindows();
     reconcileParkStateOnLoad();
+    tryRestorePendingFilters();
     global.addEventListener('message', handleHubParentMessage);
     var btn = ensureMinimizeButton();
     if (btn) {
