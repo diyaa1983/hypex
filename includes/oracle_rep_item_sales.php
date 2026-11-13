@@ -127,10 +127,13 @@ function oracle_fetch_rep_item_sales(
       END";
 
     $byCurrentLink = !$filterOracleRep && $custAccs !== [];
+    $saleType = (int) $c['sale_type'];
     // عند الربط الحالي من هايبكس تُعاد نسبة المندوب بعد الجلب حسب بطاقة العميل.
     $repSelect = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
+    // TYPE بيع + مرتجعات 10/11 — يُفصل لاحقاً لعرض المبيعات أو الصافي
     $sql = "
 SELECT {$repSelect},
+       d.TYPE AS DOC_TYPE,
        TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
        TRIM(TO_CHAR(d.CAT)) AS CAT_CODE,
@@ -142,7 +145,7 @@ SELECT {$repSelect},
        ROUND(SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})), 3) AS AMOUNT
 FROM {$fromQ} d
 WHERE d.COMP_NUM = :comp_num
-  AND d.TYPE = :sale_type
+  AND (d.TYPE = :sale_type OR d.TYPE IN (10, 11))
   AND d.STORE = :store_num
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
@@ -150,7 +153,7 @@ WHERE d.COMP_NUM = :comp_num
 ";
     $binds = [
         'comp_num' => (int) $c['comp_num'],
-        'sale_type' => (int) $c['sale_type'],
+        'sale_type' => $saleType,
         'store_num' => $storeNum,
         'd_from' => $fromIso,
         'd_to' => $toIso,
@@ -199,13 +202,13 @@ WHERE d.COMP_NUM = :comp_num
     }
     if ($byCurrentLink) {
         $sql .= "
-GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
+GROUP BY d.TYPE, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
          NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
 ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
     } else {
         $sql .= "
-GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
+GROUP BY d.TYPE, d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
          NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
 ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
@@ -249,11 +252,7 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
     $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
     $repNames = oracle_rep_item_sales_rep_names($conn, array_keys($repNos));
 
-    $rows = [];
-    $totQty = 0.0;
-    $totBonus = 0.0;
-    $totAmt = 0.0;
-    $reps = [];
+    $rowsAll = [];
     $wantCats = [];
     foreach ($catNames as $name) {
         $name = trim((string) $name);
@@ -268,6 +267,8 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         $qty = (float) oracle_statement_row_val($r, 'QTY');
         $bonus = (float) oracle_statement_row_val($r, 'BONUS');
         $amount = (float) oracle_statement_row_val($r, 'AMOUNT');
+        $docType = (int) oracle_statement_row_val($r, 'DOC_TYPE');
+        $isReturn = $docType !== $saleType;
         if ($item === '' || ($qty == 0.0 && $bonus == 0.0 && $amount == 0.0)) {
             continue;
         }
@@ -293,7 +294,8 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         }
         $invoiceYear = (int) oracle_statement_row_val($r, 'VYEAR');
         $invoiceNo = (int) oracle_statement_row_val($r, 'V_NUM');
-        $rows[] = [
+        $rowsAll[] = [
+            'doc_kind' => $isReturn ? 'R' : 'S',
             'rep_no' => $rep,
             'rep_name' => $repName,
             'customer_acc' => $custAcc,
@@ -311,15 +313,11 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
             'bonus' => $bonus,
             'amount' => round($amount, 3),
         ];
-        $totQty += $qty;
-        $totBonus += $bonus;
-        $totAmt += $amount;
-        $reps[$rep] = true;
     }
 
     $merged = [];
-    foreach ($rows as $row) {
-        $key = (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n"
+    foreach ($rowsAll as $row) {
+        $key = (string) ($row['doc_kind'] ?? 'S') . "\n" . (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n"
             . (string) ($row['invoice_year'] ?? 0) . "\n" . (string) ($row['invoice_no'] ?? 0) . "\n"
             . (string) $row['item_code'] . "\n" . (string) $row['cat_name'] . "\n" . (string) ($row['sale_date'] ?? '');
         if (!isset($merged[$key])) {
@@ -330,9 +328,13 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         $merged[$key]['bonus'] = (float) $merged[$key]['bonus'] + (float) $row['bonus'];
         $merged[$key]['amount'] = round((float) $merged[$key]['amount'] + (float) $row['amount'], 3);
     }
-    $rows = array_values($merged);
+    $rowsAll = array_values($merged);
 
-    usort($rows, static function (array $a, array $b): int {
+    usort($rowsAll, static function (array $a, array $b): int {
+        $c = strcmp((string) ($a['doc_kind'] ?? 'S'), (string) ($b['doc_kind'] ?? 'S'));
+        if ($c !== 0) {
+            return $c;
+        }
         $c = ($a['rep_no'] <=> $b['rep_no']);
         if ($c !== 0) {
             return $c;
@@ -361,16 +363,54 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         return strcmp((string) $a['item_code'], (string) $b['item_code']);
     });
 
+    $rows = [];
+    $returnRows = [];
+    $totQty = 0.0;
+    $totBonus = 0.0;
+    $totAmt = 0.0;
+    $retQty = 0.0;
+    $retBonus = 0.0;
+    $retAmt = 0.0;
+    $reps = [];
+    foreach ($rowsAll as $row) {
+        if (($row['doc_kind'] ?? 'S') === 'R') {
+            $returnRows[] = $row;
+            $retQty += (float) $row['qty'];
+            $retBonus += (float) $row['bonus'];
+            $retAmt += (float) $row['amount'];
+        } else {
+            $rows[] = $row;
+            $totQty += (float) $row['qty'];
+            $totBonus += (float) $row['bonus'];
+            $totAmt += (float) $row['amount'];
+            $reps[(int) $row['rep_no']] = true;
+        }
+    }
+
     return [
         'ok' => true,
-        'message' => $rows === [] ? 'لا توجد مبيعات في الفترة المحددة.' : '',
+        'message' => $rows === [] && $returnRows === [] ? 'لا توجد مبيعات في الفترة المحددة.' : '',
         'rows' => $rows,
+        'return_rows' => $returnRows,
         'totals' => [
             'qty' => round($totQty, 3),
             'bonus' => round($totBonus, 3),
             'amount' => round($totAmt, 3),
             'reps' => count($reps),
             'items' => count($rows),
+        ],
+        'return_totals' => [
+            'qty' => round($retQty, 3),
+            'bonus' => round($retBonus, 3),
+            'amount' => round($retAmt, 3),
+            'items' => count($returnRows),
+        ],
+        'net_totals' => [
+            'qty' => round($totQty - $retQty, 3),
+            'bonus' => round($totBonus - $retBonus, 3),
+            'amount' => round($totAmt - $retAmt, 3),
+            'reps' => count($reps),
+            'items' => count($rows) + count($returnRows),
         ],
     ];
 }

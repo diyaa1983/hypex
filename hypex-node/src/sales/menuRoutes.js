@@ -2405,8 +2405,26 @@ const oracleRepItemsHandler = async (req, res) => {
 
   let err = '';
   let rows = [];
+  let returnRows = [];
+  let netRows = [];
   let totals = { qty: 0, bonus: 0, amount: 0, reps: 0, items: 0 };
+  let netTotals = { qty: 0, bonus: 0, amount: 0, reps: 0, items: 0 };
   let repName = '';
+
+  const mapOraRow = (r) => {
+    const accKey = String(r.customer_acc || '').replace(/\D+/g, '').replace(/^0+/, '');
+    let no = Number(r.rep_no) || 0;
+    if (filterOracleRep === false) {
+      const mapped = accToRep.get(accKey) || accToRep.get(String(r.customer_acc || '').trim()) || 0;
+      if (mapped > 0) no = mapped;
+    }
+    const hx = no > 0 ? hypexNameByMan.get(no) : '';
+    const current = String(r.rep_name || '').trim();
+    const fromList = no > 0 ? String(reps.find((x) => Number(x.id) === no)?.name_ar || '').trim() : '';
+    const named = current && !/^مندوب\s+\d+$/.test(current) ? current : '';
+    const rep_name = hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
+    return { ...r, rep_no: no, rep_name };
+  };
 
   if (run) {
     if (oracleRepNos.length === 1) {
@@ -2440,22 +2458,37 @@ const oracleRepItemsHandler = async (req, res) => {
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
     } else {
-      rows = (Array.isArray(data.rows) ? data.rows : []).map((r) => {
-        const accKey = String(r.customer_acc || '').replace(/\D+/g, '').replace(/^0+/, '');
-        let no = Number(r.rep_no) || 0;
-        if (filterOracleRep === false) {
-          const mapped = accToRep.get(accKey) || accToRep.get(String(r.customer_acc || '').trim()) || 0;
-          if (mapped > 0) no = mapped;
-        }
-        const hx = no > 0 ? hypexNameByMan.get(no) : '';
-        const current = String(r.rep_name || '').trim();
-        const fromList = no > 0 ? String(reps.find((x) => Number(x.id) === no)?.name_ar || '').trim() : '';
-        const named = current && !/^مندوب\s+\d+$/.test(current) ? current : '';
-        const rep_name = hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
-        return { ...r, rep_no: no, rep_name };
+      rows = (Array.isArray(data.rows) ? data.rows : []).map(mapOraRow);
+      returnRows = (Array.isArray(data.return_rows) ? data.return_rows : []).map(mapOraRow);
+      netRows = rows.concat(
+        returnRows.map((r) => ({
+          ...r,
+          qty: -(Number(r.qty) || 0),
+          bonus: -(Number(r.bonus) || 0),
+          amount: -(Number(r.amount) || 0),
+        }))
+      );
+      netRows.sort((a, b) => {
+        const c = (Number(a.rep_no) || 0) - (Number(b.rep_no) || 0);
+        if (c) return c;
+        const c2 = String(a.customer_name || '').localeCompare(String(b.customer_name || ''), 'ar');
+        if (c2) return c2;
+        const c3 = String(a.sale_date || '').localeCompare(String(b.sale_date || ''));
+        if (c3) return c3;
+        return (Number(a.invoice_no) || 0) - (Number(b.invoice_no) || 0);
       });
       totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
-      if (!rows.length && data.message) err = String(data.message);
+      netTotals =
+        data.net_totals && typeof data.net_totals === 'object'
+          ? data.net_totals
+          : {
+              qty: (Number(totals.qty) || 0) - returnRows.reduce((s, r) => s + (Number(r.qty) || 0), 0),
+              bonus: (Number(totals.bonus) || 0) - returnRows.reduce((s, r) => s + (Number(r.bonus) || 0), 0),
+              amount: (Number(totals.amount) || 0) - returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0),
+              reps: totals.reps,
+              items: rows.length + returnRows.length,
+            };
+      if (!rows.length && !returnRows.length && data.message) err = String(data.message);
     }
     }
   }
@@ -2568,18 +2601,19 @@ const oracleRepItemsHandler = async (req, res) => {
       rowsHtml += `<p class="ora-rep-total">إجمالي المندوب ${esc(repLabel)} — الكمية ${esc(fmtQty(repQty))} — المبلغ ${esc(fmtAmt(repAmt))}</p>`;
     }
     rowsHtml += `<p class="ora-grand">الإجمالي — الكمية ${esc(fmtQty(totals.qty))} — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
-  } else if (rows.length) {
+  } else if (rows.length || netRows.length) {
+    const invBase = basePath.ensurePrefixed('/sales/reports/oracle-sales-invoice');
+    const buildOraViews = (sourceRows) => {
     let summaryHtml = '';
     let detailHtml = '';
     let invoiceHtml = '';
     let invoiceSumHtml = '';
-    const invBase = basePath.ensurePrefixed('/sales/reports/oracle-sales-invoice');
     let i = 0;
-    while (i < rows.length) {
+    while (i < sourceRows.length) {
       const repStart = i;
-      const no = Number(rows[i].rep_no) || 0;
-      while (i < rows.length && (Number(rows[i].rep_no) || 0) === no) i += 1;
-      const repRows = rows.slice(repStart, i);
+      const no = Number(sourceRows[i].rep_no) || 0;
+      while (i < sourceRows.length && (Number(sourceRows[i].rep_no) || 0) === no) i += 1;
+      const repRows = sourceRows.slice(repStart, i);
       const repLabel = String(repRows[0].rep_name || '').trim() || (no > 0 ? `مندوب ${no}` : '');
       const catSeen = new Set();
       const catOrder = [];
@@ -2832,18 +2866,36 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
     }
-    const grand = `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+    return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml };
+    };
+    const salesV = rows.length
+      ? buildOraViews(rows)
+      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
+    const netV = netRows.length
+      ? buildOraViews(netRows)
+      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
+    const salesGrand = `<p class="ora-grand">إجمالي المبيعات — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+    const netGrand = `<p class="ora-grand">صافي المبيعات (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))}</p>`;
+    const emptyNet = '<p class="muted">لا توجد حركة صافي في الفترة المحددة.</p>';
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
+        <span class="ora-mode-group">
+          <button type="button" class="si-btn si-btn--primary" data-ora-mode="sales">مبيعات</button>
+          <button type="button" class="si-btn" data-ora-mode="net">صافي المبيعات</button>
+        </span>
         <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
       </div>
-      <div class="ora-view" id="ora-view-summary">${summaryHtml}${grand}</div>
-      <div class="ora-view" id="ora-view-detail" hidden>${detailHtml}${grand}</div>
-      <div class="ora-view" id="ora-view-invoice" hidden>${invoiceHtml}${grand}</div>
-      <div class="ora-view" id="ora-view-invoice-sum" hidden>${invoiceSumHtml}${grand}</div>`;
+      <div class="ora-view" id="ora-view-sales-summary" data-ora-mode-panel="sales" data-ora-view-panel="summary">${salesV.summaryHtml || emptyNet}${salesGrand}</div>
+      <div class="ora-view" id="ora-view-sales-detail" data-ora-mode-panel="sales" data-ora-view-panel="detail" hidden>${salesV.detailHtml || emptyNet}${salesGrand}</div>
+      <div class="ora-view" id="ora-view-sales-invoice" data-ora-mode-panel="sales" data-ora-view-panel="invoice" hidden>${salesV.invoiceHtml || emptyNet}${salesGrand}</div>
+      <div class="ora-view" id="ora-view-sales-invoice-sum" data-ora-mode-panel="sales" data-ora-view-panel="invoice-sum" hidden>${salesV.invoiceSumHtml || emptyNet}${salesGrand}</div>
+      <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary" hidden>${netV.summaryHtml || emptyNet}${netGrand}</div>
+      <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
+      <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
+      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -3201,6 +3253,7 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-cust-final td { background: #e7f4ea; font-weight: 800; }
         .ora-inv-link { color: #1e3a5f; font-weight: 800; text-decoration: underline; }
         .ora-inv-meta { font-weight: 600; color: #475569; }
+        .ora-mode-group { display: inline-flex; gap: .25rem; margin: 0 .35rem; }
         .ora-rep-total, .ora-grand {
           margin: .35rem 1rem 1rem;
           font-weight: 800;
@@ -3447,24 +3500,25 @@ const oracleRepItemsHandler = async (req, res) => {
           setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 200);
           return;
         }
+        var modeBtn = ev.target.closest && ev.target.closest('[data-ora-mode]');
         var viewBtn = ev.target.closest && ev.target.closest('[data-ora-view]');
-        if (viewBtn) {
-          var which = viewBtn.getAttribute('data-ora-view');
-          var views = {
-            summary: document.getElementById('ora-view-summary'),
-            detail: document.getElementById('ora-view-detail'),
-            invoice: document.getElementById('ora-view-invoice'),
-            'invoice-sum': document.getElementById('ora-view-invoice-sum')
-          };
-          Object.keys(views).forEach(function (k) {
-            var el = views[k];
-            if (!el) return;
-            if (k === which) el.removeAttribute('hidden');
-            else el.setAttribute('hidden', '');
+        if (modeBtn || viewBtn) {
+          var modeEl = document.querySelector('[data-ora-mode].si-btn--primary');
+          var viewEl = document.querySelector('[data-ora-view].si-btn--primary');
+          var mode = modeBtn ? modeBtn.getAttribute('data-ora-mode') : (modeEl && modeEl.getAttribute('data-ora-mode')) || 'sales';
+          var which = viewBtn ? viewBtn.getAttribute('data-ora-view') : (viewEl && viewEl.getAttribute('data-ora-view')) || 'summary';
+          document.querySelectorAll('[data-ora-mode]').forEach(function (btn) {
+            if (btn.getAttribute('data-ora-mode') === mode) btn.classList.add('si-btn--primary');
+            else btn.classList.remove('si-btn--primary');
           });
           document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
             if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
             else btn.classList.remove('si-btn--primary');
+          });
+          document.querySelectorAll('.ora-view[data-ora-mode-panel]').forEach(function (el) {
+            var ok = el.getAttribute('data-ora-mode-panel') === mode && el.getAttribute('data-ora-view-panel') === which;
+            if (ok) el.removeAttribute('hidden');
+            else el.setAttribute('hidden', '');
           });
           return;
         }
