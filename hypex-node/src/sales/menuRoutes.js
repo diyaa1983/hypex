@@ -2646,6 +2646,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const saleDate = String(r.sale_date || '').trim();
         const invNo = Number(r.invoice_no) || 0;
         const invYear = Number(r.invoice_year) || 0;
+        const docKind = String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0 ? 'R' : 'S';
         const fromName = (name.match(/\d{8,}/) || [])[0] || '';
         const barcode = String(r.item_barcode || '').trim() || fromName;
         const found = bag.items.find(
@@ -2658,9 +2659,10 @@ const oracleRepItemsHandler = async (req, res) => {
         } else {
           bag.items.push({ name, code, barcode, saleDate, qty, amount, invNo, invYear });
         }
-        const invKey = `${invYear}|${invNo}|${acc}`;
+        const invKey = `${docKind}|${invYear}|${invNo}|${acc}`;
         if (!invMap.has(invKey)) {
           invMap.set(invKey, {
+            docKind,
             invNo,
             invYear,
             saleDate,
@@ -2742,13 +2744,19 @@ const oracleRepItemsHandler = async (req, res) => {
       const invList = [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
         if (d) return d;
+        const k = String(a.docKind || 'S').localeCompare(String(b.docKind || 'S'));
+        if (k) return k;
         return (a.invNo || 0) - (b.invNo || 0);
       });
       invList.forEach((inv) => {
+        const isRet = String(inv.docKind || 'S') === 'R';
+        const kindLabel = isRet ? 'مرتجع' : 'بيع';
         const invLabel =
           inv.invNo > 0
-            ? `فاتورة ${inv.invNo}${inv.invYear > 0 ? ` / ${inv.invYear}` : ''}`
-            : 'بدون رقم فاتورة';
+            ? `${isRet ? 'مرتجع' : 'فاتورة'} ${inv.invNo}${inv.invYear > 0 ? ` / ${inv.invYear}` : ''}`
+            : isRet
+              ? 'مرتجع بدون رقم'
+              : 'بدون رقم فاتورة';
         const invHref =
           inv.invNo > 0
             ? `${invBase}?run=1&invoice_no=${inv.invNo}&year=${inv.invYear || 0}`
@@ -2757,7 +2765,7 @@ const oracleRepItemsHandler = async (req, res) => {
           ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
           : esc(invLabel);
         invoiceBody += `<tr class="ora-cust-band"><td colspan="5">${invTitle}
-          <span class="ora-inv-meta"> — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
+          <span class="ora-inv-meta"> — ${esc(kindLabel)} — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
         inv.lines
           .slice()
           .sort((a, b) => {
@@ -2774,12 +2782,13 @@ const oracleRepItemsHandler = async (req, res) => {
               <td class="si-num" dir="ltr">${esc(fmtAmt(ln.amount))}</td>
             </tr>`;
           });
-        invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع الفاتورة</td>
+        invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع ${esc(kindLabel)}</td>
           <td class="si-num" dir="ltr">${esc(fmtQty(inv.qty))}</td>
           <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td></tr>`;
         invRepQty += inv.qty;
         invRepAmt += inv.amount;
-        invoiceSumBody += `<tr>
+        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}">
+          <td>${esc(kindLabel)}</td>
           <td>${invTitle}</td>
           <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
           <td class="ora-cust-name">${esc(inv.customer)}</td>
@@ -2789,7 +2798,7 @@ const oracleRepItemsHandler = async (req, res) => {
       });
       if (invoiceSumBody) {
         invoiceSumBody += `<tr class="ora-cust-final">
-          <td colspan="3">مجموع المندوب</td>
+          <td colspan="4">مجموع المندوب</td>
           <td class="si-num" dir="ltr">${esc(fmtQty(invRepQty))}</td>
           <td class="si-num" dir="ltr">${esc(fmtAmt(invRepAmt))}</td>
         </tr>`;
@@ -2855,6 +2864,7 @@ const oracleRepItemsHandler = async (req, res) => {
         <div class="si-table-wrap ora-portrait-wrap">
           <table class="si-table ora-portrait-table ora-detail-table">
             <thead><tr>
+              <th class="ora-vhead">النوع</th>
               <th class="ora-vhead">الفاتورة</th>
               <th class="ora-vhead">التاريخ</th>
               <th class="ora-vhead">العميل</th>
@@ -2871,6 +2881,27 @@ const oracleRepItemsHandler = async (req, res) => {
     const salesV = rows.length
       ? buildOraViews(rows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
+    // فواتير إجمالي (وضع المبيعات): إظهار البيع + المرتجعات معاً
+    const salesInvoiceSumRows = rows.concat(
+      returnRows.map((r) => ({
+        ...r,
+        doc_kind: 'R',
+        qty: -(Number(r.qty) || 0),
+        bonus: -(Number(r.bonus) || 0),
+        amount: -(Number(r.amount) || 0),
+      }))
+    );
+    salesInvoiceSumRows.sort((a, b) => {
+      const c = (Number(a.rep_no) || 0) - (Number(b.rep_no) || 0);
+      if (c) return c;
+      const c2 = String(a.sale_date || '').localeCompare(String(b.sale_date || ''));
+      if (c2) return c2;
+      return (Number(a.invoice_no) || 0) - (Number(b.invoice_no) || 0);
+    });
+    if (salesInvoiceSumRows.length) {
+      const invSumOnly = buildOraViews(salesInvoiceSumRows);
+      salesV.invoiceSumHtml = invSumOnly.invoiceSumHtml;
+    }
     const netV = netRows.length
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
@@ -3254,6 +3285,7 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-inv-link { color: #1e3a5f; font-weight: 800; text-decoration: underline; }
         .ora-inv-meta { font-weight: 600; color: #475569; }
         .ora-mode-group { display: inline-flex; gap: .25rem; margin: 0 .35rem; }
+        tr.ora-ret-row td { color: #9f1239; background: #fff1f2; }
         .ora-rep-total, .ora-grand {
           margin: .35rem 1rem 1rem;
           font-weight: 800;
