@@ -2881,23 +2881,15 @@ const oracleRepItemsHandler = async (req, res) => {
     }
     return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml };
     };
-    // كل العروض (ملخص / تفصيلي / فواتير) بعد خصم المرتجعات
+    // كل العروض بعد خصم المرتجعات
     const netV = netRows.length
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
-    const grossV = rows.length
-      ? buildOraViews(rows)
-      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
     const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>`;
-    const grossGrand = `<p class="ora-grand">إجمالي المبيعات قبل الخصم — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
-        <span class="ora-mode-group">
-          <button type="button" class="si-btn si-btn--primary" data-ora-mode="net">صافي المبيعات</button>
-          <button type="button" class="si-btn" data-ora-mode="sales">قبل الخصم</button>
-        </span>
         <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
@@ -2906,11 +2898,7 @@ const oracleRepItemsHandler = async (req, res) => {
       <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary">${netV.summaryHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-sales-summary" data-ora-mode-panel="sales" data-ora-view-panel="summary" hidden>${grossV.summaryHtml || emptyNet}${grossGrand}</div>
-      <div class="ora-view" id="ora-view-sales-detail" data-ora-mode-panel="sales" data-ora-view-panel="detail" hidden>${grossV.detailHtml || emptyNet}${grossGrand}</div>
-      <div class="ora-view" id="ora-view-sales-invoice" data-ora-mode-panel="sales" data-ora-view-panel="invoice" hidden>${grossV.invoiceHtml || emptyNet}${grossGrand}</div>
-      <div class="ora-view" id="ora-view-sales-invoice-sum" data-ora-mode-panel="sales" data-ora-view-panel="invoice-sum" hidden>${grossV.invoiceSumHtml || emptyNet}${grossGrand}</div>`;
+      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -3516,24 +3504,16 @@ const oracleRepItemsHandler = async (req, res) => {
           setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 200);
           return;
         }
-        var modeBtn = ev.target.closest && ev.target.closest('[data-ora-mode]');
         var viewBtn = ev.target.closest && ev.target.closest('[data-ora-view]');
-        if (modeBtn || viewBtn) {
-          var modeEl = document.querySelector('[data-ora-mode].si-btn--primary');
-          var viewEl = document.querySelector('[data-ora-view].si-btn--primary');
-          var mode = modeBtn ? modeBtn.getAttribute('data-ora-mode') : (modeEl && modeEl.getAttribute('data-ora-mode')) || 'net';
-          var which = viewBtn ? viewBtn.getAttribute('data-ora-view') : (viewEl && viewEl.getAttribute('data-ora-view')) || 'summary';
+        if (viewBtn) {
+          var which = viewBtn.getAttribute('data-ora-view') || 'summary';
           if (which === 'invoice-net') which = 'invoice-sum';
-          document.querySelectorAll('[data-ora-mode]').forEach(function (btn) {
-            if (btn.getAttribute('data-ora-mode') === mode) btn.classList.add('si-btn--primary');
-            else btn.classList.remove('si-btn--primary');
-          });
           document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
             if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
             else btn.classList.remove('si-btn--primary');
           });
-          document.querySelectorAll('.ora-view[data-ora-mode-panel]').forEach(function (el) {
-            var ok = el.getAttribute('data-ora-mode-panel') === mode && el.getAttribute('data-ora-view-panel') === which;
+          document.querySelectorAll('.ora-view[data-ora-view-panel]').forEach(function (el) {
+            var ok = el.getAttribute('data-ora-view-panel') === which;
             if (ok) el.removeAttribute('hidden');
             else el.setAttribute('hidden', '');
           });
