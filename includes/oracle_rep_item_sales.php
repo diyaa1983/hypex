@@ -8,6 +8,7 @@ declare(strict_types=1);
  */
 
 require_once app_path('includes/oracle_rep_net_sales.php');
+require_once app_path('includes/excel_item_categories.php');
 
 /**
  * أشهر محددة (YYYY-MM). فارغ = كل الفترة بين التاريخين.
@@ -435,12 +436,21 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
             }
         }
         $catName = is_array($hx) ? trim((string) ($hx['cat_name'] ?? '')) : '';
+        $itemSku = is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '';
+        $itemBarcode = is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '';
         // إن لم تُعرف الفئة من بطاقة المادة: حاول من رمز مجموعة Oracle → فئة محلية بنفس الاسم
         if ($catName === '' && $oraCatCode !== '') {
             $catName = trim((string) ($oraCatToLocal[$oraCatCode] ?? ''));
             if ($catName === '') {
                 $catNorm = oracle_rep_item_sales_item_norm($oraCatCode);
                 $catName = trim((string) ($oraCatToLocal[$catNorm] ?? ''));
+            }
+        }
+        // احتياط كشف الاكسل (باركود/SKU) — يغطي المواد التي فئتها Oracle أو فارغة
+        if ($catName === '' || !excel_item_is_excel_category($catName)) {
+            $fromXl = excel_item_lookup_category($item, $itemBarcode, $itemSku);
+            if ($fromXl !== '') {
+                $catName = $fromXl;
             }
         }
         if ($catName === '') {
@@ -464,6 +474,9 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
         }
         $invoiceYear = (int) oracle_statement_row_val($r, 'VYEAR');
         $invoiceNo = (int) oracle_statement_row_val($r, 'V_NUM');
+        if ($itemBarcode === '' && preg_match('/^\d{8,}$/', $item)) {
+            $itemBarcode = $item;
+        }
         $rowsAll[] = [
             'doc_kind' => $isReturn ? 'R' : 'S',
             'rep_no' => $rep,
@@ -473,8 +486,8 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
             'cat_code' => $oraCatCode,
             'cat_name' => $catName,
             'item_code' => $item,
-            'item_sku' => is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '',
-            'item_barcode' => is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '',
+            'item_sku' => $itemSku,
+            'item_barcode' => $itemBarcode,
             'item_name' => $itemName !== '' ? $itemName : $item,
             'sale_date' => $saleDate,
             'invoice_year' => $invoiceYear > 0 ? $invoiceYear : 0,

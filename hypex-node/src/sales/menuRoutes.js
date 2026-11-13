@@ -11,6 +11,7 @@ const accNative = require('../accounting/nativeService');
 const basePath = require('../lib/basePath');
 const config = require('../config');
 const { esc, fmtAmt, isoToDmy } = require('../lib/html');
+const excelCats = require('./excelItemCategories');
 
 const router = express.Router();
 
@@ -2479,16 +2480,22 @@ const oracleRepItemsHandler = async (req, res) => {
     };
     const byKey = new Map();
     for (const it of items || []) {
-      const cat = String(it.cat_name || '').trim();
+      const barcode = String(it.barcode || '').trim();
+      const sku = String(it.sku || '').trim();
+      let cat = String(it.cat_name || '').trim();
+      // إن الفئة غير معتمدة من الاكسل: خذها من كشف الاكسل بالباركود/sku
+      if (!excelCats.isExcelCategory(cat)) {
+        const fromXl = excelCats.lookupExcelCategory(barcode, sku, it.oracle_key);
+        if (fromXl) cat = fromXl;
+      }
+      if (!cat) {
+        cat = excelCats.lookupExcelCategory(barcode, sku, it.oracle_key);
+      }
       if (!cat) continue;
-      const pack = {
-        cat,
-        barcode: String(it.barcode || '').trim(),
-        sku: String(it.sku || '').trim(),
-      };
+      const pack = { cat, barcode, sku };
       put(byKey, it.oracle_key, pack);
-      put(byKey, it.sku, pack);
-      put(byKey, it.barcode, pack);
+      put(byKey, sku, pack);
+      put(byKey, barcode, pack);
     }
     const lookup = (row) => {
       const keys = [
@@ -2505,26 +2512,26 @@ const oracleRepItemsHandler = async (req, res) => {
         const norm = k.replace(/\D+/g, '').replace(/^0+/, '') || k.replace(/\D+/g, '');
         if (norm && byKey.has(norm)) return byKey.get(norm);
       }
+      const xl = excelCats.lookupExcelCategory(...keys);
+      if (xl) return { cat: xl, barcode: '', sku: '' };
       return null;
     };
-    // فئات الاكسل المعتمدة — استبدل أي فئة أخرى (مثل «جوي» من Oracle)
-    const excelCats = new Set(['others', 'bleach', 'dishwashing', 'deterganet', 'hand wash']);
-    const isExcelCat = (name) => excelCats.has(String(name || '').trim().toLowerCase());
     return list.map((row) => {
       const cur = String(row.cat_name || '').trim();
       const hit = lookup(row);
+      const code = String(row.item_code || '').trim();
       if (!hit) {
-        const code = String(row.item_code || '').trim();
         if ((!row.item_barcode || !String(row.item_barcode).trim()) && /^\d{8,}$/.test(code)) {
           return { ...row, item_barcode: code };
         }
         return row;
       }
-      const needCat = !cur || cur === 'بدون فئة' || (isExcelCat(hit.cat) && !isExcelCat(cur));
+      const needCat =
+        !cur || cur === 'بدون فئة' || (excelCats.isExcelCategory(hit.cat) && !excelCats.isExcelCategory(cur));
       return {
         ...row,
         cat_name: needCat ? hit.cat : cur,
-        item_barcode: String(row.item_barcode || '').trim() || hit.barcode || '',
+        item_barcode: String(row.item_barcode || '').trim() || hit.barcode || (/^\d{8,}$/.test(code) ? code : ''),
         item_sku: String(row.item_sku || '').trim() || hit.sku || '',
       };
     });
