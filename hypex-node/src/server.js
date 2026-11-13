@@ -74,7 +74,7 @@ app.use(basePath.middleware());
 // إخفاء أسماء الشاشات من شريط العنوان (اختياري عبر APP_OBSCURE_ROUTES=1)
 app.use(obscureRoutes.middleware());
 app.use((req, res, next) => {
-  setRequestPath(req.path || '', req.query && req.query.embed);
+  setRequestPath(req.path || '', (req.query && req.query.embed) || '');
   next();
 });
 

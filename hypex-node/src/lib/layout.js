@@ -62,9 +62,8 @@ let currentRequestEmbed = '';
 
 function setRequestPath(p, embed) {
   currentRequestPath = String(p || '').trim();
-  if (embed !== undefined) {
-    currentRequestEmbed = String(embed || '').trim();
-  }
+  // دائماً صفّر/حدّث embed لكل طلب — وإلا تبقى قيمة طلب iframe سابق وتختفي كبسة التصغير
+  currentRequestEmbed = embed == null || embed === false ? '' : String(embed).trim();
 }
 
 function isMdiEmbedRequest() {

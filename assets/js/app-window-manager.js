@@ -1697,17 +1697,20 @@
     if (btn) {
       return btn;
     }
+    if (isMenuLikeLocation(global.location.href)) {
+      return null;
+    }
     var close = document.querySelector(
-      '.hx-ora-screen-title .ora12-title-bar__close, .hx-ora-screen-title .app-screen-exit-btn, header.dashboard-ora-screen-title .ora12-title-bar__close, .report-ora12-screen-title .ora12-title-bar__close, .app-screen-title-bar .ora12-title-bar__close, .app-screen-exit-btn'
+      '.hx-ora-screen-title .ora12-title-bar__close, .hx-ora-screen-title .app-screen-exit-btn, header.dashboard-ora-screen-title .ora12-title-bar__close, .report-ora12-screen-title .ora12-title-bar__close, .app-screen-title-bar .ora12-title-bar__close, .ora12-title-bar__controls .app-screen-exit-btn, .app-screen-exit-btn'
     );
     var bar =
       document.querySelector(
         '.hx-ora-screen-title, header.dashboard-ora-screen-title, .report-ora12-screen-title, .app-screen-title-bar'
-      ) || (close && close.closest('header, .hx-ora-screen-title, .dashboard-ora-screen-title'));
+      ) || (close && close.closest('header, .hx-ora-screen-title, .dashboard-ora-screen-title, .report-ora12-screen-title'));
     if (!bar) {
       bar = close && close.parentNode;
     }
-    if (!bar || isMenuLikeLocation(global.location.href)) {
+    if (!bar) {
       return null;
     }
     btn = document.createElement('button');
@@ -1719,7 +1722,9 @@
     btn.innerHTML =
       '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>';
     var closeEl = close || bar.querySelector('.ora12-title-bar__close, .app-screen-exit-btn');
-    var controls = bar.querySelector && bar.querySelector('.ora12-title-bar__controls');
+    var controls =
+      (bar.querySelector && bar.querySelector('.ora12-title-bar__controls')) ||
+      (closeEl && closeEl.closest && closeEl.closest('.ora12-title-bar__controls'));
     if (controls && closeEl && controls.contains(closeEl)) {
       controls.insertBefore(btn, closeEl);
     } else if (closeEl && closeEl.parentNode) {
@@ -1732,6 +1737,17 @@
     return btn;
   }
 
+  function bindMinimizeButton(btn) {
+    if (!btn || btn.getAttribute('data-mdi-min-bound') === '1') {
+      return;
+    }
+    btn.setAttribute('data-mdi-min-bound', '1');
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      minimizeThisPage(true);
+    });
+  }
+
   function initMdiUi() {
     ensureShell();
     restorePersistedWindows();
@@ -1739,12 +1755,7 @@
     reconcileParkStateOnLoad();
     tryRestorePendingFilters();
     global.addEventListener('message', handleHubParentMessage);
-    var btn = ensureMinimizeButton();
-    if (btn) {
-      btn.addEventListener('click', function () {
-        minimizeThisPage(true);
-      });
-    }
+    bindMinimizeButton(ensureMinimizeButton());
   }
 
   if (document.readyState === 'loading') {
