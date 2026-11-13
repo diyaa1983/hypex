@@ -189,7 +189,7 @@ INNER JOIN inv_item_category c ON c.id = (
 )
 SET i.category_id = c.id;
 
--- عطّل فئات Oracle وأي فئة ليست من كشف الاكسل
+-- عطّل فئات Oracle وأي فئة ليست من كشف الاكسل (مثل «جوي»)
 UPDATE inv_item_category
 SET is_active = 0
 WHERE (
@@ -198,6 +198,18 @@ WHERE (
     LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash')
   )
 );
+
+-- انقل كل المواد من فئات غير الاكسل (مثل جوي) إلى الفئة الصحيحة من كشف الاكسل بالباركود/sku
+UPDATE inv_item i
+INNER JOIN tmp_xl_item_cat m ON TRIM(i.barcode) = m.barcode
+INNER JOIN inv_item_category c ON c.id = (
+  SELECT c2.id FROM inv_item_category c2
+  WHERE LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(m.cat_name))
+    AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
+  ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
+  LIMIT 1
+)
+SET i.category_id = c.id;
 
 -- انقل المواد المتبقية من فئات Oracle إلى التوأم المحلي بنفس الاسم إن وُجد
 UPDATE inv_item i

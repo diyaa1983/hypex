@@ -2507,6 +2507,9 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       return null;
     };
+    // فئات الاكسل المعتمدة — استبدل أي فئة أخرى (مثل «جوي» من Oracle)
+    const excelCats = new Set(['others', 'bleach', 'dishwashing', 'deterganet', 'hand wash']);
+    const isExcelCat = (name) => excelCats.has(String(name || '').trim().toLowerCase());
     return list.map((row) => {
       const cur = String(row.cat_name || '').trim();
       const hit = lookup(row);
@@ -2517,7 +2520,7 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         return row;
       }
-      const needCat = !cur || cur === 'بدون فئة';
+      const needCat = !cur || cur === 'بدون فئة' || (isExcelCat(hit.cat) && !isExcelCat(cur));
       return {
         ...row,
         cat_name: needCat ? hit.cat : cur,

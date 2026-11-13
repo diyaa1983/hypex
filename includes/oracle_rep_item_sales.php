@@ -1028,10 +1028,8 @@ function oracle_rep_item_sales_oracle_cat_local_names(): array
         }
     }
     foreach ($rows as $r) {
+        // فقط التوأم المحلي (اكسل) — لا نعرض اسم فئة Oracle مثل «جوي»
         $name = trim((string) ($r['local_name'] ?? ''));
-        if ($name === '') {
-            $name = trim((string) ($r['name_ar'] ?? ''));
-        }
         if ($name === '') {
             continue;
         }
