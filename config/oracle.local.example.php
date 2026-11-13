@@ -93,8 +93,8 @@ return [
         'emp_table' => 'EMP_INFO',
         'rep_key' => 'man_num', // man_num | cus_salesman
         'sale_type' => 9,
-        // أنواع مرتجع المبيعات في MAS.DAILY (م. مبيعات) — عدّل إن اختلف ترقيمكم
-        'return_types' => [8, 10, 11, 12, 13, 14, 15],
+        // أنواع مرتجع المبيعات في MAS.DAILY — عندكم TYPE=2 = INV00025 مرتجع مبيعات
+        'return_types' => [2, 8, 10, 11, 12, 13, 14, 15],
         'comp_num' => 1,
         'default_store' => 4,
     ],

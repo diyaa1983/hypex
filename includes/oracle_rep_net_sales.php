@@ -116,7 +116,7 @@ function oracle_rep_net_sales_cfg(): array
     }
 
     $returnTypes = [];
-    $rawRet = $s['return_types'] ?? ($inv['return_types'] ?? [8, 10, 11, 12]);
+    $rawRet = $s['return_types'] ?? ($inv['return_types'] ?? [2, 8, 10, 11, 12]);
     if (!is_array($rawRet)) {
         $rawRet = [$rawRet];
     }
@@ -126,9 +126,11 @@ function oracle_rep_net_sales_cfg(): array
             $returnTypes[$t] = $t;
         }
     }
+    // TYPE=2 = مرتجع مبيعات (INV00025) في تثبيت Taqwa/MAS
+    $returnTypes[2] = 2;
     $returnTypes = array_values($returnTypes);
     if ($returnTypes === []) {
-        $returnTypes = [8, 10, 11, 12];
+        $returnTypes = [2, 8, 10, 11, 12];
     }
 
     return [
