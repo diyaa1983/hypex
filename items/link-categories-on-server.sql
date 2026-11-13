@@ -142,7 +142,8 @@ INSERT INTO tmp_xl_item_cat (sku, barcode, cat_name) VALUES
 ('600136','6253500765533','Deterganet'),
 ('600127','6253500765175','Deterganet'),
 ('200027','6253500765519','Deterganet'),
-('200028','6253500765526','Deterganet');
+('200028','6253500765526','Deterganet'),
+('400025','6253500765106','Others');
 
 -- أزل وسم Oracle عن فئات الاكسل إن وُسمت بالخطأ أثناء مزامنة سابقة
 UPDATE inv_item_category

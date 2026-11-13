@@ -847,8 +847,8 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         return $out;
     }
 
-    // الفئة من بطاقة هايبكس المحلية فقط.
-    // إن كانت المادة مربوطة بفئة Oracle: نبحث عن توأم محلي بنفس الاسم (اكسل/هايبكس).
+    // الفئة من بطاقة المادة كما هي.
+    // إن وُجدت فئة محلية (اكسل) بنفس الاسم نفضّلها، وإلا نعرض اسم فئة البطاقة حتى لا تظهر «بدون فئة».
     $rows = [];
     $pdo = null;
     try {
@@ -859,38 +859,29 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
     $sqlAttempts = [
         "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
                 COALESCE(
-                  NULLIF(TRIM(
-                    CASE
-                      WHEN c.id IS NOT NULL
-                           AND (c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')
-                      THEN c.name_ar
-                      ELSE NULL
-                    END
-                  ), ''),
                   (
                     SELECT c2.name_ar
                     FROM inv_item_category c2
                     WHERE c.id IS NOT NULL
                       AND LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(c.name_ar))
                       AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
-                    ORDER BY c2.id
+                      AND IFNULL(c2.is_active, 1) = 1
+                    ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
                     LIMIT 1
-                  )
-                ) AS cat_name
-         FROM inv_item i
-         LEFT JOIN inv_item_category c ON c.id = i.category_id",
-        "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
+                  ),
+                  NULLIF(TRIM(c.name_ar), '')
+                ) AS cat_name,
                 CASE
-                  WHEN c.id IS NULL THEN NULL
-                  WHEN c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '' THEN c.name_ar
-                  ELSE NULL
-                END AS cat_name
+                  WHEN c.id IS NOT NULL
+                       AND (c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')
+                  THEN 1 ELSE 0
+                END AS cat_is_local
          FROM inv_item i
          LEFT JOIN inv_item_category c ON c.id = i.category_id",
-        'SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name
+        'SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name, 1 AS cat_is_local
          FROM inv_item i
          LEFT JOIN inv_item_category c ON c.id = i.category_id',
-        'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name
+        'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name, 1 AS cat_is_local
          FROM inv_item i
          LEFT JOIN inv_item_category c ON c.id = i.category_id',
     ];
@@ -906,11 +897,41 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         return $out;
     }
 
+    // فضّل الصفوف ذات فئة محلية ثم ذات أي فئة
+    usort($rows, static function (array $a, array $b): int {
+        $al = (int) ($a['cat_is_local'] ?? 0);
+        $bl = (int) ($b['cat_is_local'] ?? 0);
+        if ($al !== $bl) {
+            return $bl <=> $al;
+        }
+        $ac = trim((string) ($a['cat_name'] ?? '')) !== '' ? 1 : 0;
+        $bc = trim((string) ($b['cat_name'] ?? '')) !== '' ? 1 : 0;
+
+        return $bc <=> $ac;
+    });
+
     $assign = static function (string $oracleCode, array $pack) use (&$out): void {
-        if ($oracleCode === '' || isset($out[$oracleCode])) {
+        if ($oracleCode === '') {
             return;
         }
-        $out[$oracleCode] = $pack;
+        if (!isset($out[$oracleCode])) {
+            $out[$oracleCode] = $pack;
+
+            return;
+        }
+        $prev = $out[$oracleCode];
+        $prevLocal = !empty($prev['cat_is_local']);
+        $nextLocal = !empty($pack['cat_is_local']);
+        $prevCat = trim((string) ($prev['cat_name'] ?? ''));
+        $nextCat = trim((string) ($pack['cat_name'] ?? ''));
+        if (!$prevLocal && $nextLocal) {
+            $out[$oracleCode] = $pack;
+
+            return;
+        }
+        if ($prevCat === '' && $nextCat !== '') {
+            $out[$oracleCode] = $pack;
+        }
     };
 
     foreach ($rows as $r) {
@@ -919,6 +940,7 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
             'cat_name' => trim((string) ($r['cat_name'] ?? '')),
             'sku' => trim((string) ($r['sku'] ?? '')),
             'barcode' => trim((string) ($r['barcode'] ?? '')),
+            'cat_is_local' => (int) ($r['cat_is_local'] ?? 0),
         ];
         foreach (['oracle_key', 'sku', 'barcode'] as $col) {
             if (!array_key_exists($col, $r)) {
