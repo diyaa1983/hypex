@@ -2436,6 +2436,97 @@ const oracleRepItemsHandler = async (req, res) => {
     return { ...r, rep_no: no, rep_name };
   };
 
+  /** تعزيز الفئة من بطاقة المادة في MySQL (باركود / SKU / oracle_key) */
+  const enrichRowsLocalCats = async (list) => {
+    if (!Array.isArray(list) || !list.length) return list;
+    let items = [];
+    try {
+      items = await db.query(
+        `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key,
+                COALESCE(
+                  (
+                    SELECT c2.name_ar FROM inv_item_category c2
+                    WHERE c.id IS NOT NULL
+                      AND LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(c.name_ar))
+                      AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
+                      AND IFNULL(c2.is_active, 1) = 1
+                    ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
+                    LIMIT 1
+                  ),
+                  NULLIF(TRIM(c.name_ar), '')
+                ) AS cat_name
+         FROM inv_item i
+         LEFT JOIN inv_item_category c ON c.id = i.category_id`
+      );
+    } catch (e) {
+      try {
+        items = await db.query(
+          `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name
+           FROM inv_item i
+           LEFT JOIN inv_item_category c ON c.id = i.category_id`
+        );
+      } catch (e2) {
+        return list;
+      }
+    }
+    const put = (map, key, pack) => {
+      const k = String(key || '').trim();
+      if (!k || !pack || !pack.cat) return;
+      if (!map.has(k)) map.set(k, pack);
+      const digits = k.replace(/\D+/g, '');
+      const norm = digits.replace(/^0+/, '') || digits;
+      if (norm && !map.has(norm)) map.set(norm, pack);
+    };
+    const byKey = new Map();
+    for (const it of items || []) {
+      const cat = String(it.cat_name || '').trim();
+      if (!cat) continue;
+      const pack = {
+        cat,
+        barcode: String(it.barcode || '').trim(),
+        sku: String(it.sku || '').trim(),
+      };
+      put(byKey, it.oracle_key, pack);
+      put(byKey, it.sku, pack);
+      put(byKey, it.barcode, pack);
+    }
+    const lookup = (row) => {
+      const keys = [
+        row.item_code,
+        row.item_barcode,
+        row.item_sku,
+        String(row.item_code || '').replace(/\D+/g, ''),
+        String(row.item_barcode || '').replace(/\D+/g, ''),
+      ];
+      for (const raw of keys) {
+        const k = String(raw || '').trim();
+        if (!k) continue;
+        if (byKey.has(k)) return byKey.get(k);
+        const norm = k.replace(/\D+/g, '').replace(/^0+/, '') || k.replace(/\D+/g, '');
+        if (norm && byKey.has(norm)) return byKey.get(norm);
+      }
+      return null;
+    };
+    return list.map((row) => {
+      const cur = String(row.cat_name || '').trim();
+      const hit = lookup(row);
+      if (!hit) {
+        const code = String(row.item_code || '').trim();
+        if ((!row.item_barcode || !String(row.item_barcode).trim()) && /^\d{8,}$/.test(code)) {
+          return { ...row, item_barcode: code };
+        }
+        return row;
+      }
+      const needCat = !cur || cur === 'بدون فئة';
+      return {
+        ...row,
+        cat_name: needCat ? hit.cat : cur,
+        item_barcode: String(row.item_barcode || '').trim() || hit.barcode || '',
+        item_sku: String(row.item_sku || '').trim() || hit.sku || '',
+      };
+    });
+  };
+
   if (run) {
     if (oracleRepNos.length === 1) {
       const one = oracleRepNos[0];
@@ -2468,8 +2559,10 @@ const oracleRepItemsHandler = async (req, res) => {
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
     } else {
-      rows = (Array.isArray(data.rows) ? data.rows : []).map(mapOraRow);
-      returnRows = (Array.isArray(data.return_rows) ? data.return_rows : []).map(mapOraRow);
+      rows = await enrichRowsLocalCats((Array.isArray(data.rows) ? data.rows : []).map(mapOraRow));
+      returnRows = await enrichRowsLocalCats(
+        (Array.isArray(data.return_rows) ? data.return_rows : []).map(mapOraRow)
+      );
       oraDebug = data.debug && typeof data.debug === 'object' ? data.debug : null;
       netRows = rows.concat(
         returnRows.map((r) => ({
