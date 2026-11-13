@@ -177,6 +177,21 @@ function oracle_sync_item_categories_to_mysql(
                 $id = (int) ($selCode->fetchColumn() ?: 0);
             }
             if ($id > 0) {
+                // لا تكتب oracle_key فوق فئة هايبكس/اكسل المحلية
+                $curOk = '';
+                try {
+                    $stLocal = $mysql->prepare(
+                        'SELECT IFNULL(oracle_key, \'\') FROM inv_item_category WHERE id = ? LIMIT 1'
+                    );
+                    $stLocal->execute([$id]);
+                    $curOk = trim((string) ($stLocal->fetchColumn() ?: ''));
+                } catch (Throwable $eLocal) {
+                    $curOk = '';
+                }
+                if ($curOk === '') {
+                    $result['skipped']++;
+                    continue;
+                }
                 $upd->execute([$code, $name, $key, $id]);
                 $result['updated']++;
             } else {
@@ -344,6 +359,26 @@ function oracle_sync_items_to_mysql(
             if ($id < 1) {
                 $selSku->execute([$sku]);
                 $id = (int) ($selSku->fetchColumn() ?: 0);
+            }
+
+            // حافظ على فئة هايبكس المحلية (اكسل) ولا تستبدلها بفئة Oracle
+            if ($id > 0) {
+                try {
+                    $stKeep = $mysql->prepare(
+                        "SELECT i.category_id, IFNULL(c.oracle_key, '') AS oracle_key
+                         FROM inv_item i
+                         LEFT JOIN inv_item_category c ON c.id = i.category_id
+                         WHERE i.id = ? LIMIT 1"
+                    );
+                    $stKeep->execute([$id]);
+                    $curCat = $stKeep->fetch(PDO::FETCH_ASSOC) ?: null;
+                    if ($curCat && (int) ($curCat['category_id'] ?? 0) > 0
+                        && trim((string) ($curCat['oracle_key'] ?? '')) === '') {
+                        $catId = (int) $curCat['category_id'];
+                    }
+                } catch (Throwable $eKeep) {
+                    /* ignore */
+                }
             }
 
             if ($hasBarcode) {

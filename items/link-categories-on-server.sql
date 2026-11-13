@@ -144,9 +144,25 @@ INSERT INTO tmp_xl_item_cat (sku, barcode, cat_name) VALUES
 ('200027','6253500765519','Deterganet'),
 ('200028','6253500765526','Deterganet');
 
+-- أزل وسم Oracle عن فئات الاكسل إن وُسمت بالخطأ أثناء مزامنة سابقة
+UPDATE inv_item_category
+SET oracle_key = NULL, is_active = 1
+WHERE code LIKE 'XL-%'
+   OR LOWER(TRIM(name_ar)) IN (
+        LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash')
+      );
+
+-- اربط المواد بالفئة المحلية فقط (بدون oracle_key)، مع تفضيل رموز XL-* من الاكسل
 UPDATE inv_item i
 INNER JOIN tmp_xl_item_cat m ON TRIM(i.barcode) = m.barcode
-INNER JOIN inv_item_category c ON LOWER(TRIM(c.name_ar)) = LOWER(TRIM(m.cat_name))
+INNER JOIN inv_item_category c ON c.id = (
+  SELECT c2.id
+  FROM inv_item_category c2
+  WHERE LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(m.cat_name))
+    AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
+  ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
+  LIMIT 1
+)
 SET i.category_id = c.id;
 
 UPDATE inv_item i
@@ -156,16 +172,35 @@ INNER JOIN (
   GROUP BY sku
   HAVING COUNT(DISTINCT cat_name) = 1
 ) m ON TRIM(i.sku) = m.sku
-INNER JOIN inv_item_category c ON LOWER(TRIM(c.name_ar)) = LOWER(TRIM(m.cat_name))
-SET i.category_id = c.id
-WHERE i.category_id IS NULL
-   OR i.category_id NOT IN (
-        SELECT id FROM inv_item_category
-        WHERE LOWER(TRIM(name_ar)) IN (LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash'))
-      );
+INNER JOIN inv_item_category c ON c.id = (
+  SELECT c2.id
+  FROM inv_item_category c2
+  WHERE LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(m.cat_name))
+    AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
+  ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
+  LIMIT 1
+)
+SET i.category_id = c.id;
 
-DELETE FROM inv_item_category
-WHERE LOWER(TRIM(name_ar)) NOT IN (LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash'));
+-- عطّل فئات Oracle وأي فئة ليست من كشف الاكسل
+UPDATE inv_item_category
+SET is_active = 0
+WHERE (
+  (oracle_key IS NOT NULL AND TRIM(IFNULL(oracle_key, '')) <> '')
+  OR LOWER(TRIM(name_ar)) NOT IN (
+    LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash')
+  )
+);
+
+-- انقل المواد المتبقية من فئات Oracle إلى التوأم المحلي بنفس الاسم إن وُجد
+UPDATE inv_item i
+INNER JOIN inv_item_category cold ON cold.id = i.category_id
+INNER JOIN inv_item_category cnew
+  ON LOWER(TRIM(cnew.name_ar)) = LOWER(TRIM(cold.name_ar))
+ AND (cnew.oracle_key IS NULL OR TRIM(IFNULL(cnew.oracle_key, '')) = '')
+ AND cnew.is_active = 1
+SET i.category_id = cnew.id
+WHERE cold.oracle_key IS NOT NULL AND TRIM(IFNULL(cold.oracle_key, '')) <> '';
 
 SELECT c.name_ar, COUNT(i.id) AS items
 FROM inv_item_category c

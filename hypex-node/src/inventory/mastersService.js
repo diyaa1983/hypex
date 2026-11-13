@@ -291,7 +291,10 @@ async function itemLookups() {
   let taxRates = [];
   try {
     categories = await safeQuery(
-      `SELECT id, code, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 300`
+      `SELECT id, code, name_ar FROM inv_item_category
+       WHERE is_active = 1
+         AND (oracle_key IS NULL OR TRIM(IFNULL(oracle_key, '')) = '')
+       ORDER BY name_ar LIMIT 300`
     );
   } catch {
     categories = [];
@@ -826,19 +829,37 @@ async function nextCategoryCode() {
 
 async function listCategories({ q = '' } = {}) {
   const params = [];
-  let where = '1=1';
+  // فئات هايبكس/اكسل فقط — بدون المزامَنة من Oracle
+  let where = `(c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')`;
   if (q) {
     where += ` AND (c.name_ar LIKE ? OR IFNULL(c.code,'') LIKE ?)`;
     params.push(`%${q}%`, `%${q}%`);
   }
-  return safeQuery(
-    `SELECT c.id, c.code, c.name_ar, c.is_active,
-            (SELECT COUNT(*) FROM inv_item i WHERE i.category_id = c.id) AS item_count
-     FROM inv_item_category c
-     WHERE ${where}
-     ORDER BY c.name_ar LIMIT 300`,
-    params
-  );
+  try {
+    return await safeQuery(
+      `SELECT c.id, c.code, c.name_ar, c.is_active,
+              (SELECT COUNT(*) FROM inv_item i WHERE i.category_id = c.id) AS item_count
+       FROM inv_item_category c
+       WHERE ${where}
+       ORDER BY c.name_ar LIMIT 300`,
+      params
+    );
+  } catch (e) {
+    const params2 = [];
+    let where2 = '1=1';
+    if (q) {
+      where2 += ` AND (c.name_ar LIKE ? OR IFNULL(c.code,'') LIKE ?)`;
+      params2.push(`%${q}%`, `%${q}%`);
+    }
+    return safeQuery(
+      `SELECT c.id, c.code, c.name_ar, c.is_active,
+              (SELECT COUNT(*) FROM inv_item i WHERE i.category_id = c.id) AS item_count
+       FROM inv_item_category c
+       WHERE ${where2}
+       ORDER BY c.name_ar LIMIT 300`,
+      params2
+    );
+  }
 }
 
 async function getCategory(id) {

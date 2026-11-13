@@ -1301,7 +1301,16 @@ async function listRegionsSimple() {
 }
 
 async function listCategoriesSimple() {
-  return safeQuery(`SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 500`);
+  try {
+    return await safeQuery(
+      `SELECT id, name_ar FROM inv_item_category
+       WHERE is_active = 1
+         AND (oracle_key IS NULL OR TRIM(IFNULL(oracle_key, '')) = '')
+       ORDER BY name_ar LIMIT 500`
+    );
+  } catch (e) {
+    return safeQuery(`SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar LIMIT 500`);
+  }
 }
 
 async function listWarehousesSimple() {

@@ -33,16 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($act === 'oracle_sync') {
-            $syncResult = oracle_run_continuous_sync($pdo, ['item_groups']);
-            $g = is_array($syncResult['item_groups'] ?? null) ? $syncResult['item_groups'] : [];
-            $sum = 'مزامنة مجموعات Oracle: +' . (int) ($g['inserted'] ?? 0)
-                . ' محدّث ' . (int) ($g['updated'] ?? 0)
-                . ' | ' . (int) ($syncResult['elapsed_ms'] ?? 0) . 'ms';
-            if (!empty($syncResult['errors'])) {
-                flash_set('error', $sum . ' — ' . implode(' | ', array_slice($syncResult['errors'], 0, 5)));
-            } else {
-                flash_set('success', $sum);
-            }
+            // لم يعد مسموحاً سحب فئات Oracle — الفئات من الاكسل/هايبكس فقط
+            flash_set('error', 'مزامنة فئات Oracle معطّلة. استخدم فئات هايبكس المحمّلة من الاكسل فقط.');
             redirect($listUrl);
         }
         if ($act === 'save') {
@@ -159,14 +151,24 @@ require_once app_path('includes/inv_stock.php');
 inv_stock_move_ensure_table($pdo);
 
 require_once app_path('includes/list_pagination.php');
-$listTotal = (int) $pdo->query('SELECT COUNT(*) FROM inv_item_category')->fetchColumn();
+// فئات هايبكس/اكسل فقط — استبعاد المزامَنة من Oracle
+$catLocalWhere = "(oracle_key IS NULL OR TRIM(IFNULL(oracle_key, '')) = '')";
+try {
+    $listTotal = (int) $pdo->query(
+        "SELECT COUNT(*) FROM inv_item_category WHERE {$catLocalWhere}"
+    )->fetchColumn();
+} catch (Throwable $eCnt) {
+    $listTotal = (int) $pdo->query('SELECT COUNT(*) FROM inv_item_category')->fetchColumn();
+    $catLocalWhere = '1=1';
+}
 $pager = list_pager_with_total(list_pager_from_request($pdo), $listTotal);
 $listPagerUrl = list_pager_base_url('item_categories');
 $stList = $pdo->prepare(
-    'SELECT c.id, c.code, c.name_ar,
+    "SELECT c.id, c.code, c.name_ar,
         (SELECT COUNT(*) FROM inv_stock_move m INNER JOIN inv_item i ON i.id = m.item_id WHERE i.category_id = c.id) AS move_count
      FROM inv_item_category c
-     ORDER BY c.name_ar ASC, c.id DESC' . list_pager_sql_limit($pager)
+     WHERE {$catLocalWhere}
+     ORDER BY c.name_ar ASC, c.id DESC" . list_pager_sql_limit($pager)
 );
 $stList->execute();
 $rows = $stList->fetchAll() ?: [];
@@ -179,13 +181,6 @@ $rows = $stList->fetchAll() ?: [];
 </style>
 <div class="toolbar">
     <a class="btn btn-primary btn-sm" href="<?= esc(app_url('index.php?r=item_categories&action=add')) ?>">+ إضافة فئة</a>
-    <?php if (oracle_is_enabled()): ?>
-        <form method="post" style="display:inline;" data-confirm="تحديث مجموعات المواد من Oracle الآن؟">
-            <input type="hidden" name="_csrf" value="<?= esc(csrf_token()) ?>">
-            <input type="hidden" name="_action" value="oracle_sync">
-            <button type="submit" class="btn btn-secondary btn-sm">🔄 تحديث من Oracle</button>
-        </form>
-    <?php endif; ?>
 </div>
 
 <?php if ($flash): ?>

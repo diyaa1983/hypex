@@ -82,12 +82,22 @@ async function listItems({ q = '', activeOnly = true, limit = 200 } = {}) {
 }
 
 async function listCategories() {
-  return safeQuery(
-    `SELECT c.id, c.code, c.name_ar, c.is_active,
-            (SELECT COUNT(*) FROM inv_item i WHERE i.category_id = c.id) AS item_count
-     FROM inv_item_category c
-     ORDER BY c.name_ar LIMIT 300`
-  );
+  try {
+    return await safeQuery(
+      `SELECT c.id, c.code, c.name_ar, c.is_active,
+              (SELECT COUNT(*) FROM inv_item i WHERE i.category_id = c.id) AS item_count
+       FROM inv_item_category c
+       WHERE (c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')
+       ORDER BY c.name_ar LIMIT 300`
+    );
+  } catch (e) {
+    return safeQuery(
+      `SELECT c.id, c.code, c.name_ar, c.is_active,
+              (SELECT COUNT(*) FROM inv_item i WHERE i.category_id = c.id) AS item_count
+       FROM inv_item_category c
+       ORDER BY c.name_ar LIMIT 300`
+    );
+  }
 }
 
 async function listUnits() {

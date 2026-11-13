@@ -847,7 +847,8 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         return $out;
     }
 
-    // الفئة من بطاقة هايبكس المحلية فقط — تجاهل فئات مزامَنة من Oracle (لها oracle_key)
+    // الفئة من بطاقة هايبكس المحلية فقط.
+    // إن كانت المادة مربوطة بفئة Oracle: نبحث عن توأم محلي بنفس الاسم (اكسل/هايبكس).
     $rows = [];
     $pdo = null;
     try {
@@ -856,6 +857,28 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         return $out;
     }
     $sqlAttempts = [
+        "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
+                COALESCE(
+                  NULLIF(TRIM(
+                    CASE
+                      WHEN c.id IS NOT NULL
+                           AND (c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')
+                      THEN c.name_ar
+                      ELSE NULL
+                    END
+                  ), ''),
+                  (
+                    SELECT c2.name_ar
+                    FROM inv_item_category c2
+                    WHERE c.id IS NOT NULL
+                      AND LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(c.name_ar))
+                      AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
+                    ORDER BY c2.id
+                    LIMIT 1
+                  )
+                ) AS cat_name
+         FROM inv_item i
+         LEFT JOIN inv_item_category c ON c.id = i.category_id",
         "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
                 CASE
                   WHEN c.id IS NULL THEN NULL
