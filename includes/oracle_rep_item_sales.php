@@ -96,7 +96,10 @@ function oracle_fetch_rep_item_sales(
         'ok' => false,
         'message' => '',
         'rows' => [],
+        'return_rows' => [],
         'totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'reps' => 0, 'items' => 0],
+        'return_totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'items' => 0],
+        'net_totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'reps' => 0, 'items' => 0],
     ];
 
     if (!oracle_is_enabled()) {
@@ -128,21 +131,99 @@ function oracle_fetch_rep_item_sales(
 
     $byCurrentLink = !$filterOracleRep && $custAccs !== [];
     $saleType = (int) $c['sale_type'];
-    $returnTypes = [];
-    foreach ($c['return_types'] ?? [8, 10, 11, 12] as $rt) {
+    // خريطة TYPE => TYPE (مفتاحها رقم النوع — لا تستخدم array_values قبل الاكتشاف)
+    $returnTypeMap = [];
+    foreach ($c['return_types'] ?? [8, 10, 11, 12, 13, 14, 15] as $rt) {
         $rt = (int) $rt;
         if ($rt > 0 && $rt !== $saleType) {
-            $returnTypes[$rt] = $rt;
+            $returnTypeMap[$rt] = $rt;
         }
     }
-    $returnTypes = array_values($returnTypes);
-    if ($returnTypes === []) {
-        $returnTypes = [8, 10, 11, 12];
+    if ($returnTypeMap === []) {
+        foreach ([8, 10, 11, 12, 13, 14, 15] as $rt) {
+            $returnTypeMap[$rt] = $rt;
+        }
     }
+
+    $custKeys = [];
+    foreach ($custAccs as $acc) {
+        $key = ltrim(preg_replace('/\D+/', '', (string) $acc) ?? '', '0');
+        if ($key !== '') {
+            $custKeys[$key] = true;
+        }
+    }
+    $custKeys = array_keys($custKeys);
+    $ymKeys = [];
+    foreach ($yearMonths as $ym) {
+        $ym = trim((string) $ym);
+        if (preg_match('/^\d{4}-\d{2}$/', $ym)) {
+            $ymKeys[$ym] = $ym;
+        }
+    }
+    $ymKeys = array_values($ymKeys);
+
+    $conn = oracle_connect();
+    if (empty($conn['ok'])) {
+        $empty['message'] = (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.');
+
+        return $empty;
+    }
+
+    // اكتشاف أنواع المرتجع الفعلية (م. مبيعات…) مع الإبقاء على القائمة الافتراضية
+    // استبعاد أنواع المخزون الشائعة (1–7) إن لم تكن مُعدّة صراحةً
+    $stockishTypes = [1 => true, 2 => true, 3 => true, 4 => true, 5 => true, 6 => true, 7 => true];
+    try {
+        $discSql = "
+SELECT DISTINCT d.TYPE AS DOC_TYPE
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num
+  AND d.TYPE <> :sale_type
+  AND d.TYPE BETWEEN 8 AND 99
+  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+  AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
+  AND NVL(d.QTY, 0) <> 0
+";
+        $discBinds = [
+            'comp_num' => (int) $c['comp_num'],
+            'sale_type' => $saleType,
+            'd_from' => $fromIso,
+            'd_to' => $toIso,
+        ];
+        if ($custKeys !== []) {
+            $ph = [];
+            foreach ($custKeys as $i => $key) {
+                $name = 'dcacc' . $i;
+                $ph[] = ':' . $name;
+                $discBinds[$name] = $key;
+            }
+            $discSql .= '  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), \'0\') IN (' . implode(',', $ph) . ")\n";
+        }
+        if ($ymKeys !== []) {
+            $ph = [];
+            foreach ($ymKeys as $i => $ym) {
+                $name = 'dym' . $i;
+                $ph[] = ':' . $name;
+                $discBinds[$name] = $ym;
+            }
+            $discSql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
+        }
+        $discRows = oracle_query_all($conn, $discSql, $discBinds);
+        foreach ($discRows as $dr) {
+            $t = (int) oracle_statement_row_val($dr, 'DOC_TYPE');
+            if ($t > 0 && $t !== $saleType && !isset($stockishTypes[$t])) {
+                $returnTypeMap[$t] = $t;
+            }
+        }
+    } catch (Throwable $e) {
+        // الإبقاء على القائمة الافتراضية
+    }
+
+    $returnTypes = array_values($returnTypeMap);
     $retInList = implode(', ', array_map('intval', $returnTypes));
     // عند الربط الحالي من هايبكس تُعاد نسبة المندوب بعد الجلب حسب بطاقة العميل.
     $repSelect = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
-    // بيع + مرتجعات (م. مبيعات) — المرتجعات بدون إلزام المستودع لتتوافق مع تقارير Forms
+    // بيع + مرتجعات — المرتجعات بدون إلزام المستودع (مثل INVREP067)
     $sql = "
 SELECT {$repSelect},
        d.TYPE AS DOC_TYPE,
@@ -173,29 +254,22 @@ WHERE d.COMP_NUM = :comp_num
         'd_to' => $toIso,
     ];
     if (!$byCurrentLink) {
-        // المبيعات تشترط مندوب؛ المرتجعات تُقبل حتى بلا MAN_NUM
         if ($filterOracleRep && $repNo !== null && $repNo > 0) {
+            // المرتجعات: لا تُقيَّد بمندوب الفاتورة — تُخصم إن طابقت العملاء/الفترة
             $sql .= "  AND (\n";
-            $sql .= "        (d.TYPE = :sale_type AND d.MAN_NUM = :rep_no)\n";
-            $sql .= "        OR (d.TYPE IN ({$retInList}) AND (NVL(d.MAN_NUM, 0) = 0 OR d.MAN_NUM = :rep_no2))\n";
-            $sql .= "      )\n";
-            $binds['rep_no'] = $repNo;
-            $binds['rep_no2'] = $repNo;
-        } else {
-            $sql .= "  AND (\n";
-            $sql .= "        (d.TYPE = :sale_type AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0)\n";
+            $sql .= "        (d.TYPE = :sale_type_m AND d.MAN_NUM = :rep_no)\n";
             $sql .= "        OR d.TYPE IN ({$retInList})\n";
             $sql .= "      )\n";
+            $binds['sale_type_m'] = $saleType;
+            $binds['rep_no'] = $repNo;
+        } else {
+            $sql .= "  AND (\n";
+            $sql .= "        (d.TYPE = :sale_type_m AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0)\n";
+            $sql .= "        OR d.TYPE IN ({$retInList})\n";
+            $sql .= "      )\n";
+            $binds['sale_type_m'] = $saleType;
         }
     }
-    $custKeys = [];
-    foreach ($custAccs as $acc) {
-        $key = ltrim(preg_replace('/\D+/', '', (string) $acc) ?? '', '0');
-        if ($key !== '') {
-            $custKeys[$key] = true;
-        }
-    }
-    $custKeys = array_keys($custKeys);
     if ($custKeys !== []) {
         $ph = [];
         foreach ($custKeys as $i => $key) {
@@ -203,23 +277,14 @@ WHERE d.COMP_NUM = :comp_num
             $ph[] = ':' . $name;
             $binds[$name] = $key;
         }
-        $sql .= "  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), '0') IN (" . implode(',', $ph) . ")\n";
-    }
-    $ymKeys = [];
-    foreach ($yearMonths as $ym) {
-        $ym = trim((string) $ym);
-        if (preg_match('/^\d{4}-\d{2}$/', $ym)) {
-            $ymKeys[$ym] = $ym;
-        }
+        $sql .= '  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), \'0\') IN (' . implode(',', $ph) . ")\n";
     }
     if ($ymKeys !== []) {
         $ph = [];
-        $i = 0;
-        foreach ($ymKeys as $ym) {
+        foreach ($ymKeys as $i => $ym) {
             $name = 'ym' . $i;
             $ph[] = ':' . $name;
             $binds[$name] = $ym;
-            $i++;
         }
         $sql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
     }
@@ -235,13 +300,6 @@ GROUP BY d.TYPE, d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TR
          NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
 ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
-    }
-
-    $conn = oracle_connect();
-    if (empty($conn['ok'])) {
-        $empty['message'] = (string) ($conn['message'] ?? 'تعذر الاتصال بـ Oracle.');
-
-        return $empty;
     }
 
     try {
@@ -291,16 +349,29 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         $bonus = (float) oracle_statement_row_val($r, 'BONUS');
         $amount = (float) oracle_statement_row_val($r, 'AMOUNT');
         $docType = (int) oracle_statement_row_val($r, 'DOC_TYPE');
-        $isReturn = in_array($docType, $returnTypes, true) || ($docType !== $saleType && $docType > 0);
+        $isReturn = isset($returnTypeMap[$docType])
+            || ($docType !== $saleType && $docType >= 8)
+            || ($docType === $saleType && ($qty < 0.0 || $amount < 0.0));
         if ($item === '' || ($qty == 0.0 && $bonus == 0.0 && $amount == 0.0)) {
             continue;
+        }
+        // الكميات/المبالغ السالبة لفاتورة بيع تُعامل كمرتجع بالقيمة المطلقة
+        if ($isReturn && $qty < 0.0) {
+            $qty = abs($qty);
+        }
+        if ($isReturn && $bonus < 0.0) {
+            $bonus = abs($bonus);
+        }
+        if ($isReturn && $amount < 0.0) {
+            $amount = abs($amount);
         }
         $hx = $hypex[$item] ?? null;
         $catName = is_array($hx) ? trim((string) ($hx['cat_name'] ?? '')) : '';
         if ($catName === '') {
             $catName = 'بدون فئة';
         }
-        if ($wantCats !== [] && !isset($wantCats[$catName])) {
+        // المرتجعات تُخصم دائماً من الصافي حتى لو الفئة غير محددة في الفلتر
+        if (!$isReturn && $wantCats !== [] && !isset($wantCats[$catName])) {
             continue;
         }
         $itemName = trim((string) ($itemNames[$item] ?? ''));

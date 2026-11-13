@@ -94,7 +94,7 @@ return [
         'rep_key' => 'man_num', // man_num | cus_salesman
         'sale_type' => 9,
         // أنواع مرتجع المبيعات في MAS.DAILY (م. مبيعات) — عدّل إن اختلف ترقيمكم
-        'return_types' => [8, 10, 11, 12],
+        'return_types' => [8, 10, 11, 12, 13, 14, 15],
         'comp_num' => 1,
         'default_store' => 4,
     ],
