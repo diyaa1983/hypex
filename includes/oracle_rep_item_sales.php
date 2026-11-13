@@ -222,10 +222,37 @@ WHERE d.COMP_NUM = :comp_num
     $returnTypes = array_values($returnTypeMap);
     $retInList = implode(', ', array_map('intval', $returnTypes));
     // عند الربط الحالي من هايبكس تُعاد نسبة المندوب بعد الجلب حسب بطاقة العميل.
-    $repSelect = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
-    // بيع + مرتجعات — المرتجعات بدون إلزام المستودع (مثل INVREP067)
-    $sql = "
-SELECT {$repSelect},
+    $repSelectSale = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
+    // المرتجعات: لا تعتمد على قائمة TYPE فقط — أي حركة غير البيع لنفس العملاء (INV00025)
+    $repSelectRet = $byCurrentLink ? '0 AS REP_NO' : 'NVL(d.MAN_NUM, 0) AS REP_NO';
+
+    $custSql = '';
+    $ymSql = '';
+    $bindsCommon = [
+        'comp_num' => (int) $c['comp_num'],
+        'd_from' => $fromIso,
+        'd_to' => $toIso,
+    ];
+    if ($custKeys !== []) {
+        $ph = [];
+        foreach ($custKeys as $i => $key) {
+            $name = 'cacc' . $i;
+            $ph[] = ':' . $name;
+            $bindsCommon[$name] = $key;
+        }
+        $custSql = '  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), \'0\') IN (' . implode(',', $ph) . ")\n";
+    }
+    if ($ymKeys !== []) {
+        $ph = [];
+        foreach ($ymKeys as $i => $ym) {
+            $name = 'ym' . $i;
+            $ph[] = ':' . $name;
+            $bindsCommon[$name] = $ym;
+        }
+        $ymSql = "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
+    }
+
+    $selectCols = "
        d.TYPE AS DOC_TYPE,
        TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
@@ -236,78 +263,106 @@ SELECT {$repSelect},
        SUM(NVL(d.QTY, 0)) AS QTY,
        SUM(NVL(d.BONUS, 0)) AS BONUS,
        ROUND(SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})), 3) AS AMOUNT
+";
+    $groupSale = $byCurrentLink
+        ? 'd.TYPE, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)'
+        : 'd.TYPE, d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)';
+    $groupRet = $byCurrentLink
+        ? 'd.TYPE, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)'
+        : 'd.TYPE, NVL(d.MAN_NUM, 0), TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)';
+
+    $saleSql = "
+SELECT {$repSelectSale},{$selectCols}
 FROM {$fromQ} d
 WHERE d.COMP_NUM = :comp_num
-  AND (
-        (d.TYPE = :sale_type AND d.STORE = :store_num)
-        OR d.TYPE IN ({$retInList})
-      )
+  AND d.TYPE = :sale_type
+  AND d.STORE = :store_num
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
   AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
-";
-    $binds = [
-        'comp_num' => (int) $c['comp_num'],
-        'sale_type' => $saleType,
-        'store_num' => $storeNum,
-        'd_from' => $fromIso,
-        'd_to' => $toIso,
-    ];
+{$custSql}{$ymSql}";
+    $saleBinds = $bindsCommon;
+    $saleBinds['sale_type'] = $saleType;
+    $saleBinds['store_num'] = $storeNum;
     if (!$byCurrentLink) {
         if ($filterOracleRep && $repNo !== null && $repNo > 0) {
-            // المرتجعات: لا تُقيَّد بمندوب الفاتورة — تُخصم إن طابقت العملاء/الفترة
-            $sql .= "  AND (\n";
-            $sql .= "        (d.TYPE = :sale_type_m AND d.MAN_NUM = :rep_no)\n";
-            $sql .= "        OR d.TYPE IN ({$retInList})\n";
-            $sql .= "      )\n";
-            $binds['sale_type_m'] = $saleType;
-            $binds['rep_no'] = $repNo;
+            $saleSql .= "  AND d.MAN_NUM = :rep_no\n";
+            $saleBinds['rep_no'] = $repNo;
         } else {
-            $sql .= "  AND (\n";
-            $sql .= "        (d.TYPE = :sale_type_m AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0)\n";
-            $sql .= "        OR d.TYPE IN ({$retInList})\n";
-            $sql .= "      )\n";
-            $binds['sale_type_m'] = $saleType;
+            $saleSql .= "  AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0\n";
         }
     }
-    if ($custKeys !== []) {
-        $ph = [];
-        foreach ($custKeys as $i => $key) {
-            $name = 'cacc' . $i;
-            $ph[] = ':' . $name;
-            $binds[$name] = $key;
-        }
-        $sql .= '  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), \'0\') IN (' . implode(',', $ph) . ")\n";
-    }
-    if ($ymKeys !== []) {
-        $ph = [];
-        foreach ($ymKeys as $i => $ym) {
-            $name = 'ym' . $i;
-            $ph[] = ':' . $name;
-            $binds[$name] = $ym;
-        }
-        $sql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
-    }
-    if ($byCurrentLink) {
-        $sql .= "
-GROUP BY d.TYPE, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
-         NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
-ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
-";
-    } else {
-        $sql .= "
-GROUP BY d.TYPE, d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
-         NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
-ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
-";
-    }
+    $saleSql .= "GROUP BY {$groupSale}\n";
 
+    // مرتجع مبيعات (INV00025): كل TYPE ≠ بيع لنفس العملاء — بلا مستودع/مندوب
+    // تشمل القائمة الافتراضية + أي نوع مكتشف، وأي نوع ≥ 8 احتياطاً
+    $retTypeSql = $retInList !== ''
+        ? "(d.TYPE IN ({$retInList}) OR (d.TYPE <> :sale_type_r AND d.TYPE >= 8 AND d.TYPE <= 99))"
+        : '(d.TYPE <> :sale_type_r AND d.TYPE >= 8 AND d.TYPE <= 99)';
+    $retSql = "
+SELECT {$repSelectRet},{$selectCols}
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num
+  AND {$retTypeSql}
+  AND NVL(d.QTY, 0) <> 0
+  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+  AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
+{$custSql}{$ymSql}
+GROUP BY {$groupRet}
+";
+    $retBinds = $bindsCommon;
+    $retBinds['sale_type_r'] = $saleType;
+
+    $raw = [];
+    $debugProbe = [
+        'return_types' => $returnTypes,
+        'probe_146' => [],
+        'ret_query_rows' => 0,
+        'sale_query_rows' => 0,
+    ];
     try {
-        $raw = oracle_query_all($conn, $sql, $binds);
+        $saleRaw = oracle_query_all($conn, $saleSql, $saleBinds);
+        $debugProbe['sale_query_rows'] = count($saleRaw);
+        $raw = array_merge($raw, $saleRaw);
     } catch (Throwable $e) {
-        $empty['message'] = 'تعذر تنفيذ الاستعلام: ' . $e->getMessage();
+        $empty['message'] = 'تعذر تنفيذ استعلام المبيعات: ' . $e->getMessage();
 
         return $empty;
+    }
+    try {
+        $retRaw = oracle_query_all($conn, $retSql, $retBinds);
+        $debugProbe['ret_query_rows'] = count($retRaw);
+        $raw = array_merge($raw, $retRaw);
+    } catch (Throwable $e) {
+        // لا نُفشل التقرير إن فشل جلب المرتجعات — نُكمل بالمبيعات
+        $debugProbe['ret_error'] = $e->getMessage();
+    }
+    // تشخيص مباشر لمرتجع 146 / 2026 (عينة المستخدم)
+    try {
+        $p146 = oracle_query_all($conn, "
+SELECT d.TYPE AS DOC_TYPE, d.STORE, d.MAN_NUM,
+       TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
+       TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
+       NVL(d.QTY,0) AS QTY, NVL(d.SELL,0) AS SELL,
+       TO_CHAR(TRUNC(d.VDATE),'YYYY-MM-DD') AS SALE_DATE
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
+", ['comp_num' => (int) $c['comp_num']]);
+        foreach ($p146 as $pr) {
+            $debugProbe['probe_146'][] = [
+                'type' => (int) oracle_statement_row_val($pr, 'DOC_TYPE'),
+                'store' => (int) oracle_statement_row_val($pr, 'STORE'),
+                'man_num' => (int) oracle_statement_row_val($pr, 'MAN_NUM'),
+                'cust_acc' => trim((string) oracle_statement_row_val($pr, 'CUST_ACC')),
+                'item' => trim((string) oracle_statement_row_val($pr, 'ITEM_CODE')),
+                'qty' => (float) oracle_statement_row_val($pr, 'QTY'),
+                'sell' => (float) oracle_statement_row_val($pr, 'SELL'),
+                'date' => trim((string) oracle_statement_row_val($pr, 'SALE_DATE')),
+            ];
+        }
+    } catch (Throwable $e) {
+        $debugProbe['probe_146_error'] = $e->getMessage();
     }
 
     $itemCodes = [];
@@ -481,11 +536,15 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         }
     }
 
+    $debugProbe['return_rows'] = count($returnRows);
+    $debugProbe['sale_rows'] = count($rows);
+
     return [
         'ok' => true,
         'message' => $rows === [] && $returnRows === [] ? 'لا توجد مبيعات في الفترة المحددة.' : '',
         'rows' => $rows,
         'return_rows' => $returnRows,
+        'debug' => $debugProbe,
         'totals' => [
             'qty' => round($totQty, 3),
             'bonus' => round($totBonus, 3),

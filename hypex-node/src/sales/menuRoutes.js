@@ -2409,6 +2409,7 @@ const oracleRepItemsHandler = async (req, res) => {
   let netRows = [];
   let totals = { qty: 0, bonus: 0, amount: 0, reps: 0, items: 0 };
   let netTotals = { qty: 0, bonus: 0, amount: 0, reps: 0, items: 0 };
+  let oraDebug = null;
   let repName = '';
 
   const mapOraRow = (r) => {
@@ -2460,6 +2461,7 @@ const oracleRepItemsHandler = async (req, res) => {
     } else {
       rows = (Array.isArray(data.rows) ? data.rows : []).map(mapOraRow);
       returnRows = (Array.isArray(data.return_rows) ? data.return_rows : []).map(mapOraRow);
+      oraDebug = data.debug && typeof data.debug === 'object' ? data.debug : null;
       netRows = rows.concat(
         returnRows.map((r) => ({
           ...r,
@@ -2905,7 +2907,16 @@ const oracleRepItemsHandler = async (req, res) => {
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
     const salesGrand = `<p class="ora-grand">إجمالي المبيعات — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
-    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))}</p>`;
+    const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    let netDiag = '';
+    if (oraDebug) {
+      const p146 = Array.isArray(oraDebug.probe_146) ? oraDebug.probe_146 : [];
+      const p146txt = p146.length
+        ? p146.map((x) => `TYPE=${x.type} STORE=${x.store} CUST=${x.cust_acc} ITEM=${x.item} QTY=${x.qty}`).join(' · ')
+        : 'لا صف لـ V_NUM=146/2026 في DAILY';
+      netDiag = `<p class="muted no-print" style="font-size:.78rem;margin:.35rem 0 0">تشخيص مرتجعات: صفوف مرتجع=${esc(String(oraDebug.return_rows ?? returnRows.length))} · استعلام مرتجع=${esc(String(oraDebug.ret_query_rows ?? '—'))} · أنواع=${esc((oraDebug.return_types || []).join(','))} · عينة 146: ${esc(p146txt)}${oraDebug.ret_error ? ' · خطأ: ' + esc(String(oraDebug.ret_error)) : ''}</p>`;
+    }
+    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>${netDiag}`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
