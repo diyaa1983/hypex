@@ -153,6 +153,12 @@ WHERE code LIKE 'XL-%'
         LOWER('Others'), LOWER('Bleach'), LOWER('Dishwashing'), LOWER('Deterganet'), LOWER('Hand Wash')
       );
 
+-- عبّئ oracle_key من sku حتى يطابق التقرير رمز المادة في Oracle
+UPDATE inv_item
+SET oracle_key = sku
+WHERE (oracle_key IS NULL OR TRIM(IFNULL(oracle_key, '')) = '')
+  AND sku IS NOT NULL AND TRIM(sku) <> '';
+
 -- اربط المواد بالفئة المحلية فقط (بدون oracle_key)، مع تفضيل رموز XL-* من الاكسل
 UPDATE inv_item i
 INNER JOIN tmp_xl_item_cat m ON TRIM(i.barcode) = m.barcode

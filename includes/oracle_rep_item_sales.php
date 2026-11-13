@@ -385,6 +385,7 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
     $hypex = oracle_rep_item_sales_hypex_map(array_keys($itemCodes));
     $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
     $repNames = oracle_rep_item_sales_rep_names($conn, array_keys($repNos));
+    $oraCatToLocal = oracle_rep_item_sales_oracle_cat_local_names();
 
     $rowsAll = [];
     $wantCats = [];
@@ -398,6 +399,14 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
         $rep = (int) oracle_statement_row_val($r, 'REP_NO');
         $custAcc = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
         $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
+        // أزل لاحقة .0 إن أعاد OCI الرقم كنص عشري
+        if (preg_match('/^\d+\.0+$/', $item)) {
+            $item = explode('.', $item, 2)[0];
+        }
+        $oraCatCode = trim((string) oracle_statement_row_val($r, 'CAT_CODE'));
+        if (preg_match('/^\d+\.0+$/', $oraCatCode)) {
+            $oraCatCode = explode('.', $oraCatCode, 2)[0];
+        }
         $qty = (float) oracle_statement_row_val($r, 'QTY');
         $bonus = (float) oracle_statement_row_val($r, 'BONUS');
         $amount = (float) oracle_statement_row_val($r, 'AMOUNT');
@@ -419,7 +428,21 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
             $amount = abs($amount);
         }
         $hx = $hypex[$item] ?? null;
+        if ($hx === null) {
+            $itemNorm = oracle_rep_item_sales_item_norm($item);
+            if ($itemNorm !== '' && isset($hypex[$itemNorm])) {
+                $hx = $hypex[$itemNorm];
+            }
+        }
         $catName = is_array($hx) ? trim((string) ($hx['cat_name'] ?? '')) : '';
+        // إن لم تُعرف الفئة من بطاقة المادة: حاول من رمز مجموعة Oracle → فئة محلية بنفس الاسم
+        if ($catName === '' && $oraCatCode !== '') {
+            $catName = trim((string) ($oraCatToLocal[$oraCatCode] ?? ''));
+            if ($catName === '') {
+                $catNorm = oracle_rep_item_sales_item_norm($oraCatCode);
+                $catName = trim((string) ($oraCatToLocal[$catNorm] ?? ''));
+            }
+        }
         if ($catName === '') {
             $catName = 'بدون فئة';
         }
@@ -447,7 +470,7 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
             'rep_name' => $repName,
             'customer_acc' => $custAcc,
             'customer_name' => $customers[$custAcc] ?? ($custAcc !== '' ? $custAcc : '—'),
-            'cat_code' => '',
+            'cat_code' => $oraCatCode,
             'cat_name' => $catName,
             'item_code' => $item,
             'item_sku' => is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '',
@@ -958,6 +981,71 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
                 foreach ($codesNorm[$norm] as $orig) {
                     $assign($orig, $pack);
                 }
+            }
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * خريطة رمز فئة Oracle → اسم فئة هايبكس المحلية (اكسل) إن وُجد توأم بنفس الاسم،
+ * وإلا اسم فئة البطاقة المرتبطة بـ oracle_key/code.
+ *
+ * @return array<string,string>
+ */
+function oracle_rep_item_sales_oracle_cat_local_names(): array
+{
+    $out = [];
+    try {
+        $pdo = db();
+    } catch (Throwable $e) {
+        return $out;
+    }
+    $sqlAttempts = [
+        "SELECT c.code, IFNULL(c.oracle_key, '') AS oracle_key, c.name_ar,
+                (
+                  SELECT c2.name_ar FROM inv_item_category c2
+                  WHERE LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(c.name_ar))
+                    AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
+                    AND IFNULL(c2.is_active, 1) = 1
+                  ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
+                  LIMIT 1
+                ) AS local_name
+         FROM inv_item_category c
+         WHERE (c.oracle_key IS NOT NULL AND TRIM(IFNULL(c.oracle_key, '')) <> '')
+            OR (c.code IS NOT NULL AND TRIM(c.code) <> '')",
+        "SELECT c.code, IFNULL(c.oracle_key, '') AS oracle_key, c.name_ar, c.name_ar AS local_name
+         FROM inv_item_category c",
+    ];
+    $rows = [];
+    foreach ($sqlAttempts as $sql) {
+        try {
+            $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            break;
+        } catch (Throwable $e) {
+            $rows = [];
+        }
+    }
+    foreach ($rows as $r) {
+        $name = trim((string) ($r['local_name'] ?? ''));
+        if ($name === '') {
+            $name = trim((string) ($r['name_ar'] ?? ''));
+        }
+        if ($name === '') {
+            continue;
+        }
+        foreach (['oracle_key', 'code'] as $col) {
+            $key = trim((string) ($r[$col] ?? ''));
+            if ($key === '') {
+                continue;
+            }
+            if (!isset($out[$key])) {
+                $out[$key] = $name;
+            }
+            $norm = oracle_rep_item_sales_item_norm($key);
+            if ($norm !== '' && !isset($out[$norm])) {
+                $out[$norm] = $name;
             }
         }
     }
