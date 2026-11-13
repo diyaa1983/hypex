@@ -134,6 +134,8 @@ SELECT {$repSelect},
        TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
        TRIM(TO_CHAR(d.CAT)) AS CAT_CODE,
+       NVL(d.VYEAR, 0) AS VYEAR,
+       NVL(d.V_NUM, 0) AS V_NUM,
        TO_CHAR(TRUNC(d.VDATE), 'YYYY-MM-DD') AS SALE_DATE,
        SUM(NVL(d.QTY, 0)) AS QTY,
        SUM(NVL(d.BONUS, 0)) AS BONUS,
@@ -197,13 +199,15 @@ WHERE d.COMP_NUM = :comp_num
     }
     if ($byCurrentLink) {
         $sql .= "
-GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), TRUNC(d.VDATE)
-ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
+GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
+         NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
+ORDER BY TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
     } else {
         $sql .= "
-GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), TRUNC(d.VDATE)
-ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
+GROUP BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)),
+         NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)
+ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), TRIM(TO_CHAR(d.CAT)), TRIM(TO_CHAR(d.ITEM))
 ";
     }
 
@@ -287,6 +291,8 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CA
         if ($saleDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $saleDate)) {
             $saleDate = '';
         }
+        $invoiceYear = (int) oracle_statement_row_val($r, 'VYEAR');
+        $invoiceNo = (int) oracle_statement_row_val($r, 'V_NUM');
         $rows[] = [
             'rep_no' => $rep,
             'rep_name' => $repName,
@@ -299,6 +305,8 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CA
             'item_barcode' => is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '',
             'item_name' => $itemName !== '' ? $itemName : $item,
             'sale_date' => $saleDate,
+            'invoice_year' => $invoiceYear > 0 ? $invoiceYear : 0,
+            'invoice_no' => $invoiceNo > 0 ? $invoiceNo : 0,
             'qty' => $qty,
             'bonus' => $bonus,
             'amount' => round($amount, 3),
@@ -311,7 +319,9 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CA
 
     $merged = [];
     foreach ($rows as $row) {
-        $key = (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n" . (string) $row['item_code'] . "\n" . (string) $row['cat_name'] . "\n" . (string) ($row['sale_date'] ?? '');
+        $key = (string) $row['rep_no'] . "\n" . (string) $row['customer_acc'] . "\n"
+            . (string) ($row['invoice_year'] ?? 0) . "\n" . (string) ($row['invoice_no'] ?? 0) . "\n"
+            . (string) $row['item_code'] . "\n" . (string) $row['cat_name'] . "\n" . (string) ($row['sale_date'] ?? '');
         if (!isset($merged[$key])) {
             $merged[$key] = $row;
             continue;
@@ -336,6 +346,10 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), TRIM(TO_CHAR(d.CA
             return $c;
         }
         $c = strcmp((string) ($a['sale_date'] ?? ''), (string) ($b['sale_date'] ?? ''));
+        if ($c !== 0) {
+            return $c;
+        }
+        $c = ((int) ($a['invoice_no'] ?? 0) <=> (int) ($b['invoice_no'] ?? 0));
         if ($c !== 0) {
             return $c;
         }

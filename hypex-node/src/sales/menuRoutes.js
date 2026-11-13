@@ -2571,6 +2571,8 @@ const oracleRepItemsHandler = async (req, res) => {
   } else if (rows.length) {
     let summaryHtml = '';
     let detailHtml = '';
+    let invoiceHtml = '';
+    const invBase = basePath.ensurePrefixed('/sales/reports/oracle-sales-invoice');
     let i = 0;
     while (i < rows.length) {
       const repStart = i;
@@ -2581,6 +2583,7 @@ const oracleRepItemsHandler = async (req, res) => {
       const catSeen = new Set();
       const catOrder = [];
       const custMap = new Map();
+      const invMap = new Map();
       repRows.forEach((r) => {
         const cat = String(r.cat_name || 'بدون فئة');
         if (!catSeen.has(cat)) {
@@ -2606,16 +2609,37 @@ const oracleRepItemsHandler = async (req, res) => {
         const name = String(r.item_name || r.item_code || '').trim();
         const code = String(r.item_code || '');
         const saleDate = String(r.sale_date || '').trim();
+        const invNo = Number(r.invoice_no) || 0;
+        const invYear = Number(r.invoice_year) || 0;
         const fromName = (name.match(/\d{8,}/) || [])[0] || '';
         const barcode = String(r.item_barcode || '').trim() || fromName;
-        const found = bag.items.find((it) => it.code === code && it.name === name && it.saleDate === saleDate);
+        const found = bag.items.find(
+          (it) => it.code === code && it.name === name && it.saleDate === saleDate && it.invNo === invNo && it.invYear === invYear
+        );
         if (found) {
           found.amount += amount;
           found.qty += qty;
           if (!found.barcode && barcode) found.barcode = barcode;
         } else {
-          bag.items.push({ name, code, barcode, saleDate, qty, amount });
+          bag.items.push({ name, code, barcode, saleDate, qty, amount, invNo, invYear });
         }
+        const invKey = `${invYear}|${invNo}|${acc}`;
+        if (!invMap.has(invKey)) {
+          invMap.set(invKey, {
+            invNo,
+            invYear,
+            saleDate,
+            customer: String(r.customer_name || acc || '—'),
+            lines: [],
+            qty: 0,
+            amount: 0,
+          });
+        }
+        const inv = invMap.get(invKey);
+        if (saleDate && (!inv.saleDate || saleDate < inv.saleDate)) inv.saleDate = saleDate;
+        inv.qty += qty;
+        inv.amount += amount;
+        inv.lines.push({ cat, name, barcode, qty, amount });
       });
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
@@ -2625,6 +2649,7 @@ const oracleRepItemsHandler = async (req, res) => {
       const colTotals = catOrder.map(() => 0);
       let summaryBody = '';
       let detailBody = '';
+      let invoiceBody = '';
       let repAmt = 0;
       const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
       const fmtSaleDate = (iso) => {
@@ -2676,6 +2701,45 @@ const oracleRepItemsHandler = async (req, res) => {
         detailBody += `<tr class="ora-cust-band"><td colspan="6">${esc(slot.label)}</td></tr>${lines}`;
         detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
       });
+      const invList = [...invMap.values()].sort((a, b) => {
+        const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
+        if (d) return d;
+        return (a.invNo || 0) - (b.invNo || 0);
+      });
+      invList.forEach((inv) => {
+        const invLabel =
+          inv.invNo > 0
+            ? `فاتورة ${inv.invNo}${inv.invYear > 0 ? ` / ${inv.invYear}` : ''}`
+            : 'بدون رقم فاتورة';
+        const invHref =
+          inv.invNo > 0
+            ? `${invBase}?run=1&invoice_no=${inv.invNo}&year=${inv.invYear || 0}`
+            : '';
+        const invTitle = invHref
+          ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
+          : esc(invLabel);
+        invoiceBody += `<tr class="ora-cust-band"><td colspan="5">${invTitle}
+          <span class="ora-inv-meta"> — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
+        inv.lines
+          .slice()
+          .sort((a, b) => {
+            const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
+            if (c) return c;
+            return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
+          })
+          .forEach((ln) => {
+            invoiceBody += `<tr>
+              <td>${esc(ln.cat)}</td>
+              <td class="ora-name">${esc(cleanName(ln.name) || ln.name)}</td>
+              <td class="ora-code" dir="ltr">${esc(ln.barcode || '')}</td>
+              <td class="si-num" dir="ltr">${esc(fmtQty(ln.qty))}</td>
+              <td class="si-num" dir="ltr">${esc(fmtAmt(ln.amount))}</td>
+            </tr>`;
+          });
+        invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع الفاتورة</td>
+          <td class="si-num" dir="ltr">${esc(fmtQty(inv.qty))}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td></tr>`;
+      });
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
       const heads = catOrder.map((cat) => `<th class="ora-vhead ora-cat-col">${esc(cat)}</th>`).join('');
@@ -2713,14 +2777,34 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
+      invoiceHtml += `<section class="ora-cust-block">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+        </header>
+        <div class="si-table-wrap ora-portrait-wrap">
+          <table class="si-table ora-portrait-table ora-detail-table">
+            <thead><tr>
+              <th class="ora-vhead">الفئة</th>
+              <th class="ora-vhead">المادة</th>
+              <th class="ora-vhead">الباركود</th>
+              <th class="ora-vhead">الكمية</th>
+              <th class="ora-vhead">المبلغ</th>
+            </tr></thead>
+            <tbody>${invoiceBody}</tbody>
+          </table>
+        </div>
+      </section>`;
     }
     const grand = `<p class="ora-grand">الإجمالي — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
-        <button type="button" class="si-btn" id="ora-detail-btn">تفصيلي</button>
+        <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
+        <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
+        <button type="button" class="si-btn" data-ora-view="invoice">حسب الفواتير</button>
       </div>
       <div class="ora-view" id="ora-view-summary">${summaryHtml}${grand}</div>
-      <div class="ora-view" id="ora-view-detail" hidden>${detailHtml}${grand}</div>`;
+      <div class="ora-view" id="ora-view-detail" hidden>${detailHtml}${grand}</div>
+      <div class="ora-view" id="ora-view-invoice" hidden>${invoiceHtml}${grand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -3076,6 +3160,8 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-arrow::before { content: "◂"; }
         .ora-cat-head[data-open="1"] .ora-arrow::before { content: "▾"; }
         .ora-cust-final td { background: #e7f4ea; font-weight: 800; }
+        .ora-inv-link { color: #1e3a5f; font-weight: 800; text-decoration: underline; }
+        .ora-inv-meta { font-weight: 600; color: #475569; }
         .ora-rep-total, .ora-grand {
           margin: .35rem 1rem 1rem;
           font-weight: 800;
@@ -3322,21 +3408,24 @@ const oracleRepItemsHandler = async (req, res) => {
           setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 200);
           return;
         }
-        var detailBtn = ev.target.closest && ev.target.closest('#ora-detail-btn');
-        if (detailBtn) {
-          var sum = document.getElementById('ora-view-summary');
-          var det = document.getElementById('ora-view-detail');
-          if (!sum || !det) return;
-          var openDetail = det.hasAttribute('hidden');
-          if (openDetail) {
-            det.removeAttribute('hidden');
-            sum.setAttribute('hidden', '');
-            detailBtn.textContent = 'ملخص';
-          } else {
-            sum.removeAttribute('hidden');
-            det.setAttribute('hidden', '');
-            detailBtn.textContent = 'تفصيلي';
-          }
+        var viewBtn = ev.target.closest && ev.target.closest('[data-ora-view]');
+        if (viewBtn) {
+          var which = viewBtn.getAttribute('data-ora-view');
+          var views = {
+            summary: document.getElementById('ora-view-summary'),
+            detail: document.getElementById('ora-view-detail'),
+            invoice: document.getElementById('ora-view-invoice')
+          };
+          Object.keys(views).forEach(function (k) {
+            var el = views[k];
+            if (!el) return;
+            if (k === which) el.removeAttribute('hidden');
+            else el.setAttribute('hidden', '');
+          });
+          document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
+            if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
+            else btn.classList.remove('si-btn--primary');
+          });
           return;
         }
         var head = ev.target.closest && ev.target.closest('[data-ora-toggle]');
