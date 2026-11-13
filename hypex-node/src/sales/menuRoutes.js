@@ -2284,19 +2284,28 @@ const oracleRepItemsHandler = async (req, res) => {
     if (!custRepCodes.has(cid)) custRepCodes.set(cid, new Set());
     addRepCodeKeys(custRepCodes.get(cid), c.primary_rep_code);
   }
-  // الفئات من بطاقات هايبكس فقط (inv_item_category)
+  // فئات النظام الحالي فقط — استبعاد الفئات المزامَنة من Oracle (oracle_key)
   let categories = [];
   try {
     categories = await db.query(
-      `SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar`
+      `SELECT id, name_ar FROM inv_item_category
+       WHERE is_active = 1
+         AND (oracle_key IS NULL OR TRIM(oracle_key) = '')
+       ORDER BY name_ar`
     );
   } catch (e) {
     try {
       categories = await db.query(
-        `SELECT id, name_ar FROM inv_item_category ORDER BY name_ar`
+        `SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar`
       );
     } catch (e2) {
-      categories = [];
+      try {
+        categories = await db.query(
+          `SELECT id, name_ar FROM inv_item_category ORDER BY name_ar`
+        );
+      } catch (e3) {
+        categories = [];
+      }
     }
   }
   const custAccOf = (picked) => {

@@ -847,25 +847,40 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         return $out;
     }
 
+    // الفئة من بطاقة هايبكس المحلية فقط — تجاهل فئات مزامَنة من Oracle (لها oracle_key)
     $rows = [];
+    $pdo = null;
     try {
         $pdo = db();
-        $rows = $pdo->query(
-            'SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name
-             FROM inv_item i
-             LEFT JOIN inv_item_category c ON c.id = i.category_id'
-        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
+        return $out;
+    }
+    $sqlAttempts = [
+        "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
+                CASE
+                  WHEN c.id IS NULL THEN NULL
+                  WHEN c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '' THEN c.name_ar
+                  ELSE NULL
+                END AS cat_name
+         FROM inv_item i
+         LEFT JOIN inv_item_category c ON c.id = i.category_id",
+        'SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name
+         FROM inv_item i
+         LEFT JOIN inv_item_category c ON c.id = i.category_id',
+        'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name
+         FROM inv_item i
+         LEFT JOIN inv_item_category c ON c.id = i.category_id',
+    ];
+    foreach ($sqlAttempts as $sql) {
         try {
-            $pdo = db();
-            $rows = $pdo->query(
-                'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name
-                 FROM inv_item i
-                 LEFT JOIN inv_item_category c ON c.id = i.category_id'
-            )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        } catch (Throwable $e2) {
-            return $out;
+            $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            break;
+        } catch (Throwable $e) {
+            $rows = [];
         }
+    }
+    if ($rows === []) {
+        return $out;
     }
 
     $assign = static function (string $oracleCode, array $pack) use (&$out): void {

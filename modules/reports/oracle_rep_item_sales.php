@@ -171,9 +171,19 @@ foreach ($customers as $cust) {
     }
 }
 try {
-    $categories = $pdo->query(
-        'SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar'
-    )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    // فئات النظام الحالي فقط — بدون فئات مزامَنة من Oracle
+    try {
+        $categories = $pdo->query(
+            "SELECT id, name_ar FROM inv_item_category
+             WHERE is_active = 1
+               AND (oracle_key IS NULL OR TRIM(IFNULL(oracle_key, '')) = '')
+             ORDER BY name_ar"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $eCat) {
+        $categories = $pdo->query(
+            'SELECT id, name_ar FROM inv_item_category WHERE is_active = 1 ORDER BY name_ar'
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
 } catch (Throwable $e) {
     $categories = $pdo->query(
         'SELECT id, name_ar FROM inv_item_category ORDER BY name_ar'
