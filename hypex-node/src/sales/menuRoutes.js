@@ -2465,6 +2465,7 @@ const oracleRepItemsHandler = async (req, res) => {
       netRows = rows.concat(
         returnRows.map((r) => ({
           ...r,
+          doc_kind: 'R',
           qty: -(Number(r.qty) || 0),
           bonus: -(Number(r.bonus) || 0),
           amount: -(Number(r.amount) || 0),
@@ -2880,66 +2881,36 @@ const oracleRepItemsHandler = async (req, res) => {
     }
     return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml };
     };
-    const salesV = rows.length
-      ? buildOraViews(rows)
-      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
-    // فواتير الصافي: كل فواتير البيع + المرتجعات (مخصومة)
-    const salesInvoiceNetRows = rows.concat(
-      returnRows.map((r) => ({
-        ...r,
-        doc_kind: 'R',
-        qty: -(Number(r.qty) || 0),
-        bonus: -(Number(r.bonus) || 0),
-        amount: -(Number(r.amount) || 0),
-      }))
-    );
-    salesInvoiceNetRows.sort((a, b) => {
-      const c = (Number(a.rep_no) || 0) - (Number(b.rep_no) || 0);
-      if (c) return c;
-      const c2 = String(a.sale_date || '').localeCompare(String(b.sale_date || ''));
-      if (c2) return c2;
-      return (Number(a.invoice_no) || 0) - (Number(b.invoice_no) || 0);
-    });
-    const invoiceNetHtml = salesInvoiceNetRows.length
-      ? buildOraViews(salesInvoiceNetRows).invoiceSumHtml
-      : '';
+    // كل العروض (ملخص / تفصيلي / فواتير) بعد خصم المرتجعات
     const netV = netRows.length
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
-    const salesGrand = `<p class="ora-grand">إجمالي المبيعات — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+    const grossV = rows.length
+      ? buildOraViews(rows)
+      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
     const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    let netDiag = '';
-    if (oraDebug) {
-      const p146 = Array.isArray(oraDebug.probe_146) ? oraDebug.probe_146 : [];
-      const p146txt = p146.length
-        ? p146.map((x) => `TYPE=${x.type} STORE=${x.store} CUST=${x.cust_acc} ITEM=${x.item} QTY=${x.qty}`).join(' · ')
-        : 'لا صف لـ V_NUM=146/2026 في DAILY';
-      netDiag = `<p class="muted no-print" style="font-size:.78rem;margin:.35rem 0 0">تشخيص مرتجعات: صفوف مرتجع=${esc(String(oraDebug.return_rows ?? returnRows.length))} · استعلام مرتجع=${esc(String(oraDebug.ret_query_rows ?? '—'))} · أنواع=${esc((oraDebug.return_types || []).join(','))} · عينة 146: ${esc(p146txt)}${oraDebug.ret_error ? ' · خطأ: ' + esc(String(oraDebug.ret_error)) : ''}</p>`;
-    }
-    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>${netDiag}`;
+    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>`;
+    const grossGrand = `<p class="ora-grand">إجمالي المبيعات قبل الخصم — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
         <span class="ora-mode-group">
-          <button type="button" class="si-btn si-btn--primary" data-ora-mode="sales">مبيعات</button>
-          <button type="button" class="si-btn" data-ora-mode="net">صافي المبيعات</button>
+          <button type="button" class="si-btn si-btn--primary" data-ora-mode="net">صافي المبيعات</button>
+          <button type="button" class="si-btn" data-ora-mode="sales">قبل الخصم</button>
         </span>
         <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
-        <button type="button" class="si-btn" data-ora-view="invoice-net">الصافي</button>
       </div>
-      <div class="ora-view" id="ora-view-sales-summary" data-ora-mode-panel="sales" data-ora-view-panel="summary">${salesV.summaryHtml || emptyNet}${salesGrand}</div>
-      <div class="ora-view" id="ora-view-sales-detail" data-ora-mode-panel="sales" data-ora-view-panel="detail" hidden>${salesV.detailHtml || emptyNet}${salesGrand}</div>
-      <div class="ora-view" id="ora-view-sales-invoice" data-ora-mode-panel="sales" data-ora-view-panel="invoice" hidden>${salesV.invoiceHtml || emptyNet}${salesGrand}</div>
-      <div class="ora-view" id="ora-view-sales-invoice-sum" data-ora-mode-panel="sales" data-ora-view-panel="invoice-sum" hidden>${salesV.invoiceSumHtml || emptyNet}${salesGrand}</div>
-      <div class="ora-view" id="ora-view-sales-invoice-net" data-ora-mode-panel="sales" data-ora-view-panel="invoice-net" hidden>${invoiceNetHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary" hidden>${netV.summaryHtml || emptyNet}${netGrand}</div>
+      <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary">${netV.summaryHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-invoice-net" data-ora-mode-panel="net" data-ora-view-panel="invoice-net" hidden>${invoiceNetHtml || netV.invoiceSumHtml || emptyNet}${netGrand}</div>`;
+      <div class="ora-view" id="ora-view-sales-summary" data-ora-mode-panel="sales" data-ora-view-panel="summary" hidden>${grossV.summaryHtml || emptyNet}${grossGrand}</div>
+      <div class="ora-view" id="ora-view-sales-detail" data-ora-mode-panel="sales" data-ora-view-panel="detail" hidden>${grossV.detailHtml || emptyNet}${grossGrand}</div>
+      <div class="ora-view" id="ora-view-sales-invoice" data-ora-mode-panel="sales" data-ora-view-panel="invoice" hidden>${grossV.invoiceHtml || emptyNet}${grossGrand}</div>
+      <div class="ora-view" id="ora-view-sales-invoice-sum" data-ora-mode-panel="sales" data-ora-view-panel="invoice-sum" hidden>${grossV.invoiceSumHtml || emptyNet}${grossGrand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -3550,8 +3521,9 @@ const oracleRepItemsHandler = async (req, res) => {
         if (modeBtn || viewBtn) {
           var modeEl = document.querySelector('[data-ora-mode].si-btn--primary');
           var viewEl = document.querySelector('[data-ora-view].si-btn--primary');
-          var mode = modeBtn ? modeBtn.getAttribute('data-ora-mode') : (modeEl && modeEl.getAttribute('data-ora-mode')) || 'sales';
+          var mode = modeBtn ? modeBtn.getAttribute('data-ora-mode') : (modeEl && modeEl.getAttribute('data-ora-mode')) || 'net';
           var which = viewBtn ? viewBtn.getAttribute('data-ora-view') : (viewEl && viewEl.getAttribute('data-ora-view')) || 'summary';
+          if (which === 'invoice-net') which = 'invoice-sum';
           document.querySelectorAll('[data-ora-mode]').forEach(function (btn) {
             if (btn.getAttribute('data-ora-mode') === mode) btn.classList.add('si-btn--primary');
             else btn.classList.remove('si-btn--primary');
