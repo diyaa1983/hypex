@@ -2709,7 +2709,13 @@ const oracleRepItemsHandler = async (req, res) => {
           return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
         }).join('');
         repAmt += rowAmt;
-        summaryBody += `<tr><td class="ora-cust-name">${esc(slot.label)}</td>${sumCells}<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td></tr>`;
+        const catSortAttrs = catOrder
+          .map((cat, idx) => {
+            const amt = slot.cats.get(cat)?.amt || 0;
+            return ` data-sort-cat${idx}="${amt}"`;
+          })
+          .join('');
+        summaryBody += `<tr data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowAmt}"${catSortAttrs}><td class="ora-cust-name">${esc(slot.label)}</td>${sumCells}<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td></tr>`;
         let custQty = 0;
         let custAmt = 0;
         let lines = '';
@@ -2727,7 +2733,7 @@ const oracleRepItemsHandler = async (req, res) => {
             .forEach((it) => {
               catQty += it.qty;
               const label = cleanName(it.name) || it.name;
-              lines += `<tr>
+              lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-amount="${it.amount}">
                 <td class="si-num" dir="ltr">${esc(fmtSaleDate(it.saleDate) || '—')}</td>
                 <td>${esc(cat)}</td>
                 <td class="ora-name">${esc(label)}</td>
@@ -2777,9 +2783,10 @@ const oracleRepItemsHandler = async (req, res) => {
             return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
           })
           .forEach((ln) => {
-            invoiceBody += `<tr>
+            const lnName = cleanName(ln.name) || ln.name;
+            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-amount="${ln.amount}">
               <td>${esc(ln.cat)}</td>
-              <td class="ora-name">${esc(cleanName(ln.name) || ln.name)}</td>
+              <td class="ora-name">${esc(lnName)}</td>
               <td class="ora-code" dir="ltr">${esc(ln.barcode || '')}</td>
               <td class="si-num" dir="ltr">${esc(fmtQty(ln.qty))}</td>
               <td class="si-num" dir="ltr">${esc(fmtAmt(ln.amount))}</td>
@@ -2790,7 +2797,7 @@ const oracleRepItemsHandler = async (req, res) => {
           <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td></tr>`;
         invRepQty += inv.qty;
         invRepAmt += inv.amount;
-        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}">
+        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${inv.qty}" data-sort-amount="${inv.amount}">
           <td>${esc(kindLabel)}</td>
           <td>${invTitle}</td>
           <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
@@ -2808,17 +2815,22 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       const foot = colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footRow = `<tr class="ora-cust-final"><td>المجموع</td>${foot}<td class="si-num" dir="ltr">${esc(fmtAmt(repAmt))}</td></tr>`;
-      const heads = catOrder.map((cat) => `<th class="ora-vhead ora-cat-col">${esc(cat)}</th>`).join('');
+      const heads = catOrder
+        .map(
+          (cat, idx) =>
+            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="ترتيب حسب ${esc(cat)}">${esc(cat)}</th>`
+        )
+        .join('');
       const sectionOf = (body) => `<section class="ora-cust-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
         <div class="si-table-wrap ora-portrait-wrap">
-          <table class="si-table ora-portrait-table">
+          <table class="si-table ora-portrait-table report-sales-table js-sortable-report" data-no-default-sort="1">
             <thead><tr>
-              <th class="ora-vhead">العميل</th>
+              <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
               ${heads}
-              <th class="ora-vhead">المجموع</th>
+              <th class="ora-vhead js-sort-th" data-sort="total" data-sort-type="number">المجموع</th>
             </tr></thead>
             <tbody>${body}${footRow}</tbody>
           </table>
@@ -2830,14 +2842,14 @@ const oracleRepItemsHandler = async (req, res) => {
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
         <div class="si-table-wrap ora-portrait-wrap">
-          <table class="si-table ora-portrait-table ora-detail-table">
+          <table class="si-table ora-portrait-table ora-detail-table report-sales-table js-sortable-report" data-no-default-sort="1">
             <thead><tr>
-              <th class="ora-vhead">التاريخ</th>
-              <th class="ora-vhead">الفئة</th>
-              <th class="ora-vhead">المادة</th>
-              <th class="ora-vhead">الباركود</th>
-              <th class="ora-vhead">الكمية</th>
-              <th class="ora-vhead">المبلغ</th>
+              <th class="ora-vhead js-sort-th" data-sort="date" data-sort-type="date">التاريخ</th>
+              <th class="ora-vhead js-sort-th" data-sort="cat" data-sort-type="text">الفئة</th>
+              <th class="ora-vhead js-sort-th" data-sort="item" data-sort-type="text">المادة</th>
+              <th class="ora-vhead js-sort-th" data-sort="barcode" data-sort-type="text">الباركود</th>
+              <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+              <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
             </tr></thead>
             <tbody>${detailBody}</tbody>
           </table>
@@ -2848,13 +2860,13 @@ const oracleRepItemsHandler = async (req, res) => {
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
         <div class="si-table-wrap ora-portrait-wrap">
-          <table class="si-table ora-portrait-table ora-detail-table">
+          <table class="si-table ora-portrait-table ora-detail-table report-sales-table js-sortable-report" data-no-default-sort="1">
             <thead><tr>
-              <th class="ora-vhead">الفئة</th>
-              <th class="ora-vhead">المادة</th>
-              <th class="ora-vhead">الباركود</th>
-              <th class="ora-vhead">الكمية</th>
-              <th class="ora-vhead">المبلغ</th>
+              <th class="ora-vhead js-sort-th" data-sort="cat" data-sort-type="text">الفئة</th>
+              <th class="ora-vhead js-sort-th" data-sort="item" data-sort-type="text">المادة</th>
+              <th class="ora-vhead js-sort-th" data-sort="barcode" data-sort-type="text">الباركود</th>
+              <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+              <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
             </tr></thead>
             <tbody>${invoiceBody}</tbody>
           </table>
@@ -2865,14 +2877,14 @@ const oracleRepItemsHandler = async (req, res) => {
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
         <div class="si-table-wrap ora-portrait-wrap">
-          <table class="si-table ora-portrait-table ora-detail-table">
+          <table class="si-table ora-portrait-table ora-detail-table report-sales-table js-sortable-report" data-no-default-sort="1">
             <thead><tr>
-              <th class="ora-vhead">النوع</th>
-              <th class="ora-vhead">الفاتورة</th>
-              <th class="ora-vhead">التاريخ</th>
-              <th class="ora-vhead">العميل</th>
-              <th class="ora-vhead">الكمية</th>
-              <th class="ora-vhead">المبلغ</th>
+              <th class="ora-vhead js-sort-th" data-sort="kind" data-sort-type="text">النوع</th>
+              <th class="ora-vhead js-sort-th" data-sort="invoice" data-sort-type="number">الفاتورة</th>
+              <th class="ora-vhead js-sort-th" data-sort="date" data-sort-type="date">التاريخ</th>
+              <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
+              <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+              <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
             </tr></thead>
             <tbody>${invoiceSumBody}</tbody>
           </table>
@@ -3139,6 +3151,23 @@ const oracleRepItemsHandler = async (req, res) => {
           top: 0;
           background: #f1f5f9;
           z-index: 2;
+        }
+        .ora-portrait-table th.ora-vhead.js-sort-th {
+          cursor: pointer;
+          user-select: none;
+        }
+        .ora-portrait-table th.ora-vhead.js-sort-th:hover {
+          background: #e2e8f0;
+        }
+        .ora-portrait-table th.ora-vhead.js-sort-th.is-sort-asc::after {
+          content: ' ▲';
+          font-size: .7em;
+          opacity: .75;
+        }
+        .ora-portrait-table th.ora-vhead.js-sort-th.is-sort-desc::after {
+          content: ' ▼';
+          font-size: .7em;
+          opacity: .75;
         }
         .ora-portrait-table td { vertical-align: middle; padding: .4rem .45rem; }
         .ora-portrait-table td.si-num,
@@ -3537,7 +3566,7 @@ const oracleRepItemsHandler = async (req, res) => {
       title: 'مبيعات المندوب حسب المادة والفئة Oracle',
       bodyHtml: body,
       css: ['/assets/css/report-sales.css'],
-      js: ['/assets/js/sales-print.js'],
+      js: ['/assets/js/sales-print.js', '/assets/js/report-sales-table-sort.js'],
     })
   );
   } catch (e) {
