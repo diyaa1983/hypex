@@ -128,9 +128,21 @@ function oracle_fetch_rep_item_sales(
 
     $byCurrentLink = !$filterOracleRep && $custAccs !== [];
     $saleType = (int) $c['sale_type'];
+    $returnTypes = [];
+    foreach ($c['return_types'] ?? [8, 10, 11, 12] as $rt) {
+        $rt = (int) $rt;
+        if ($rt > 0 && $rt !== $saleType) {
+            $returnTypes[$rt] = $rt;
+        }
+    }
+    $returnTypes = array_values($returnTypes);
+    if ($returnTypes === []) {
+        $returnTypes = [8, 10, 11, 12];
+    }
+    $retInList = implode(', ', array_map('intval', $returnTypes));
     // عند الربط الحالي من هايبكس تُعاد نسبة المندوب بعد الجلب حسب بطاقة العميل.
     $repSelect = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
-    // TYPE بيع + مرتجعات 10/11 — يُفصل لاحقاً لعرض المبيعات أو الصافي
+    // بيع + مرتجعات (م. مبيعات) — المرتجعات بدون إلزام المستودع لتتوافق مع تقارير Forms
     $sql = "
 SELECT {$repSelect},
        d.TYPE AS DOC_TYPE,
@@ -145,8 +157,10 @@ SELECT {$repSelect},
        ROUND(SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})), 3) AS AMOUNT
 FROM {$fromQ} d
 WHERE d.COMP_NUM = :comp_num
-  AND (d.TYPE = :sale_type OR d.TYPE IN (10, 11))
-  AND d.STORE = :store_num
+  AND (
+        (d.TYPE = :sale_type AND d.STORE = :store_num)
+        OR d.TYPE IN ({$retInList})
+      )
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
   AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
@@ -159,10 +173,19 @@ WHERE d.COMP_NUM = :comp_num
         'd_to' => $toIso,
     ];
     if (!$byCurrentLink) {
-        $sql .= "  AND d.MAN_NUM IS NOT NULL\n  AND d.MAN_NUM > 0\n";
+        // المبيعات تشترط مندوب؛ المرتجعات تُقبل حتى بلا MAN_NUM
         if ($filterOracleRep && $repNo !== null && $repNo > 0) {
-            $sql .= "  AND d.MAN_NUM = :rep_no\n";
+            $sql .= "  AND (\n";
+            $sql .= "        (d.TYPE = :sale_type AND d.MAN_NUM = :rep_no)\n";
+            $sql .= "        OR (d.TYPE IN ({$retInList}) AND (NVL(d.MAN_NUM, 0) = 0 OR d.MAN_NUM = :rep_no2))\n";
+            $sql .= "      )\n";
             $binds['rep_no'] = $repNo;
+            $binds['rep_no2'] = $repNo;
+        } else {
+            $sql .= "  AND (\n";
+            $sql .= "        (d.TYPE = :sale_type AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0)\n";
+            $sql .= "        OR d.TYPE IN ({$retInList})\n";
+            $sql .= "      )\n";
         }
     }
     $custKeys = [];
@@ -268,7 +291,7 @@ ORDER BY d.MAN_NUM, TRIM(TO_CHAR(d.CUST_ACC)), TRUNC(d.VDATE), NVL(d.V_NUM, 0), 
         $bonus = (float) oracle_statement_row_val($r, 'BONUS');
         $amount = (float) oracle_statement_row_val($r, 'AMOUNT');
         $docType = (int) oracle_statement_row_val($r, 'DOC_TYPE');
-        $isReturn = $docType !== $saleType;
+        $isReturn = in_array($docType, $returnTypes, true) || ($docType !== $saleType && $docType > 0);
         if ($item === '' || ($qty == 0.0 && $bonus == 0.0 && $amount == 0.0)) {
             continue;
         }

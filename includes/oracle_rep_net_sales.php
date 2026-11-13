@@ -115,6 +115,22 @@ function oracle_rep_net_sales_cfg(): array
         $repKey = 'man_num';
     }
 
+    $returnTypes = [];
+    $rawRet = $s['return_types'] ?? ($inv['return_types'] ?? [8, 10, 11, 12]);
+    if (!is_array($rawRet)) {
+        $rawRet = [$rawRet];
+    }
+    foreach ($rawRet as $t) {
+        $t = (int) $t;
+        if ($t > 0) {
+            $returnTypes[$t] = $t;
+        }
+    }
+    $returnTypes = array_values($returnTypes);
+    if ($returnTypes === []) {
+        $returnTypes = [8, 10, 11, 12];
+    }
+
     return [
         'owner' => $owner !== '' ? $owner : 'MAS',
         'table' => $table !== '' ? $table : 'DAILY',
@@ -123,6 +139,7 @@ function oracle_rep_net_sales_cfg(): array
         'emp_owner' => strtoupper(trim((string) ($s['emp_owner'] ?? 'ACCINV'))) ?: 'ACCINV',
         'emp_table' => strtoupper(trim((string) ($s['emp_table'] ?? 'EMP_INFO'))) ?: 'EMP_INFO',
         'sale_type' => (int) ($s['sale_type'] ?? ($inv['sale_type'] ?? 9)),
+        'return_types' => $returnTypes,
         'comp_num' => (int) ($s['comp_num'] ?? ($inv['comp_num'] ?? 1)),
         'default_store' => (int) ($s['default_store'] ?? ($inv['default_store'] ?? 4)),
         'rep_key' => $repKey,
