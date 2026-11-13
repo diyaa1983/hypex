@@ -2881,8 +2881,8 @@ const oracleRepItemsHandler = async (req, res) => {
     const salesV = rows.length
       ? buildOraViews(rows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
-    // فواتير إجمالي (وضع المبيعات): إظهار البيع + المرتجعات معاً
-    const salesInvoiceSumRows = rows.concat(
+    // فواتير الصافي: كل فواتير البيع + المرتجعات (مخصومة)
+    const salesInvoiceNetRows = rows.concat(
       returnRows.map((r) => ({
         ...r,
         doc_kind: 'R',
@@ -2891,23 +2891,22 @@ const oracleRepItemsHandler = async (req, res) => {
         amount: -(Number(r.amount) || 0),
       }))
     );
-    salesInvoiceSumRows.sort((a, b) => {
+    salesInvoiceNetRows.sort((a, b) => {
       const c = (Number(a.rep_no) || 0) - (Number(b.rep_no) || 0);
       if (c) return c;
       const c2 = String(a.sale_date || '').localeCompare(String(b.sale_date || ''));
       if (c2) return c2;
       return (Number(a.invoice_no) || 0) - (Number(b.invoice_no) || 0);
     });
-    if (salesInvoiceSumRows.length) {
-      const invSumOnly = buildOraViews(salesInvoiceSumRows);
-      salesV.invoiceSumHtml = invSumOnly.invoiceSumHtml;
-    }
+    const invoiceNetHtml = salesInvoiceNetRows.length
+      ? buildOraViews(salesInvoiceNetRows).invoiceSumHtml
+      : '';
     const netV = netRows.length
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
     const salesGrand = `<p class="ora-grand">إجمالي المبيعات — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
-    const netGrand = `<p class="ora-grand">صافي المبيعات (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))}</p>`;
-    const emptyNet = '<p class="muted">لا توجد حركة صافي في الفترة المحددة.</p>';
+    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))}</p>`;
+    const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     rowsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
         <span class="ora-mode-group">
@@ -2918,15 +2917,18 @@ const oracleRepItemsHandler = async (req, res) => {
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
+        <button type="button" class="si-btn" data-ora-view="invoice-net">الصافي</button>
       </div>
       <div class="ora-view" id="ora-view-sales-summary" data-ora-mode-panel="sales" data-ora-view-panel="summary">${salesV.summaryHtml || emptyNet}${salesGrand}</div>
       <div class="ora-view" id="ora-view-sales-detail" data-ora-mode-panel="sales" data-ora-view-panel="detail" hidden>${salesV.detailHtml || emptyNet}${salesGrand}</div>
       <div class="ora-view" id="ora-view-sales-invoice" data-ora-mode-panel="sales" data-ora-view-panel="invoice" hidden>${salesV.invoiceHtml || emptyNet}${salesGrand}</div>
       <div class="ora-view" id="ora-view-sales-invoice-sum" data-ora-mode-panel="sales" data-ora-view-panel="invoice-sum" hidden>${salesV.invoiceSumHtml || emptyNet}${salesGrand}</div>
+      <div class="ora-view" id="ora-view-sales-invoice-net" data-ora-mode-panel="sales" data-ora-view-panel="invoice-net" hidden>${invoiceNetHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary" hidden>${netV.summaryHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>`;
+      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>
+      <div class="ora-view" id="ora-view-net-invoice-net" data-ora-mode-panel="net" data-ora-view-panel="invoice-net" hidden>${invoiceNetHtml || netV.invoiceSumHtml || emptyNet}${netGrand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
