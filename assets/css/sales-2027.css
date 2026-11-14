@@ -1823,11 +1823,15 @@ label .si-field-key {
 
 /* نموذج رئيسي للمندوبين / البطاقات — شبكة مرتبة بدل صف واحد مزدحم */
 .si-surface--master {
-  max-width: 52rem;
+  max-width: 44rem;
 }
 
 .si-master-form {
   padding: 1.05rem 1.15rem 1.25rem;
+}
+
+.si-master-form--rep {
+  padding: 1rem 1.1rem 1.15rem;
 }
 
 .si-master-grid {
@@ -1837,14 +1841,22 @@ label .si-field-key {
   align-items: start;
 }
 
+/* مندوب: الاسم أعرض، الرمز أضيق، صفوف متراصفة */
+.si-master-grid--rep {
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 0.95fr);
+  gap: 0.85rem 1rem;
+}
+
 @media (max-width: 720px) {
-  .si-master-grid {
+  .si-master-grid,
+  .si-master-grid--rep {
     grid-template-columns: 1fr;
   }
 }
 
 .si-mf {
   display: grid;
+  grid-template-rows: auto auto auto;
   gap: 0.35rem;
   margin: 0;
   align-content: start;
@@ -1859,6 +1871,9 @@ label .si-field-key {
   font-weight: 700;
   color: var(--si-ink, #0f172a);
   letter-spacing: 0.01em;
+  min-height: 1.15rem;
+  display: flex;
+  align-items: center;
 }
 
 .si-mf-label em {
@@ -1875,11 +1890,15 @@ label .si-field-key {
 }
 
 .si-mf-note {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 500;
   color: var(--si-muted, #64748b);
-  line-height: 1.45;
-  margin-top: 0.15rem;
+  line-height: 1.4;
+  margin-top: 0;
+}
+
+.si-master-grid--rep .si-mf-note {
+  max-width: 22rem;
 }
 
 .si-master-form .si-field,
@@ -1889,15 +1908,33 @@ label .si-field-key {
   box-sizing: border-box;
 }
 
+.si-master-form--rep .si-field--mono {
+  max-width: 11rem;
+  letter-spacing: 0.02em;
+}
+
 .si-master-form textarea.si-field {
   min-height: 5.5rem;
   resize: vertical;
   line-height: 1.45;
 }
 
+.si-master-form--rep textarea.si-field {
+  min-height: 4.25rem;
+}
+
 .si-master-form .si-form-actions {
   margin-top: 1.15rem;
   padding-top: 1rem;
+}
+
+.si-master-form--rep .si-form-actions {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  justify-content: flex-start;
 }
 
 /* Button rows inside si-meta must not inherit the row height of tall neighbors */

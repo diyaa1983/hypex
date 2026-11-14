@@ -198,20 +198,19 @@ async function repForm(req, res, id) {
           <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
           ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
         </div>
-        <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form">
+        <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form si-master-form--rep">
           <input type="hidden" name="id" value="${row ? row.id : 0}">
 
-          <div class="si-master-grid">
-            <label class="si-mf">
-              <span class="si-mf-label">الرمز</span>
-              <span class="si-mf-hint">رقم البائع في أوراكل (مثل 12) — فارغ = تلقائي</span>
-              <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off">
-              <span class="si-mf-note">للترحيل إلى INV00024 استخدم رقم البائع في أوراكل. الرموز مثل REP-0001 تُرحَّل كبائع 1.</span>
-            </label>
-
-            <label class="si-mf">
+          <div class="si-master-grid si-master-grid--rep">
+            <label class="si-mf si-mf--name">
               <span class="si-mf-label">اسم المندوب <em>*</em></span>
               <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="الاسم الكامل">
+            </label>
+
+            <label class="si-mf si-mf--code">
+              <span class="si-mf-label">الرمز</span>
+              <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off" title="رقم البائع في أوراكل — فارغ = تلقائي (REP-####)">
+              <span class="si-mf-note">رقم البائع في أوراكل (مثل 12). فارغ = تلقائي. للترحيل إلى INV00024 استخدم رقم البائع وليس REP-0001.</span>
             </label>
 
             <label class="si-mf">
@@ -229,7 +228,7 @@ async function repForm(req, res, id) {
 
             <label class="si-mf si-mf--full">
               <span class="si-mf-label">العنوان</span>
-              <textarea class="si-field" name="address_ar" rows="3" placeholder="اختياري…">${esc(
+              <textarea class="si-field" name="address_ar" rows="2" placeholder="اختياري…">${esc(
                 row?.address_ar || ''
               )}</textarea>
             </label>
