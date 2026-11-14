@@ -2941,6 +2941,7 @@ const oracleRepItemsHandler = async (req, res) => {
         return a.localeCompare(b, 'ar');
       });
       const colTotals = catOrder.map(() => 0);
+      const catCustCounts = catOrder.map(() => 0);
       const colYearTotals = catOrder.map(() => new Map(compareYears.map((y) => [y, 0])));
       const repYearGrossTotals = new Map(compareYears.map((y) => [y, 0]));
       const repYearDiscTotals = new Map(compareYears.map((y) => [y, 0]));
@@ -3000,7 +3001,9 @@ const oracleRepItemsHandler = async (req, res) => {
           .map((cat, idx) => {
             const grossAmt = catGrossParts[idx] || 0;
             colTotals[idx] += grossAmt;
+            if (grossAmt) catCustCounts[idx] += 1;
             catAmts.push(String(grossAmt));
+            const catAttrs = ` data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(cat)}"`;
             if (yearCompare) {
               const yParts = compareYears.map((y) => {
                 const yg = Number(catYearGrossMaps[idx].get(y) || 0) || 0;
@@ -3008,9 +3011,9 @@ const oracleRepItemsHandler = async (req, res) => {
                 return String(yg);
               });
               catYearParts.push(yParts.join(','));
-              return `<td class="si-num ora-cat-years">${yearStackHtml(catYearGrossMaps[idx], true, true)}</td>`;
+              return `<td class="si-num ora-cat-years ora-cat-cell"${catAttrs}>${yearStackHtml(catYearGrossMaps[idx], true, true)}</td>`;
             }
-            return `<td class="si-num" dir="ltr">${grossAmt ? esc(fmtAmt(grossAmt)) : ''}</td>`;
+            return `<td class="si-num ora-cat-cell"${catAttrs} dir="ltr">${grossAmt ? esc(fmtAmt(grossAmt)) : ''}</td>`;
           })
           .join('');
         repGross += rowGross;
@@ -3094,7 +3097,7 @@ const oracleRepItemsHandler = async (req, res) => {
           custQty += it.qty;
           custBonus += Number(it.bonus) || 0;
           const label = cleanName(it.name) || it.name;
-          lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-bonus="${Number(it.bonus) || 0}" data-sort-amount="${netAmt}" data-sort-gross="${grossAmt}" data-sort-disc="${discAmt}">
+          lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-ora-cat-name="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-bonus="${Number(it.bonus) || 0}" data-sort-amount="${netAmt}" data-sort-gross="${grossAmt}" data-sort-disc="${discAmt}">
             <td class="si-num" dir="ltr">${esc(fmtSaleDate(it.saleDate) || '—')}</td>
             <td>${esc(cat)}</td>
             <td class="ora-name">${esc(label)}</td>
@@ -3105,12 +3108,12 @@ const oracleRepItemsHandler = async (req, res) => {
             <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(netAmt))}</td>
           </tr>`;
           if (meta._catEnd) {
-            lines += `<tr class="ora-cat-sum"><td colspan="4">مجموع ${esc(catRunName)}</td>${qtyExtraCell(catRunQty, catRunBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(catRunGross))}</td><td class="si-num ora-disc-cell" dir="ltr">${catRunDisc ? esc(fmtAmt(catRunDisc)) : ''}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(catRunNet))}</td></tr>`;
+            lines += `<tr class="ora-cat-sum" data-ora-cat-name="${esc(catRunName)}"><td colspan="4">مجموع ${esc(catRunName)}</td>${qtyExtraCell(catRunQty, catRunBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(catRunGross))}</td><td class="si-num ora-disc-cell" dir="ltr">${catRunDisc ? esc(fmtAmt(catRunDisc)) : ''}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(catRunNet))}</td></tr>`;
           }
         });
         if (!lines) return;
-        detailBody += `<tr class="ora-cust-band"><td colspan="9">${esc(slot.label)}</td></tr>${lines}`;
-        detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td>${qtyExtraCell(custQty, custBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(rowGross))}</td><td class="si-num ora-disc-cell" dir="ltr">${rowDisc ? esc(fmtAmt(rowDisc)) : ''}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td></tr>`;
+        detailBody += `<tr class="ora-cust-band" data-ora-group="1"><td colspan="9">${esc(slot.label)}</td></tr>${lines}`;
+        detailBody += `<tr class="ora-cust-final" data-ora-group-end="1"><td colspan="4">المجموع النهائي لمبيعات العميل</td>${qtyExtraCell(custQty, custBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(rowGross))}</td><td class="si-num ora-disc-cell" dir="ltr">${rowDisc ? esc(fmtAmt(rowDisc)) : ''}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td></tr>`;
       });
       const invList = [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
@@ -3150,13 +3153,13 @@ const oracleRepItemsHandler = async (req, res) => {
           sortedLines.map((ln) => Number(ln.amount) || 0),
           vouDisc
         );
-        invoiceBody += `<tr class="ora-cust-band"><td colspan="8">${invTitle}
+        invoiceBody += `<tr class="ora-cust-band" data-ora-group="1"><td colspan="8">${invTitle}
           <span class="ora-inv-meta"> — ${esc(kindLabel)} — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
         sortedLines.forEach((ln, lnIdx) => {
             const lnName = cleanName(ln.name) || ln.name;
             const netAmt = lineNetParts[lnIdx] || 0;
             const discAmt = Math.round(((Number(ln.amount) || 0) - netAmt) * 1000) / 1000;
-            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-bonus="${Number(ln.bonus) || 0}" data-sort-amount="${netAmt}" data-sort-gross="${ln.amount}" data-sort-disc="${discAmt}">
+            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-ora-cat-name="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-bonus="${Number(ln.bonus) || 0}" data-sort-amount="${netAmt}" data-sort-gross="${ln.amount}" data-sort-disc="${discAmt}">
               <td>${esc(ln.cat)}</td>
               <td class="ora-name">${esc(lnName)}</td>
               <td class="ora-code" dir="ltr">${esc(ln.barcode || '')}</td>
@@ -3166,7 +3169,7 @@ const oracleRepItemsHandler = async (req, res) => {
               <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(netAmt))}</td>
             </tr>`;
           });
-        invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع ${esc(kindLabel)}</td>
+        invoiceBody += `<tr class="ora-cust-final" data-ora-group-end="1"><td colspan="3">مجموع ${esc(kindLabel)}</td>
           ${qtyExtraCell(inv.qty, inv.bonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
           <td class="si-num ora-disc-cell" dir="ltr">${vouDisc ? esc(fmtAmt(vouDisc)) : ''}</td>
@@ -3198,9 +3201,21 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       const foot = yearCompare
         ? colYearTotals
-            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, true, true)}</td>`)
+            .map(
+              (ym, idx) =>
+                `<td class="si-num ora-cat-years ora-cat-cell" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                  catOrder[idx] || ''
+                )}">${yearStackHtml(ym, true, true)}</td>`
+            )
             .join('')
-        : colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
+        : colTotals
+            .map(
+              (amt, idx) =>
+                `<td class="si-num ora-cat-cell" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                  catOrder[idx] || ''
+                )}" dir="ltr">${esc(fmtAmt(amt))}</td>`
+            )
+            .join('');
       const footGross = yearCompare
         ? `<td class="si-num ora-total-years ora-gross-cell">${yearStackHtml(repYearGrossTotals, false)}</td>`
         : `<td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(repGross))}</td>`;
@@ -3212,17 +3227,48 @@ const oracleRepItemsHandler = async (req, res) => {
         : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(repNet))}</td>`;
       const footRow = `<tr class="ora-cust-final ora-sum-all"><td>المجموع</td>${foot}${footGross}${footDisc}${footNet}</tr>`;
       const pickCats = catOrder
-        .map((_, idx) => `<td class="si-num ora-pick-cat" data-cat-idx="${idx}" dir="ltr"></td>`)
+        .map(
+          (cat, idx) =>
+            `<td class="si-num ora-pick-cat ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+              cat
+            )}" dir="ltr"></td>`
+        )
         .join('');
       const pickRow = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCats}<td class="si-num ora-pick-gross" dir="ltr"></td><td class="si-num ora-pick-disc" dir="ltr"></td><td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
       const heads = catOrder
         .map(
           (cat, idx) =>
-            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="${esc(
+            `<th class="ora-vhead ora-cat-col js-sort-th ora-cat-filter-th" data-sort="cat${idx}" data-sort-type="number" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
               cat
-            )}"><span class="ora-cat-title">${esc(cat)}</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
+            )}" title="ترتيب أو اضغط مرتين للفلترة: ${esc(cat)}"><span class="ora-cat-title">${esc(
+              cat
+            )}</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
         )
         .join('');
+      const catTotalsBar = `<div class="ora-cat-totals no-print" data-ora-cat-totals>
+        <div class="ora-cat-totals-head">
+          <strong>مجاميع الفئات</strong>
+          <span class="muted">اضغط فئة للفلترة · اضغط مرة أخرى لإلغاء الفلتر</span>
+        </div>
+        <div class="ora-cat-totals-list">
+          <button type="button" class="ora-cat-chip is-active" data-ora-cat-filter="" data-ora-cat-idx="">
+            <span class="ora-cat-chip-name">كل الفئات</span>
+            <span class="ora-cat-chip-amt" dir="ltr">${esc(fmtAmt(repGross))}</span>
+            <span class="ora-cat-chip-n">${custMap.size} عميل</span>
+          </button>
+          ${catOrder
+            .map(
+              (cat, idx) => `<button type="button" class="ora-cat-chip" data-ora-cat-filter="${esc(
+                cat
+              )}" data-ora-cat-idx="${idx}" title="${esc(cat)}">
+            <span class="ora-cat-chip-name">${esc(cat)}</span>
+            <span class="ora-cat-chip-amt" dir="ltr">${esc(fmtAmt(colTotals[idx] || 0))}</span>
+            <span class="ora-cat-chip-n">${catCustCounts[idx] || 0} عميل</span>
+          </button>`
+            )
+            .join('')}
+        </div>
+      </div>`;
       const yearNote = yearCompare
         ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — الفئات بالإجمالي، وفي النهاية: الإجمالي · الخصم · الصافي. فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
         : `<div class="ora-year-note muted">الفئات تعرض المبلغ (مبيعات − مرتجعات). في النهاية: الإجمالي · الخصم (VOU_DISC) · الصافي = الإجمالي − الخصم.</div>`;
@@ -3234,6 +3280,7 @@ const oracleRepItemsHandler = async (req, res) => {
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
           ${yearNote}
           ${catDiffToggle}
+          ${catTotalsBar}
           <div class="ora-pick-bar no-print is-empty">
             <span>مجموع العملاء المحددين (<span class="ora-pick-count">0</span>):</span>
             <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
@@ -3273,7 +3320,7 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
-      detailHtml += `<section class="ora-cust-block">
+      detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
@@ -3294,7 +3341,7 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
-      invoiceHtml += `<section class="ora-cust-block">
+      invoiceHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
@@ -3894,6 +3941,81 @@ const oracleRepItemsHandler = async (req, res) => {
         table.ora-summary-pick tbody tr.ora-cust-final td.ora-disc-cell {
           background: #fde68a !important;
         }
+        .ora-cat-totals {
+          margin: .55rem 0 .35rem;
+          padding: .55rem .65rem;
+          border: 1px solid #c5d6ea;
+          border-radius: 12px;
+          background: linear-gradient(180deg, #f4f8fc, #eef4fb);
+        }
+        .ora-cat-totals-head {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: .45rem .75rem;
+          margin-bottom: .45rem;
+          font-size: .84rem;
+          color: #1e3a5f;
+        }
+        .ora-cat-totals-list {
+          display: flex;
+          flex-wrap: wrap;
+          gap: .4rem;
+        }
+        .ora-cat-chip {
+          display: inline-flex;
+          flex-direction: column;
+          align-items: flex-start;
+          gap: .12rem;
+          min-width: 7.5rem;
+          max-width: 14rem;
+          padding: .4rem .55rem;
+          border: 1px solid #9db4d0;
+          border-radius: 10px;
+          background: #fff;
+          color: #0f172a;
+          cursor: pointer;
+          text-align: start;
+          line-height: 1.2;
+          transition: background .15s, border-color .15s, box-shadow .15s;
+        }
+        .ora-cat-chip:hover {
+          border-color: #1a4480;
+          box-shadow: 0 1px 0 rgba(26, 68, 128, .12);
+        }
+        .ora-cat-chip.is-active {
+          border-color: #1a4480;
+          background: #dbeafe;
+          box-shadow: inset 0 0 0 1px #93c5fd;
+        }
+        .ora-cat-chip-name {
+          font-size: .78rem;
+          font-weight: 800;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          max-width: 100%;
+        }
+        .ora-cat-chip-amt {
+          font-size: .92rem;
+          font-weight: 900;
+          color: #0b3a75;
+        }
+        .ora-cat-chip-n {
+          font-size: .68rem;
+          font-weight: 700;
+          color: #5c6578;
+        }
+        .ora-cat-cell.is-cat-hidden,
+        .ora-cat-col.is-cat-hidden {
+          display: none !important;
+        }
+        tr.is-cat-row-hidden {
+          display: none !important;
+        }
+        th.ora-cat-filter-th {
+          cursor: pointer;
+        }
         .ora-cat-diff-toggle {
           display: inline-flex;
           align-items: center;
@@ -4172,6 +4294,7 @@ const oracleRepItemsHandler = async (req, res) => {
           .ora-pick-foot,
           tr.ora-pick-sum,
           .ora-cat-diff-toggle,
+          .ora-cat-totals,
           .ora-tools,
           .ora-year-note,
           .ora-report-sticky-note { display: none !important; }
@@ -4582,6 +4705,88 @@ const oracleRepItemsHandler = async (req, res) => {
           }
         }
       }
+      var oraActiveCat = '';
+      var oraCatHeadClicks = { name: '', at: 0 };
+      function applyOraCatFilter(catName) {
+        oraActiveCat = String(catName || '').trim();
+        document.querySelectorAll('.ora-cat-chip').forEach(function (chip) {
+          var f = String(chip.getAttribute('data-ora-cat-filter') || '');
+          chip.classList.toggle('is-active', oraActiveCat ? f === oraActiveCat : f === '');
+        });
+        document.querySelectorAll('table.ora-summary-pick').forEach(function (table) {
+          table.classList.toggle('is-cat-filtered', !!oraActiveCat);
+          var catIdx = -1;
+          table.querySelectorAll('thead th[data-ora-cat-name]').forEach(function (th) {
+            var name = String(th.getAttribute('data-ora-cat-name') || '');
+            if (oraActiveCat && name === oraActiveCat) {
+              catIdx = Number(th.getAttribute('data-ora-cat-idx'));
+              if (!isFinite(catIdx)) catIdx = -1;
+            }
+          });
+          table.querySelectorAll('[data-ora-cat-name]').forEach(function (el) {
+            var name = String(el.getAttribute('data-ora-cat-name') || '');
+            el.classList.toggle('is-cat-hidden', !!oraActiveCat && name !== oraActiveCat);
+          });
+          table.querySelectorAll('tr.ora-sum-row').forEach(function (tr) {
+            if (!oraActiveCat) {
+              tr.classList.remove('is-cat-row-hidden');
+              return;
+            }
+            var parts = String(tr.getAttribute('data-ora-cats') || '').split('|');
+            var amt = catIdx >= 0 ? Number(parts[catIdx] || 0) || 0 : 0;
+            tr.classList.toggle('is-cat-row-hidden', !amt);
+          });
+          var block = table.closest('.ora-summary-block');
+          if (block) refreshOraCustPick(block);
+        });
+        document.querySelectorAll('.ora-lines-block table.ora-detail-table').forEach(function (table) {
+          var tbody = table.tBodies[0];
+          if (!tbody) return;
+          var rows = Array.prototype.slice.call(tbody.rows);
+          var i = 0;
+          while (i < rows.length) {
+            var row = rows[i];
+            if (row.classList.contains('ora-cust-band') || row.getAttribute('data-ora-group') === '1') {
+              var group = [row];
+              var j = i + 1;
+              while (j < rows.length) {
+                var next = rows[j];
+                if (next.classList.contains('ora-cust-band') || next.getAttribute('data-ora-group') === '1') break;
+                group.push(next);
+                if (next.classList.contains('ora-cust-final') || next.getAttribute('data-ora-group-end') === '1') {
+                  j += 1;
+                  break;
+                }
+                j += 1;
+              }
+              var visibleLines = 0;
+              group.forEach(function (tr) {
+                if (tr.hasAttribute('data-sort-row') || tr.classList.contains('ora-cat-sum')) {
+                  var cname = String(tr.getAttribute('data-ora-cat-name') || tr.getAttribute('data-sort-cat') || '');
+                  var hideLine = !!oraActiveCat && cname !== oraActiveCat;
+                  tr.classList.toggle('is-cat-row-hidden', hideLine);
+                  if (!hideLine && tr.hasAttribute('data-sort-row')) visibleLines += 1;
+                }
+              });
+              group.forEach(function (tr) {
+                if (tr.classList.contains('ora-cust-band') || tr.classList.contains('ora-cust-final') ||
+                    tr.getAttribute('data-ora-group') === '1' || tr.getAttribute('data-ora-group-end') === '1') {
+                  tr.classList.toggle('is-cat-row-hidden', !!oraActiveCat && visibleLines < 1);
+                }
+              });
+              i = j;
+              continue;
+            }
+            if (row.hasAttribute('data-sort-row') || row.classList.contains('ora-cat-sum')) {
+              var cn = String(row.getAttribute('data-ora-cat-name') || row.getAttribute('data-sort-cat') || '');
+              row.classList.toggle('is-cat-row-hidden', !!oraActiveCat && cn !== oraActiveCat);
+            } else {
+              row.classList.remove('is-cat-row-hidden');
+            }
+            i += 1;
+          }
+        });
+      }
       document.addEventListener('change', function (ev) {
         var t = ev.target;
         if (!t || !t.classList) return;
@@ -4597,6 +4802,27 @@ const oracleRepItemsHandler = async (req, res) => {
         refreshOraCustPick(block);
       });
       document.addEventListener('click', function (ev) {
+        var catChip = ev.target.closest && ev.target.closest('.ora-cat-chip');
+        if (catChip) {
+          ev.preventDefault();
+          var nextCat = String(catChip.getAttribute('data-ora-cat-filter') || '');
+          if (nextCat && nextCat === oraActiveCat) nextCat = '';
+          applyOraCatFilter(nextCat);
+          return;
+        }
+        var catHead = ev.target.closest && ev.target.closest('th.ora-cat-filter-th');
+        if (catHead) {
+          var headName = String(catHead.getAttribute('data-ora-cat-name') || '');
+          var now = Date.now();
+          if (headName && oraCatHeadClicks.name === headName && now - oraCatHeadClicks.at < 450) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            applyOraCatFilter(headName === oraActiveCat ? '' : headName);
+            oraCatHeadClicks = { name: '', at: 0 };
+            return;
+          }
+          oraCatHeadClicks = { name: headName, at: now };
+        }
         var clearBtn = ev.target.closest && ev.target.closest('.ora-pick-clear');
         if (clearBtn) {
           var block = clearBtn.closest('.ora-summary-block');
