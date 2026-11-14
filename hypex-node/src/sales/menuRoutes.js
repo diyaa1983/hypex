@@ -3303,11 +3303,14 @@ const oracleRepItemsHandler = async (req, res) => {
           ${catDiffToggle}
           ${catTotalsBar}
           <div class="ora-pick-bar no-print is-empty">
-            <span>مجموع العملاء المحددين (<span class="ora-pick-count">0</span>):</span>
-            <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
-            <span class="ora-pick-pair">خصم <strong class="ora-pick-disc-amt" dir="ltr">0</strong></span>
-            <span class="ora-pick-pair">صافي <strong class="ora-pick-amt" dir="ltr">0</strong></span>
-            <button type="button" class="si-btn ora-pick-clear">مسح التحديد</button>
+            <div class="ora-pick-bar-main">
+              <span>مجموع العملاء المحددين (<span class="ora-pick-count">0</span>):</span>
+              <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
+              <span class="ora-pick-pair">خصم <strong class="ora-pick-disc-amt" dir="ltr">0</strong></span>
+              <span class="ora-pick-pair">صافي <strong class="ora-pick-amt" dir="ltr">0</strong></span>
+              <button type="button" class="si-btn ora-pick-clear">مسح التحديد</button>
+            </div>
+            <div class="ora-pick-bar-cats" aria-label="مجاميع الفئات للمحددين"></div>
           </div>
         </header>
         <div class="si-table-wrap ora-portrait-wrap">
@@ -3329,15 +3332,17 @@ const oracleRepItemsHandler = async (req, res) => {
                 yearCompare ? yearHeadHtml(true) : ''
               }</th>
             </tr></thead>
-            <tbody>${body}${footRow}${pickRow}</tbody>
+            <tbody>${pickRow}${body}${footRow}</tbody>
           </table>
         </div>
         <div class="ora-pick-foot no-print is-empty">
-          <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
-          <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
-          <span class="ora-pick-pair">خصم <strong class="ora-pick-disc-amt" dir="ltr">0</strong></span>
-          <span class="ora-pick-pair">صافي <strong class="ora-pick-amt" dir="ltr">0</strong></span>
-          <span class="ora-pick-foot-cats"></span>
+          <div class="ora-pick-bar-main">
+            <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
+            <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
+            <span class="ora-pick-pair">خصم <strong class="ora-pick-disc-amt" dir="ltr">0</strong></span>
+            <span class="ora-pick-pair">صافي <strong class="ora-pick-amt" dir="ltr">0</strong></span>
+          </div>
+          <div class="ora-pick-foot-cats"></div>
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
@@ -3905,10 +3910,50 @@ const oracleRepItemsHandler = async (req, res) => {
           color: #000;
         }
         tr.ora-pick-sum td {
-          background: #dbeafe;
+          background: #bfdbfe !important;
+          font-weight: 900;
+          color: #0f172a !important;
+          border-top: 2px solid #2563eb;
+          border-bottom: 2px solid #2563eb;
+          white-space: nowrap;
+        }
+        tr.ora-pick-sum td:first-child {
+          position: sticky;
+          right: 0;
+          z-index: 3;
+          background: #93c5fd !important;
+        }
+        .ora-pick-bar-main,
+        .ora-pick-foot .ora-pick-bar-main {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: .45rem .7rem;
+        }
+        .ora-pick-bar-cats,
+        .ora-pick-foot-cats {
+          display: flex;
+          flex-wrap: wrap;
+          gap: .35rem;
+          margin-top: .4rem;
+          width: 100%;
+        }
+        .ora-pick-cat-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: .35rem;
+          padding: .22rem .5rem;
+          border-radius: 999px;
+          background: #fff;
+          border: 1px solid #93c5fd;
+          font-size: .75rem;
           font-weight: 800;
-          color: #1e3a5f;
-          border-top: 2px solid #93c5fd;
+          color: #0f172a;
+          line-height: 1.2;
+        }
+        .ora-pick-cat-pill b {
+          color: #1d4ed8;
+          font-weight: 900;
         }
         .ora-pick-pair {
           display: inline-flex;
@@ -4051,14 +4096,6 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-pick-bar .ora-pick-amt,
         .ora-pick-foot .ora-pick-amt { font-size: 1.05rem; letter-spacing: .01em; }
         .ora-pick-bar .ora-pick-clear { min-height: 2rem; padding: .2rem .65rem; }
-        .ora-pick-foot-cats {
-          display: inline-flex;
-          flex-wrap: wrap;
-          gap: .35rem .65rem;
-          font-weight: 700;
-          color: #334155;
-        }
-        .ora-pick-foot-cats span { white-space: nowrap; }
         .ora-ystack {
           display: inline-flex;
           flex-wrap: nowrap;
@@ -4632,7 +4669,7 @@ const oracleRepItemsHandler = async (req, res) => {
           if (yearMode) {
             td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], true, true) : '';
           } else {
-            td.textContent = count ? fmtOraPickAmt(sums[idx] || 0) : '';
+            td.textContent = count && sums[idx] ? fmtOraPickAmt(sums[idx] || 0) : (count ? '—' : '');
           }
         });
         var grossCell = pickRow.querySelector('.ora-pick-gross');
@@ -4653,6 +4690,26 @@ const oracleRepItemsHandler = async (req, res) => {
         var nEl = pickRow.querySelector('.ora-pick-n');
         if (nEl) nEl.textContent = String(count);
         pickRow.classList.toggle('is-empty', count < 1);
+        function catPillsHtml() {
+          if (!count) return '';
+          var bits = [];
+          for (i = 0; i < catCount; i += 1) {
+            var rawLabel = heads[i]
+              ? String(
+                  (heads[i].querySelector('.ora-cat-title') && heads[i].querySelector('.ora-cat-title').textContent) ||
+                    heads[i].textContent ||
+                    ''
+                ).trim()
+              : '';
+            var label = rawLabel.split(/\s+/)[0] || ('فئة ' + (i + 1));
+            if (!label) continue;
+            var amtHtml = yearMode
+              ? oraYearStackHtml(years, catYearSums[i] || [], true, true)
+              : '<b dir="ltr">' + fmtOraPickAmt(sums[i] || 0) + '</b>';
+            bits.push('<span class="ora-pick-cat-pill"><span>' + label + '</span>' + amtHtml + '</span>');
+          }
+          return bits.join('');
+        }
         function fillPickUi(el) {
           if (!el) return;
           var cEl = el.querySelector('.ora-pick-count');
@@ -4676,22 +4733,14 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         fillPickUi(bar);
         fillPickUi(foot);
+        var pills = catPillsHtml();
+        if (bar) {
+          var barCats = bar.querySelector('.ora-pick-bar-cats');
+          if (barCats) barCats.innerHTML = pills;
+        }
         if (foot) {
           var catsEl = foot.querySelector('.ora-pick-foot-cats');
-          if (catsEl) {
-            var bits = [];
-            for (i = 0; i < catCount; i += 1) {
-              var rawLabel = heads[i] ? String(heads[i].childNodes[0] && heads[i].childNodes[0].textContent || heads[i].textContent || '').trim() : '';
-              var label = rawLabel.split(/\s+/)[0] || ('فئة ' + (i + 1));
-              if (!label) continue;
-              if (yearMode) {
-                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], true, true) + '</span>');
-              } else {
-                bits.push('<span>' + label + ': <b dir="ltr">' + fmtOraPickAmt(sums[i] || 0) + '</b></span>');
-              }
-            }
-            catsEl.innerHTML = count ? bits.join('') : '';
-          }
+          if (catsEl) catsEl.innerHTML = pills;
         }
       }
       document.addEventListener('change', function (ev) {
