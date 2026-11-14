@@ -187,7 +187,12 @@ function tableSurface(title, countLabel, headers, rowsHtml, tableClass = 'si-tab
     .map((h) => {
       if (h && typeof h === 'object') {
         const cls = h.className ? ` class="${esc(String(h.className))}"` : '';
-        return `<th${cls}>${esc(h.label == null ? '' : h.label)}</th>`;
+        let extra = '';
+        if (h.dataSort) extra += ` data-sort="${esc(String(h.dataSort))}"`;
+        if (h.dataSortType) extra += ` data-sort-type="${esc(String(h.dataSortType))}"`;
+        if (h.title) extra += ` title="${esc(String(h.title))}"`;
+        if (h.attrs) extra += ` ${String(h.attrs)}`;
+        return `<th${cls}${extra}>${esc(h.label == null ? '' : h.label)}</th>`;
       }
       return `<th>${esc(h)}</th>`;
     })

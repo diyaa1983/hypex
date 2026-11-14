@@ -186,6 +186,7 @@ function customerListQueryString(src = {}) {
   if (regionId > 0) p.set('region_id', String(regionId));
   if (String(src.all || '') === '1') p.set('all', '1');
   if (String(src.oracle_pending || '') === '1') p.set('oracle_pending', '1');
+  if (String(src.hide_unlinked || '') === '1') p.set('hide_unlinked', '1');
   const customerId = Number(src.customer_id || 0) || 0;
   if (customerId > 0) p.set('customer_id', String(customerId));
   const salesRepId = Number(src.sales_rep_id || 0) || 0;
@@ -200,6 +201,7 @@ function rememberCustomerListFilter(req) {
     Object.prototype.hasOwnProperty.call(req.query, 'region_id') ||
     Object.prototype.hasOwnProperty.call(req.query, 'all') ||
     Object.prototype.hasOwnProperty.call(req.query, 'oracle_pending') ||
+    Object.prototype.hasOwnProperty.call(req.query, 'hide_unlinked') ||
     Object.prototype.hasOwnProperty.call(req.query, 'customer_id') ||
     Object.prototype.hasOwnProperty.call(req.query, 'sales_rep_id');
   if (hasFilter) {
@@ -243,6 +245,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
   const qv = String(req.query.q || '');
   const showAll = String(req.query.all || '') === '1';
   const oraclePending = String(req.query.oracle_pending || '') === '1';
+  const hideUnlinked = String(req.query.hide_unlinked || '') === '1';
   const regionId = Number(req.query.region_id || 0) || 0;
   const customerId = Number(req.query.customer_id || 0) || 0;
   const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
@@ -253,6 +256,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
     regionId,
     salesRepId,
     oraclePendingOnly: oraclePending,
+    linkedOnly: hideUnlinked,
   };
   const [rows, total] = await Promise.all([
     q.listCustomers({ ...filter, limit: 20000 }),
@@ -313,6 +317,9 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
         <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem">
           <input type="checkbox" name="oracle_pending" value="1" ${oraclePending ? 'checked' : ''}> بانتظار ربط Oracle
         </label>
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem;min-height:2.1rem" title="إخفاء العملاء الذين ليس لهم مندوب مربوط">
+          <input type="checkbox" name="hide_unlinked" value="1" ${hideUnlinked ? 'checked' : ''}> إخفاء غير المربوطين بمندوب
+        </label>
         <button class="si-btn si-btn--primary" type="submit">عرض</button>
       </form>
     </div>`;
@@ -335,30 +342,48 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           const searchBits = [r.code, r.name_ar, r.phone, r.region_name, r.sales_rep_name, pay]
             .map((v) => String(v || ''))
             .join(' ');
-          return `<tr data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
+          const statusLabel = Number(r.is_active) === 1 ? 'نشط' : 'موقوف';
+          return `<tr data-sort-row data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}" data-sort-code="${ui.esc(r.code || '')}" data-sort-name="${ui.esc(r.name_ar || '')}" data-sort-pay="${ui.esc(pay)}" data-sort-phone="${ui.esc(r.phone || '')}" data-sort-region="${ui.esc(r.region_name || '')}" data-sort-rep="${ui.esc(r.sales_rep_name || '')}" data-sort-status="${ui.esc(statusLabel)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
       <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
       <td>${ui.esc(r.name_ar || '')}</td>
       <td>${pay ? ui.esc(pay) : '—'}</td>
       <td class="si-num" dir="ltr">${dash(r.phone)}</td>
       <td>${dash(r.region_name)}</td>
       <td>${dash(r.sales_rep_name)}</td>
-      <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', Number(r.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
+      <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', statusLabel)}</td>
       <td><a class="si-btn js-keep-cust-list" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">${pending ? 'ربط Oracle' : 'تعديل'}</a></td>
     </tr>`;
         }
       )
       .join('') || ui.emptyRow(8);
 
+  const sortTh = (label, key) => ({
+    label,
+    className: 'js-sort-th',
+    dataSort: key,
+    dataSortType: 'text',
+    title: 'ترتيب حسب ' + label,
+  });
+
   listPage(res, req.session.user, {
     title: 'العملاء',
     mark: 'Cl',
     subtitle: 'دليل العملاء — إضافة وتعديل على Node',
-    headers: ['الرمز', 'الاسم', 'فترة السداد', 'الهاتف', 'المنطقة', 'المندوب', 'الحالة', ''],
+    headers: [
+      sortTh('الرمز', 'code'),
+      sortTh('الاسم', 'name'),
+      sortTh('فترة السداد', 'pay'),
+      sortTh('الهاتف', 'phone'),
+      sortTh('المنطقة', 'region'),
+      sortTh('المندوب', 'rep'),
+      sortTh('الحالة', 'status'),
+      '',
+    ],
     rowsHtml,
     count: hasPicked ? `1 من ${total}` : total > rows.length ? `${rows.length} من ${total}` : total,
     phpRoute: 'customers',
     filtersHtml,
-    tableClass: 'si-table si-table--lined',
+    tableClass: 'si-table si-table--lined js-sortable-report',
     wrapClass: 'cust-list-scroll',
     extraHtml: `<style>
       .si-table-wrap.cust-list-scroll{direction:ltr;overflow-x:auto!important;overflow-y:scroll!important;scrollbar-gutter:stable}
@@ -367,7 +392,12 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
       .si-table-wrap.cust-list-scroll::-webkit-scrollbar{width:16px;height:14px}
       .si-table-wrap.cust-list-scroll::-webkit-scrollbar-thumb{background:#1a4480;border:3px solid #ece9e4;border-radius:8px}
       .si-table-wrap.cust-list-scroll::-webkit-scrollbar-track{background:#ece9e4}
+      .si-table--lined th.js-sort-th{cursor:pointer;user-select:none;white-space:nowrap}
+      .si-table--lined th.js-sort-th:hover{color:#1a4480;background:#dde6f5}
+      .si-table--lined th.js-sort-th.is-sort-asc::after{content:' ▲';font-size:.65em;opacity:.85}
+      .si-table--lined th.js-sort-th.is-sort-desc::after{content:' ▼';font-size:.65em;opacity:.85}
     </style>
+    <script src="/assets/js/report-sales-table-sort.js"></script>
     <script>
       (function () {
         function fitCustList() {
@@ -423,6 +453,8 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           if (all && all.checked) u.searchParams.set('all', '1');
           var ora = form.querySelector('[name="oracle_pending"]');
           if (ora && ora.checked) u.searchParams.set('oracle_pending', '1');
+          var hideUn = form.querySelector('[name="hide_unlinked"]');
+          if (hideUn && hideUn.checked) u.searchParams.set('hide_unlinked', '1');
           return u.pathname + u.search;
         }
         function persist() {

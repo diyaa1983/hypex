@@ -17,6 +17,7 @@ function customerListWhere({
   regionId = 0,
   salesRepId = 0,
   oraclePendingOnly = false,
+  linkedOnly = false,
 } = {}) {
   const where = ['1=1'];
   const params = [];
@@ -26,6 +27,15 @@ function customerListWhere({
       (c.oracle_key IS NULL OR c.oracle_key = '')
       OR c.oracle_pending = 1
       OR c.code LIKE 'P-%'
+    )`);
+  }
+  if (linkedOnly) {
+    where.push(`(
+      (c.sales_rep_id IS NOT NULL AND c.sales_rep_id > 0)
+      OR EXISTS (
+        SELECT 1 FROM crm_customer_sales_rep csr
+        WHERE csr.customer_id = c.id
+      )
     )`);
   }
   if (regionId > 0) {
@@ -88,6 +98,7 @@ async function listCustomers({
   regionId = 0,
   salesRepId = 0,
   oraclePendingOnly = false,
+  linkedOnly = false,
   limit = 10000,
 } = {}) {
   const { where, params } = customerListWhere({
@@ -96,6 +107,7 @@ async function listCustomers({
     regionId,
     salesRepId,
     oraclePendingOnly,
+    linkedOnly,
   });
   const cap = Math.min(20000, Math.max(1, Number(limit) || 10000));
   return safeQuery(
