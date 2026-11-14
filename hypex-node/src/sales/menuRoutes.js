@@ -3037,13 +3037,14 @@ const oracleRepItemsHandler = async (req, res) => {
     const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
-    rowsHtml = `<div class="ora-tools no-print">
+    const toolsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
         <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
-      </div>
+      </div>`;
+    rowsHtml = `${toolsHtml}
       <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary">${netV.summaryHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
@@ -3053,10 +3054,18 @@ const oracleRepItemsHandler = async (req, res) => {
   }
 
   let tableBlock = '';
+  let stickyToolsHtml = '';
   if (err) {
     tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>`;
   } else if (run) {
-    tableBlock = rowsHtml;
+    // افصل أزرار العرض عن البيانات حتى تبقى مع ترويسة التقرير عند التمرير
+    const toolsMatch = String(rowsHtml || '').match(/^(\s*<div class="ora-tools[\s\S]*?<\/div>)/);
+    if (toolsMatch) {
+      stickyToolsHtml = toolsMatch[1];
+      tableBlock = String(rowsHtml).slice(toolsMatch[0].length);
+    } else {
+      tableBlock = rowsHtml;
+    }
   } else {
     tableBlock = `<p class="muted" style="padding:.5rem 0">حدّد الفلاتر ثم اضغط «عرض».</p>`;
   }
@@ -3108,6 +3117,7 @@ const oracleRepItemsHandler = async (req, res) => {
   ).replace(/</g, '\\u003c');
   const body = `
     <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_item_sales">
+      <div class="ora-report-sticky-chrome">
       ${ui.hero({
         mark: '📦',
         kicker: 'تقارير المبيعات',
@@ -3119,7 +3129,7 @@ const oracleRepItemsHandler = async (req, res) => {
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).</p>
+      <p class="muted no-print ora-report-sticky-note">قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />
@@ -3192,7 +3202,28 @@ const oracleRepItemsHandler = async (req, res) => {
           </div>
         </form>
       </div>
+      ${stickyToolsHtml}
+      </div>
       <style>
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome {
+          position: sticky;
+          top: 0;
+          z-index: 12;
+          margin: 0 0 .55rem;
+          padding: 0 0 .45rem;
+          background: #d4d0c8;
+          box-shadow: 0 1px 0 #808080;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-note {
+          margin: 0 0 .35rem;
+          font-size: .8rem;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome .si-hero {
+          margin-bottom: .45rem;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome .ora-tools {
+          margin: .45rem 0 0;
+        }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-rail {
           display: block;
           border-radius: 12px;
@@ -3299,7 +3330,7 @@ const oracleRepItemsHandler = async (req, res) => {
           font-size: .82rem;
           padding: .55rem .45rem;
           position: sticky !important;
-          top: 0;
+          top: var(--ora-report-sticky-h, 0px);
           background: #e8eef5 !important;
           box-shadow: 0 1px 0 #94a3b8;
           z-index: 6;
@@ -3449,6 +3480,11 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-grand { background: #eef2f7; }
         @media print {
           @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
+          .ora-report-sticky-chrome {
+            position: static !important;
+            box-shadow: none !important;
+            background: transparent !important;
+          }
           .ora-portrait-table thead th,
           .ora-portrait-table th.ora-vhead { position: static; box-shadow: none; }
           .ora-portrait-table { font-size: 9pt; }
@@ -3457,6 +3493,36 @@ const oracleRepItemsHandler = async (req, res) => {
         }
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
+      <script>
+      (function syncOraReportSticky() {
+        var page = document.querySelector('.si-report-page[data-report-route="report_oracle_rep_item_sales"]');
+        if (!page) return;
+        var title = document.querySelector('.hx-ora-screen-title');
+        var chrome = page.querySelector('.ora-report-sticky-chrome');
+        function sync() {
+          var titleH = 0;
+          if (title) {
+            title.style.position = 'sticky';
+            title.style.top = '0px';
+            title.style.zIndex = '20';
+            titleH = title.offsetHeight || 0;
+          }
+          if (chrome) {
+            chrome.style.top = titleH + 'px';
+            page.style.setProperty('--ora-report-sticky-h', (titleH + chrome.offsetHeight) + 'px');
+          } else {
+            page.style.setProperty('--ora-report-sticky-h', titleH + 'px');
+          }
+        }
+        sync();
+        if (typeof ResizeObserver !== 'undefined') {
+          var ro = new ResizeObserver(sync);
+          if (title) ro.observe(title);
+          if (chrome) ro.observe(chrome);
+        }
+        window.addEventListener('resize', sync);
+      })();
+      </script>
       <script type="application/json" id="report-sales-reps-json">${repsPickerJson}</script>
       <script type="application/json" id="report-sales-customers-json">${customersJson}</script>
       <script type="application/json" id="report-sales-categories-json">${categoriesJson}</script>

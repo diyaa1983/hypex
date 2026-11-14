@@ -157,7 +157,25 @@ body.co-ora-body .si-table thead th {
   white-space: nowrap;
 }
 
-/* تقارير/شاشات: ترويسة الجدول تبقى ظاهرة عند التمرير للأسفل */
+/* تقارير: ترويسة التقرير (عنوان/فلاتر/أزرار) + ترويسة الأعمدة تبقى ظاهرة */
+body.co-ora-body:has(.si-report-page) .hx-ora-screen-title,
+body.co-ora-body:has(.report-sales-page) .hx-ora-screen-title {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+body.co-ora-body .si-report-page .ora-report-sticky-chrome,
+body.co-ora-body .report-sales-page .ora-report-sticky-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  background: #d4d0c8;
+  box-shadow: 0 1px 0 #808080;
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.45rem;
+}
+
 body.co-ora-body .si-report-page .si-table-wrap:not(.cust-list-scroll),
 body.co-ora-body .si-stage.si-report-page .si-table-wrap:not(.cust-list-scroll),
 body.co-ora-body .report-ora12-workspace .table-wrap,
@@ -180,13 +198,20 @@ body.co-ora-body .si-stage.si-report-page .si-table thead th,
 body.co-ora-body .report-sales-page .si-table thead th,
 body.co-ora-body .report-ora12-workspace .data-table thead th {
   position: sticky !important;
-  top: 0;
+  top: var(--ora-report-sticky-h, 0px);
   z-index: 6;
   background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%) !important;
   box-shadow: 0 1px 0 #808080;
 }
 
 @media print {
+  body.co-ora-body:has(.si-report-page) .hx-ora-screen-title,
+  body.co-ora-body:has(.report-sales-page) .hx-ora-screen-title,
+  body.co-ora-body .si-report-page .ora-report-sticky-chrome,
+  body.co-ora-body .report-sales-page .ora-report-sticky-chrome {
+    position: static !important;
+    box-shadow: none !important;
+  }
   body.co-ora-body .si-report-page .si-table thead th,
   body.co-ora-body .si-stage.si-report-page .si-table thead th,
   body.co-ora-body .report-sales-page .si-table thead th,
