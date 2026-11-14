@@ -3499,28 +3499,38 @@ const oracleRepItemsHandler = async (req, res) => {
         if (!page) return;
         var title = document.querySelector('.hx-ora-screen-title');
         var chrome = page.querySelector('.ora-report-sticky-chrome');
+        var main = document.querySelector('main.si-main, main.app-embed-main, main.main');
         function sync() {
           var titleH = 0;
           if (title) {
             title.style.position = 'sticky';
             title.style.top = '0px';
             title.style.zIndex = '20';
-            titleH = title.offsetHeight || 0;
+            titleH = Math.ceil(title.getBoundingClientRect().height || title.offsetHeight || 0);
           }
           if (chrome) {
+            chrome.style.position = 'sticky';
             chrome.style.top = titleH + 'px';
-            page.style.setProperty('--ora-report-sticky-h', (titleH + chrome.offsetHeight) + 'px');
+            chrome.style.zIndex = '12';
+            var chromeH = Math.ceil(chrome.getBoundingClientRect().height || chrome.offsetHeight || 0);
+            var total = titleH + chromeH;
+            page.style.setProperty('--ora-report-sticky-h', total + 'px');
+            if (main) main.style.setProperty('--ora-report-sticky-h', total + 'px');
           } else {
             page.style.setProperty('--ora-report-sticky-h', titleH + 'px');
+            if (main) main.style.setProperty('--ora-report-sticky-h', titleH + 'px');
           }
         }
         sync();
+        requestAnimationFrame(sync);
         if (typeof ResizeObserver !== 'undefined') {
           var ro = new ResizeObserver(sync);
           if (title) ro.observe(title);
           if (chrome) ro.observe(chrome);
+          if (main) ro.observe(main);
         }
         window.addEventListener('resize', sync);
+        if (main) main.addEventListener('scroll', function () { /* keep sticky vars fresh after fonts */ }, { passive: true });
       })();
       </script>
       <script type="application/json" id="report-sales-reps-json">${repsPickerJson}</script>

@@ -52,8 +52,17 @@ body.si-2027 .main.si-main {
   padding: 0 !important;
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* clip بدل hidden حتى لا يتحول overflow-y إلى auto ويكسر sticky */
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+/* التقارير: main هو من يتمرر بارتفاع النافذة */
+body.si-2027:has(.si-report-page) .main.si-main,
+body.si-2027:has(.report-sales-page) .main.si-main {
+  min-height: 0 !important;
+  overflow-x: clip !important;
+  overflow-y: auto !important;
 }
 
 /* Atmosphere mesh */

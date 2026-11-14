@@ -2,9 +2,31 @@
 
 .app-body--embed {
   margin: 0;
-  min-height: 100vh;
-  overflow: auto;
+  min-height: 100%;
+  height: 100%;
+  overflow: hidden;
   background: var(--shell-bg, #d4d0c8);
+}
+
+.app-body--embed .app-shell,
+.app-body--embed .app-shell--focus {
+  min-height: 0 !important;
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-body--embed .main.si-main,
+.app-body--embed .app-embed-main {
+  flex: 1 1 auto;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: 100%;
+  overflow-x: clip;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .app-embed-head {

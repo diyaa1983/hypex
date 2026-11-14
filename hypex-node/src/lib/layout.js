@@ -319,9 +319,9 @@ function renderApp({
     if (!hasOraCss) allCss.push('/assets/css/customer-order-ora.css');
     const hasOraGlobal = allCss.some((c) => String(c).indexOf('hypex-ora-global.css') !== -1);
     if (!hasOraGlobal) allCss.push('/assets/css/hypex-ora-global.css');
+    const hasMdiCss = allCss.some((c) => String(c).indexOf('app-window-manager.css') !== -1);
+    if (!hasMdiCss) allCss.push('/assets/css/app-window-manager.css');
     if (!isMdiEmbedRequest()) {
-      const hasMdiCss = allCss.some((c) => String(c).indexOf('app-window-manager.css') !== -1);
-      if (!hasMdiCss) allCss.push('/assets/css/app-window-manager.css');
       const hasMdiJs = allJs.some((j) => String(j).indexOf('app-window-manager.js') !== -1);
       if (!hasMdiJs) allJs.push('/assets/js/app-window-manager.js');
     }
@@ -399,10 +399,19 @@ function renderApp({
     })
     .join('\n');
 
-  const bodyCls = ['app-body', bodyClass, user ? 'has-topnav' : '', printChrome && user ? 'has-print-chrome' : '']
+  const embedReq = isMdiEmbedRequest();
+  const bodyCls = [
+    'app-body',
+    bodyClass,
+    embedReq ? 'app-body--embed app-body--focus' : '',
+    user && !embedReq ? 'has-topnav' : '',
+    printChrome && user ? 'has-print-chrome' : '',
+  ]
     .filter(Boolean)
     .join(' ');
-  const mainCls = mainClass || 'main main--wide';
+  const mainCls = embedReq
+    ? `${mainClass || 'main main--wide'} app-embed-main`.replace(/\s+/g, ' ').trim()
+    : mainClass || 'main main--wide';
   const printed = printChrome && user ? wrapPrintShell(bodyHtml) : bodyHtml;
   const mainBody = user ? wrapScreenChrome(title, printed, activePath) : printed;
   const printAttrs =
@@ -468,8 +477,8 @@ function renderApp({
       <p class="app-busy-hint">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
     </div>
   </div>
-  <div class="app-shell">
-    ${user ? renderSidebar(user, activePath, bellHtml, title) : ''}
+  <div class="app-shell${embedReq ? ' app-shell--focus' : ''}">
+    ${user && !embedReq ? renderSidebar(user, activePath, bellHtml, title) : ''}
     <main class="${esc(mainCls)}">
       ${mainBody}
     </main>

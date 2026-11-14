@@ -157,7 +157,57 @@ body.co-ora-body .si-table thead th {
   white-space: nowrap;
 }
 
-/* تقارير: ترويسة التقرير (عنوان/فلاتر/أزرار) + ترويسة الأعمدة تبقى ظاهرة */
+/*
+ * تقارير: sticky لا يعمل إذا كان body يتمرر وmain عليه overflow بدون ارتفاع ثابت.
+ * نجعل main هو حاوية التمرير الوحيدة داخل التقارير.
+ */
+html:has(body.app-body:has(.si-report-page)),
+html:has(body.app-body:has(.report-sales-page)) {
+  height: 100%;
+  overflow: hidden;
+}
+
+body.app-body:has(.si-report-page),
+body.app-body:has(.report-sales-page),
+body.app-body--embed:has(.si-report-page),
+body.app-body--embed:has(.report-sales-page) {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.app-body:has(.si-report-page) .app-shell,
+body.app-body:has(.report-sales-page) .app-shell {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  height: auto !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.app-body:has(.si-report-page) .main.si-main,
+body.app-body:has(.report-sales-page) .main.si-main,
+body.app-body:has(.si-report-page) main.main,
+body.app-body:has(.report-sales-page) main.main,
+body.si-2027:has(.si-report-page) .main.si-main {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: 100% !important;
+  overflow-x: clip !important;
+  overflow-y: auto !important;
+}
+
+body.co-ora-body:has(.si-report-page) .hx-ora-screen,
+body.co-ora-body:has(.report-sales-page) .hx-ora-screen {
+  min-height: min-content;
+}
+
 body.co-ora-body:has(.si-report-page) .hx-ora-screen-title,
 body.co-ora-body:has(.report-sales-page) .hx-ora-screen-title {
   position: sticky;
@@ -205,6 +255,22 @@ body.co-ora-body .report-ora12-workspace .data-table thead th {
 }
 
 @media print {
+  html:has(body.app-body:has(.si-report-page)),
+  html:has(body.app-body:has(.report-sales-page)),
+  body.app-body:has(.si-report-page),
+  body.app-body:has(.report-sales-page) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  body.app-body:has(.si-report-page) .app-shell,
+  body.app-body:has(.report-sales-page) .app-shell,
+  body.app-body:has(.si-report-page) .main.si-main,
+  body.app-body:has(.report-sales-page) .main.si-main {
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+  }
   body.co-ora-body:has(.si-report-page) .hx-ora-screen-title,
   body.co-ora-body:has(.report-sales-page) .hx-ora-screen-title,
   body.co-ora-body .si-report-page .ora-report-sticky-chrome,
