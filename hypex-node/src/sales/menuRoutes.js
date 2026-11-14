@@ -3629,40 +3629,35 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         .ora-cust-label { min-width: 0; }
         table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) td {
-          background: #1e3a5f;
-          color: #fff;
-          border-color: #16304f;
+          background: #d9e4f2;
+          color: #000;
+          border-color: #c5d3e6;
         }
         table.ora-summary-pick tbody tr.ora-sum-row:nth-child(even) td {
           background: #f1f5f9;
-          color: #0f172a;
+          color: #000;
         }
-        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-cust-label {
-          color: #fff;
+        table.ora-summary-pick tbody tr.ora-sum-row .ora-cust-label,
+        table.ora-summary-pick tbody tr.ora-sum-row .ora-yval,
+        table.ora-summary-pick tbody tr.ora-sum-row td {
+          color: #000 !important;
         }
         table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-yline {
-          background: rgba(255, 255, 255, 0.14);
-          border-color: rgba(255, 255, 255, 0.28);
-        }
-        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-yval {
-          color: #fff;
+          background: #eef4fb;
+          border-color: #b8c9df;
         }
         table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-yline.ora-ydiff {
-          background: rgba(147, 197, 253, 0.28);
-          border-color: rgba(191, 219, 254, 0.55);
-        }
-        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-cust-pick {
-          accent-color: #93c5fd;
+          background: #e0edff;
+          border-color: #93c5fd;
         }
         table.ora-summary-pick tbody tr.ora-sum-row.is-picked td {
           outline: 2px solid #38bdf8;
           outline-offset: -2px;
         }
-        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd).is-picked td {
-          background: #2563eb;
-        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd).is-picked td,
         table.ora-summary-pick tbody tr.ora-sum-row:nth-child(even).is-picked td {
           background: #dbeafe;
+          color: #000;
         }
         tr.ora-pick-sum td {
           background: #dbeafe;
@@ -3823,20 +3818,27 @@ const oracleRepItemsHandler = async (req, res) => {
           font-weight: 700;
         }
         table.ora-summary-pick thead th.ora-vhead {
-          background: #1e3a5f !important;
-          color: #fff !important;
-          box-shadow: 0 1px 0 #0f2744;
+          background: #c5d6ea !important;
+          color: #000 !important;
+          box-shadow: 0 1px 0 #94a3b8;
+        }
+        table.ora-summary-pick thead th.ora-vhead .ora-cat-title,
+        table.ora-summary-pick thead th.ora-vhead .ora-yhead-y {
+          color: #000;
         }
         table.ora-summary-pick thead th.ora-vhead .ora-yhead-y {
-          background: rgba(255, 255, 255, 0.18);
-          color: #fff;
+          background: #e8eef8;
         }
         table.ora-summary-pick thead th.ora-vhead .ora-yhead-diff {
-          background: #93c5fd;
-          color: #0f2744;
+          background: #bfdbfe;
+          color: #000;
         }
         table.ora-summary-pick thead th.ora-vhead.js-sort-th:hover {
-          background: #274873 !important;
+          background: #b4c9e0 !important;
+        }
+        table.ora-summary-pick tbody tr.ora-cust-final td,
+        table.ora-summary-pick tbody tr.ora-pick-sum td {
+          color: #000 !important;
         }
         table.ora-year-compare td.ora-cat-years,
         table.ora-year-compare td.ora-total-years {
