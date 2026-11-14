@@ -163,22 +163,50 @@ async function salesRepOptions() {
   );
 }
 
-async function reportCustomers({ activeOnly = false } = {}) {
-  const where = activeOnly ? 'WHERE c.is_active = 1' : '';
+async function reportCustomers({ activeOnly = false, salesRepId = 0 } = {}) {
+  const where = ['1=1'];
+  const params = [];
+  if (activeOnly) where.push('c.is_active = 1');
+  if (salesRepId > 0) {
+    where.push(`(
+      c.sales_rep_id = ?
+      OR EXISTS (
+        SELECT 1 FROM crm_customer_sales_rep csr
+        WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+      )
+    )`);
+    params.push(salesRepId, salesRepId);
+  }
   return safeQuery(
     `SELECT c.code AS customer_code, c.name_ar AS customer_name,
             COALESCE(c.phone,'') AS phone, COALESCE(c.email,'') AS email,
             COALESCE(c.tax_number,'') AS tax_number, COALESCE(c.address_ar,'') AS address_ar,
-            COALESCE(NULLIF(TRIM(r.name_ar), ''), '') AS sales_rep_name, c.is_active,
+            COALESCE(
+              NULLIF(TRIM(repn.names), ''),
+              NULLIF(TRIM(r.name_ar), ''),
+              ''
+            ) AS sales_rep_name,
+            c.is_active,
             COALESCE(NULLIF(TRIM(rg.name_ar), ''), '') AS region_name,
             COALESCE(NULLIF(TRIM(ra.name_ar), ''), '') AS region_address_name
      FROM crm_customer c
      LEFT JOIN crm_sales_rep r ON r.id = c.sales_rep_id
      LEFT JOIN crm_region rg ON rg.id = c.region_id
      LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
-     ${where}
+     LEFT JOIN (
+       SELECT csr.customer_id,
+              GROUP_CONCAT(
+                CONCAT(r2.name_ar, IF(IFNULL(TRIM(r2.code), '') = '', '', CONCAT(' (', r2.code, ')')))
+                ORDER BY csr.sort_order, r2.name_ar SEPARATOR '، '
+              ) AS names
+       FROM crm_customer_sales_rep csr
+       INNER JOIN crm_sales_rep r2 ON r2.id = csr.sales_rep_id
+       GROUP BY csr.customer_id
+     ) repn ON repn.customer_id = c.id
+     WHERE ${where.join(' AND ')}
      ORDER BY c.name_ar ASC, c.code ASC
-     LIMIT 2000`
+     LIMIT 2000`,
+    params
   );
 }
 

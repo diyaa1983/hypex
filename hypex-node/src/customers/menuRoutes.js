@@ -878,10 +878,16 @@ registerOracleSyncRoutes(router, { guard, ui, q, HUB, KICKER });
 /* ── Reports ── */
 router.get('/customers/reports/list', guard('report_customers'), async (req, res) => {
   const activeOnly = String(req.query.active_only || '') === '1';
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
   const wantExcel = String(req.query.excel || '') === '1';
-  const rows = await q.reportCustomers({ activeOnly });
+  const reps = await q.salesRepOptions();
+  const rows = await q.reportCustomers({ activeOnly, salesRepId });
   const active = rows.filter((r) => Number(r.is_active) === 1).length;
   const inactive = rows.length - active;
+  const selectedRep = salesRepId > 0 ? reps.find((r) => Number(r.id) === salesRepId) : null;
+  const repSubtitle = selectedRep
+    ? ` · مندوب: ${selectedRep.name_ar}${selectedRep.code ? ' (' + selectedRep.code + ')' : ''}`
+    : '';
 
   if (wantExcel) {
     const table = [
@@ -901,10 +907,19 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
         Number(r.is_active) === 1 ? 'نشط' : 'موقوف',
       ]);
     });
-    return sendExcelCsv(res, 'customers_report', table);
+    const fname = salesRepId > 0 ? 'customers_report_rep_' + salesRepId : 'customers_report';
+    return sendExcelCsv(res, fname, table);
   }
 
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${ui.esc(r.name_ar)}${r.code ? ' (' + ui.esc(r.code) + ')' : ''}</option>`
+    )
+    .join('');
+
   const excelQs = new URLSearchParams();
+  if (salesRepId > 0) excelQs.set('sales_rep_id', String(salesRepId));
   if (activeOnly) excelQs.set('active_only', '1');
   excelQs.set('excel', '1');
   const excelHref = '/customers/reports/list?' + excelQs.toString();
@@ -912,6 +927,12 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
   const filtersHtml = `
     <div class="si-rail no-print">
       <form class="si-search" method="get" action="/customers/reports/list" style="max-width:100%;margin:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center">
+        <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.35rem">المندوب
+          <select name="sales_rep_id" class="si-field" style="min-height:2.1rem;width:auto;min-width:11rem">
+            <option value="0">جميع المندوبين</option>
+            ${repOpts}
+          </select>
+        </label>
         <label style="font-size:.8rem;font-weight:700;color:#5c6578;display:flex;align-items:center;gap:.3rem">
           <input type="checkbox" name="active_only" value="1" ${activeOnly ? 'checked' : ''}> العملاء النشطون فقط
         </label>
@@ -921,7 +942,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
       </form>
     </div>
     <div class="si-print-meta print-only">
-      <strong>تقرير العملاء</strong>
+      <strong>تقرير العملاء</strong>${ui.esc(repSubtitle)}
       · نشط: ${active} · موقوف: ${inactive}
       · طُبع: <span class="si-print-when" dir="ltr"></span>
     </div>`;
@@ -950,7 +971,7 @@ router.get('/customers/reports/list', guard('report_customers'), async (req, res
         mark: 'R1',
         kicker: KICKER,
         title: 'تقرير العملاء',
-        subtitle: `${rows.length} عميل · نشط ${active} · موقوف ${inactive}`,
+        subtitle: `${rows.length} عميل · نشط ${active} · موقوف ${inactive}${repSubtitle}`,
         actions: [
           ui.printAction(),
           { label: 'Excel', href: excelHref },
