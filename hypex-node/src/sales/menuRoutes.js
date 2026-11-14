@@ -2788,6 +2788,29 @@ const oracleRepItemsHandler = async (req, res) => {
       if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
     }
     const custDiscOf = (acc) => discByCust.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
+    const allocDisc = (parts, discTotal) => {
+      const vals = (parts || []).map((n) => Number(n) || 0);
+      const disc = Number(discTotal) || 0;
+      if (!vals.length || !disc) return vals.slice();
+      const sum = vals.reduce((s, n) => s + n, 0);
+      if (!sum) return vals.slice();
+      let used = 0;
+      return vals.map((g, idx) => {
+        if (idx === vals.length - 1) return Math.round((g - (disc - used)) * 1000) / 1000;
+        const share = Math.round(((disc * g) / sum) * 1000) / 1000;
+        used += share;
+        return Math.round((g - share) * 1000) / 1000;
+      });
+    };
+    const invDiscLookup = new Map();
+    for (const d of invoiceDiscounts || []) {
+      const acc = normAccKey(d.customer_acc);
+      const y = Number(d.invoice_year) || 0;
+      const n = Number(d.invoice_no) || 0;
+      const kind = String(d.doc_kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
+      if (!acc || n < 1) continue;
+      invDiscLookup.set(`${kind}|${y}|${n}|${acc}`, Number(d.vou_disc) || 0);
+    }
     const buildOraViews = (sourceRows) => {
     let summaryHtml = '';
     let detailHtml = '';
@@ -2898,6 +2921,7 @@ const oracleRepItemsHandler = async (req, res) => {
             invYear,
             saleDate,
             customer: String(r.customer_name || acc || '—'),
+            customerAcc: acc,
             lines: [],
             qty: 0,
             bonus: 0,
@@ -2943,39 +2967,52 @@ const oracleRepItemsHandler = async (req, res) => {
       };
       custMap.forEach((slot, acc) => {
         let rowAmt = 0;
+        const catGrossParts = catOrder.map((cat) => Number(slot.cats.get(cat)?.amt || 0) || 0);
+        catGrossParts.forEach((amt) => {
+          rowAmt += amt;
+        });
+        const discInfo = custDiscOf(acc);
+        const rowGross = rowAmt;
+        const rowDisc = Number(discInfo.total) || 0;
+        const rowNet = rowAmt - rowDisc;
+        const catNetParts = allocDisc(catGrossParts, rowDisc);
+        const rowByYearGross = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearNet = new Map(compareYears.map((y) => [y, 0]));
+        const catYearNetMaps = catOrder.map(() => new Map(compareYears.map((y) => [y, 0])));
+        if (yearCompare) {
+          compareYears.forEach((y) => {
+            const yearGrossParts = catOrder.map(
+              (cat) => Number(slot.cats.get(cat)?.byYear?.get(y) || 0) || 0
+            );
+            const yearGross = yearGrossParts.reduce((s, n) => s + n, 0);
+            const yearDisc = Number(discInfo.byYear.get(y) || 0) || 0;
+            const yearNetParts = allocDisc(yearGrossParts, yearDisc);
+            rowByYearGross.set(y, yearGross);
+            rowByYearNet.set(y, yearGross - yearDisc);
+            yearNetParts.forEach((n, idx) => catYearNetMaps[idx].set(y, n));
+          });
+        }
         const catAmts = [];
         const catYearParts = [];
-        const rowByYear = new Map(compareYears.map((y) => [y, 0]));
         const sumCells = catOrder
           .map((cat, idx) => {
-            const bag = slot.cats.get(cat);
-            const amt = bag?.amt || 0;
-            colTotals[idx] += amt;
-            rowAmt += amt;
-            catAmts.push(String(amt));
+            const netAmt = catNetParts[idx] || 0;
+            colTotals[idx] += netAmt;
+            catAmts.push(String(netAmt));
             if (yearCompare) {
               const yParts = compareYears.map((y) => {
-                const ya = Number(bag?.byYear?.get(y) || 0) || 0;
-                colYearTotals[idx].set(y, (colYearTotals[idx].get(y) || 0) + ya);
-                rowByYear.set(y, (rowByYear.get(y) || 0) + ya);
-                return String(ya);
+                const yn = Number(catYearNetMaps[idx].get(y) || 0) || 0;
+                colYearTotals[idx].set(y, (colYearTotals[idx].get(y) || 0) + yn);
+                return String(yn);
               });
               catYearParts.push(yParts.join(','));
-              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), true, true)}</td>`;
+              return `<td class="si-num ora-cat-years">${yearStackHtml(catYearNetMaps[idx], true, true)}</td>`;
             }
-            return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
+            return `<td class="si-num ora-net-cell" dir="ltr" title="صافي">${
+              netAmt ? esc(fmtAmt(netAmt)) : ''
+            }</td>`;
           })
           .join('');
-        const discInfo = custDiscOf(acc);
-        const rowGross = rowAmt; // إجمالي أوراكل = المبيعات − المرتجعات
-        const rowNet = rowAmt - (Number(discInfo.total) || 0); // الصافي = الإجمالي − خصم الفاتورة
-        const rowByYearGross = rowByYear;
-        const rowByYearNet = new Map(compareYears.map((y) => [y, 0]));
-        compareYears.forEach((y) => {
-          const g = Number(rowByYear.get(y) || 0) || 0;
-          const d = Number(discInfo.byYear.get(y) || 0) || 0;
-          rowByYearNet.set(y, g - d);
-        });
         repGross += rowGross;
         repNet += rowNet;
         if (yearCompare) {
@@ -2985,10 +3022,7 @@ const oracleRepItemsHandler = async (req, res) => {
           });
         }
         const catSortAttrs = catOrder
-          .map((cat, idx) => {
-            const amt = slot.cats.get(cat)?.amt || 0;
-            return ` data-sort-cat${idx}="${amt}"`;
-          })
+          .map((cat, idx) => ` data-sort-cat${idx}="${catNetParts[idx] || 0}"`)
           .join('');
         const accSafe = esc(String(acc || slot.label || ''));
         const yearAttr = yearCompare
@@ -3005,41 +3039,66 @@ const oracleRepItemsHandler = async (req, res) => {
         summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${netCell}</tr>`;
         let custQty = 0;
         let custBonus = 0;
-        let custAmt = 0;
         let lines = '';
-        catOrder.forEach((cat) => {
+        const detailGrossParts = [];
+        const detailMeta = [];
+        catOrder.forEach((cat, cIdx) => {
           const bag = slot.cats.get(cat);
           if (!bag || !bag.items.length) return;
-          let catQty = 0;
-          let catBonus = 0;
-          bag.items
-            .slice()
-            .sort((a, b) => {
-              const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
-              if (d) return d;
-              return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
-            })
-            .forEach((it) => {
-              catQty += it.qty;
-              catBonus += Number(it.bonus) || 0;
-              const label = cleanName(it.name) || it.name;
-              lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-bonus="${Number(it.bonus) || 0}" data-sort-amount="${it.amount}">
-                <td class="si-num" dir="ltr">${esc(fmtSaleDate(it.saleDate) || '—')}</td>
-                <td>${esc(cat)}</td>
-                <td class="ora-name">${esc(label)}</td>
-                <td class="ora-code" dir="ltr">${esc(it.barcode || '')}</td>
-                ${qtyExtraCell(it.qty, it.bonus)}
-                <td class="si-num" dir="ltr">${esc(fmtAmt(it.amount))}</td>
-              </tr>`;
-            });
-          lines += `<tr class="ora-cat-sum"><td colspan="4">مجموع ${esc(cat)}</td>${qtyExtraCell(catQty, catBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
-          custQty += catQty;
-          custBonus += catBonus;
-          custAmt += bag.amt;
+          const items = bag.items.slice().sort((a, b) => {
+            const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
+            if (d) return d;
+            return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
+          });
+          const start = detailMeta.length;
+          items.forEach((it) => {
+            detailGrossParts.push(Number(it.amount) || 0);
+            detailMeta.push({ cat, cIdx, it });
+          });
+          detailMeta[start]._catStart = true;
+          detailMeta[detailMeta.length - 1]._catEnd = true;
+        });
+        const detailNetParts = allocDisc(detailGrossParts, rowDisc);
+        let catRunQty = 0;
+        let catRunBonus = 0;
+        let catRunGross = 0;
+        let catRunNet = 0;
+        let catRunName = '';
+        detailMeta.forEach((meta, idx) => {
+          const it = meta.it;
+          const cat = meta.cat;
+          const grossAmt = Number(it.amount) || 0;
+          const netAmt = detailNetParts[idx] || 0;
+          if (meta._catStart) {
+            catRunQty = 0;
+            catRunBonus = 0;
+            catRunGross = 0;
+            catRunNet = 0;
+            catRunName = cat;
+          }
+          catRunQty += it.qty;
+          catRunBonus += Number(it.bonus) || 0;
+          catRunGross += grossAmt;
+          catRunNet += netAmt;
+          custQty += it.qty;
+          custBonus += Number(it.bonus) || 0;
+          const label = cleanName(it.name) || it.name;
+          lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-bonus="${Number(it.bonus) || 0}" data-sort-amount="${netAmt}" data-sort-gross="${grossAmt}">
+            <td class="si-num" dir="ltr">${esc(fmtSaleDate(it.saleDate) || '—')}</td>
+            <td>${esc(cat)}</td>
+            <td class="ora-name">${esc(label)}</td>
+            <td class="ora-code" dir="ltr">${esc(it.barcode || '')}</td>
+            ${qtyExtraCell(it.qty, it.bonus)}
+            <td class="si-num" dir="ltr">${esc(fmtAmt(grossAmt))}</td>
+            <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(netAmt))}</td>
+          </tr>`;
+          if (meta._catEnd) {
+            lines += `<tr class="ora-cat-sum"><td colspan="4">مجموع ${esc(catRunName)}</td>${qtyExtraCell(catRunQty, catRunBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(catRunGross))}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(catRunNet))}</td></tr>`;
+          }
         });
         if (!lines) return;
-        detailBody += `<tr class="ora-cust-band"><td colspan="7">${esc(slot.label)}</td></tr>${lines}`;
-        detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td>${qtyExtraCell(custQty, custBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
+        detailBody += `<tr class="ora-cust-band"><td colspan="8">${esc(slot.label)}</td></tr>${lines}`;
+        detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td>${qtyExtraCell(custQty, custBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(rowGross))}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td></tr>`;
       });
       const invList = [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
@@ -3048,6 +3107,7 @@ const oracleRepItemsHandler = async (req, res) => {
         if (k) return k;
         return (a.invNo || 0) - (b.invNo || 0);
       });
+      let invRepNet = 0;
       invList.forEach((inv) => {
         const isRet = String(inv.docKind || 'S') === 'R';
         const kindLabel = isRet ? 'مرتجع' : 'بيع';
@@ -3064,38 +3124,50 @@ const oracleRepItemsHandler = async (req, res) => {
         const invTitle = invHref
           ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
           : esc(invLabel);
-        invoiceBody += `<tr class="ora-cust-band"><td colspan="6">${invTitle}
+        const accKey = normAccKey(inv.customerAcc);
+        const discKey = `${isRet ? 'R' : 'S'}|${Number(inv.invYear) || 0}|${Number(inv.invNo) || 0}|${accKey}`;
+        const vouDisc = Number(invDiscLookup.get(discKey) || 0) || 0;
+        const invGross = Number(inv.amount) || 0;
+        const invNet = invGross - vouDisc;
+        const sortedLines = inv.lines.slice().sort((a, b) => {
+          const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
+          if (c) return c;
+          return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
+        });
+        const lineNetParts = allocDisc(
+          sortedLines.map((ln) => Number(ln.amount) || 0),
+          vouDisc
+        );
+        invoiceBody += `<tr class="ora-cust-band"><td colspan="7">${invTitle}
           <span class="ora-inv-meta"> — ${esc(kindLabel)} — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
-        inv.lines
-          .slice()
-          .sort((a, b) => {
-            const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
-            if (c) return c;
-            return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
-          })
-          .forEach((ln) => {
+        sortedLines.forEach((ln, lnIdx) => {
             const lnName = cleanName(ln.name) || ln.name;
-            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-bonus="${Number(ln.bonus) || 0}" data-sort-amount="${ln.amount}">
+            const netAmt = lineNetParts[lnIdx] || 0;
+            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-bonus="${Number(ln.bonus) || 0}" data-sort-amount="${netAmt}" data-sort-gross="${ln.amount}">
               <td>${esc(ln.cat)}</td>
               <td class="ora-name">${esc(lnName)}</td>
               <td class="ora-code" dir="ltr">${esc(ln.barcode || '')}</td>
               ${qtyExtraCell(ln.qty, ln.bonus)}
               <td class="si-num" dir="ltr">${esc(fmtAmt(ln.amount))}</td>
+              <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(netAmt))}</td>
             </tr>`;
           });
         invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع ${esc(kindLabel)}</td>
           ${qtyExtraCell(inv.qty, inv.bonus)}
-          <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td></tr>`;
+          <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
+          <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td></tr>`;
         invRepQty += inv.qty;
         invRepBonus += Number(inv.bonus) || 0;
-        invRepAmt += inv.amount;
-        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${inv.qty}" data-sort-bonus="${Number(inv.bonus) || 0}" data-sort-amount="${inv.amount}">
+        invRepAmt += invGross;
+        invRepNet += invNet;
+        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${inv.qty}" data-sort-bonus="${Number(inv.bonus) || 0}" data-sort-amount="${invNet}" data-sort-gross="${invGross}">
           <td>${esc(kindLabel)}</td>
           <td>${invTitle}</td>
           <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
           <td class="ora-cust-name">${esc(inv.customer)}</td>
           ${qtyExtraCell(inv.qty, inv.bonus)}
-          <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
+          <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td>
         </tr>`;
       });
       if (invoiceSumBody) {
@@ -3103,13 +3175,14 @@ const oracleRepItemsHandler = async (req, res) => {
           <td colspan="4">مجموع المندوب</td>
           ${qtyExtraCell(invRepQty, invRepBonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(invRepAmt))}</td>
+          <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invRepNet))}</td>
         </tr>`;
       }
       const foot = yearCompare
         ? colYearTotals
             .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, true, true)}</td>`)
             .join('')
-        : colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
+        : colTotals.map((amt) => `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footGross = yearCompare
         ? `<td class="si-num ora-total-years ora-gross-cell">${yearStackHtml(repYearGrossTotals, false)}</td>`
         : `<td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(repGross))}</td>`;
@@ -3124,14 +3197,14 @@ const oracleRepItemsHandler = async (req, res) => {
       const heads = catOrder
         .map(
           (cat, idx) =>
-            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="ترتيب حسب ${esc(cat)}"><span class="ora-cat-title">${esc(
+            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="صافي ${esc(cat)}"><span class="ora-cat-title">${esc(
               cat
-            )}</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
+            )}</span><span class="ora-yhint">صافي</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
         )
         .join('');
       const yearNote = yearCompare
-        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — الصافي = الإجمالي − خصم الفاتورة (VOU_DISC) كما في أوراكل. فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
-        : '';
+        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — حقول الفئات تعرض الصافي (بعد خصم الفاتورة). فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
+        : `<div class="ora-year-note muted">حقول الفئات والتفصيل والفواتير تعرض الصافي بعد خصم الفاتورة (VOU_DISC) كما في أوراكل.</div>`;
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
@@ -3187,7 +3260,8 @@ const oracleRepItemsHandler = async (req, res) => {
               <th class="ora-vhead js-sort-th" data-sort="barcode" data-sort-type="text">الباركود</th>
               <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
               <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
-              <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
+              <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number">الإجمالي</th>
+              <th class="ora-vhead js-sort-th ora-col-net" data-sort="amount" data-sort-type="number">الصافي</th>
             </tr></thead>
             <tbody>${detailBody}</tbody>
           </table>
@@ -3205,7 +3279,8 @@ const oracleRepItemsHandler = async (req, res) => {
               <th class="ora-vhead js-sort-th" data-sort="barcode" data-sort-type="text">الباركود</th>
               <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
               <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
-              <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
+              <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number">الإجمالي</th>
+              <th class="ora-vhead js-sort-th ora-col-net" data-sort="amount" data-sort-type="number">الصافي</th>
             </tr></thead>
             <tbody>${invoiceBody}</tbody>
           </table>
@@ -3224,7 +3299,8 @@ const oracleRepItemsHandler = async (req, res) => {
               <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
               <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
               <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
-              <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
+              <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number">الإجمالي</th>
+              <th class="ora-vhead js-sort-th ora-col-net" data-sort="amount" data-sort-type="number">الصافي</th>
             </tr></thead>
             <tbody>${invoiceSumBody}</tbody>
           </table>
@@ -3837,6 +3913,14 @@ const oracleRepItemsHandler = async (req, res) => {
           display: block;
           font-weight: 800;
           line-height: 1.2;
+        }
+        .ora-yhint {
+          display: block;
+          margin-top: .1rem;
+          font-size: .62rem;
+          font-weight: 800;
+          color: #1d4ed8;
+          line-height: 1.15;
         }
         .ora-yhead {
           display: flex;
