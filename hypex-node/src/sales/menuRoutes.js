@@ -2644,6 +2644,7 @@ const oracleRepItemsHandler = async (req, res) => {
   };
   const itemRow = (r, groupId) => {
     const qty = Number(r.qty) || 0;
+    const bonus = Number(r.bonus) || 0;
     const amount = Number(r.amount) || 0;
     const codes = itemCodesOf(r);
     return `<tr class="ora-item" data-ora-lines="${groupId}" hidden>
@@ -2652,6 +2653,7 @@ const oracleRepItemsHandler = async (req, res) => {
       <td class="si-num ora-code" dir="ltr">${esc(codes.code)}</td>
       <td class="ora-name">${esc(r.item_name || '')}</td>
       <td class="si-num" dir="ltr">${esc(fmtQty(qty))}</td>
+      <td class="si-num ora-qty-extra" dir="ltr">${bonus ? esc(fmtQty(bonus)) : ''}</td>
       <td class="si-num" dir="ltr">${esc(fmtAmt(amount))}</td>
     </tr>`;
   };
@@ -2689,17 +2691,21 @@ const oracleRepItemsHandler = async (req, res) => {
           const lines = [];
           let catQty = 0;
           let catAmt = 0;
+          let catBonus = 0;
           while (c < slice.length && String(slice[c].cat_name || 'بدون فئة') === cat) {
             const qty = Number(slice[c].qty) || 0;
+            const bonus = Number(slice[c].bonus) || 0;
             const amount = Number(slice[c].amount) || 0;
             catQty += qty;
+            catBonus += bonus;
             catAmt += amount;
             lines.push(slice[c]);
             c += 1;
           }
-          cats.push({ cat, lines, catQty, catAmt });
+          cats.push({ cat, lines, catQty, catBonus, catAmt });
         }
         const custQty = cats.reduce((s, x) => s + x.catQty, 0);
+        const custBonus = cats.reduce((s, x) => s + (x.catBonus || 0), 0);
         const custAmt = cats.reduce((s, x) => s + x.catAmt, 0);
         repQty += custQty;
         repAmt += custAmt;
@@ -2710,6 +2716,7 @@ const oracleRepItemsHandler = async (req, res) => {
             const head = `<tr class="ora-cat-head" data-ora-toggle="${id}" data-open="0">
               <td colspan="4"><span class="ora-arrow" aria-hidden="true"></span>${esc(g.cat)}</td>
               <td class="si-num" dir="ltr">${esc(fmtQty(g.catQty))}</td>
+              <td class="si-num ora-qty-extra" dir="ltr">${g.catBonus ? esc(fmtQty(g.catBonus)) : ''}</td>
               <td class="si-num" dir="ltr">${esc(fmtAmt(g.catAmt))}</td>
             </tr>`;
             return head + g.lines.map((line) => itemRow(line, id)).join('');
@@ -2718,6 +2725,7 @@ const oracleRepItemsHandler = async (req, res) => {
         body += `<tr class="ora-cust-final">
           <td colspan="4">المجموع النهائي لمبيعات العميل</td>
           <td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td>
+          <td class="si-num ora-qty-extra" dir="ltr">${custBonus ? esc(fmtQty(custBonus)) : ''}</td>
           <td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td>
         </tr>`;
         rowsHtml += `<section class="ora-cust-block">
@@ -2733,6 +2741,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 <th class="ora-vhead">كود</th>
                 <th class="ora-vhead">اسم المادة</th>
                 <th class="ora-vhead">الكمية</th>
+                <th class="ora-vhead">إضافي</th>
                 <th class="ora-vhead">المبلغ</th>
               </tr></thead>
               <tbody>${body}</tbody>
@@ -2742,7 +2751,7 @@ const oracleRepItemsHandler = async (req, res) => {
       });
       rowsHtml += `<p class="ora-rep-total">إجمالي المندوب ${esc(repLabel)} — الكمية ${esc(fmtQty(repQty))} — المبلغ ${esc(fmtAmt(repAmt))}</p>`;
     }
-    rowsHtml += `<p class="ora-grand">الإجمالي — الكمية ${esc(fmtQty(totals.qty))} — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
+    rowsHtml += `<p class="ora-grand">الإجمالي — الكمية ${esc(fmtQty(totals.qty))} — إضافي ${esc(fmtQty(totals.bonus || 0))} — المبلغ ${esc(fmtAmt(totals.amount))}</p>`;
   } else if (rows.length || netRows.length) {
     const invBase = basePath.ensurePrefixed('/sales/reports/oracle-sales-invoice');
     const buildOraViews = (sourceRows) => {
@@ -2793,6 +2802,7 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         const amount = Number(r.amount) || 0;
         const qty = Number(r.qty) || 0;
+        const bonus = Number(r.bonus) || 0;
         bag.amt += amount;
         const saleDate = String(r.sale_date || '').trim();
         const invNo = Number(r.invoice_no) || 0;
@@ -2804,9 +2814,10 @@ const oracleRepItemsHandler = async (req, res) => {
         if (found) {
           found.amount += amount;
           found.qty += qty;
+          found.bonus += bonus;
           if (!found.barcode && barcode) found.barcode = barcode;
         } else {
-          bag.items.push({ name, code, barcode, saleDate, qty, amount, invNo, invYear });
+          bag.items.push({ name, code, barcode, saleDate, qty, bonus, amount, invNo, invYear });
         }
         const invKey = `${docKind}|${invYear}|${invNo}|${acc}`;
         if (!invMap.has(invKey)) {
@@ -2818,14 +2829,16 @@ const oracleRepItemsHandler = async (req, res) => {
             customer: String(r.customer_name || acc || '—'),
             lines: [],
             qty: 0,
+            bonus: 0,
             amount: 0,
           });
         }
         const inv = invMap.get(invKey);
         if (saleDate && (!inv.saleDate || saleDate < inv.saleDate)) inv.saleDate = saleDate;
         inv.qty += qty;
+        inv.bonus += bonus;
         inv.amount += amount;
-        inv.lines.push({ cat, name, barcode, qty, amount });
+        inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
@@ -2839,12 +2852,19 @@ const oracleRepItemsHandler = async (req, res) => {
       let invoiceSumBody = '';
       let repAmt = 0;
       let invRepQty = 0;
+      let invRepBonus = 0;
       let invRepAmt = 0;
       const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
       const fmtSaleDate = (iso) => {
         const s = String(iso || '');
         const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
         return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+      };
+      const qtyExtraCell = (qty, bonus) => {
+        const b = Number(bonus) || 0;
+        return `<td class="si-num" dir="ltr">${esc(fmtQty(qty))}</td><td class="si-num ora-qty-extra" dir="ltr">${
+          b ? esc(fmtQty(b)) : ''
+        }</td>`;
       };
       custMap.forEach((slot) => {
         let rowAmt = 0;
@@ -2863,12 +2883,14 @@ const oracleRepItemsHandler = async (req, res) => {
           .join('');
         summaryBody += `<tr data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowAmt}"${catSortAttrs}><td class="ora-cust-name">${esc(slot.label)}</td>${sumCells}<td class="si-num" dir="ltr">${esc(fmtAmt(rowAmt))}</td></tr>`;
         let custQty = 0;
+        let custBonus = 0;
         let custAmt = 0;
         let lines = '';
         catOrder.forEach((cat) => {
           const bag = slot.cats.get(cat);
           if (!bag || !bag.items.length) return;
           let catQty = 0;
+          let catBonus = 0;
           bag.items
             .slice()
             .sort((a, b) => {
@@ -2878,23 +2900,25 @@ const oracleRepItemsHandler = async (req, res) => {
             })
             .forEach((it) => {
               catQty += it.qty;
+              catBonus += Number(it.bonus) || 0;
               const label = cleanName(it.name) || it.name;
-              lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-amount="${it.amount}">
+              lines += `<tr data-sort-row data-sort-date="${esc(it.saleDate || '')}" data-sort-cat="${esc(cat)}" data-sort-item="${esc(label)}" data-sort-barcode="${esc(it.barcode || '')}" data-sort-qty="${it.qty}" data-sort-bonus="${Number(it.bonus) || 0}" data-sort-amount="${it.amount}">
                 <td class="si-num" dir="ltr">${esc(fmtSaleDate(it.saleDate) || '—')}</td>
                 <td>${esc(cat)}</td>
                 <td class="ora-name">${esc(label)}</td>
                 <td class="ora-code" dir="ltr">${esc(it.barcode || '')}</td>
-                <td class="si-num" dir="ltr">${esc(fmtQty(it.qty))}</td>
+                ${qtyExtraCell(it.qty, it.bonus)}
                 <td class="si-num" dir="ltr">${esc(fmtAmt(it.amount))}</td>
               </tr>`;
             });
-          lines += `<tr class="ora-cat-sum"><td colspan="4">مجموع ${esc(cat)}</td><td class="si-num" dir="ltr">${esc(fmtQty(catQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
+          lines += `<tr class="ora-cat-sum"><td colspan="4">مجموع ${esc(cat)}</td>${qtyExtraCell(catQty, catBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(bag.amt))}</td></tr>`;
           custQty += catQty;
+          custBonus += catBonus;
           custAmt += bag.amt;
         });
         if (!lines) return;
-        detailBody += `<tr class="ora-cust-band"><td colspan="6">${esc(slot.label)}</td></tr>${lines}`;
-        detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td><td class="si-num" dir="ltr">${esc(fmtQty(custQty))}</td><td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
+        detailBody += `<tr class="ora-cust-band"><td colspan="7">${esc(slot.label)}</td></tr>${lines}`;
+        detailBody += `<tr class="ora-cust-final"><td colspan="4">المجموع النهائي لمبيعات العميل</td>${qtyExtraCell(custQty, custBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(custAmt))}</td></tr>`;
       });
       const invList = [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
@@ -2919,7 +2943,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const invTitle = invHref
           ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
           : esc(invLabel);
-        invoiceBody += `<tr class="ora-cust-band"><td colspan="5">${invTitle}
+        invoiceBody += `<tr class="ora-cust-band"><td colspan="6">${invTitle}
           <span class="ora-inv-meta"> — ${esc(kindLabel)} — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
         inv.lines
           .slice()
@@ -2930,32 +2954,33 @@ const oracleRepItemsHandler = async (req, res) => {
           })
           .forEach((ln) => {
             const lnName = cleanName(ln.name) || ln.name;
-            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-amount="${ln.amount}">
+            invoiceBody += `<tr data-sort-row data-sort-cat="${esc(ln.cat)}" data-sort-item="${esc(lnName)}" data-sort-barcode="${esc(ln.barcode || '')}" data-sort-qty="${ln.qty}" data-sort-bonus="${Number(ln.bonus) || 0}" data-sort-amount="${ln.amount}">
               <td>${esc(ln.cat)}</td>
               <td class="ora-name">${esc(lnName)}</td>
               <td class="ora-code" dir="ltr">${esc(ln.barcode || '')}</td>
-              <td class="si-num" dir="ltr">${esc(fmtQty(ln.qty))}</td>
+              ${qtyExtraCell(ln.qty, ln.bonus)}
               <td class="si-num" dir="ltr">${esc(fmtAmt(ln.amount))}</td>
             </tr>`;
           });
         invoiceBody += `<tr class="ora-cust-final"><td colspan="3">مجموع ${esc(kindLabel)}</td>
-          <td class="si-num" dir="ltr">${esc(fmtQty(inv.qty))}</td>
+          ${qtyExtraCell(inv.qty, inv.bonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td></tr>`;
         invRepQty += inv.qty;
+        invRepBonus += Number(inv.bonus) || 0;
         invRepAmt += inv.amount;
-        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${inv.qty}" data-sort-amount="${inv.amount}">
+        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${inv.qty}" data-sort-bonus="${Number(inv.bonus) || 0}" data-sort-amount="${inv.amount}">
           <td>${esc(kindLabel)}</td>
           <td>${invTitle}</td>
           <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
           <td class="ora-cust-name">${esc(inv.customer)}</td>
-          <td class="si-num" dir="ltr">${esc(fmtQty(inv.qty))}</td>
+          ${qtyExtraCell(inv.qty, inv.bonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(inv.amount))}</td>
         </tr>`;
       });
       if (invoiceSumBody) {
         invoiceSumBody += `<tr class="ora-cust-final">
           <td colspan="4">مجموع المندوب</td>
-          <td class="si-num" dir="ltr">${esc(fmtQty(invRepQty))}</td>
+          ${qtyExtraCell(invRepQty, invRepBonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(invRepAmt))}</td>
         </tr>`;
       }
@@ -2995,6 +3020,7 @@ const oracleRepItemsHandler = async (req, res) => {
               <th class="ora-vhead js-sort-th" data-sort="item" data-sort-type="text">المادة</th>
               <th class="ora-vhead js-sort-th" data-sort="barcode" data-sort-type="text">الباركود</th>
               <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+              <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
               <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
             </tr></thead>
             <tbody>${detailBody}</tbody>
@@ -3012,6 +3038,7 @@ const oracleRepItemsHandler = async (req, res) => {
               <th class="ora-vhead js-sort-th" data-sort="item" data-sort-type="text">المادة</th>
               <th class="ora-vhead js-sort-th" data-sort="barcode" data-sort-type="text">الباركود</th>
               <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+              <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
               <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
             </tr></thead>
             <tbody>${invoiceBody}</tbody>
@@ -3030,6 +3057,7 @@ const oracleRepItemsHandler = async (req, res) => {
               <th class="ora-vhead js-sort-th" data-sort="date" data-sort-type="date">التاريخ</th>
               <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
               <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+              <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
               <th class="ora-vhead js-sort-th" data-sort="amount" data-sort-type="number">المبلغ</th>
             </tr></thead>
             <tbody>${invoiceSumBody}</tbody>
@@ -3044,7 +3072,7 @@ const oracleRepItemsHandler = async (req, res) => {
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
     const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>`;
+    const netGrand = `<p class="ora-grand">الصافي (مبيعات − مرتجعات) — الكمية ${esc(fmtQty(netTotals.qty))} — إضافي ${esc(fmtQty(netTotals.bonus || 0))} — المبلغ ${esc(fmtAmt(netTotals.amount))} <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(String(returnRows.length))} بمبلغ ${esc(fmtAmt(retAmtShow))})</span></p>`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     const toolsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
