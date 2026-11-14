@@ -2975,10 +2975,9 @@ const oracleRepItemsHandler = async (req, res) => {
         const rowGross = rowAmt;
         const rowDisc = Number(discInfo.total) || 0;
         const rowNet = rowAmt - rowDisc;
-        const catNetParts = allocDisc(catGrossParts, rowDisc);
         const rowByYearGross = new Map(compareYears.map((y) => [y, 0]));
         const rowByYearNet = new Map(compareYears.map((y) => [y, 0]));
-        const catYearNetMaps = catOrder.map(() => new Map(compareYears.map((y) => [y, 0])));
+        const catYearGrossMaps = catOrder.map(() => new Map(compareYears.map((y) => [y, 0])));
         if (yearCompare) {
           compareYears.forEach((y) => {
             const yearGrossParts = catOrder.map(
@@ -2986,31 +2985,28 @@ const oracleRepItemsHandler = async (req, res) => {
             );
             const yearGross = yearGrossParts.reduce((s, n) => s + n, 0);
             const yearDisc = Number(discInfo.byYear.get(y) || 0) || 0;
-            const yearNetParts = allocDisc(yearGrossParts, yearDisc);
             rowByYearGross.set(y, yearGross);
             rowByYearNet.set(y, yearGross - yearDisc);
-            yearNetParts.forEach((n, idx) => catYearNetMaps[idx].set(y, n));
+            yearGrossParts.forEach((n, idx) => catYearGrossMaps[idx].set(y, n));
           });
         }
         const catAmts = [];
         const catYearParts = [];
         const sumCells = catOrder
           .map((cat, idx) => {
-            const netAmt = catNetParts[idx] || 0;
-            colTotals[idx] += netAmt;
-            catAmts.push(String(netAmt));
+            const grossAmt = catGrossParts[idx] || 0;
+            colTotals[idx] += grossAmt;
+            catAmts.push(String(grossAmt));
             if (yearCompare) {
               const yParts = compareYears.map((y) => {
-                const yn = Number(catYearNetMaps[idx].get(y) || 0) || 0;
-                colYearTotals[idx].set(y, (colYearTotals[idx].get(y) || 0) + yn);
-                return String(yn);
+                const yg = Number(catYearGrossMaps[idx].get(y) || 0) || 0;
+                colYearTotals[idx].set(y, (colYearTotals[idx].get(y) || 0) + yg);
+                return String(yg);
               });
               catYearParts.push(yParts.join(','));
-              return `<td class="si-num ora-cat-years">${yearStackHtml(catYearNetMaps[idx], true, true)}</td>`;
+              return `<td class="si-num ora-cat-years">${yearStackHtml(catYearGrossMaps[idx], true, true)}</td>`;
             }
-            return `<td class="si-num ora-net-cell" dir="ltr" title="صافي">${
-              netAmt ? esc(fmtAmt(netAmt)) : ''
-            }</td>`;
+            return `<td class="si-num" dir="ltr">${grossAmt ? esc(fmtAmt(grossAmt)) : ''}</td>`;
           })
           .join('');
         repGross += rowGross;
@@ -3022,7 +3018,7 @@ const oracleRepItemsHandler = async (req, res) => {
           });
         }
         const catSortAttrs = catOrder
-          .map((cat, idx) => ` data-sort-cat${idx}="${catNetParts[idx] || 0}"`)
+          .map((cat, idx) => ` data-sort-cat${idx}="${catGrossParts[idx] || 0}"`)
           .join('');
         const accSafe = esc(String(acc || slot.label || ''));
         const yearAttr = yearCompare
@@ -3182,7 +3178,7 @@ const oracleRepItemsHandler = async (req, res) => {
         ? colYearTotals
             .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, true, true)}</td>`)
             .join('')
-        : colTotals.map((amt) => `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
+        : colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footGross = yearCompare
         ? `<td class="si-num ora-total-years ora-gross-cell">${yearStackHtml(repYearGrossTotals, false)}</td>`
         : `<td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(repGross))}</td>`;
@@ -3197,14 +3193,14 @@ const oracleRepItemsHandler = async (req, res) => {
       const heads = catOrder
         .map(
           (cat, idx) =>
-            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="صافي ${esc(cat)}"><span class="ora-cat-title">${esc(
+            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="${esc(
               cat
-            )}</span><span class="ora-yhint">صافي</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
+            )}"><span class="ora-cat-title">${esc(cat)}</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
         )
         .join('');
       const yearNote = yearCompare
-        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — حقول الفئات تعرض الصافي (بعد خصم الفاتورة). فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
-        : `<div class="ora-year-note muted">حقول الفئات والتفصيل والفواتير تعرض الصافي بعد خصم الفاتورة (VOU_DISC) كما في أوراكل.</div>`;
+        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — الفئات بالإجمالي، والصافي بجانب الإجمالي فقط. فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
+        : `<div class="ora-year-note muted">الفئات تعرض المبلغ (مبيعات − مرتجعات). الصافي يظهر بجانب الإجمالي فقط = الإجمالي − خصم الفاتورة VOU_DISC.</div>`;
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
