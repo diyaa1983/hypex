@@ -538,6 +538,11 @@ sales_ora12_enqueue_assets();
             var takeSumBySrl = {};
             var needBySrl = {};
             var statusMsg = '';
+            var undefRows = batchRows.querySelectorAll('tr[data-mascard-ok="0"]');
+            if (undefRows.length) {
+              ok = false;
+              statusMsg = 'يوجد ' + undefRows.length + ' مادة غير معرفة في Oracle — صحّح رقم المادة ثم أعد الترحيل.';
+            }
             batchRows.querySelectorAll('select.co-cat-select').forEach(function (sel) {
               if (!(sel.value || '').trim()) {
                 ok = false;
@@ -643,14 +648,36 @@ sales_ora12_enqueue_assets();
             if (!batchRows || !batchModal) return;
             batchRows.innerHTML = '';
             if (batchSub) {
+              var undefN = Array.isArray(data.undefined_items) ? data.undefined_items.length : 0;
               batchSub.textContent = 'مستودع ' + (data.store || '—')
                 + (data.warehouse_name ? (' — Oracle: ' + data.warehouse_name) : '')
+                + (undefN ? (' · تنبيه: ' + undefN + ' مادة غير معرفة في Oracle') : '')
                 + ' · المصدر: MAS.BALANCE (QTY_OH) مثل Forms · عدّل الكمية ثم رحّل.';
             }
             var rowNo = 0;
             (data.lines || []).forEach(function (ln) {
               var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
               var batches = Array.isArray(ln.batches) ? ln.batches : [];
+              if (ln.mascard_ok === false) {
+                rowNo += 1;
+                var trU = document.createElement('tr');
+                trU.className = 'co-batch-row--nostock co-batch-row--invalid';
+                trU.dataset.srl = String(ln.srl || '');
+                trU.dataset.mascardOk = '0';
+                var errU = (ln.error_ar || 'المادة غير معرفة في Oracle — الرقم غير مطابق أو غير موجود');
+                var triedU = (ln.hypex_item || ln.item || ln.hypex_barcode || '');
+                trU.innerHTML = '<td class="co-batch-col-idx">' + rowNo + '</td>'
+                  + '<td><strong class="co-batch-item-code" dir="ltr">' + (ln.item || '') + '</strong>'
+                  + '<span class="co-batch-item-name">' + (ln.name || '') + '</span></td>'
+                  + '<td class="co-batch-col-cat">—</td>'
+                  + '<td class="co-batch-col-need">' + fmtQty(ln.need) + '</td>'
+                  + '<td class="co-batch-col-take">—</td>'
+                  + '<td colspan="2"><div class="co-batch-warn">' + errU
+                  + (triedU ? (' (الرقم: ' + triedU + ')') : '')
+                  + '</div></td>';
+                batchRows.appendChild(trU);
+                return;
+              }
               if (!allocs.length) {
                 rowNo += 1;
                 var tr0 = document.createElement('tr');
@@ -787,11 +814,31 @@ sales_ora12_enqueue_assets();
               body: JSON.stringify({ id: id })
             }).then(function (r) { return r.json(); }).then(function (x) {
               if (!x.ok) {
+                if (x.code === 'item_undefined') {
+                  var items0 = Array.isArray(x.items) ? x.items.filter(Boolean) : [];
+                  var body0 = items0.length ? items0.join('\n') : (x.message || 'المادة غير معرفة على النظام');
+                  if (window.HypexUI && window.HypexUI.dialog) {
+                    window.HypexUI.dialog({ title: 'المادة غير معرفة على النظام', message: body0, kind: 'error', buttons: [{ label: 'حسناً', value: true, primary: true }] });
+                  } else {
+                    alert(body0);
+                  }
+                  if (oraMsg) oraMsg.textContent = x.message || 'المادة غير معرفة على النظام';
+                  return;
+                }
                 if (oraMsg) oraMsg.textContent = x.message || 'تعذر جلب التشغيلات.';
                 return;
               }
               if (oraMsg) oraMsg.textContent = '';
               openBatchModal(x);
+              if (x.has_undefined && Array.isArray(x.undefined_items) && x.undefined_items.length) {
+                var warnBody = 'بعض المواد غير معرفة في Oracle:\n' + x.undefined_items.join('\n')
+                  + '\n\nستظهر رسالة بجانب كل مادة غير مطابقة.';
+                if (window.HypexUI && window.HypexUI.dialog) {
+                  window.HypexUI.dialog({ title: 'مواد غير معرفة في Oracle', message: warnBody, kind: 'warning', buttons: [{ label: 'حسناً', value: true, primary: true }] });
+                } else {
+                  alert(warnBody);
+                }
+              }
             }).catch(function () {
               if (oraMsg) oraMsg.textContent = 'تعذر الاتصال.';
             });

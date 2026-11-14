@@ -5963,6 +5963,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
 
     $pickerLines = [];
     $undefinedNames = [];
+    $validCount = 0;
     $srl = 0;
     foreach ($lines as $ln) {
         $qty = (float) ($ln['qty'] ?? 0);
@@ -5976,10 +5977,44 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
             $card = oracle_order_mascard_find($conn, $keys['item'], $keys['barcode'], '');
         }
         if ($card === []) {
+            $srl++;
             $undefinedNames[] = oracle_order_line_display_name($ln);
+            $bonusMiss = (float) ($ln['qty_extra'] ?? 0);
+            $trUnitMiss = (float) ($ln['unit_factor'] ?? 1);
+            if ($trUnitMiss <= 0) {
+                $trUnitMiss = 1.0;
+            }
+            $tried = trim((string) ($keys['item'] ?? ''));
+            if ($tried === '') {
+                $tried = trim((string) ($keys['barcode'] ?? ''));
+            }
+            // تبقى في شاشة الترحيل مع رسالة بجانب السطر — لا نمنع فتح النافذة إن وُجدت مواد صحيحة
+            $pickerLines[] = [
+                'srl' => $srl,
+                'line_id' => (int) ($ln['id'] ?? 0),
+                'item' => $tried,
+                'hypex_item' => (string) ($keys['item'] ?? ''),
+                'hypex_barcode' => (string) ($keys['barcode'] ?? ''),
+                'mascard_ok' => false,
+                'cat' => '',
+                'cat_options' => [],
+                'name' => (string) ($ln['item_name'] ?? ''),
+                'need' => $qty + $bonusMiss,
+                'qty' => $qty,
+                'bonus' => $bonusMiss,
+                'unit_factor' => $trUnitMiss,
+                'batches' => [],
+                'allocations' => [],
+                'allocation_ok' => false,
+                'shortfall' => 0.0,
+                'stock_total' => 0.0,
+                'stock_source' => '',
+                'error_ar' => 'المادة غير معرفة في Oracle — الرقم غير مطابق أو غير موجود',
+            ];
             continue;
         }
         $srl++;
+        $validCount++;
         $oracleCat = trim((string) ($card['cat'] ?? ''));
         if ($oracleCat === '') {
             $oracleCat = oracle_order_item_cat_resolve($conn, (string) $card['item'], '');
@@ -6045,6 +6080,7 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
             'srl' => $srl,
             'line_id' => $lineId,
             'item' => (string) $card['item'],
+            'mascard_ok' => true,
             'cat' => $cat,
             'cat_options' => $catOptions,
             'name' => (string) ($ln['item_name'] ?? ''),
@@ -6061,19 +6097,33 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         ];
     }
 
-    if ($undefinedNames !== []) {
+    // كل المواد غير معرفة في Oracle → رسالة فقط دون شاشة ترحيل فارغة
+    if ($validCount < 1 && $undefinedNames !== []) {
         return oracle_order_undefined_items_payload($undefinedNames);
     }
     if ($pickerLines === []) {
         return ['ok' => false, 'message' => 'لا كميات صالحة.'];
     }
 
-    $canPost = true;
-    foreach ($pickerLines as $pl) {
-        if (empty($pl['allocation_ok'])) {
-            $canPost = false;
-            break;
+    $canPost = $undefinedNames === [];
+    if ($canPost) {
+        foreach ($pickerLines as $pl) {
+            if (empty($pl['allocation_ok']) || (array_key_exists('mascard_ok', $pl) && empty($pl['mascard_ok']))) {
+                $canPost = false;
+                break;
+            }
         }
+    }
+
+    $undefUnique = [];
+    $seenU = [];
+    foreach ($undefinedNames as $n) {
+        $n = trim((string) $n);
+        if ($n === '' || isset($seenU[$n])) {
+            continue;
+        }
+        $seenU[$n] = true;
+        $undefUnique[] = $n;
     }
 
     return [
@@ -6085,6 +6135,8 @@ function oracle_order_batch_picker_data(PDO $mysql, int $orderId, array $opts = 
         'lines' => $pickerLines,
         'can_post' => $canPost,
         'auto_allocate' => true,
+        'has_undefined' => $undefUnique !== [],
+        'undefined_items' => $undefUnique,
     ];
 }
 

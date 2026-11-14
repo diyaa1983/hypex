@@ -3471,6 +3471,15 @@
     var needBySrl = {};
     var statusMsg = '';
 
+    var undefRows = batchRows.querySelectorAll('tr[data-mascard-ok="0"]');
+    if (undefRows.length) {
+      ok = false;
+      statusMsg =
+        'يوجد ' +
+        undefRows.length +
+        ' مادة غير معرفة في Oracle — صحّح رقم المادة ثم أعد الترحيل.';
+    }
+
     batchRows.querySelectorAll('.co-cat-select').forEach(function (el) {
       var srl = String(el.dataset.srl || '');
       if (!srl || !(el.value || '').trim()) {
@@ -3614,19 +3623,66 @@
     portalBatchModal();
     batchRows.innerHTML = '';
     if (batchSub) {
-      batchSub.textContent = '';
-      batchSub.hidden = true;
+      var undefList = Array.isArray(data.undefined_items) ? data.undefined_items : [];
+      if (data.has_undefined || undefList.length) {
+        batchSub.textContent =
+          'تنبيه: ' +
+          (undefList.length || '') +
+          (undefList.length ? ' مادة غير معرفة في Oracle — تظهر بالأحمر مع رسالة بجانب كل سطر.' : 'يوجد مواد غير معرفة في Oracle.');
+        batchSub.hidden = false;
+      } else {
+        batchSub.textContent = '';
+        batchSub.hidden = true;
+      }
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {
       var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
       var batches = Array.isArray(ln.batches) ? ln.batches : [];
+      var mascardOk = ln.mascard_ok !== false;
       var itemHtml =
         '<span class="co-batch-item-line"><span class="co-batch-item-code">' +
         escAttr(String(ln.item || '')) +
         '</span><span class="co-batch-item-name">' +
         escAttr(String(ln.name || '')) +
         '</span></span>';
+
+      if (!mascardOk) {
+        rowNo += 1;
+        var trU = document.createElement('tr');
+        trU.className = 'co-batch-row--invalid co-batch-row--undefined';
+        trU.dataset.srl = String(ln.srl || '');
+        trU.dataset.lineId = String(ln.line_id || '');
+        trU.dataset.mascardOk = '0';
+        trU.dataset.need = String(roundBatchQty(Number(ln.need) || 0));
+        var errMsg =
+          String(ln.error_ar || '').trim() ||
+          'المادة غير معرفة في Oracle — الرقم غير مطابق أو غير موجود';
+        var tried =
+          String(ln.hypex_item || ln.item || '').trim() ||
+          String(ln.hypex_barcode || '').trim();
+        trU.innerHTML =
+          '<td class="co-batch-col-idx">' +
+          rowNo +
+          '</td>' +
+          '<td class="co-batch-col-item">' +
+          itemHtml +
+          '</td>' +
+          '<td class="co-batch-col-cat">—</td>' +
+          '<td class="co-batch-col-qty" dir="ltr">' +
+          fmtBatchQty(ln.qty) +
+          '</td>' +
+          '<td class="co-batch-col-bonus" dir="ltr">' +
+          fmtBatchQty(ln.bonus) +
+          '</td>' +
+          '<td class="co-batch-col-take">—</td>' +
+          '<td class="co-batch-col-batch" colspan="2"><div class="co-batch-warn co-batch-warn--undefined">' +
+          escAttr(errMsg) +
+          (tried ? ' (الرقم: ' + escAttr(tried) + ')' : '') +
+          '</div></td>';
+        batchRows.appendChild(trU);
+        return;
+      }
 
       if (!allocs.length) {
         rowNo += 1;
@@ -3800,11 +3856,23 @@
       .then(function (data) {
         setBusy(false);
         if (!data.ok) {
+          if (data.code === 'item_undefined') {
+            showActionError(data);
+            return;
+          }
           setMsg(data.message || data.error || 'تعذر جلب التشغيلات.', 'error');
           return;
         }
         setMsg('');
         openBatchModal(data);
+        if (data.has_undefined && Array.isArray(data.undefined_items) && data.undefined_items.length) {
+          hxAlert(
+            'بعض المواد غير معرفة في Oracle:\n' +
+              data.undefined_items.join('\n') +
+              '\n\nستظهر رسالة بجانب كل مادة غير مطابقة في شاشة الترحيل.',
+            { title: 'مواد غير معرفة في Oracle', kind: 'warning' }
+          );
+        }
       })
       .catch(function () {
         setBusy(false);
@@ -3817,8 +3885,11 @@
     batchConfirm.addEventListener('click', function () {
       if (!pickerData || !pickerData.lines) return;
       if (!validateBatchModal()) {
+        var hasUndef = batchRows && batchRows.querySelector('tr[data-mascard-ok="0"]');
         hxAlert(
-          'لا يمكن الترحيل: التشغيلات يجب أن تغطي الكمية المطلوبة بالكامل، دون تجاوز رصيد أي تشغيلة.',
+          hasUndef
+            ? 'لا يمكن الترحيل: صحّح المواد غير المعرفة في Oracle (الرقم غير مطابق أو غير موجود) ثم أعد المحاولة.'
+            : 'لا يمكن الترحيل: التشغيلات يجب أن تغطي الكمية المطلوبة بالكامل، دون تجاوز رصيد أي تشغيلة.',
           {
             title: 'ترحيل الكميات',
             kind: 'warning',

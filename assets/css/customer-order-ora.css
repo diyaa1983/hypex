@@ -1252,6 +1252,18 @@ body.co-ora-body #co-batch-modal {
   color: #5c4500 !important;
 }
 
+.co-ora-body .co-batch-warn--undefined,
+.co-ora-body .co-batch-row--undefined .co-batch-warn {
+  background: #ffe8e8 !important;
+  border-color: #c04040 !important;
+  color: #7a1010 !important;
+  font-weight: 700 !important;
+}
+
+.co-ora-body .co-batch-row--undefined td {
+  background: #fff0f0 !important;
+}
+
 .co-ora-body .co-batch-foot {
   background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%) !important;
   border-top: 1px solid #888 !important;
