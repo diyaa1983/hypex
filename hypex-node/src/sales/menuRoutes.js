@@ -3661,18 +3661,25 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         .ora-pick-foot-cats span { white-space: nowrap; }
         .ora-ystack {
-          display: grid;
-          gap: .12rem;
-          min-width: 5.5rem;
-          justify-items: stretch;
+          display: inline-flex;
+          flex-wrap: wrap;
+          align-items: stretch;
+          gap: .35rem;
+          min-width: 0;
         }
         .ora-yline {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: .35rem;
-          font-size: .78rem;
-          line-height: 1.25;
+          display: inline-flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: .1rem;
+          min-width: 4.4rem;
+          padding: .2rem .35rem;
+          border: 1px solid #dbe3ee;
+          border-radius: .3rem;
+          background: #f8fafc;
+          font-size: .76rem;
+          line-height: 1.2;
           white-space: nowrap;
         }
         .ora-ylbl {
@@ -3686,9 +3693,8 @@ const oracleRepItemsHandler = async (req, res) => {
           font-variant-numeric: tabular-nums;
         }
         .ora-yline.ora-ydiff {
-          margin-top: .12rem;
-          padding-top: .18rem;
-          border-top: 1px dashed #94a3b8;
+          border-color: #93c5fd;
+          background: #eff6ff;
         }
         .ora-yline.ora-ydiff .ora-ylbl,
         .ora-yline.ora-ydiff .ora-yval { color: #1e3a5f; font-weight: 800; }
@@ -3707,7 +3713,11 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         table.ora-year-compare td.ora-cat-years,
         table.ora-year-compare td.ora-total-years {
-          vertical-align: top;
+          vertical-align: middle;
+        }
+        table.ora-year-compare td.ora-cat-years .ora-ystack,
+        table.ora-year-compare td.ora-total-years .ora-ystack {
+          justify-content: center;
         }
         .ora-inv-link { color: #1e3a5f; font-weight: 800; text-decoration: underline; }
         .ora-inv-meta { font-weight: 600; color: #475569; }
