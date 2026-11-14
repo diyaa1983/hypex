@@ -2773,12 +2773,14 @@ const oracleRepItemsHandler = async (req, res) => {
       const catOrder = [];
       const custMap = new Map();
       const invMap = new Map();
-      const yearHeadHtml = (withDiff) => {
+      const yearHeadHtml = (withDiff, catDiff = false) => {
         const years = compareYears.map((y) => `<span class="ora-yhead-y">${y}</span>`).join('');
-        const diff = withDiff ? `<span class="ora-yhead-y ora-yhead-diff">الفرق</span>` : '';
+        const diff = withDiff
+          ? `<span class="ora-yhead-y ora-yhead-diff${catDiff ? ' ora-cat-diff-head' : ''}">الفرق</span>`
+          : '';
         return `<span class="ora-yhead">${years}${diff}</span>`;
       };
-      const yearStackHtml = (byYear, withDiff) => {
+      const yearStackHtml = (byYear, withDiff, catDiff = false) => {
         const lines = compareYears
           .map((y) => {
             const a = Number(byYear?.get?.(y) || 0) || 0;
@@ -2793,7 +2795,7 @@ const oracleRepItemsHandler = async (req, res) => {
           const last = Number(byYear?.get?.(compareYears[compareYears.length - 1]) || 0) || 0;
           const diff = last - first;
           const sign = diff > 0 ? '+' : '';
-          diffHtml = `<div class="ora-yline ora-ydiff" title="الفرق"><span class="ora-yval" dir="ltr">${esc(
+          diffHtml = `<div class="ora-yline ora-ydiff${catDiff ? ' ora-cat-diff' : ''}" title="الفرق"><span class="ora-yval" dir="ltr">${esc(
             sign + fmtAmt(diff)
           )}</span></div>`;
         }
@@ -2921,7 +2923,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 return String(ya);
               });
               catYearParts.push(yParts.join(','));
-              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), false)}</td>`;
+              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), true, true)}</td>`;
             }
             return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
           })
@@ -3052,7 +3054,7 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       const foot = yearCompare
         ? colYearTotals
-            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, false)}</td>`)
+            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, true, true)}</td>`)
             .join('')
         : colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footTotal = yearCompare
@@ -3068,18 +3070,20 @@ const oracleRepItemsHandler = async (req, res) => {
           (cat, idx) =>
             `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="ترتيب حسب ${esc(cat)}"><span class="ora-cat-title">${esc(
               cat
-            )}</span>${yearCompare ? yearHeadHtml(false) : ''}</th>`
+            )}</span>${yearCompare ? yearHeadHtml(true, true) : ''}</th>`
         )
         .join('');
       const yearNote = yearCompare
-        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — أسماء السنوات في الترويسة فقط، والمبالغ في الصفوف حسب نفس الترتيب، والفرق في المجموع النهائي (${esc(
-            String(compareYears[compareYears.length - 1])
-          )} − ${esc(String(compareYears[0]))})</div>`
+        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — أسماء السنوات في الترويسة فقط، والفرق النهائي دائماً في المجموع. فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
+        : '';
+      const catDiffToggle = yearCompare
+        ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
       const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
           ${yearNote}
+          ${catDiffToggle}
           <div class="ora-pick-bar no-print is-empty">
             <span>مجموع العملاء المحددين (<span class="ora-pick-count">0</span>):</span>
             <strong class="ora-pick-amt" dir="ltr">0</strong>
@@ -3624,13 +3628,68 @@ const oracleRepItemsHandler = async (req, res) => {
           cursor: pointer;
         }
         .ora-cust-label { min-width: 0; }
-        tr.ora-sum-row.is-picked td { background: #eef6ff; }
-        tr.ora-sum-row.is-picked .ora-cust-label { font-weight: 800; color: #1e3a5f; }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) td {
+          background: #1e3a5f;
+          color: #fff;
+          border-color: #16304f;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(even) td {
+          background: #f1f5f9;
+          color: #0f172a;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-cust-label {
+          color: #fff;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-yline {
+          background: rgba(255, 255, 255, 0.14);
+          border-color: rgba(255, 255, 255, 0.28);
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-yval {
+          color: #fff;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-yline.ora-ydiff {
+          background: rgba(147, 197, 253, 0.28);
+          border-color: rgba(191, 219, 254, 0.55);
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) .ora-cust-pick {
+          accent-color: #93c5fd;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row.is-picked td {
+          outline: 2px solid #38bdf8;
+          outline-offset: -2px;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd).is-picked td {
+          background: #2563eb;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(even).is-picked td {
+          background: #dbeafe;
+        }
         tr.ora-pick-sum td {
           background: #dbeafe;
           font-weight: 800;
           color: #1e3a5f;
           border-top: 2px solid #93c5fd;
+        }
+        .ora-cat-diff-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: .4rem;
+          margin-top: .45rem;
+          font-size: .82rem;
+          font-weight: 800;
+          color: #1e3a5f;
+          cursor: pointer;
+          user-select: none;
+        }
+        .ora-cat-diff-toggle input {
+          width: 1.05rem;
+          height: 1.05rem;
+          accent-color: #1e3a5f;
+          cursor: pointer;
+        }
+        table.ora-year-compare:not(.is-show-cat-diff) .ora-cat-diff,
+        table.ora-year-compare:not(.is-show-cat-diff) .ora-cat-diff-head {
+          display: none !important;
         }
         tr.ora-pick-sum.is-empty { display: none; }
         .ora-pick-bar,
@@ -3690,12 +3749,12 @@ const oracleRepItemsHandler = async (req, res) => {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-width: 3.1rem;
-          padding: .08rem .18rem;
+          min-width: 3.4rem;
+          padding: .1rem .2rem;
           border-radius: .2rem;
           background: #e8eef8;
           color: #1e3a5f;
-          font-size: .58rem;
+          font-size: .68rem;
           font-weight: 800;
           line-height: 1.1;
           white-space: nowrap;
@@ -3703,38 +3762,38 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-yhead-y.ora-yhead-diff {
           background: #dbeafe;
           color: #1d4ed8;
-          min-width: 2.6rem;
+          min-width: 2.8rem;
         }
         .ora-yline {
           display: inline-flex;
           flex-direction: row;
           align-items: center;
           justify-content: center;
-          min-width: 3.1rem;
-          padding: .08rem .18rem;
+          min-width: 3.4rem;
+          padding: .12rem .22rem;
           border: 1px solid #dbe3ee;
           border-radius: .22rem;
           background: #f8fafc;
-          font-size: .62rem;
+          font-size: .78rem;
           line-height: 1.15;
           white-space: nowrap;
         }
         .ora-yval {
-          font-weight: 700;
+          font-weight: 800;
           color: #0f172a;
-          font-size: .62rem;
+          font-size: .8rem;
           font-variant-numeric: tabular-nums;
         }
         .ora-yline.ora-ydiff {
-          min-width: 2.6rem;
-          padding: .06rem .16rem;
+          min-width: 2.8rem;
+          padding: .1rem .18rem;
           border-color: #93c5fd;
           background: #eff6ff;
         }
         .ora-yline.ora-ydiff .ora-yval {
           color: #1e3a5f;
           font-weight: 800;
-          font-size: .58rem;
+          font-size: .74rem;
         }
         .ora-year-note {
           margin-top: .35rem;
@@ -3742,14 +3801,14 @@ const oracleRepItemsHandler = async (req, res) => {
           font-weight: 600;
         }
         table.ora-year-compare {
-          font-size: .72rem;
+          font-size: .82rem;
         }
         table.ora-year-compare th.ora-vhead {
-          font-size: .7rem;
-          padding: .28rem .22rem;
+          font-size: .76rem;
+          padding: .35rem .28rem;
         }
         table.ora-year-compare td {
-          padding: .22rem .18rem;
+          padding: .3rem .22rem;
         }
         table.ora-year-compare th.ora-cat-col {
           min-width: 0;
@@ -3757,7 +3816,27 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         table.ora-year-compare td.ora-cust-name {
           min-width: 8.5rem;
-          font-size: .72rem;
+          font-size: .82rem;
+        }
+        table.ora-summary-pick td.si-num {
+          font-size: .84rem;
+          font-weight: 700;
+        }
+        table.ora-summary-pick thead th.ora-vhead {
+          background: #1e3a5f !important;
+          color: #fff !important;
+          box-shadow: 0 1px 0 #0f2744;
+        }
+        table.ora-summary-pick thead th.ora-vhead .ora-yhead-y {
+          background: rgba(255, 255, 255, 0.18);
+          color: #fff;
+        }
+        table.ora-summary-pick thead th.ora-vhead .ora-yhead-diff {
+          background: #93c5fd;
+          color: #0f2744;
+        }
+        table.ora-summary-pick thead th.ora-vhead.js-sort-th:hover {
+          background: #274873 !important;
         }
         table.ora-year-compare td.ora-cat-years,
         table.ora-year-compare td.ora-total-years {
@@ -4055,7 +4134,7 @@ const oracleRepItemsHandler = async (req, res) => {
         if (!isFinite(x)) x = 0;
         return x.toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 });
       }
-      function oraYearStackHtml(years, values, withDiff) {
+      function oraYearStackHtml(years, values, withDiff, catDiff) {
         var lines = (years || []).map(function (y, idx) {
           var a = Number(values[idx] || 0) || 0;
           return '<div class="ora-yline" title="' + y + '"><span class="ora-yval" dir="ltr">' +
@@ -4067,7 +4146,8 @@ const oracleRepItemsHandler = async (req, res) => {
           var last = Number(values[years.length - 1] || 0) || 0;
           var diff = last - first;
           var sign = diff > 0 ? '+' : '';
-          diffHtml = '<div class="ora-yline ora-ydiff" title="الفرق"><span class="ora-yval" dir="ltr">' +
+          diffHtml = '<div class="ora-yline ora-ydiff' + (catDiff ? ' ora-cat-diff' : '') +
+            '" title="الفرق"><span class="ora-yval" dir="ltr">' +
             sign + fmtOraPickAmt(diff) + '</span></div>';
         }
         return '<div class="ora-ystack">' + lines + diffHtml + '</div>';
@@ -4125,7 +4205,7 @@ const oracleRepItemsHandler = async (req, res) => {
         pickRow.querySelectorAll('.ora-pick-cat').forEach(function (td) {
           var idx = Number(td.getAttribute('data-cat-idx') || 0) || 0;
           if (yearMode) {
-            td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], false) : '';
+            td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], true, true) : '';
           } else {
             td.textContent = count ? fmtOraPickAmt(sums[idx] || 0) : '';
           }
@@ -4163,7 +4243,7 @@ const oracleRepItemsHandler = async (req, res) => {
               var label = rawLabel.split(/\s+/)[0] || ('فئة ' + (i + 1));
               if (!label) continue;
               if (yearMode) {
-                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], false) + '</span>');
+                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], true, true) + '</span>');
               } else {
                 bits.push('<span>' + label + ': <b dir="ltr">' + fmtOraPickAmt(sums[i] || 0) + '</b></span>');
               }
@@ -4173,11 +4253,17 @@ const oracleRepItemsHandler = async (req, res) => {
         }
       }
       document.addEventListener('change', function (ev) {
-        var cb = ev.target && ev.target.classList && ev.target.classList.contains('ora-cust-pick')
-          ? ev.target
-          : null;
-        if (!cb) return;
-        var block = cb.closest('.ora-summary-block');
+        var t = ev.target;
+        if (!t || !t.classList) return;
+        if (t.classList.contains('ora-show-cat-diff')) {
+          var blockDiff = t.closest('.ora-summary-block');
+          var tableDiff = blockDiff && blockDiff.querySelector('table.ora-summary-pick');
+          if (tableDiff) tableDiff.classList.toggle('is-show-cat-diff', !!t.checked);
+          refreshOraCustPick(blockDiff);
+          return;
+        }
+        if (!t.classList.contains('ora-cust-pick')) return;
+        var block = t.closest('.ora-summary-block');
         refreshOraCustPick(block);
       });
       document.addEventListener('click', function (ev) {
