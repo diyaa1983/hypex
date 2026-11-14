@@ -3662,74 +3662,95 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-pick-foot-cats span { white-space: nowrap; }
         .ora-ystack {
           display: inline-flex;
-          flex-wrap: wrap;
-          align-items: stretch;
-          gap: .35rem;
+          flex-wrap: nowrap;
+          align-items: center;
+          gap: .18rem;
           min-width: 0;
+          max-width: 100%;
         }
         .ora-yline {
           display: inline-flex;
-          flex-direction: column;
-          align-items: center;
+          flex-direction: row;
+          align-items: baseline;
           justify-content: center;
-          gap: .1rem;
-          min-width: 4.4rem;
-          padding: .2rem .35rem;
+          gap: .18rem;
+          min-width: 0;
+          padding: .08rem .22rem;
           border: 1px solid #dbe3ee;
-          border-radius: .3rem;
+          border-radius: .22rem;
           background: #f8fafc;
-          font-size: .76rem;
-          line-height: 1.2;
+          font-size: .62rem;
+          line-height: 1.15;
           white-space: nowrap;
         }
         .ora-ylbl {
           font-weight: 800;
-          color: #475569;
+          color: #64748b;
+          font-size: .58rem;
           font-variant-numeric: tabular-nums;
         }
         .ora-yval {
           font-weight: 700;
           color: #0f172a;
+          font-size: .62rem;
           font-variant-numeric: tabular-nums;
         }
         .ora-yline.ora-ydiff {
-          min-width: 3.6rem;
-          padding: .12rem .28rem;
+          padding: .06rem .18rem;
           border-color: #93c5fd;
           background: #eff6ff;
-          font-size: .66rem;
-          gap: .04rem;
+          font-size: .56rem;
+          gap: .12rem;
         }
         .ora-yline.ora-ydiff .ora-ylbl {
           color: #64748b;
           font-weight: 700;
-          font-size: .62rem;
+          font-size: .52rem;
         }
         .ora-yline.ora-ydiff .ora-yval {
           color: #1e3a5f;
           font-weight: 800;
-          font-size: .7rem;
+          font-size: .58rem;
         }
         .ora-yhint {
           display: block;
-          margin-top: .15rem;
-          font-size: .68rem;
+          margin-top: .1rem;
+          font-size: .58rem;
           font-weight: 700;
           color: #64748b;
-          line-height: 1.2;
+          line-height: 1.15;
         }
         .ora-year-note {
           margin-top: .35rem;
-          font-size: .78rem;
+          font-size: .72rem;
           font-weight: 600;
+        }
+        table.ora-year-compare {
+          font-size: .72rem;
+        }
+        table.ora-year-compare th.ora-vhead {
+          font-size: .7rem;
+          padding: .28rem .22rem;
+        }
+        table.ora-year-compare td {
+          padding: .22rem .18rem;
+        }
+        table.ora-year-compare th.ora-cat-col {
+          min-width: 0;
+          white-space: nowrap;
+        }
+        table.ora-year-compare td.ora-cust-name {
+          min-width: 8.5rem;
+          font-size: .72rem;
         }
         table.ora-year-compare td.ora-cat-years,
         table.ora-year-compare td.ora-total-years {
           vertical-align: middle;
+          white-space: nowrap;
         }
         table.ora-year-compare td.ora-cat-years .ora-ystack,
         table.ora-year-compare td.ora-total-years .ora-ystack {
-          justify-content: center;
+          justify-content: flex-start;
         }
         .ora-inv-link { color: #1e3a5f; font-weight: 800; text-decoration: underline; }
         .ora-inv-meta { font-weight: 600; color: #475569; }
