@@ -98,9 +98,18 @@ function oracle_fetch_rep_item_sales(
         'message' => '',
         'rows' => [],
         'return_rows' => [],
-        'totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'reps' => 0, 'items' => 0],
-        'return_totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'items' => 0],
-        'net_totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'reps' => 0, 'items' => 0],
+        'invoice_discounts' => [],
+        'totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'vou_disc' => 0.0, 'reps' => 0, 'items' => 0],
+        'return_totals' => ['qty' => 0.0, 'bonus' => 0.0, 'amount' => 0.0, 'vou_disc' => 0.0, 'items' => 0],
+        'net_totals' => [
+            'qty' => 0.0,
+            'bonus' => 0.0,
+            'amount' => 0.0,
+            'vou_disc' => 0.0,
+            'net_after_disc' => 0.0,
+            'reps' => 0,
+            'items' => 0,
+        ],
     ];
 
     if (!oracle_is_enabled()) {
@@ -581,16 +590,85 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
     $debugProbe['return_rows'] = count($returnRows);
     $debugProbe['sale_rows'] = count($rows);
 
+    // خصم رأس الفاتورة VOU_DISC كما في تقرير أوراكل (الإجمالي / الخصم / الصافي)
+    $invoiceDiscounts = [];
+    $totVouDisc = 0.0;
+    $retVouDisc = 0.0;
+    try {
+        $vouBinds = $bindsCommon;
+        $vouBinds['sale_type'] = $saleType;
+        $vouBinds['store_num'] = $storeNum;
+        $saleManSql = '';
+        if (!$byCurrentLink) {
+            if ($filterOracleRep && $repNo !== null && $repNo > 0) {
+                $saleManSql = ' AND d.MAN_NUM = :rep_no';
+                $vouBinds['rep_no'] = $repNo;
+            } else {
+                $saleManSql = ' AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0';
+            }
+        }
+        $vouSql = "
+SELECT TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
+       d.TYPE AS DOC_TYPE,
+       NVL(d.VYEAR, 0) AS VYEAR,
+       NVL(d.V_NUM, 0) AS V_NUM,
+       TO_CHAR(TRUNC(MIN(d.VDATE)), 'YYYY-MM-DD') AS SALE_DATE,
+       ROUND(MAX(NVL(d.VOU_DISC, 0)), 3) AS VOU_DISC
+FROM {$fromQ} d
+WHERE d.COMP_NUM = :comp_num
+  AND NVL(d.V_NUM, 0) > 0
+  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+  AND (
+        (d.TYPE = :sale_type AND d.STORE = :store_num{$saleManSql})
+     OR (d.TYPE IN ({$retInList})
+         AND NVL(d.QTY, 0) <> 0
+         AND (NVL(d.SELL, 0) <> 0 OR NVL(d.SELL_BTAX, 0) <> 0))
+  )
+{$custSql}{$ymSql}
+GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
+";
+        $vouRaw = oracle_query_all($conn, $vouSql, $vouBinds);
+        foreach ($vouRaw as $vr) {
+            $disc = round((float) oracle_statement_row_val($vr, 'VOU_DISC'), 3);
+            if ($disc == 0.0) {
+                continue;
+            }
+            $docType = (int) oracle_statement_row_val($vr, 'DOC_TYPE');
+            $isRetDisc = isset($returnTypeMap[$docType]) || ($docType !== $saleType && $docType >= 8);
+            $invoiceDiscounts[] = [
+                'doc_kind' => $isRetDisc ? 'R' : 'S',
+                'customer_acc' => trim((string) oracle_statement_row_val($vr, 'CUST_ACC')),
+                'invoice_year' => (int) oracle_statement_row_val($vr, 'VYEAR'),
+                'invoice_no' => (int) oracle_statement_row_val($vr, 'V_NUM'),
+                'sale_date' => trim((string) oracle_statement_row_val($vr, 'SALE_DATE')),
+                'vou_disc' => $disc,
+            ];
+            if ($isRetDisc) {
+                $retVouDisc += $disc;
+            } else {
+                $totVouDisc += $disc;
+            }
+        }
+    } catch (Throwable $e) {
+        $debugProbe['vou_disc_error'] = $e->getMessage();
+    }
+
+    $netAmount = round($totAmt - $retAmt, 3);
+    $netAfterDisc = round($netAmount - $totVouDisc + $retVouDisc, 3);
+
     return [
         'ok' => true,
         'message' => $rows === [] && $returnRows === [] ? 'لا توجد مبيعات في الفترة المحددة.' : '',
         'rows' => $rows,
         'return_rows' => $returnRows,
+        'invoice_discounts' => $invoiceDiscounts,
         'debug' => $debugProbe,
         'totals' => [
             'qty' => round($totQty, 3),
             'bonus' => round($totBonus, 3),
             'amount' => round($totAmt, 3),
+            'vou_disc' => round($totVouDisc, 3),
             'reps' => count($reps),
             'items' => count($rows),
         ],
@@ -598,12 +676,15 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
             'qty' => round($retQty, 3),
             'bonus' => round($retBonus, 3),
             'amount' => round($retAmt, 3),
+            'vou_disc' => round($retVouDisc, 3),
             'items' => count($returnRows),
         ],
         'net_totals' => [
             'qty' => round($totQty - $retQty, 3),
             'bonus' => round($totBonus - $retBonus, 3),
-            'amount' => round($totAmt - $retAmt, 3),
+            'amount' => $netAmount,
+            'vou_disc' => round($totVouDisc - $retVouDisc, 3),
+            'net_after_disc' => $netAfterDisc,
             'reps' => count($reps),
             'items' => count($rows) + count($returnRows),
         ],
