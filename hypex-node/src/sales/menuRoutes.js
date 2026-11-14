@@ -2916,7 +2916,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 return String(ya);
               });
               catYearParts.push(yParts.join(','));
-              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), true)}</td>`;
+              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), false)}</td>`;
             }
             return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
           })
@@ -3047,7 +3047,7 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       const foot = yearCompare
         ? colYearTotals
-            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, true)}</td>`)
+            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, false)}</td>`)
             .join('')
         : colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footTotal = yearCompare
@@ -3067,7 +3067,7 @@ const oracleRepItemsHandler = async (req, res) => {
         )
         .join('');
       const yearNote = yearCompare
-        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — بجانب كل فئة/المجموع تظهر السنوات والفرق (${esc(
+        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — بجانب كل فئة تظهر السنوات، والفرق فقط في المجموع النهائي (${esc(
             String(compareYears[compareYears.length - 1])
           )} − ${esc(String(compareYears[0]))})</div>`
         : '';
@@ -4109,7 +4109,7 @@ const oracleRepItemsHandler = async (req, res) => {
         pickRow.querySelectorAll('.ora-pick-cat').forEach(function (td) {
           var idx = Number(td.getAttribute('data-cat-idx') || 0) || 0;
           if (yearMode) {
-            td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], true) : '';
+            td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], false) : '';
           } else {
             td.textContent = count ? fmtOraPickAmt(sums[idx] || 0) : '';
           }
@@ -4147,7 +4147,7 @@ const oracleRepItemsHandler = async (req, res) => {
               var label = rawLabel.split(/\s+/)[0] || ('فئة ' + (i + 1));
               if (!label) continue;
               if (yearMode) {
-                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], true) + '</span>');
+                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], false) + '</span>');
               } else {
                 bits.push('<span>' + label + ': <b dir="ltr">' + fmtOraPickAmt(sums[i] || 0) + '</b></span>');
               }
