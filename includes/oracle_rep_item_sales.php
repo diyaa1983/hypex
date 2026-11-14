@@ -384,6 +384,7 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
 
     $itemNames = oracle_sales_invoice_item_names($conn, array_keys($itemCodes));
     $hypex = oracle_rep_item_sales_hypex_map(array_keys($itemCodes));
+    $masBarcodes = oracle_rep_item_sales_mascard_barcodes($conn, array_keys($itemCodes));
     $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
     $repNames = oracle_rep_item_sales_rep_names($conn, array_keys($repNos));
     $oraCatToLocal = oracle_rep_item_sales_oracle_cat_local_names();
@@ -438,6 +439,13 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
         $catName = is_array($hx) ? trim((string) ($hx['cat_name'] ?? '')) : '';
         $itemSku = is_array($hx) ? trim((string) ($hx['sku'] ?? '')) : '';
         $itemBarcode = is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '';
+        $masBar = trim((string) ($masBarcodes[$item] ?? ''));
+        if ($itemBarcode === '' && $masBar !== '') {
+            $itemBarcode = $masBar;
+        }
+        if ($itemSku === '' && $item !== '' && !preg_match('/^\d{8,}$/', $item)) {
+            $itemSku = $item;
+        }
         // إن لم تُعرف الفئة من بطاقة المادة: حاول من رمز مجموعة Oracle → فئة محلية بنفس الاسم
         if ($catName === '' && $oraCatCode !== '') {
             $catName = trim((string) ($oraCatToLocal[$oraCatCode] ?? ''));
@@ -446,9 +454,9 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
                 $catName = trim((string) ($oraCatToLocal[$catNorm] ?? ''));
             }
         }
-        // احتياط كشف الاكسل (باركود/SKU) — يغطي المواد التي فئتها Oracle أو فارغة
+        // احتياط كشف الاكسل (باركود/SKU/رمز Oracle) — يغطي المواد التي فئتها Oracle أو فارغة
         if ($catName === '' || !excel_item_is_excel_category($catName)) {
-            $fromXl = excel_item_lookup_category($item, $itemBarcode, $itemSku);
+            $fromXl = excel_item_lookup_category($item, $itemBarcode, $itemSku, $masBar);
             if ($fromXl !== '') {
                 $catName = $fromXl;
             }
@@ -995,6 +1003,77 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
                     $assign($orig, $pack);
                 }
             }
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * باركود المواد من MASCARD (إن وُجد عمود باركود) مرتبطة برمز ITEM في DAILY.
+ *
+ * @param list<string> $itemCodes
+ * @return array<string,string> item_code => barcode
+ */
+function oracle_rep_item_sales_mascard_barcodes(array $conn, array $itemCodes): array
+{
+    $out = [];
+    $codes = [];
+    foreach ($itemCodes as $c) {
+        $c = trim((string) $c);
+        if ($c !== '') {
+            $codes[$c] = true;
+        }
+    }
+    if ($codes === [] || empty($conn['ok'])) {
+        return $out;
+    }
+    $cfg = oracle_config();
+    $si = is_array($cfg['sales_invoice'] ?? null) ? $cfg['sales_invoice'] : [];
+    $owner = strtoupper(trim((string) ($si['item_card_owner'] ?? 'MAS'))) ?: 'MAS';
+    $table = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
+    $from = oracle_stmt_q($owner) . '.' . oracle_stmt_q($table);
+    $barCols = [];
+    try {
+        foreach (oracle_describe_table($conn, $owner, $table) as $c) {
+            $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
+            if (in_array($n, ['BARCODE', 'IBARCODE', 'BAR_CODE', 'BCODE', 'ITEM_BARCODE', 'IBAR'], true)) {
+                $barCols[] = $n;
+            }
+        }
+    } catch (Throwable $e) {
+        return $out;
+    }
+    if ($barCols === []) {
+        return $out;
+    }
+    $barExpr = 'TRIM(TO_CHAR(m.' . $barCols[0] . '))';
+    foreach (array_keys($codes) as $code) {
+        try {
+            $rows = oracle_query_all(
+                $conn,
+                "SELECT {$barExpr} AS BC FROM {$from} m
+                 WHERE TRIM(TO_CHAR(m.ITEM)) = :itm AND ROWNUM <= 1",
+                ['itm' => (string) $code]
+            );
+            if ($rows === []) {
+                $rows = oracle_query_all(
+                    $conn,
+                    "SELECT {$barExpr} AS BC FROM {$from} m
+                     WHERE LTRIM(TRIM(TO_CHAR(m.ITEM)), '0') = LTRIM(TRIM(:itm), '0')
+                       AND ROWNUM <= 1",
+                    ['itm' => (string) $code]
+                );
+            }
+            if ($rows !== []) {
+                $bc = trim((string) oracle_statement_row_val($rows[0], 'BC'));
+                $bc = preg_replace('/\s+/', '', $bc) ?? '';
+                if ($bc !== '') {
+                    $out[(string) $code] = $bc;
+                }
+            }
+        } catch (Throwable $e) {
+            // تجاهل مادة واحدة
         }
     }
 

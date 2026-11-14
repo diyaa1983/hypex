@@ -2583,6 +2583,24 @@ const oracleRepItemsHandler = async (req, res) => {
           amount: -(Number(r.amount) || 0),
         }))
       );
+      // فرض فئات الاكسل على كل الصفوف قبل البناء
+      const applyExcelCat = (r) => {
+        const code = String(r.item_code || '').trim();
+        const barcode =
+          String(r.item_barcode || '').trim() || (/^\d{8,}$/.test(code) ? code : '');
+        const cur = String(r.cat_name || '').trim();
+        const xl = excelCats.lookupExcelCategory(barcode, code, r.item_sku);
+        if (xl && (!cur || cur === 'بدون فئة' || !excelCats.isExcelCategory(cur))) {
+          return { ...r, cat_name: xl, item_barcode: barcode || String(r.item_barcode || '') };
+        }
+        if (!String(r.item_barcode || '').trim() && barcode) {
+          return { ...r, item_barcode: barcode };
+        }
+        return r;
+      };
+      rows = rows.map(applyExcelCat);
+      returnRows = returnRows.map(applyExcelCat);
+      netRows = netRows.map(applyExcelCat);
       netRows.sort((a, b) => {
         const c = (Number(a.rep_no) || 0) - (Number(b.rep_no) || 0);
         if (c) return c;
@@ -2735,7 +2753,18 @@ const oracleRepItemsHandler = async (req, res) => {
       const custMap = new Map();
       const invMap = new Map();
       repRows.forEach((r) => {
-        const cat = String(r.cat_name || 'بدون فئة');
+        const name = String(r.item_name || r.item_code || '').trim();
+        const code = String(r.item_code || '');
+        const fromName = (name.match(/\d{8,}/) || [])[0] || '';
+        let barcode = String(r.item_barcode || '').trim() || fromName;
+        if (!barcode && /^\d{8,}$/.test(code)) barcode = code;
+        // فرض فئة الاكسل هنا (آخر خط دفاع قبل الرسم)
+        let cat = String(r.cat_name || '').trim() || 'بدون فئة';
+        const xlCat = excelCats.lookupExcelCategory(barcode, code, r.item_sku, fromName);
+        if (xlCat && (!excelCats.isExcelCategory(cat) || cat === 'بدون فئة')) {
+          cat = xlCat;
+        }
+        if (!cat) cat = 'بدون فئة';
         if (!catSeen.has(cat)) {
           catSeen.add(cat);
           catOrder.push(cat);
@@ -2756,14 +2785,10 @@ const oracleRepItemsHandler = async (req, res) => {
         const amount = Number(r.amount) || 0;
         const qty = Number(r.qty) || 0;
         bag.amt += amount;
-        const name = String(r.item_name || r.item_code || '').trim();
-        const code = String(r.item_code || '');
         const saleDate = String(r.sale_date || '').trim();
         const invNo = Number(r.invoice_no) || 0;
         const invYear = Number(r.invoice_year) || 0;
         const docKind = String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0 ? 'R' : 'S';
-        const fromName = (name.match(/\d{8,}/) || [])[0] || '';
-        const barcode = String(r.item_barcode || '').trim() || fromName;
         const found = bag.items.find(
           (it) => it.code === code && it.name === name && it.saleDate === saleDate && it.invNo === invNo && it.invYear === invYear
         );
