@@ -42,10 +42,13 @@ body.app-mdi-page-parked .app-shell {
   inset: 0 0 var(--app-mdi-bottom, 0) 0;
   z-index: 1140;
   background: var(--shell-bg, #d4d0c8);
+  opacity: 1;
+  transition: opacity 0.18s ease;
 }
 
 .app-mdi-hub-overlay[hidden] {
   display: none !important;
+  opacity: 0;
 }
 
 .app-mdi-hub-frame {

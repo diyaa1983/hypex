@@ -55,22 +55,28 @@
     } catch (e) {
       /* ignore */
     }
-    try {
-      document.documentElement.classList.remove('hypex-nav-busy');
-    } catch (e2) {
-      /* ignore */
-    }
-    hideProgress();
-    if (window.AppBusy && typeof window.AppBusy.hide === 'function') {
-      // إخفاء طبقة التنقّل فقط — لا نلمس عمليات حفظ جارية إن وُجدت بعد التحميل
+    // أبقِ الطبقة لحظة قصيرة حتى يستقر الرسم — يقلّل الارتجاج
+    var finish = function () {
       try {
-        if (!window.AppBusy.isActive || !window.AppBusy.isActive()) {
-          return;
-        }
-      } catch (e3) {
+        document.documentElement.classList.remove('hypex-nav-busy');
+      } catch (e2) {
         /* ignore */
       }
-      window.AppBusy.hide(true);
+      hideProgress();
+      if (window.AppBusy && typeof window.AppBusy.hide === 'function') {
+        try {
+          window.AppBusy.hide(true);
+        } catch (e3) {
+          /* ignore */
+        }
+      }
+    };
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(function () {
+        setTimeout(finish, 160);
+      });
+    } else {
+      setTimeout(finish, 160);
     }
   }
 

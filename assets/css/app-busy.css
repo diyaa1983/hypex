@@ -1,9 +1,16 @@
+/* طبقة انتظار مركزية — سلسة بدون ارتجاج */
+
 body.app-is-busy {
     pointer-events: none;
 }
 
 body.app-is-busy .app-busy {
     pointer-events: auto;
+}
+
+html.app-busy-scroll-lock,
+html.app-busy-scroll-lock body {
+    overflow: hidden !important;
 }
 
 .app-busy {
@@ -14,24 +21,45 @@ body.app-is-busy .app-busy {
     align-items: center;
     justify-content: center;
     padding: 1rem;
-    background: rgba(15, 23, 42, 0.42);
+    background: rgba(15, 23, 42, 0.38);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    opacity: 0;
+    transition: opacity 0.18s ease;
+}
+
+.app-busy.is-visible,
+.app-busy:not([hidden]) {
+    opacity: 1;
 }
 
 .app-busy[hidden] {
     display: none !important;
+    opacity: 0;
 }
 
-/* أثناء الانتقال بين صفحات القائمة — أظهر الطبقة فور رسم الجسم */
-html.hypex-nav-busy #app-busy {
+/* أثناء الانتقال بين الصفحات — أظهر الطبقة فوراً قبل رسم الجسم */
+html.hypex-nav-busy #app-busy,
+html.hypex-app-busy #app-busy {
     display: flex !important;
+    opacity: 1 !important;
 }
 
-html.hypex-nav-busy body {
+html.hypex-nav-busy body,
+html.hypex-app-busy body {
     pointer-events: none;
 }
 
-html.hypex-nav-busy body .app-busy {
+html.hypex-nav-busy body .app-busy,
+html.hypex-app-busy body .app-busy {
     pointer-events: auto;
+}
+
+/* تجميد المحتوى خلف الطبقة لتقليل إعادة التخطيط */
+html.hypex-nav-busy .app-shell,
+body.app-is-busy .app-shell {
+    filter: grayscale(0.08);
+    transition: filter 0.2s ease;
 }
 
 .app-busy-panel {
@@ -41,9 +69,16 @@ html.hypex-nav-busy body .app-busy {
     text-align: center;
     background: #fff;
     border: 1px solid #cbd5e1;
-    border-radius: 6px;
+    border-radius: 10px;
     box-shadow: 0 14px 42px rgba(15, 23, 42, 0.28);
     box-sizing: border-box;
+    transform: translateY(6px) scale(0.98);
+    transition: transform 0.2s ease;
+}
+
+.app-busy.is-visible .app-busy-panel,
+html.hypex-nav-busy .app-busy-panel {
+    transform: translateY(0) scale(1);
 }
 
 .app-busy-spinner {
@@ -51,9 +86,10 @@ html.hypex-nav-busy body .app-busy {
     height: 2.35rem;
     margin: 0 auto 0.85rem;
     border: 3px solid #e2e8f0;
-    border-top-color: #2563eb;
+    border-top-color: #1e3a5f;
     border-radius: 50%;
-    animation: app-busy-spin 0.8s linear infinite;
+    animation: app-busy-spin 0.75s linear infinite;
+    will-change: transform;
 }
 
 @keyframes app-busy-spin {
@@ -76,4 +112,17 @@ html.hypex-nav-busy body .app-busy {
     font-weight: 600;
     color: #64748b;
     line-height: 1.35;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-busy,
+    .app-busy-panel,
+    .app-busy-spinner {
+        transition: none !important;
+        animation: none !important;
+    }
+    .app-busy-spinner {
+        border-top-color: #1e3a5f;
+        opacity: 0.85;
+    }
 }

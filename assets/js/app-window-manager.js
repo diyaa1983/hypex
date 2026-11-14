@@ -501,6 +501,22 @@
     }
   }
 
+  function showBusyNav(message) {
+    try {
+      sessionStorage.setItem('hypex:nav-busy', String(Date.now()));
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      document.documentElement.classList.add('hypex-nav-busy');
+    } catch (e2) {
+      /* ignore */
+    }
+    if (global.AppBusy && typeof global.AppBusy.show === 'function') {
+      global.AppBusy.show(message || 'جاري التحميل…');
+    }
+  }
+
   function parkLivePage(win, hubUrl) {
     if (!win) {
       return;
@@ -551,6 +567,7 @@
     hideHubOverlay();
     parkedLiveId = null;
     document.body.classList.remove('app-mdi-page-parked');
+    showBusyNav('جاري فتح الشاشة…');
     global.__managerAllowUnload = true;
     global.location.href = stripEmbedParams(href);
   }
@@ -1481,6 +1498,7 @@
     } catch (e) {
       /* ignore */
     }
+    showBusyNav('جاري فتح الشاشة…');
     prefetchHref(win.href);
     global.__managerAllowUnload = true;
     global.location.href = win.href;

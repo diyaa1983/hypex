@@ -2121,7 +2121,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
       ${mapWarn}
       ${mismatchWarn}
       <div class="si-rail no-print">
-        <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
+        <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" data-app-busy-msg="جاري تحميل التقرير…" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
           <input type="hidden" name="run" value="1" />
           <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب (Oracle)
             <div class="report-cust-pick" id="report-sales-rep-pick" style="margin-top:.25rem">
@@ -3121,7 +3121,7 @@ const oracleRepItemsHandler = async (req, res) => {
       })}
       <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).</p>
       <div class="si-rail no-print">
-        <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row">
+        <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />
           <label>المندوب
             <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل المندوبين">
