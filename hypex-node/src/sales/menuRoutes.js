@@ -2992,7 +2992,7 @@ const oracleRepItemsHandler = async (req, res) => {
       const pickCats = catOrder
         .map((_, idx) => `<td class="si-num ora-pick-cat" data-cat-idx="${idx}" dir="ltr"></td>`)
         .join('');
-      const pickRow = `<tr class="ora-pick-sum" hidden><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCats}<td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
+      const pickRow = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCats}<td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
       const heads = catOrder
         .map(
           (cat, idx) =>
@@ -3002,7 +3002,7 @@ const oracleRepItemsHandler = async (req, res) => {
       const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
-          <div class="ora-pick-bar no-print" hidden>
+          <div class="ora-pick-bar no-print is-empty">
             <span>مجموع العملاء المحددين (<span class="ora-pick-count">0</span>):</span>
             <strong class="ora-pick-amt" dir="ltr">0</strong>
             <button type="button" class="si-btn ora-pick-clear">مسح التحديد</button>
@@ -3015,8 +3015,13 @@ const oracleRepItemsHandler = async (req, res) => {
               ${heads}
               <th class="ora-vhead js-sort-th" data-sort="total" data-sort-type="number">المجموع</th>
             </tr></thead>
-            <tbody>${body}${pickRow}${footRow}</tbody>
+            <tbody>${body}${footRow}${pickRow}</tbody>
           </table>
+        </div>
+        <div class="ora-pick-foot no-print is-empty">
+          <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
+          <strong class="ora-pick-amt" dir="ltr">0</strong>
+          <span class="ora-pick-foot-cats"></span>
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
@@ -3543,7 +3548,9 @@ const oracleRepItemsHandler = async (req, res) => {
           color: #1e3a5f;
           border-top: 2px solid #93c5fd;
         }
-        .ora-pick-bar {
+        tr.ora-pick-sum.is-empty { display: none; }
+        .ora-pick-bar,
+        .ora-pick-foot {
           margin-top: .55rem;
           display: flex;
           flex-wrap: wrap;
@@ -3556,9 +3563,24 @@ const oracleRepItemsHandler = async (req, res) => {
           font-weight: 700;
           color: #1e3a5f;
         }
-        .ora-pick-bar[hidden] { display: none !important; }
-        .ora-pick-bar .ora-pick-amt { font-size: 1.05rem; letter-spacing: .01em; }
+        .ora-pick-bar.is-empty,
+        .ora-pick-foot.is-empty { display: none !important; }
+        .ora-pick-foot {
+          margin: 0 1rem .85rem;
+          border-radius: 0 0 .35rem .35rem;
+          border-top: 0;
+        }
+        .ora-pick-bar .ora-pick-amt,
+        .ora-pick-foot .ora-pick-amt { font-size: 1.05rem; letter-spacing: .01em; }
         .ora-pick-bar .ora-pick-clear { min-height: 2rem; padding: .2rem .65rem; }
+        .ora-pick-foot-cats {
+          display: inline-flex;
+          flex-wrap: wrap;
+          gap: .35rem .65rem;
+          font-weight: 700;
+          color: #334155;
+        }
+        .ora-pick-foot-cats span { white-space: nowrap; }
         .ora-inv-link { color: #1e3a5f; font-weight: 800; text-decoration: underline; }
         .ora-inv-meta { font-weight: 600; color: #475569; }
         .ora-mode-group { display: inline-flex; gap: .25rem; margin: 0 .35rem; }
@@ -3583,7 +3605,7 @@ const oracleRepItemsHandler = async (req, res) => {
           .ora-portrait-table { font-size: 9pt; }
           tr.ora-item[hidden] { display: table-row !important; }
           .ora-arrow { display: none; }
-          .ora-cust-pick-lab, .ora-pick-bar, tr.ora-pick-sum { display: none !important; }
+          .ora-cust-pick-lab, .ora-pick-bar, .ora-pick-foot, tr.ora-pick-sum { display: none !important; }
           tr.ora-sum-row.is-picked td { background: transparent; }
         }
       </style>
@@ -3850,9 +3872,11 @@ const oracleRepItemsHandler = async (req, res) => {
         if (!block) return;
         var table = block.querySelector('table.ora-summary-pick');
         var bar = block.querySelector('.ora-pick-bar');
+        var foot = block.querySelector('.ora-pick-foot');
         var pickRow = table && table.querySelector('tr.ora-pick-sum');
         if (!table || !pickRow) return;
         var catCount = Number(table.getAttribute('data-ora-cat-count') || 0) || 0;
+        var heads = table.querySelectorAll('thead th.ora-cat-col');
         var sums = [];
         var i;
         for (i = 0; i < catCount; i += 1) sums[i] = 0;
@@ -3873,21 +3897,34 @@ const oracleRepItemsHandler = async (req, res) => {
         pickRow.querySelectorAll('.ora-pick-cat').forEach(function (td) {
           var idx = Number(td.getAttribute('data-cat-idx') || 0) || 0;
           var amt = sums[idx] || 0;
-          td.textContent = count && amt ? fmtOraPickAmt(amt) : count ? fmtOraPickAmt(0) : '';
+          td.textContent = count ? fmtOraPickAmt(amt) : '';
         });
         var totalCell = pickRow.querySelector('.ora-pick-total');
         if (totalCell) totalCell.textContent = count ? fmtOraPickAmt(total) : '';
         var nEl = pickRow.querySelector('.ora-pick-n');
         if (nEl) nEl.textContent = String(count);
-        if (count > 0) pickRow.removeAttribute('hidden');
-        else pickRow.setAttribute('hidden', '');
-        if (bar) {
-          var cEl = bar.querySelector('.ora-pick-count');
-          var aEl = bar.querySelector('.ora-pick-amt');
+        pickRow.classList.toggle('is-empty', count < 1);
+        function fillPickUi(el) {
+          if (!el) return;
+          var cEl = el.querySelector('.ora-pick-count');
+          var aEl = el.querySelector('.ora-pick-amt');
           if (cEl) cEl.textContent = String(count);
           if (aEl) aEl.textContent = fmtOraPickAmt(total);
-          if (count > 0) bar.removeAttribute('hidden');
-          else bar.setAttribute('hidden', '');
+          el.classList.toggle('is-empty', count < 1);
+        }
+        fillPickUi(bar);
+        fillPickUi(foot);
+        if (foot) {
+          var catsEl = foot.querySelector('.ora-pick-foot-cats');
+          if (catsEl) {
+            var bits = [];
+            for (i = 0; i < catCount; i += 1) {
+              var label = heads[i] ? String(heads[i].textContent || '').trim() : 'فئة ' + (i + 1);
+              if (!label) continue;
+              bits.push('<span>' + label + ': <b dir="ltr">' + fmtOraPickAmt(sums[i] || 0) + '</b></span>');
+            }
+            catsEl.innerHTML = count ? bits.join('') : '';
+          }
         }
       }
       document.addEventListener('change', function (ev) {
@@ -3913,7 +3950,7 @@ const oracleRepItemsHandler = async (req, res) => {
           var view = document.querySelector('.ora-view:not([hidden])');
           if (!view) return;
           var clone = view.cloneNode(true);
-          clone.querySelectorAll('.ora-cust-pick-lab, .ora-pick-bar, tr.ora-pick-sum').forEach(function (el) {
+          clone.querySelectorAll('.ora-cust-pick-lab, .ora-pick-bar, .ora-pick-foot, tr.ora-pick-sum').forEach(function (el) {
             el.remove();
           });
           var html = '<html><head><meta charset="UTF-8"></head><body dir="rtl">' + clone.innerHTML + '</body></html>';
