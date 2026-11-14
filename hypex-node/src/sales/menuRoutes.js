@@ -2916,7 +2916,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 return String(ya);
               });
               catYearParts.push(yParts.join(','));
-              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), false)}</td>`;
+              return `<td class="si-num ora-cat-years">${yearStackHtml(bag?.byYear || new Map(), true)}</td>`;
             }
             return `<td class="si-num" dir="ltr">${amt ? esc(fmtAmt(amt)) : ''}</td>`;
           })
@@ -3047,7 +3047,7 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       const foot = yearCompare
         ? colYearTotals
-            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, false)}</td>`)
+            .map((ym) => `<td class="si-num ora-cat-years">${yearStackHtml(ym, true)}</td>`)
             .join('')
         : colTotals.map((amt) => `<td class="si-num" dir="ltr">${esc(fmtAmt(amt))}</td>`).join('');
       const footTotal = yearCompare
@@ -3067,7 +3067,7 @@ const oracleRepItemsHandler = async (req, res) => {
         )
         .join('');
       const yearNote = yearCompare
-        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — تحت كل فئة مبيعات كل سنة، وفي المجموع يظهر مجموع كل سنة والفرق (${esc(
+        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — بجانب كل فئة/المجموع تظهر السنوات والفرق (${esc(
             String(compareYears[compareYears.length - 1])
           )} − ${esc(String(compareYears[0]))})</div>`
         : '';
@@ -3693,11 +3693,23 @@ const oracleRepItemsHandler = async (req, res) => {
           font-variant-numeric: tabular-nums;
         }
         .ora-yline.ora-ydiff {
+          min-width: 3.6rem;
+          padding: .12rem .28rem;
           border-color: #93c5fd;
           background: #eff6ff;
+          font-size: .66rem;
+          gap: .04rem;
         }
-        .ora-yline.ora-ydiff .ora-ylbl,
-        .ora-yline.ora-ydiff .ora-yval { color: #1e3a5f; font-weight: 800; }
+        .ora-yline.ora-ydiff .ora-ylbl {
+          color: #64748b;
+          font-weight: 700;
+          font-size: .62rem;
+        }
+        .ora-yline.ora-ydiff .ora-yval {
+          color: #1e3a5f;
+          font-weight: 800;
+          font-size: .7rem;
+        }
         .ora-yhint {
           display: block;
           margin-top: .15rem;
@@ -4076,7 +4088,7 @@ const oracleRepItemsHandler = async (req, res) => {
         pickRow.querySelectorAll('.ora-pick-cat').forEach(function (td) {
           var idx = Number(td.getAttribute('data-cat-idx') || 0) || 0;
           if (yearMode) {
-            td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], false) : '';
+            td.innerHTML = count ? oraYearStackHtml(years, catYearSums[idx] || [], true) : '';
           } else {
             td.textContent = count ? fmtOraPickAmt(sums[idx] || 0) : '';
           }
@@ -4114,7 +4126,7 @@ const oracleRepItemsHandler = async (req, res) => {
               var label = rawLabel.split(/\s+/)[0] || ('فئة ' + (i + 1));
               if (!label) continue;
               if (yearMode) {
-                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], false) + '</span>');
+                bits.push('<span>' + label + ': ' + oraYearStackHtml(years, catYearSums[i] || [], true) + '</span>');
               } else {
                 bits.push('<span>' + label + ': <b dir="ltr">' + fmtOraPickAmt(sums[i] || 0) + '</b></span>');
               }
