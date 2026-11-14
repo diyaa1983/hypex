@@ -2567,7 +2567,16 @@ const oracleRepItemsHandler = async (req, res) => {
       filter_oracle_rep: filterOracleRep,
     });
     if (!data || data.ok === false) {
-      err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+      let rawErr = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+      if (/<!doctype html|<html[\s>]|cPanel|تعذر إكمال الطلب|حدث خطأ داخلي/i.test(rawErr)) {
+        rawErr =
+          'تعذر إكمال التقرير على الخادم. اختر مندوباً أو سنة/شهراً محدداً ثم أعد المحاولة.';
+      } else if (/Allowed memory size/i.test(rawErr)) {
+        rawErr = 'نفدت الذاكرة أثناء التقرير. قلّل الفلاتر (مندوب/سنة/شهر) ثم أعد المحاولة.';
+      } else if (rawErr.length > 320) {
+        rawErr = rawErr.slice(0, 320) + '…';
+      }
+      err = rawErr;
     } else {
       rows = await enrichRowsLocalCats((Array.isArray(data.rows) ? data.rows : []).map(mapOraRow));
       returnRows = await enrichRowsLocalCats(

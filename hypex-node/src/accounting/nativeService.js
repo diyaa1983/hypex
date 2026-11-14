@@ -27,6 +27,22 @@ function phpArgs(script, action, userId) {
   return args;
 }
 
+function sanitizePhpCliError(raw) {
+  let s = String(raw || '').replace(/\s+/g, ' ').trim();
+  if (!s) return 'تعذر إكمال الطلب من PHP';
+  if (/Allowed memory size/i.test(s)) {
+    return 'نفدت ذاكرة PHP أثناء التقرير. قلّل الفلاتر (مندوب/سنة/شهر) ثم أعد المحاولة.';
+  }
+  if (/Maximum execution time/i.test(s)) {
+    return 'انتهت مهلة تنفيذ التقرير. اختر مندوباً أو سنة محددة ثم أعد المحاولة.';
+  }
+  if (/<!doctype html|<html[\s>]|تعذر إكمال الطلب|حدث خطأ داخلي|cPanel/i.test(s)) {
+    return 'تعذر إكمال التقرير على الخادم. قلّل الفلاتر أو أعد المحاولة.';
+  }
+  if (s.length > 280) s = s.slice(0, 280) + '…';
+  return s;
+}
+
 function run(action, userId, payload = {}) {
   return new Promise((resolve) => {
     const script = path.join(__dirname, '..', '..', 'cli', 'acc_native_run.php');
@@ -47,22 +63,22 @@ function run(action, userId, payload = {}) {
     });
     child.on('error', (e) => resolve({ ok: false, error: e.message }));
     child.on('close', () => {
-      const line = out
+      const lines = out
         .split(/\r?\n/)
         .map((s) => s.trim())
-        .filter(Boolean)
-        .pop();
-      if (!line) {
-        return resolve({
-          ok: false,
-          error: err.trim() || 'لا استجابة من PHP',
-        });
+        .filter(Boolean);
+      // آخر سطر JSON صالح (يتجاوز أي HTML طرأ قبل إصلاح CLI)
+      for (let i = lines.length - 1; i >= 0; i -= 1) {
+        const line = lines[i];
+        if (line.charAt(0) !== '{' && line.charAt(0) !== '[') continue;
+        try {
+          return resolve(JSON.parse(line));
+        } catch {
+          /* continue */
+        }
       }
-      try {
-        resolve(JSON.parse(line));
-      } catch {
-        resolve({ ok: false, error: line.slice(0, 300) });
-      }
+      const fallback = lines[lines.length - 1] || err.trim() || 'لا استجابة من PHP';
+      resolve({ ok: false, error: sanitizePhpCliError(fallback) });
     });
     child.stdin.write(JSON.stringify(payload || {}));
     child.stdin.end();

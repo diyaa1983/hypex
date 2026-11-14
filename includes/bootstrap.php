@@ -43,6 +43,21 @@ $setExceptionHandler = static function (Throwable $e) use ($appDebugMode, $bootE
     } catch (Throwable $ignored) {
     }
 
+    error_log('[manager] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+
+    // CLI (hypex-node) يجب أن يعيد JSON وليس صفحة HTML
+    if (PHP_SAPI === 'cli') {
+        $payload = [
+            'ok' => false,
+            'error' => $appDebugMode
+                ? ($e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine())
+                : ($e->getMessage() ?: 'حدث خطأ داخلي أثناء تنفيذ الطلب.'),
+        ];
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        fwrite(STDOUT, (is_string($json) ? $json : '{"ok":false,"error":"حدث خطأ داخلي"}') . "\n");
+        exit(1);
+    }
+
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: text/html; charset=utf-8');
@@ -53,8 +68,6 @@ $setExceptionHandler = static function (Throwable $e) use ($appDebugMode, $bootE
         echo '</pre>';
         return;
     }
-
-    error_log('[manager] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
 
     echo '<!doctype html><html lang="ar" dir="rtl"><meta charset="utf-8"><title>خطأ داخلي</title>';
     echo '<body style="font-family:system-ui;padding:2rem;line-height:1.8">';
@@ -94,13 +107,36 @@ register_shutdown_function(static function () use ($appDebugMode, $bootEsc): voi
     } catch (Throwable $ignored) {
     }
 
+    $fatalMsg = trim((string) ($e['message'] ?? 'Fatal error'));
+    if ($fatalMsg === '') {
+        $fatalMsg = 'Fatal error';
+    }
+
+    if (PHP_SAPI === 'cli') {
+        $friendly = $fatalMsg;
+        if (stripos($fatalMsg, 'Allowed memory size') !== false) {
+            $friendly = 'نفدت ذاكرة PHP أثناء التقرير. قلّل الفلاتر (مندوب/سنة/شهر) ثم أعد المحاولة.';
+        } elseif (stripos($fatalMsg, 'Maximum execution time') !== false) {
+            $friendly = 'انتهت مهلة تنفيذ التقرير. اختر مندوباً أو سنة محددة ثم أعد المحاولة.';
+        }
+        $payload = [
+            'ok' => false,
+            'error' => $appDebugMode
+                ? ($fatalMsg . ' @ ' . (string) ($e['file'] ?? '') . ':' . (string) ($e['line'] ?? ''))
+                : $friendly,
+        ];
+        $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        fwrite(STDOUT, (is_string($json) ? $json : '{"ok":false,"error":"تعذر إكمال الطلب"}') . "\n");
+        return;
+    }
+
     if (!headers_sent()) {
         http_response_code(500);
         header('Content-Type: text/html; charset=utf-8');
     }
     if ($appDebugMode) {
         echo '<pre style="direction:ltr;text-align:left;white-space:pre-wrap;padding:1rem;background:#fef2f2;border:1px solid #fecaca">';
-        echo 'Fatal: ' . $bootEsc((string) ($e['message'] ?? '')) . "\n";
+        echo 'Fatal: ' . $bootEsc($fatalMsg) . "\n";
         echo 'File: ' . $bootEsc((string) ($e['file'] ?? '')) . "\n";
         echo 'Line: ' . $bootEsc((string) ($e['line'] ?? ''));
         echo '</pre>';

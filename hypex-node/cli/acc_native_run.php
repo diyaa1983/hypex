@@ -11,6 +11,10 @@ if (PHP_SAPI !== 'cli') {
     exit(1);
 }
 
+@ini_set('memory_limit', '1024M');
+@ini_set('max_execution_time', '300');
+@set_time_limit(300);
+
 $action = strtolower(trim((string) ($argv[1] ?? '')));
 $userId = (int) ($argv[2] ?? 0);
 
@@ -469,6 +473,8 @@ try {
     }
 
     if ($action === 'oracle_rep_item_sales') {
+        @ini_set('memory_limit', '1024M');
+        @set_time_limit(300);
         require_once app_path('includes/oracle_rep_item_sales.php');
         $store = (int) ($payload['store'] ?? 0);
         $repNo = isset($payload['rep_no']) && $payload['rep_no'] !== '' && $payload['rep_no'] !== null
