@@ -233,12 +233,48 @@
     );
   }
 
+  function oraYearComparePrintCss() {
+    return (
+      '.ora-cust-block{margin:0 0 7px;page-break-inside:avoid}' +
+      '.ora-cust-head{margin:0 0 3px;padding:0;border:0;background:transparent}' +
+      '.ora-rep{font:800 10pt Arial,Helvetica,sans-serif;margin:0 0 2px;color:#000}' +
+      '.ora-year-note,.ora-cat-diff-toggle,.ora-pick-bar,.ora-pick-foot,.ora-tools,' +
+      '.ora-cust-pick-lab,tr.ora-pick-sum,.ora-report-sticky-note{display:none!important}' +
+      'table.ora-summary-pick,table.ora-year-compare,table.ora-portrait-table{' +
+      'width:100%!important;border-collapse:collapse!important;table-layout:auto!important;font-size:7.5pt!important}' +
+      'table.ora-summary-pick th,table.ora-summary-pick td,' +
+      'table.ora-year-compare th,table.ora-year-compare td{' +
+      'border:1px solid #64748b!important;padding:2px 3px!important;vertical-align:middle!important;color:#000!important;' +
+      'white-space:nowrap;overflow:visible;text-overflow:clip;line-height:1.2}' +
+      'table.ora-summary-pick thead th,table.ora-year-compare thead th{' +
+      'background:#c5d6ea!important;font-weight:800;text-align:center;color:#000!important;font-size:7pt!important}' +
+      '.ora-cat-title{display:block;font-weight:800;margin:0 0 2px;color:#000;font-size:7pt}' +
+      '.ora-yhead{display:flex!important;flex-wrap:nowrap!important;align-items:center;justify-content:center;gap:2px;margin-top:1px}' +
+      '.ora-yhead-y{display:inline-block;padding:1px 3px;background:#e8eef8;border-radius:2px;font-size:6.5pt;font-weight:800;color:#000;min-width:0}' +
+      '.ora-yhead-diff{background:#bfdbfe}' +
+      '.ora-ystack{display:inline-flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center;gap:2px;white-space:nowrap;max-width:none}' +
+      '.ora-yline{display:inline-flex!important;flex-direction:row!important;align-items:center;justify-content:center;' +
+      'padding:1px 3px;border:1px solid #cbd5e1;border-radius:2px;background:#f8fafc;min-width:0!important}' +
+      '.ora-yval{font-size:7.5pt!important;font-weight:800;color:#000!important;font-variant-numeric:tabular-nums}' +
+      '.ora-ydiff{background:#eff6ff;border-color:#93c5fd}' +
+      'table.ora-year-compare:not(.is-show-cat-diff) .ora-cat-diff,' +
+      'table.ora-year-compare:not(.is-show-cat-diff) .ora-cat-diff-head{display:none!important}' +
+      'tr.ora-sum-row:nth-child(odd) td{background:#d9e4f2!important;color:#000!important}' +
+      'tr.ora-sum-row:nth-child(even) td{background:#f8fafc!important;color:#000!important}' +
+      'tr.ora-cust-final td{background:#e7f4ea!important;font-weight:800;color:#000!important}' +
+      'td.ora-cust-name,.ora-cust-name{white-space:normal!important;max-width:34mm;font-size:7pt!important;color:#000!important;font-weight:700}' +
+      'td.ora-cat-years,td.ora-total-years{white-space:nowrap!important}' +
+      '.ora-grand,.ora-rep-total{margin:3px 0 6px;padding:3px 5px;border:1px solid #cbd5e1;font:800 8pt Arial,Helvetica,sans-serif;color:#000;background:#eef2f7}' +
+      '.ora-cust-label{color:#000!important}'
+    );
+  }
+
   function tableCss(landscape) {
     var pageRule =
       '@page{size:A4 ' +
       (landscape ? 'landscape' : 'portrait') +
       ';margin:' +
-      (landscape ? '6mm 5mm' : '10mm 8mm 12mm 8mm') +
+      (landscape ? '6mm 5mm 8mm 5mm' : '10mm 8mm 12mm 8mm') +
       '}';
     var repTable =
       landscape
@@ -256,7 +292,10 @@
         : 'table{width:100%;border-collapse:collapse;font-size:9pt}' +
           'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}';
     return (
+      pageRule +
+      'html,body{margin:0;padding:0;direction:rtl;font:10pt Arial,Helvetica,sans-serif;color:#000;background:#fff}' +
       repTable +
+      oraYearComparePrintCss() +
       'th{background:#e2e8f0;font-weight:800}' +
       'thead{display:table-header-group}' +
       'tfoot{display:table-row-group}' +
@@ -324,11 +363,20 @@
 
   function wantsLandscapePrint(content) {
     var c = String(content || '');
-    if (/si-report-visits|si-report-tours|si-report-detailed|data-hx-print-landscape/.test(c)) return true;
+    if (
+      /si-report-visits|si-report-tours|si-report-detailed|data-hx-print-landscape|ora-year-compare|ora-summary-pick|report_oracle_rep_item_sales/.test(
+        c
+      )
+    ) {
+      return true;
+    }
     var p = String(window.location.pathname || '');
     if (/\/sales-reps\/reports\/(visits|tours)/.test(p)) return true;
     if (/\/sales\/reports\/detailed/.test(p)) return true;
-    return !!document.querySelector('.si-report-visits, .si-report-tours, [data-hx-print-landscape="1"]');
+    if (/\/sales\/reports\/oracle-rep-items/.test(p)) return true;
+    return !!document.querySelector(
+      '.si-report-visits, .si-report-tours, [data-hx-print-landscape="1"], [data-report-route="report_oracle_rep_item_sales"]'
+    );
   }
 
   function buildHtml(content, b) {

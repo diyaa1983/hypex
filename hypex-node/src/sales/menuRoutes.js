@@ -3258,7 +3258,7 @@ const oracleRepItemsHandler = async (req, res) => {
     }))
   ).replace(/</g, '\\u003c');
   const body = `
-    <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_item_sales">
+    <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_item_sales" data-hx-print-landscape="1">
       <div class="ora-report-sticky-chrome">
       ${ui.hero({
         mark: '📦',
@@ -3862,19 +3862,83 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         .ora-grand { background: #eef2f7; }
         @media print {
-          @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
+          @page { size: A4 landscape; margin: 6mm 5mm 8mm 5mm; }
           .ora-report-sticky-chrome {
             position: static !important;
             box-shadow: none !important;
             background: transparent !important;
           }
           .ora-portrait-table thead th,
-          .ora-portrait-table th.ora-vhead { position: static; box-shadow: none; }
-          .ora-portrait-table { font-size: 9pt; }
+          .ora-portrait-table th.ora-vhead {
+            position: static !important;
+            box-shadow: none !important;
+            background: #c5d6ea !important;
+            color: #000 !important;
+          }
+          .ora-portrait-table,
+          table.ora-year-compare,
+          table.ora-summary-pick {
+            width: 100% !important;
+            font-size: 7.5pt !important;
+            table-layout: auto !important;
+          }
+          table.ora-summary-pick th,
+          table.ora-summary-pick td {
+            padding: 2px 3px !important;
+            color: #000 !important;
+            vertical-align: middle !important;
+          }
+          .ora-ystack {
+            display: inline-flex !important;
+            flex-wrap: nowrap !important;
+            gap: 2px !important;
+            white-space: nowrap !important;
+          }
+          .ora-yline {
+            display: inline-flex !important;
+            min-width: 0 !important;
+            padding: 1px 3px !important;
+          }
+          .ora-yval { font-size: 7.5pt !important; color: #000 !important; }
+          .ora-yhead {
+            display: flex !important;
+            flex-wrap: nowrap !important;
+            gap: 2px !important;
+            justify-content: center !important;
+          }
+          .ora-yhead-y {
+            font-size: 6.5pt !important;
+            min-width: 0 !important;
+            padding: 1px 3px !important;
+            color: #000 !important;
+          }
+          .ora-cat-title { display: block; margin-bottom: 1px; font-size: 7pt; color: #000; }
+          td.ora-cust-name {
+            max-width: 32mm;
+            white-space: normal !important;
+            font-size: 7pt !important;
+            color: #000 !important;
+          }
+          td.ora-cat-years,
+          td.ora-total-years { white-space: nowrap !important; }
+          tr.ora-sum-row:nth-child(odd) td { background: #d9e4f2 !important; color: #000 !important; }
+          tr.ora-sum-row:nth-child(even) td { background: #f8fafc !important; color: #000 !important; }
+          tr.ora-cust-final td { background: #e7f4ea !important; color: #000 !important; }
+          table.ora-year-compare:not(.is-show-cat-diff) .ora-cat-diff,
+          table.ora-year-compare:not(.is-show-cat-diff) .ora-cat-diff-head {
+            display: none !important;
+          }
           tr.ora-item[hidden] { display: table-row !important; }
           .ora-arrow { display: none; }
-          .ora-cust-pick-lab, .ora-pick-bar, .ora-pick-foot, tr.ora-pick-sum { display: none !important; }
-          tr.ora-sum-row.is-picked td { background: transparent; }
+          .ora-cust-pick-lab,
+          .ora-pick-bar,
+          .ora-pick-foot,
+          tr.ora-pick-sum,
+          .ora-cat-diff-toggle,
+          .ora-tools,
+          .ora-year-note,
+          .ora-report-sticky-note { display: none !important; }
+          tr.ora-sum-row.is-picked td { outline: none !important; }
         }
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
