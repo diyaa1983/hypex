@@ -2967,7 +2967,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const netCell = yearCompare
           ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(rowByYear, true)}</td>`
           : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowAmt))}</td>`;
-        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowAmt}" data-sort-gross="${rowGross}" data-ora-total="${rowAmt}" data-ora-gross="${rowGross}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${netCell}</tr>`;
+        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowAmt}" data-sort-gross="${rowGross}" data-ora-total="${rowAmt}" data-ora-gross="${rowGross}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${grossCell}${netCell}${sumCells}</tr>`;
         let custQty = 0;
         let custBonus = 0;
         let custAmt = 0;
@@ -3081,11 +3081,11 @@ const oracleRepItemsHandler = async (req, res) => {
       const footNet = yearCompare
         ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(repYearTotals, true)}</td>`
         : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(repAmt))}</td>`;
-      const footRow = `<tr class="ora-cust-final ora-sum-all"><td>المجموع</td>${foot}${footGross}${footNet}</tr>`;
+      const footRow = `<tr class="ora-cust-final ora-sum-all"><td>المجموع</td>${footGross}${footNet}${foot}</tr>`;
       const pickCats = catOrder
         .map((_, idx) => `<td class="si-num ora-pick-cat" data-cat-idx="${idx}" dir="ltr"></td>`)
         .join('');
-      const pickRow = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCats}<td class="si-num ora-pick-gross" dir="ltr"></td><td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
+      const pickRow = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td><td class="si-num ora-pick-gross" dir="ltr"></td><td class="si-num ora-pick-total" dir="ltr"></td>${pickCats}</tr>`;
       const heads = catOrder
         .map(
           (cat, idx) =>
@@ -3120,13 +3120,13 @@ const oracleRepItemsHandler = async (req, res) => {
           )}">
             <thead><tr>
               <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
-              ${heads}
-              <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number" title="المبيعات قبل خصم المرتجعات"><span class="ora-cat-title">الإجمالي</span>${
+              <th class="ora-vhead js-sort-th ora-col-gross" data-sort="gross" data-sort-type="number" title="المبيعات قبل خصم المرتجعات"><span class="ora-cat-title">الإجمالي</span>${
                 yearCompare ? yearHeadHtml(false) : ''
               }</th>
-              <th class="ora-vhead js-sort-th" data-sort="total" data-sort-type="number" title="المبيعات بعد خصم المرتجعات"><span class="ora-cat-title">الصافي</span>${
+              <th class="ora-vhead js-sort-th ora-col-net" data-sort="total" data-sort-type="number" title="المبيعات بعد خصم المرتجعات (مبيعات − مرتجعات)"><span class="ora-cat-title">الصافي</span>${
                 yearCompare ? yearHeadHtml(true) : ''
               }</th>
+              ${heads}
             </tr></thead>
             <tbody>${body}${footRow}${pickRow}</tbody>
           </table>
@@ -3697,8 +3697,34 @@ const oracleRepItemsHandler = async (req, res) => {
           gap: .3rem;
           white-space: nowrap;
         }
-        .ora-gross-cell { font-weight: 800; }
-        .ora-net-cell { font-weight: 800; }
+        .ora-gross-cell,
+        .ora-net-cell {
+          font-weight: 800;
+          white-space: nowrap;
+          min-width: 6.5rem;
+        }
+        th.ora-col-gross,
+        th.ora-col-net {
+          min-width: 6.5rem;
+          background: #c5d6ea !important;
+          color: #000 !important;
+        }
+        th.ora-col-net {
+          background: #dbeafe !important;
+        }
+        td.ora-net-cell {
+          background: #eff6ff;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(odd) td.ora-net-cell {
+          background: #cfe0f5;
+        }
+        table.ora-summary-pick tbody tr.ora-sum-row:nth-child(even) td.ora-net-cell {
+          background: #e8f1fc;
+        }
+        table.ora-summary-pick tbody tr.ora-cust-final td.ora-gross-cell,
+        table.ora-summary-pick tbody tr.ora-cust-final td.ora-net-cell {
+          background: #dbeafe !important;
+        }
         .ora-cat-diff-toggle {
           display: inline-flex;
           align-items: center;
