@@ -2816,6 +2816,7 @@ const oracleRepItemsHandler = async (req, res) => {
     let detailHtml = '';
     let invoiceHtml = '';
     let invoiceSumHtml = '';
+    let catTotalsHtml = '';
     let i = 0;
     while (i < sourceRows.length) {
       const repStart = i;
@@ -3271,7 +3272,8 @@ const oracleRepItemsHandler = async (req, res) => {
           </tr>`;
         })
         .join('');
-      const catTotalsBar = `<div class="ora-cat-qty-box no-print" data-ora-cat-qty
+      const repKey = `${no}|${repLabel}`;
+      const catTotalsBar = `<div class="ora-cat-qty-box" data-ora-cat-qty data-ora-rep-key="${esc(repKey)}"
         data-ora-all-cats="${esc(catOrder.join('|'))}"
         data-ora-all-qtys="${esc(colQtyTotals.map((n) => String(Number(n) || 0)).join('|'))}"
         data-ora-all-bonuses="${esc(colBonusTotals.map((n) => String(Number(n) || 0)).join('|'))}"
@@ -3279,7 +3281,7 @@ const oracleRepItemsHandler = async (req, res) => {
         <div class="ora-cat-qty-head">
           <strong>مجاميع كميات الفئات</strong>
           <span class="ora-cat-qty-scope muted">كل العملاء</span>
-          <span class="muted">كراتين = الكمية المباعة · إضافي = القطع الإضافية (بونص)</span>
+          <span class="muted">كراتين = الكمية المباعة · إضافي = القطع الإضافية (بونص) · حدّد عميلاً من الملخص لتصفية الجدول</span>
         </div>
         <div class="si-table-wrap ora-cat-qty-wrap">
           <table class="si-table ora-cat-qty-table">
@@ -3307,12 +3309,11 @@ const oracleRepItemsHandler = async (req, res) => {
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
-      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block">
+      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
           ${yearNote}
           ${catDiffToggle}
-          ${catTotalsBar}
           <div class="ora-pick-bar no-print is-empty">
             <div class="ora-pick-bar-main">
               <span>مجموع العملاء المحددين (<span class="ora-pick-count">0</span>):</span>
@@ -3357,6 +3358,12 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
+      catTotalsHtml += `<section class="ora-cust-block ora-cat-totals-block" data-ora-rep-key="${esc(repKey)}">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+        </header>
+        ${catTotalsBar}
+      </section>`;
       detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
@@ -3420,12 +3427,12 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
     }
-    return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml };
+    return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
     };
     // كل العروض بعد خصم المرتجعات
     const netV = netRows.length
       ? buildOraViews(netRows)
-      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '' };
+      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '', catTotalsHtml: '' };
     const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
     const netAfterDiscShow =
       netTotals.net_after_disc != null
@@ -3446,12 +3453,14 @@ const oracleRepItemsHandler = async (req, res) => {
         <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
         <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
+        <button type="button" class="si-btn" data-ora-view="cat-totals">مجاميع الفئات</button>
       </div>`;
     rowsHtml = `${toolsHtml}
       <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary">${netV.summaryHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
       <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>`;
+      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>
+      <div class="ora-view" id="ora-view-net-cat-totals" data-ora-mode-panel="net" data-ora-view-panel="cat-totals" hidden>${netV.catTotalsHtml || emptyNet}${netGrand}</div>`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -4346,7 +4355,6 @@ const oracleRepItemsHandler = async (req, res) => {
           .ora-pick-foot,
           tr.ora-pick-sum,
           .ora-cat-diff-toggle,
-          .ora-cat-qty-box,
           .ora-tools,
           .ora-year-note,
           .ora-report-sticky-note { display: none !important; }
@@ -4620,8 +4628,7 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         return x.toLocaleString('en-US', { maximumFractionDigits: 3 });
       }
-      function refreshOraCatQtyBox(block, count, catAmts, catQtys, catBonuses) {
-        var box = block && block.querySelector('[data-ora-cat-qty]');
+      function fillOneOraCatQtyBox(box, count, catAmts, catQtys, catBonuses) {
         if (!box) return;
         var cats = String(box.getAttribute('data-ora-all-cats') || '').split('|');
         var usePick = count > 0;
@@ -4678,6 +4685,16 @@ const oracleRepItemsHandler = async (req, res) => {
           scope.classList.toggle('is-picked-scope', usePick);
         }
         box.classList.toggle('is-picked-filter', usePick);
+      }
+      function refreshOraCatQtyBox(block, count, catAmts, catQtys, catBonuses) {
+        if (!block) return;
+        var key = String(block.getAttribute('data-ora-rep-key') || '');
+        var boxes = key
+          ? document.querySelectorAll('[data-ora-cat-qty][data-ora-rep-key="' + key.replace(/"/g, '') + '"]')
+          : block.querySelectorAll('[data-ora-cat-qty]');
+        boxes.forEach(function (box) {
+          fillOneOraCatQtyBox(box, count, catAmts, catQtys, catBonuses);
+        });
       }
       function oraYearStackHtml(years, values, withDiff, catDiff) {
         var lines = (years || []).map(function (y, idx) {
