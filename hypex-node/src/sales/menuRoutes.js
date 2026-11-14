@@ -2773,11 +2773,16 @@ const oracleRepItemsHandler = async (req, res) => {
       const catOrder = [];
       const custMap = new Map();
       const invMap = new Map();
+      const yearHeadHtml = (withDiff) => {
+        const years = compareYears.map((y) => `<span class="ora-yhead-y">${y}</span>`).join('');
+        const diff = withDiff ? `<span class="ora-yhead-y ora-yhead-diff">الفرق</span>` : '';
+        return `<span class="ora-yhead">${years}${diff}</span>`;
+      };
       const yearStackHtml = (byYear, withDiff) => {
         const lines = compareYears
           .map((y) => {
             const a = Number(byYear?.get?.(y) || 0) || 0;
-            return `<div class="ora-yline"><span class="ora-ylbl">${y}</span><span class="ora-yval" dir="ltr">${
+            return `<div class="ora-yline" title="${y}"><span class="ora-yval" dir="ltr">${
               a ? esc(fmtAmt(a)) : '—'
             }</span></div>`;
           })
@@ -2788,7 +2793,7 @@ const oracleRepItemsHandler = async (req, res) => {
           const last = Number(byYear?.get?.(compareYears[compareYears.length - 1]) || 0) || 0;
           const diff = last - first;
           const sign = diff > 0 ? '+' : '';
-          diffHtml = `<div class="ora-yline ora-ydiff"><span class="ora-ylbl">الفرق</span><span class="ora-yval" dir="ltr">${esc(
+          diffHtml = `<div class="ora-yline ora-ydiff" title="الفرق"><span class="ora-yval" dir="ltr">${esc(
             sign + fmtAmt(diff)
           )}</span></div>`;
         }
@@ -3061,13 +3066,13 @@ const oracleRepItemsHandler = async (req, res) => {
       const heads = catOrder
         .map(
           (cat, idx) =>
-            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="ترتيب حسب ${esc(cat)}">${esc(cat)}${
-              yearCompare ? `<span class="ora-yhint">${esc(compareYears.join(' / '))}</span>` : ''
-            }</th>`
+            `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" title="ترتيب حسب ${esc(cat)}"><span class="ora-cat-title">${esc(
+              cat
+            )}</span>${yearCompare ? yearHeadHtml(false) : ''}</th>`
         )
         .join('');
       const yearNote = yearCompare
-        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — بجانب كل فئة تظهر السنوات، والفرق فقط في المجموع النهائي (${esc(
+        ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — أسماء السنوات في الترويسة فقط، والمبالغ في الصفوف حسب نفس الترتيب، والفرق في المجموع النهائي (${esc(
             String(compareYears[compareYears.length - 1])
           )} − ${esc(String(compareYears[0]))})</div>`
         : '';
@@ -3090,8 +3095,8 @@ const oracleRepItemsHandler = async (req, res) => {
             <thead><tr>
               <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
               ${heads}
-              <th class="ora-vhead js-sort-th" data-sort="total" data-sort-type="number">المجموع${
-                yearCompare ? '<span class="ora-yhint">سنوات + فرق</span>' : ''
+              <th class="ora-vhead js-sort-th" data-sort="total" data-sort-type="number"><span class="ora-cat-title">المجموع</span>${
+                yearCompare ? yearHeadHtml(true) : ''
               }</th>
             </tr></thead>
             <tbody>${body}${footRow}${pickRow}</tbody>
@@ -3668,26 +3673,51 @@ const oracleRepItemsHandler = async (req, res) => {
           min-width: 0;
           max-width: 100%;
         }
+        .ora-cat-title {
+          display: block;
+          font-weight: 800;
+          line-height: 1.2;
+        }
+        .ora-yhead {
+          display: flex;
+          flex-wrap: nowrap;
+          align-items: center;
+          justify-content: center;
+          gap: .18rem;
+          margin-top: .2rem;
+        }
+        .ora-yhead-y {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 3.1rem;
+          padding: .08rem .18rem;
+          border-radius: .2rem;
+          background: #e8eef8;
+          color: #1e3a5f;
+          font-size: .58rem;
+          font-weight: 800;
+          line-height: 1.1;
+          white-space: nowrap;
+        }
+        .ora-yhead-y.ora-yhead-diff {
+          background: #dbeafe;
+          color: #1d4ed8;
+          min-width: 2.6rem;
+        }
         .ora-yline {
           display: inline-flex;
           flex-direction: row;
-          align-items: baseline;
+          align-items: center;
           justify-content: center;
-          gap: .18rem;
-          min-width: 0;
-          padding: .08rem .22rem;
+          min-width: 3.1rem;
+          padding: .08rem .18rem;
           border: 1px solid #dbe3ee;
           border-radius: .22rem;
           background: #f8fafc;
           font-size: .62rem;
           line-height: 1.15;
           white-space: nowrap;
-        }
-        .ora-ylbl {
-          font-weight: 800;
-          color: #64748b;
-          font-size: .58rem;
-          font-variant-numeric: tabular-nums;
         }
         .ora-yval {
           font-weight: 700;
@@ -3696,29 +3726,15 @@ const oracleRepItemsHandler = async (req, res) => {
           font-variant-numeric: tabular-nums;
         }
         .ora-yline.ora-ydiff {
-          padding: .06rem .18rem;
+          min-width: 2.6rem;
+          padding: .06rem .16rem;
           border-color: #93c5fd;
           background: #eff6ff;
-          font-size: .56rem;
-          gap: .12rem;
-        }
-        .ora-yline.ora-ydiff .ora-ylbl {
-          color: #64748b;
-          font-weight: 700;
-          font-size: .52rem;
         }
         .ora-yline.ora-ydiff .ora-yval {
           color: #1e3a5f;
           font-weight: 800;
           font-size: .58rem;
-        }
-        .ora-yhint {
-          display: block;
-          margin-top: .1rem;
-          font-size: .58rem;
-          font-weight: 700;
-          color: #64748b;
-          line-height: 1.15;
         }
         .ora-year-note {
           margin-top: .35rem;
@@ -4042,7 +4058,7 @@ const oracleRepItemsHandler = async (req, res) => {
       function oraYearStackHtml(years, values, withDiff) {
         var lines = (years || []).map(function (y, idx) {
           var a = Number(values[idx] || 0) || 0;
-          return '<div class="ora-yline"><span class="ora-ylbl">' + y + '</span><span class="ora-yval" dir="ltr">' +
+          return '<div class="ora-yline" title="' + y + '"><span class="ora-yval" dir="ltr">' +
             (a ? fmtOraPickAmt(a) : '—') + '</span></div>';
         }).join('');
         var diffHtml = '';
@@ -4051,7 +4067,7 @@ const oracleRepItemsHandler = async (req, res) => {
           var last = Number(values[years.length - 1] || 0) || 0;
           var diff = last - first;
           var sign = diff > 0 ? '+' : '';
-          diffHtml = '<div class="ora-yline ora-ydiff"><span class="ora-ylbl">الفرق</span><span class="ora-yval" dir="ltr">' +
+          diffHtml = '<div class="ora-yline ora-ydiff" title="الفرق"><span class="ora-yval" dir="ltr">' +
             sign + fmtOraPickAmt(diff) + '</span></div>';
         }
         return '<div class="ora-ystack">' + lines + diffHtml + '</div>';
