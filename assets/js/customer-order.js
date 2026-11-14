@@ -703,8 +703,8 @@
     var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
     return (
       '<div class="co-price-box">' +
-      side('كرتونة', units.carton) +
-      side('قطعة', units.piece) +
+      side('كرت', units.carton) +
+      side('قط', units.piece) +
       '<input type="hidden" class="js-price" value="' +
       escAttr(pieceEx) +
       '">' +
@@ -723,7 +723,9 @@
       var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
       var key = unit ? unitKey(unit) : slotKey;
       return (
-        '<label class="co-qty-slot">' +
+        '<label class="co-qty-slot" title="' +
+        escAttr(label === 'ك' ? 'كرتونة' : label === 'ق' ? 'قطعة' : label) +
+        '">' +
         '<span class="co-qty-slot__lab">' +
         escAttr(label) +
         '</span>' +
@@ -746,13 +748,13 @@
       (extra ? 'الكمية المجانية' : 'الكمية') +
       '">' +
       one(
-        'كرتونة',
+        'ك',
         cartonCls,
         carton,
         'slot:carton',
         extra ? ln.extra_carton : ln.qty_carton
       ) +
-      one('قطعة', pieceCls, piece, 'slot:piece', extra ? ln.extra_piece : ln.qty_piece) +
+      one('ق', pieceCls, piece, 'slot:piece', extra ? ln.extra_piece : ln.qty_piece) +
       '</div>'
     );
   }

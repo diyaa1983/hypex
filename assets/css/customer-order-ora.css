@@ -576,6 +576,53 @@ body.co-ora-body .si-stage .si-cust-wrap , .co-ora-skin .si-cust-wrap {
 
 /* الجدول — مسطّر بالكامل + خط غامق */
 body.co-ora-body .si-stage .oracle-rec-grid-wrap, .co-ora-skin .oracle-rec-grid-wrap,
+/* جدول بنود طلب الشراء — عرض مضغوط (الوضع الطبيعي) */
+body.co-ora-body .si-stage #co-lines.si-lines--co,
+.co-ora-skin #co-lines.si-lines--co {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+body.co-ora-body .si-stage #co-lines col.co-c-qty,
+body.co-ora-body .si-stage #co-lines col.co-c-extra,
+.co-ora-skin #co-lines col.co-c-qty,
+.co-ora-skin #co-lines col.co-c-extra {
+  width: 6.6rem !important;
+}
+
+body.co-ora-body .si-stage #co-lines col.co-c-price,
+.co-ora-skin #co-lines col.co-c-price {
+  width: 9.6rem !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-qty-slot,
+.co-ora-skin #co-lines .co-qty-slot {
+  flex-direction: row !important;
+  padding: 1px 2px !important;
+  border-radius: 4px !important;
+  gap: 2px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-qty-slot input,
+.co-ora-skin #co-lines .co-qty-slot input {
+  max-width: 2.6rem !important;
+  min-height: 1.35rem !important;
+  height: 1.35rem !important;
+  font-size: 11px !important;
+  padding: 0 2px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-price-box,
+.co-ora-skin #co-lines .co-price-box {
+  gap: 2px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-price-side,
+.co-ora-skin #co-lines .co-price-side {
+  padding: 1px 2px !important;
+  border-radius: 4px !important;
+}
+
 body.co-ora-body .si-stage .si-lines-wrap , .co-ora-skin .si-lines-wrap {
   border: 1px solid #000 !important;
   border-radius: 0 !important;

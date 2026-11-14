@@ -2151,46 +2151,50 @@ label .si-field-key {
   vertical-align: middle;
 }
 
-/* عرض أعمدة ثابت حتى لا تُضغط الحقول */
-.si-lines.si-lines--co th:nth-child(1),
-.si-lines.si-lines--co td:nth-child(1) {
-  width: 2.4rem;
+/* عرض أعمدة مضغوط لطلب الشراء (الوضع الطبيعي) */
+#co-lines.si-lines--co th:nth-child(1),
+#co-lines.si-lines--co td:nth-child(1) {
+  width: 1.5rem;
 }
-.si-lines.si-lines--co th:nth-child(2),
-.si-lines.si-lines--co td:nth-child(2) {
-  width: 9.5rem;
+#co-lines.si-lines--co th:nth-child(2),
+#co-lines.si-lines--co td:nth-child(2) {
+  width: 4.6rem;
 }
-.si-lines.si-lines--co th:nth-child(3),
-.si-lines.si-lines--co td:nth-child(3) {
-  width: 15rem;
-}
-.si-lines.si-lines--co th:nth-child(4),
-.si-lines.si-lines--co td:nth-child(4) {
-  width: 7.5rem;
-}
-.si-lines.si-lines--co th:nth-child(5),
-.si-lines.si-lines--co td:nth-child(5),
-.si-lines.si-lines--co th:nth-child(6),
-.si-lines.si-lines--co td:nth-child(6) {
+#co-lines.si-lines--co th:nth-child(3),
+#co-lines.si-lines--co td:nth-child(3) {
   width: 5.6rem;
 }
-.si-lines.si-lines--co th:nth-child(7),
-.si-lines.si-lines--co td:nth-child(7) {
-  width: 6.4rem;
+#co-lines.si-lines--co th:nth-child(4),
+#co-lines.si-lines--co td:nth-child(4) {
+  width: auto;
 }
-.si-lines.si-lines--co th:nth-child(8),
-.si-lines.si-lines--co td:nth-child(8) {
-  width: 5.2rem;
+#co-lines.si-lines--co th:nth-child(5),
+#co-lines.si-lines--co td:nth-child(5) {
+  width: 2.8rem;
 }
-.si-lines.si-lines--co th:nth-child(9),
-.si-lines.si-lines--co td:nth-child(9) {
-  width: 5.8rem;
+#co-lines.si-lines--co th:nth-child(6),
+#co-lines.si-lines--co td:nth-child(6),
+#co-lines.si-lines--co th:nth-child(7),
+#co-lines.si-lines--co td:nth-child(7) {
+  width: 6.6rem;
 }
-.si-lines.si-lines--co th:nth-child(10),
-.si-lines.si-lines--co td:nth-child(10),
-.si-lines.si-lines--co th:nth-child(11),
-.si-lines.si-lines--co td:nth-child(11) {
-  width: 6.4rem;
+#co-lines.si-lines--co th:nth-child(8),
+#co-lines.si-lines--co td:nth-child(8) {
+  width: 9.6rem;
+}
+#co-lines.si-lines--co th:nth-child(9),
+#co-lines.si-lines--co td:nth-child(9) {
+  width: 3.2rem;
+}
+#co-lines.si-lines--co th:nth-child(10),
+#co-lines.si-lines--co td:nth-child(10) {
+  width: 3.6rem;
+}
+#co-lines.si-lines--co th:nth-child(11),
+#co-lines.si-lines--co td:nth-child(11),
+#co-lines.si-lines--co th:nth-child(12),
+#co-lines.si-lines--co td:nth-child(12) {
+  width: 4.2rem;
 }
 .si-lines.si-lines--co th:nth-child(12),
 .si-lines.si-lines--co td:nth-child(12) {
@@ -3530,22 +3534,22 @@ body.ic-pick-lock {
   border-spacing: 0;
 }
 
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 1.75rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-sku { width: 5.5rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 7rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-idx { width: 1.5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-sku { width: 4.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-code { width: 5.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-name { width: auto; }
-#co-lines col.co-c-unit { width: 3.4rem; }
+#co-lines col.co-c-unit { width: 2.8rem; }
 #co-lines th.co-unit-head,
 #co-lines td.co-pack-cell {
   display: table-cell !important;
   visibility: visible !important;
-  width: 3.4rem;
-  max-width: 3.6rem;
-  padding: 2px 4px !important;
+  width: 2.8rem;
+  max-width: 3rem;
+  padding: 1px 2px !important;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  line-height: 1.2 !important;
+  line-height: 1.15 !important;
   white-space: nowrap;
   overflow: visible !important;
 }
@@ -3567,37 +3571,41 @@ body.ic-pick-lock {
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(6),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(7),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(7) {
-  width: 11rem;
+  width: 6.6rem;
 }
+/* الوضع الطبيعي: كمية/مجاني/سعر مضغوطة بالعرض */
 .si-lines--co .co-qty-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 2px;
   width: 100%;
   margin: 0;
   align-items: stretch;
 }
 .si-lines--co .co-qty-slot {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 3px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
   min-width: 0;
   margin: 0;
-  padding: 4px 5px 5px;
+  padding: 1px 2px;
   border: 1px solid #c5d0de;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f4f7fb;
-  line-height: 1.1;
+  line-height: 1;
   text-align: center;
   cursor: text;
 }
 .si-lines--co .co-qty-slot__lab {
   display: block;
-  font-size: 10px;
+  flex: 0 0 auto;
+  font-size: 8px;
   font-weight: 800;
   color: #1e3a5f;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell {
   overflow: visible !important;
@@ -3605,22 +3613,23 @@ body.ic-pick-lock {
   text-overflow: clip;
   text-align: center;
   vertical-align: middle;
-  padding: 0.35rem 0.3rem !important;
+  padding: 0.12rem 0.1rem !important;
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell .co-qty-slot input {
   display: block;
+  flex: 1 1 auto;
   width: 100% !important;
   min-width: 0 !important;
-  max-width: 100% !important;
-  height: 1.85rem;
-  min-height: 1.85rem !important;
+  max-width: 2.6rem !important;
+  height: 1.35rem;
+  min-height: 1.35rem !important;
   margin: 0;
-  padding: 0 4px !important;
+  padding: 0 2px !important;
   border: 1px solid #94a3b8 !important;
-  border-radius: 6px !important;
+  border-radius: 3px !important;
   background: #fff !important;
   text-align: center;
-  font-size: 13px !important;
+  font-size: 11px !important;
   font-weight: 800;
   color: #0f172a;
   box-shadow: none;
@@ -3628,25 +3637,25 @@ body.ic-pick-lock {
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell .co-qty-slot input:focus {
   border-color: #0284c7 !important;
   background: #fff !important;
-  box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.18);
+  box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.2);
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 11rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 6.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(6),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(6),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(7),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(7) {
-  width: 11rem;
+  width: 6.6rem;
 }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 14.5rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 9.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(8),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(8) {
-  width: 14.5rem;
+  width: 9.6rem;
 }
 .si-lines--co .co-price-box {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 6px;
+  gap: 2px;
   width: 100%;
   align-items: stretch;
 }
@@ -3654,25 +3663,25 @@ body.ic-pick-lock {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 3px;
+  gap: 1px;
   min-width: 0;
-  padding: 3px 5px 4px;
+  padding: 1px 2px 2px;
   border: 1px solid #c5d0de;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #f4f7fb;
 }
 .si-lines--co .co-price-side > b {
   display: block;
   text-align: center;
-  font-size: 10px;
+  font-size: 8px;
   font-weight: 800;
   color: #1e3a5f;
-  line-height: 1.15;
+  line-height: 1.1;
 }
 .si-lines--co .co-price-side__vals {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px;
+  gap: 1px;
 }
 .si-lines--co .co-price-chip {
   display: flex;
@@ -3681,22 +3690,22 @@ body.ic-pick-lock {
   justify-content: center;
   gap: 0;
   min-width: 0;
-  padding: 2px 3px;
-  border-radius: 5px;
+  padding: 0 1px;
+  border-radius: 3px;
   background: #fff;
   border: 1px solid #d5deea;
-  line-height: 1.1;
+  line-height: 1.05;
 }
 .si-lines--co .co-price-chip i {
   font-style: normal;
-  font-size: 9px;
+  font-size: 7px;
   font-weight: 800;
   color: #64748b;
 }
 .si-lines--co .co-price-chip em {
   font-style: normal;
   font-weight: 800;
-  font-size: 11px;
+  font-size: 10px;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
@@ -3706,13 +3715,13 @@ body.ic-pick-lock {
   overflow: visible !important;
   text-overflow: clip;
   vertical-align: middle;
-  padding: 0.3rem 0.25rem !important;
+  padding: 0.1rem 0.08rem !important;
 }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 4rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 4.6rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 3.2rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 3.6rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-net,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-total { width: 5rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-del { width: 2.35rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-total { width: 4.2rem; }
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-del { width: 2rem; }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th,
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td {
@@ -3724,8 +3733,9 @@ body.ic-pick-lock {
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th {
-  padding: 0.5rem 0.4rem;
+  padding: 0.28rem 0.2rem;
   text-align: center;
+  font-size: 0.72rem;
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) thead th:nth-child(2),
@@ -3734,10 +3744,10 @@ body.ic-pick-lock {
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) tbody td {
-  padding: 0.28rem 0.3rem;
+  padding: 0.12rem 0.15rem;
 }
 
-/* الحقول: صندوق واضح داخل الخلية بدل حقول ملتصقة/متداخلة */
+/* الحقول: مضغوطة بالعرض والارتفاع في الوضع الطبيعي */
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) input:not([type='hidden']),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) select {
   display: block;
@@ -3745,13 +3755,14 @@ body.ic-pick-lock {
   width: 100% !important;
   min-width: 0 !important;
   max-width: 100% !important;
-  min-height: 2rem;
+  min-height: 1.45rem;
+  height: 1.45rem;
   margin: 0;
-  padding: 0.25rem 0.45rem;
+  padding: 0.1rem 0.28rem;
   border: 1px solid #dbe3ec;
-  border-radius: 8px;
+  border-radius: 4px;
   background: #fff;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 600;
   text-overflow: ellipsis;
 }
@@ -3815,17 +3826,17 @@ body.ic-pick-lock {
   inset-inline-end: 0;
   z-index: 6;
   box-shadow: -5px 0 10px -6px rgba(15, 23, 42, 0.22);
-  width: 2.35rem;
-  min-width: 2.35rem;
-  max-width: 2.5rem;
-  padding: 0.15rem;
+  width: 2rem;
+  min-width: 2rem;
+  max-width: 2.2rem;
+  padding: 0.1rem;
   overflow: visible;
   background: #fff;
 }
 
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.si-col-del .si-del {
-  width: 1.9rem;
-  height: 1.9rem;
+  width: 1.55rem;
+  height: 1.55rem;
   padding: 0;
   margin: 0 auto;
 }
