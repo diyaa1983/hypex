@@ -3274,8 +3274,22 @@ const oracleRepItemsHandler = async (req, res) => {
           border: 1px solid #cbd5e1 !important;
           background: #fff !important;
         }
-        .ora-portrait-wrap { max-width: none; overflow-x: auto; }
-        .ora-portrait-table { width: 100%; table-layout: auto; border-collapse: collapse; }
+        /* overflow/max-height على الحاوية وborder-collapse:collapse يكسران sticky */
+        .si-report-page .si-table-wrap.ora-portrait-wrap,
+        .ora-portrait-wrap {
+          max-width: none;
+          max-height: none !important;
+          height: auto !important;
+          overflow-x: clip !important;
+          overflow-y: visible !important;
+        }
+        .ora-portrait-table {
+          width: 100%;
+          table-layout: auto;
+          border-collapse: separate !important;
+          border-spacing: 0;
+        }
+        .ora-portrait-table thead th,
         .ora-portrait-table th.ora-vhead {
           writing-mode: horizontal-tb;
           white-space: nowrap;
@@ -3284,17 +3298,18 @@ const oracleRepItemsHandler = async (req, res) => {
           text-align: center;
           font-size: .82rem;
           padding: .55rem .45rem;
-          position: sticky;
+          position: sticky !important;
           top: 0;
-          background: #f1f5f9;
-          z-index: 2;
+          background: #e8eef5 !important;
+          box-shadow: 0 1px 0 #94a3b8;
+          z-index: 6;
         }
         .ora-portrait-table th.ora-vhead.js-sort-th {
           cursor: pointer;
           user-select: none;
         }
         .ora-portrait-table th.ora-vhead.js-sort-th:hover {
-          background: #e2e8f0;
+          background: #dbe4ef !important;
         }
         .ora-portrait-table th.ora-vhead.js-sort-th.is-sort-asc::after {
           content: ' ▲';
@@ -3434,7 +3449,8 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-grand { background: #eef2f7; }
         @media print {
           @page { size: A4 portrait; margin: 8mm 6mm 10mm 6mm; }
-          .ora-portrait-table th.ora-vhead { position: static; }
+          .ora-portrait-table thead th,
+          .ora-portrait-table th.ora-vhead { position: static; box-shadow: none; }
           .ora-portrait-table { font-size: 9pt; }
           tr.ora-item[hidden] { display: table-row !important; }
           .ora-arrow { display: none; }

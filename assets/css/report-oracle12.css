@@ -393,7 +393,31 @@ body.report-ora12-ui .main-content {
 }
 
 .report-ora12-workspace .table-wrap {
-  overflow-x: auto;
+  overflow-x: clip;
+  overflow-y: visible;
+}
+
+.report-ora12-workspace .data-table,
+.report-ora12-workspace table.si-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.report-ora12-workspace .data-table thead th,
+.report-ora12-workspace table.si-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background: linear-gradient(180deg, #e8e8e8 0%, #d0d0d0 100%);
+  box-shadow: 0 1px 0 #808080;
+}
+
+@media print {
+  .report-ora12-workspace .data-table thead th,
+  .report-ora12-workspace table.si-table thead th {
+    position: static;
+    box-shadow: none;
+  }
 }
 
 .report-ora12-screen .data-table tbody tr:nth-child(even) td {

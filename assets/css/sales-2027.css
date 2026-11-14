@@ -601,6 +601,15 @@ body.si-2027 .si-main::before {
   max-height: min(62vh, 720px);
 }
 
+/* تقارير: تمرير الصفحة مع ترويسة sticky (overflow على الحاوية يكسر sticky) */
+.si-report-page .si-table-wrap,
+.report-sales-page .si-table-wrap {
+  max-height: none;
+  overflow-x: clip;
+  overflow-y: visible;
+  height: auto;
+}
+
 /* كشف حساب Oracle / تقارير كشف: الجدول كاملاً مع تمرير الصفحة */
 .ora-stmt .si-table-wrap,
 .ora-stmt-body .si-table-wrap,
@@ -611,7 +620,9 @@ body.si-2027 .si-main::before {
 }
 .ora-stmt .si-table thead th,
 .ora-stmt-body .si-table thead th {
-  position: static;
+  position: sticky;
+  top: 0;
+  z-index: 6;
 }
 
 .si-table {
