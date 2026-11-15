@@ -3445,7 +3445,7 @@ const oracleRepItemsHandler = async (req, res) => {
         <div class="ora-cat-qty-head">
           <strong>مجاميع كميات الفئات</strong>
           <span class="ora-cat-qty-scope muted">كل عملاء المندوب</span>
-          <span class="muted">كراتين = الكمية · إضافي = البونص · المبلغ = صافي الفئة · تظهر تحت كل مندوب مع الإجمالي والصافي</span>
+          <span class="muted">كراتين = الكمية · إضافي = البونص · المبلغ = صافي الفئة</span>
         </div>
         <div class="si-table-wrap ora-cat-qty-wrap">
           <table class="si-table ora-cat-qty-table ora-cat-qty-table--wide">
@@ -3529,7 +3529,6 @@ const oracleRepItemsHandler = async (req, res) => {
             <tbody>${pickRow}${body}${footRow}</tbody>
           </table>
         </div>
-        ${catTotalsBar}
         <div class="si-table-wrap ora-rep-totals-wrap">
           <table class="si-table ora-rep-totals-table">
             <thead>
@@ -3573,8 +3572,13 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
-      // عرض «مبيعات جميع المندوبين»: ملخص كل مندوب + مجاميع الفئات تحته
-      catTotalsHtml += sectionOf(summaryBody);
+      // عرض «مجاميع الفئات» فقط: جدول الفئات لوحده بدون ملخص العملاء
+      catTotalsHtml += `<section class="ora-cust-block ora-cat-totals-only" data-ora-rep-key="${esc(repKey)}">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+        </header>
+        ${catTotalsBar}
+      </section>`;
       grandAll.reps += 1;
       grandAll.gross += Number(repGross) || 0;
       grandAll.disc += Number(repDisc) || 0;
@@ -3687,7 +3691,6 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += grandFinalHtml;
-      catTotalsHtml += grandFinalHtml;
     }
     return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
     };
@@ -3723,7 +3726,7 @@ const oracleRepItemsHandler = async (req, res) => {
           oraMode === 'all_oracle'
             ? 'عرض مجاميع مبيعات كل المندوبين حسب رقم المندوب في Oracle (MAN_NUM). القائمة أعلاه من نظام Oracle.'
             : 'اضغط «مبيعات جميع المندوبين» لتحميل مجاميع كل مندوبي Oracle لهذه الفترة.'
-        }</div>${netV.catTotalsHtml || ''}`
+        }</div>${netV.summaryHtml || ''}`
       )}
       ${panel('cat-totals', netV.catTotalsHtml)}`;
   } else if (run && !err) {
