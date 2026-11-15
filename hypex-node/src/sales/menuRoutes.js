@@ -2973,38 +2973,58 @@ const oracleRepItemsHandler = async (req, res) => {
         inv.qty += qty;
         inv.bonus += bonus;
         inv.amount += amount;
-        // خصم الفاتورة مختوم على السطر من PHP (vou_disc) — أو من القائمة الاحتياطية
+        // خصم الفاتورة من سطر الحركة (MAX VOU_DISC في SQL) — لا تعتمد على قائمة منفصلة
         const rowVou = Number(r.vou_disc);
         const rowTax = Number(r.vou_tax);
-        if (Number.isFinite(rowVou) && rowVou !== 0) inv.vouDisc = rowVou;
-        else if (!inv.vouDisc) {
-          inv.vouDisc = lookupInvDisc(docKind, no, invYear, invNo, acc);
+        if (Number.isFinite(rowVou) && Math.abs(rowVou) > 0) {
+          inv.vouDisc = Math.max(Number(inv.vouDisc) || 0, Math.abs(rowVou));
+        } else if (!(Number(inv.vouDisc) > 0)) {
+          const fb = lookupInvDisc(docKind, no, invYear, invNo, acc);
+          if (fb) inv.vouDisc = fb;
         }
-        if (Number.isFinite(rowTax) && rowTax !== 0) inv.vouTax = rowTax;
-        else if (!inv.vouTax) {
-          inv.vouTax = lookupInvTax(docKind, no, invYear, invNo, acc);
+        if (Number.isFinite(rowTax) && Math.abs(rowTax) > 0) {
+          inv.vouTax = Math.max(Number(inv.vouTax) || 0, Math.abs(rowTax));
+        } else if (!(Number(inv.vouTax) > 0)) {
+          const fb = lookupInvTax(docKind, no, invYear, invNo, acc);
+          if (fb) inv.vouTax = fb;
         }
         inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
-      // خصم لكل عميل + مجموع المندوب من فواتير invMap (نفس مصدر الحركة)
-      const discByCustRep = new Map();
+      // خصم مجموع المندوب مباشرة من vou_disc على صفوف حركته (مرة لكل فاتورة)
       let repDiscFixed = 0;
       let repTaxFixed = 0;
       const seenInvForRepDisc = new Set();
+      repRows.forEach((r) => {
+        const amount = Number(r.amount) || 0;
+        const qty = Number(r.qty) || 0;
+        const isRet =
+          String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
+        const kind = isRet ? 'R' : 'S';
+        const invUniq = `${kind}|${Number(r.invoice_year) || 0}|${Number(r.invoice_no) || 0}`;
+        if (seenInvForRepDisc.has(invUniq)) return;
+        seenInvForRepDisc.add(invUniq);
+        let disc = Math.abs(Number(r.vou_disc) || 0);
+        let tax = Math.abs(Number(r.vou_tax) || 0);
+        if (!disc) {
+          disc = lookupInvDisc(kind, no, r.invoice_year, r.invoice_no, r.customer_acc);
+        }
+        if (!tax) {
+          tax = lookupInvTax(kind, no, r.invoice_year, r.invoice_no, r.customer_acc);
+        }
+        repDiscFixed += isRet ? -disc : disc;
+        repTaxFixed += isRet ? -tax : tax;
+      });
+      if (!repDiscFixed) {
+        const repVou = sumRepVouDisc(no);
+        if (repVou.found) repDiscFixed = repVou.sum;
+      }
+      // خصم لكل عميل من فواتير invMap (للأعمدة في الملخص)
+      const discByCustRep = new Map();
       invMap.forEach((inv) => {
         const acc = normAccKey(inv.customerAcc);
         const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
         const disc = Number(inv.vouDisc) || 0;
-        const tax = Number(inv.vouTax) || 0;
         const signed = kind === 'R' ? -disc : disc;
-        const signedTax = kind === 'R' ? -tax : tax;
-        // فاتورة واحدة مرة واحدة حتى لو تعدد شكل حساب العميل
-        const invUniq = `${kind}|${Number(inv.invYear) || 0}|${Number(inv.invNo) || 0}`;
-        if (!seenInvForRepDisc.has(invUniq)) {
-          seenInvForRepDisc.add(invUniq);
-          repDiscFixed += signed;
-          repTaxFixed += signedTax;
-        }
         if (!acc || !signed) return;
         if (!discByCustRep.has(acc)) discByCustRep.set(acc, { total: 0, byYear: new Map() });
         const slot = discByCustRep.get(acc);
@@ -3015,11 +3035,6 @@ const oracleRepItemsHandler = async (req, res) => {
           0;
         if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
       });
-      // إن لم يُختم على السطور: احتياط من قائمة الخصوم حسب MAN_NUM
-      if (!repDiscFixed) {
-        const repVou = sumRepVouDisc(no);
-        if (repVou.found) repDiscFixed = repVou.sum;
-      }
       const custDiscOf = (acc) => discByCustRep.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;

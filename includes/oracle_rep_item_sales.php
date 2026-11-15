@@ -633,20 +633,9 @@ GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
                 $totVouTax += $tax;
             }
         }
-        // ختم الخصم/الضريبة على كل سطر حركة — مصدر موثوق لمجموع المندوب حتى مع كل المندوبين
-        $stampVou = static function (array &$list) use ($vouByInv): void {
-            foreach ($list as &$row) {
-                $kind = (string) ($row['doc_kind'] ?? 'S');
-                $key = $kind . '|' . (int) ($row['rep_no'] ?? 0) . '|'
-                    . (int) ($row['invoice_year'] ?? 0) . '|' . (int) ($row['invoice_no'] ?? 0);
-                $hit = $vouByInv[$key] ?? null;
-                $row['vou_disc'] = $hit ? (float) $hit['vou_disc'] : 0.0;
-                $row['vou_tax'] = $hit ? (float) $hit['vou_tax'] : 0.0;
-            }
-            unset($row);
-        };
-        $stampVou($rows);
-        $stampVou($returnRows);
+        // لا نكتب فوق vou_disc القادم من استعلام المبيعات (MAX على الفاتورة).
+        // سابقاً stamp كان يضع 0 عند عدم تطابق المفتاح فيفشل خصم بعض المندوبين عند «الكل».
+        $debugProbe['vou_invoice_count'] = count($vouByInv);
     } catch (Throwable $e) {
         $debugProbe['vou_disc_error'] = $e->getMessage();
     }
