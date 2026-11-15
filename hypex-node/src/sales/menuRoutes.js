@@ -2237,7 +2237,7 @@ const oracleRepItemsHandler = async (req, res) => {
     if (man > 0) set.add(String(man));
   };
 
-  // الوضع العادي: أسماء هايبكس | وضع كل مندوبي Oracle: أسماء EMP_INFO كما في Forms
+  // قائمة المندوب دائماً من Oracle (Forms) — ليس من هايبكس
   const hypexReps = await q.listRepsSimple();
   const hypexNameByMan = new Map();
   for (const r of hypexReps || []) {
@@ -2248,25 +2248,14 @@ const oracleRepItemsHandler = async (req, res) => {
   }
   let reps = [];
   const seen = new Set();
-  if (oraMode === 'all_oracle') {
-    const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
-    const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
-    for (const r of oraRows) {
-      const manNo = Number(r.id) || parseManNo(r.code);
-      if (manNo < 1 || seen.has(manNo)) continue;
-      seen.add(manNo);
-      const nm = String(r.name_ar || '').trim() || `مندوب ${manNo}`;
-      reps.push({ id: manNo, code: String(manNo), name_ar: nm });
-    }
-  } else {
-    for (const r of hypexReps || []) {
-      const manNo = parseManNo(r.code);
-      if (manNo < 1 || seen.has(manNo)) continue;
-      const nm = String(r.name_ar || '').trim();
-      if (!nm) continue;
-      seen.add(manNo);
-      reps.push({ id: manNo, code: String(manNo), name_ar: nm });
-    }
+  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
+  const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+  for (const r of oraRows) {
+    const manNo = Number(r.id) || parseManNo(r.code);
+    if (manNo < 1 || seen.has(manNo)) continue;
+    seen.add(manNo);
+    const nm = String(r.name_ar || '').trim() || `مندوب ${manNo}`;
+    reps.push({ id: manNo, code: String(manNo), name_ar: nm });
   }
   reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
 
@@ -2336,31 +2325,10 @@ const oracleRepItemsHandler = async (req, res) => {
     return String(raw).replace(/\D+/g, '').replace(/^0+/, '');
   };
   let scopeCustomerIds = customerIds.slice();
+  // القائمة من Oracle → الفلتر دائماً حسب MAN_NUM في الفاتورة
   let filterOracleRep = true;
   const selectedRepCodes = new Set(oracleRepNos.map(String));
-  // خريطة حساب Oracle → رقم مندوب هايبكس الحالي (للوضع العادي فقط)
   const accToRep = new Map();
-  if (oraMode === 'all_oracle') {
-    // مبيعات حسب MAN_NUM في Oracle مباشرة — بدون ربط عملاء هايبكس
-    filterOracleRep = true;
-    scopeCustomerIds = customerIds.slice();
-  } else if (oracleRepNos.length) {
-    // مندوبو هايبكس الحاليون: كل مبيعات عملائهم (حتى ما بيع تحت مندوب قديم في Oracle)
-    filterOracleRep = false;
-    const linkedIds = (customers || [])
-      .filter((c) => {
-        const codes = custRepCodes.get(String(Number(c.id) || 0)) || new Set();
-        return [...selectedRepCodes].some((code) => codes.has(code));
-      })
-      .map((c) => Number(c.id) || 0)
-      .filter((id) => id > 0);
-    if (scopeCustomerIds.length) {
-      const allow = new Set(scopeCustomerIds);
-      scopeCustomerIds = linkedIds.filter((id) => allow.has(id));
-    } else {
-      scopeCustomerIds = linkedIds;
-    }
-  }
   const custAccs = [];
   const seenAcc = new Set();
   const pushAcc = (picked) => {
@@ -2368,35 +2336,13 @@ const oracleRepItemsHandler = async (req, res) => {
     if (!acc || seenAcc.has(acc)) return;
     seenAcc.add(acc);
     custAccs.push(acc);
-    if (oraMode === 'all_oracle') return;
-    const cid = String(Number(picked.id) || 0);
-    const codes = [...(custRepCodes.get(cid) || [])];
-    const primary = String(picked.primary_rep_code || '').trim();
-    let prefer = '';
-    if (selectedRepCodes.size) {
-      if (primary && selectedRepCodes.has(primary)) prefer = primary;
-      else prefer = codes.find((c) => selectedRepCodes.has(c)) || '';
-    } else {
-      prefer = primary || codes[0] || '';
-    }
-    if (prefer) accToRep.set(acc, Number(prefer) || 0);
   };
-  if (oraMode === 'all_oracle') {
-    customerIds.forEach((id) => {
-      const picked = (customers || []).find((c) => Number(c.id) === id);
-      if (picked) pushAcc(picked);
-    });
-  } else if (scopeCustomerIds.length) {
-    scopeCustomerIds.forEach((id) => {
-      const picked = (customers || []).find((c) => Number(c.id) === id);
-      if (picked) pushAcc(picked);
-    });
-  } else if (!oracleRepNos.length) {
-    customerIds.forEach((id) => {
-      const picked = (customers || []).find((c) => Number(c.id) === id);
-      if (picked) pushAcc(picked);
-    });
-  }
+  // حسابات العملاء فقط عند تحديد عملاء يدوياً (المندوب يُفلتر عبر MAN_NUM)
+  customerIds.forEach((id) => {
+    const picked = (customers || []).find((c) => Number(c.id) === id);
+    if (picked) pushAcc(picked);
+  });
+  scopeCustomerIds = customerIds.slice();
   const catNames = [];
   categoryIds.forEach((id) => {
     if (id === 'none') {
@@ -2462,15 +2408,11 @@ const oracleRepItemsHandler = async (req, res) => {
       const mapped = accToRep.get(accKey) || accToRep.get(String(r.customer_acc || '').trim()) || 0;
       if (mapped > 0) no = mapped;
     }
-    const hx = no > 0 ? hypexNameByMan.get(no) : '';
     const current = String(r.rep_name || '').trim();
     const fromList = no > 0 ? String(reps.find((x) => Number(x.id) === no)?.name_ar || '').trim() : '';
     const named = current && !/^مندوب\s+\d+$/.test(current) ? current : '';
-    // كل مندوبي Oracle: اسم EMP_INFO فقط | الوضع العادي: هايبكس أولاً
-    const rep_name =
-      oraMode === 'all_oracle'
-        ? named || fromList || current || (no > 0 ? `مندوب ${no}` : '')
-        : hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
+    // اسم المندوب من Oracle فقط
+    const rep_name = named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
     return { ...r, rep_no: no, rep_name };
   };
 
@@ -2575,28 +2517,16 @@ const oracleRepItemsHandler = async (req, res) => {
   };
 
   if (run) {
-    if (oraMode === 'all_oracle') {
+    if (oracleRepNos.length === 1) {
       repName =
-        oracleRepNos.length === 1
-          ? reps.find((r) => Number(r.id) === oracleRepNos[0])?.name_ar ||
-            `مندوب ${oracleRepNos[0]}`
-          : oracleRepNos.length > 1
-            ? `${oracleRepNos.length} مندوبين (Oracle)`
-            : 'جميع مندوبي Oracle';
-    } else if (oracleRepNos.length === 1) {
-      const one = oracleRepNos[0];
-      repName =
-        hypexNameByMan.get(one) ||
-        reps.find((r) => Number(r.id) === one)?.name_ar ||
-        `مندوب ${one}`;
+        reps.find((r) => Number(r.id) === oracleRepNos[0])?.name_ar ||
+        `مندوب ${oracleRepNos[0]}`;
     } else if (oracleRepNos.length > 1) {
-      repName = `${oracleRepNos.length} مندوبين`;
+      repName = `${oracleRepNos.length} مندوبين (Oracle)`;
+    } else if (oraMode === 'all_oracle') {
+      repName = 'جميع مندوبي Oracle';
     }
-    if (oraMode !== 'all_oracle' && oracleRepNos.length && !scopeCustomerIds.length) {
-      err = 'لا يوجد عملاء مربوطون بالمندوبين المحددين في النظام.';
-    } else if (oraMode !== 'all_oracle' && oracleRepNos.length && !custAccs.length) {
-      err = 'عملاء المندوبين المحددين غير مربوطين بحساب في Oracle.';
-    } else if (customerIds.length && !custAccs.length) {
+    if (customerIds.length && !custAccs.length) {
       err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
     } else if (custAccs.length > 1500) {
       err = 'عدد العملاء المحددين كبير جداً. اختر مندوباً أو قلّل العملاء، أو اترك «كل العملاء».';
@@ -2656,7 +2586,7 @@ const oracleRepItemsHandler = async (req, res) => {
       rows = rows.map(applyExcelCat);
       returnRows = returnRows.map(applyExcelCat);
       netRows = netRows.map(applyExcelCat);
-      if (oraMode === 'all_oracle' && oracleRepNos.length > 1) {
+      if (oracleRepNos.length > 1) {
         const allowReps = new Set(oracleRepNos.map(Number));
         const keep = (r) => allowReps.has(Number(r.rep_no) || 0);
         rows = rows.filter(keep);
@@ -3657,28 +3587,18 @@ const oracleRepItemsHandler = async (req, res) => {
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print ora-report-sticky-note">${
-        oraMode === 'all_oracle'
-          ? 'وضع مبيعات جميع المندوبين: قائمة المندوب كما في Forms (رقم MAN_NUM). مجاميع المبيعات حسب مندوب الفاتورة في Oracle.'
-          : 'قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).'
-      }</p>
+      <p class="muted no-print ora-report-sticky-note">قائمة المندوب من Oracle (كما في Forms — رقم MAN_NUM). المبيعات حسب مندوب الفاتورة في Oracle.</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />
           <input type="hidden" name="ora_mode" id="ora-mode" value="${esc(oraMode)}" />
           <label>المندوب
-            <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="${
-              oraMode === 'all_oracle' ? 'كل مندوبي Oracle' : 'كل المندوبين'
-            }">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>${
-                oraMode === 'all_oracle' ? 'كل مندوبي Oracle' : 'كل المندوبين'
-              }</button>
+            <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل مندوبي Oracle">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل مندوبي Oracle</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
                 <div class="ora-multi-actions">
                   <button type="button" data-ora-all>تحديد الكل</button>
-                  <button type="button" data-ora-none>${
-                    oraMode === 'all_oracle' ? 'كل مندوبي Oracle' : 'كل المندوبين'
-                  }</button>
+                  <button type="button" data-ora-none>كل مندوبي Oracle</button>
                 </div>
                 <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرقم…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
