@@ -2609,6 +2609,9 @@ const oracleRepItemsHandler = async (req, res) => {
       const vouDiscNet =
         (Number(totals.vou_disc) || 0) -
         (Number(data.return_totals?.vou_disc) || 0);
+      const vouTaxNet =
+        (Number(totals.vou_tax) || 0) -
+        (Number(data.return_totals?.vou_tax) || 0);
       netTotals =
         data.net_totals && typeof data.net_totals === 'object'
           ? data.net_totals
@@ -2617,13 +2620,26 @@ const oracleRepItemsHandler = async (req, res) => {
               bonus: (Number(totals.bonus) || 0) - returnRows.reduce((s, r) => s + (Number(r.bonus) || 0), 0),
               amount: netAmtFallback,
               vou_disc: vouDiscNet,
-              net_after_disc: netAmtFallback - vouDiscNet,
+              vou_tax: vouTaxNet,
+              net_after_disc: netAmtFallback - vouDiscNet - vouTaxNet,
+              forms_net:
+                (Number(totals.amount) || 0) -
+                (Number(totals.vou_disc) || 0) -
+                (Number(totals.vou_tax) || 0),
               reps: totals.reps,
               items: rows.length + returnRows.length,
             };
       if (netTotals.net_after_disc == null) {
         netTotals.net_after_disc =
-          (Number(netTotals.amount) || 0) - (Number(netTotals.vou_disc) || 0);
+          (Number(netTotals.amount) || 0) -
+          (Number(netTotals.vou_disc) || 0) -
+          (Number(netTotals.vou_tax) || 0);
+      }
+      if (netTotals.forms_net == null) {
+        netTotals.forms_net =
+          (Number(totals.amount) || 0) -
+          (Number(totals.vou_disc) || 0) -
+          (Number(totals.vou_tax) || 0);
       }
       if (!rows.length && !returnRows.length && data.message) err = String(data.message);
     }
@@ -3462,11 +3478,20 @@ const oracleRepItemsHandler = async (req, res) => {
     const netAfterDiscShow =
       netTotals.net_after_disc != null
         ? Number(netTotals.net_after_disc)
-        : (Number(netTotals.amount) || 0) - (Number(netTotals.vou_disc) || 0);
+        : (Number(netTotals.amount) || 0) -
+          (Number(netTotals.vou_disc) || 0) -
+          (Number(netTotals.vou_tax) || 0);
     const vouDiscShow = Number(netTotals.vou_disc) || 0;
+    const vouTaxShow = Number(netTotals.vou_tax) || 0;
+    const formsNetShow =
+      netTotals.forms_net != null
+        ? Number(netTotals.forms_net)
+        : (Number(totals.amount) || 0) - (Number(totals.vou_disc) || 0) - (Number(totals.vou_tax) || 0);
     const netGrand = `<p class="ora-grand">الإجمالي ${esc(fmtAmt(netTotals.amount))} · الخصم ${esc(
       fmtAmt(vouDiscShow)
-    )} · الصافي ${esc(fmtAmt(netAfterDiscShow))} <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(
+    )} · الضريبة ${esc(fmtAmt(vouTaxShow))} · الصافي ${esc(fmtAmt(netAfterDiscShow))}
+      <span class="muted"> · صافي Forms (مبيعات فقط) ${esc(fmtAmt(formsNetShow))}</span>
+      <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(
       String(returnRows.length)
     )} بمبلغ ${esc(fmtAmt(retAmtShow))} · الكمية ${esc(fmtQty(netTotals.qty))} · إضافي ${esc(
       fmtQty(netTotals.bonus || 0)

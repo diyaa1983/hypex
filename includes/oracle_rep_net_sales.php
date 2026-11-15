@@ -585,8 +585,8 @@ WHERE d.COMP_NUM = :comp_num
         'with_returns_disc_pct' => $mk($gDiscPct - $vouDisc + $retNet, $costBonus + $retCost),
     ];
 
-    // معايرة Forms فقط عند مندوب واحد؛ لـ«كل المندوبين» المعادلة الثابتة حتى لا ينحرف الإجمالي
-    $winnerKey = 'disc_pct_bonus_cost';
+    // الافتراضي مطابق لوثيقة Forms: Σ(بعد خصم البند) − VOU_DISC − MAX(VOU_TAX)
+    $winnerKey = 'disc_pct_taxmax_bonus';
     $bestSum = PHP_FLOAT_MAX;
     $calibrateForms = $repFrom !== null && $repFrom > 0 && $repFrom === $repTo;
     if ($calibrateForms) {
@@ -597,9 +597,8 @@ WHERE d.COMP_NUM = :comp_num
                 $winnerKey = $key;
             }
         }
-        if ($bestSum > 1.0 && isset($cand['disc_pct_bonus_cost'])) {
-            // لا نثبت معايرة ضعيفة على فترة مختلفة — نستخدم المعادلة الافتراضية
-            $winnerKey = 'disc_pct_bonus_cost';
+        if ($bestSum > 1.0 && isset($cand['disc_pct_taxmax_bonus'])) {
+            $winnerKey = 'disc_pct_taxmax_bonus';
         }
     } else {
         $bestSum = (float) ($cand[$winnerKey]['d_sum'] ?? 999999);

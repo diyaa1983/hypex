@@ -590,10 +590,13 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
     $debugProbe['return_rows'] = count($returnRows);
     $debugProbe['sale_rows'] = count($rows);
 
-    // خصم رأس الفاتورة VOU_DISC كما في تقرير أوراكل (الإجمالي / الخصم / الصافي)
+    // خصم/ضريبة رأس الفاتورة كما في Forms INV00078:
+    // الصافي ≈ Σ(البنود) − VOU_DISC − MAX(VOU_TAX)  (للمبيعات TYPE=9)
     $invoiceDiscounts = [];
     $totVouDisc = 0.0;
     $retVouDisc = 0.0;
+    $totVouTax = 0.0;
+    $retVouTax = 0.0;
     try {
         $vouBinds = $bindsCommon;
         $vouBinds['sale_type'] = $saleType;
@@ -613,7 +616,8 @@ SELECT TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
        NVL(d.VYEAR, 0) AS VYEAR,
        NVL(d.V_NUM, 0) AS V_NUM,
        TO_CHAR(TRUNC(MIN(d.VDATE)), 'YYYY-MM-DD') AS SALE_DATE,
-       ROUND(MAX(NVL(d.VOU_DISC, 0)), 3) AS VOU_DISC
+       ROUND(MAX(NVL(d.VOU_DISC, 0)), 3) AS VOU_DISC,
+       ROUND(MAX(NVL(d.VOU_TAX, 0)), 3) AS VOU_TAX
 FROM {$fromQ} d
 WHERE d.COMP_NUM = :comp_num
   AND NVL(d.V_NUM, 0) > 0
@@ -631,7 +635,8 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
         $vouRaw = oracle_query_all($conn, $vouSql, $vouBinds);
         foreach ($vouRaw as $vr) {
             $disc = round((float) oracle_statement_row_val($vr, 'VOU_DISC'), 3);
-            if ($disc == 0.0) {
+            $tax = round((float) oracle_statement_row_val($vr, 'VOU_TAX'), 3);
+            if ($disc == 0.0 && $tax == 0.0) {
                 continue;
             }
             $docType = (int) oracle_statement_row_val($vr, 'DOC_TYPE');
@@ -643,11 +648,14 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
                 'invoice_no' => (int) oracle_statement_row_val($vr, 'V_NUM'),
                 'sale_date' => trim((string) oracle_statement_row_val($vr, 'SALE_DATE')),
                 'vou_disc' => $disc,
+                'vou_tax' => $tax,
             ];
             if ($isRetDisc) {
                 $retVouDisc += $disc;
+                $retVouTax += $tax;
             } else {
                 $totVouDisc += $disc;
+                $totVouTax += $tax;
             }
         }
     } catch (Throwable $e) {
@@ -655,7 +663,12 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
     }
 
     $netAmount = round($totAmt - $retAmt, 3);
-    $netAfterDisc = round($netAmount - $totVouDisc + $retVouDisc, 3);
+    $netVouDisc = round($totVouDisc - $retVouDisc, 3);
+    $netVouTax = round($totVouTax - $retVouTax, 3);
+    // صافي هايبكس (مبيعات−مرتجعات−خصم−ضريبة) — أقرب لمعادلة Forms
+    $netAfterDisc = round($netAmount - $netVouDisc - $netVouTax, 3);
+    // صافي مثل كشف Forms (مبيعات فقط TYPE=9 بدون مرتجعات)
+    $formsNet = round($totAmt - $totVouDisc - $totVouTax, 3);
 
     return [
         'ok' => true,
@@ -669,6 +682,7 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
             'bonus' => round($totBonus, 3),
             'amount' => round($totAmt, 3),
             'vou_disc' => round($totVouDisc, 3),
+            'vou_tax' => round($totVouTax, 3),
             'reps' => count($reps),
             'items' => count($rows),
         ],
@@ -677,14 +691,17 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
             'bonus' => round($retBonus, 3),
             'amount' => round($retAmt, 3),
             'vou_disc' => round($retVouDisc, 3),
+            'vou_tax' => round($retVouTax, 3),
             'items' => count($returnRows),
         ],
         'net_totals' => [
             'qty' => round($totQty - $retQty, 3),
             'bonus' => round($totBonus - $retBonus, 3),
             'amount' => $netAmount,
-            'vou_disc' => round($totVouDisc - $retVouDisc, 3),
+            'vou_disc' => $netVouDisc,
+            'vou_tax' => $netVouTax,
             'net_after_disc' => $netAfterDisc,
+            'forms_net' => $formsNet,
             'reps' => count($reps),
             'items' => count($rows) + count($returnRows),
         ],
