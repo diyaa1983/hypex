@@ -3303,8 +3303,8 @@ const oracleRepItemsHandler = async (req, res) => {
         data-ora-all-amts="${esc(colTotals.map((n) => String(Number(n) || 0)).join('|'))}">
         <div class="ora-cat-qty-head">
           <strong>مجاميع كميات الفئات</strong>
-          <span class="ora-cat-qty-scope muted">كل العملاء</span>
-          <span class="muted">كراتين = الكمية المباعة · إضافي = القطع الإضافية (بونص) · حدّد عميلاً من الملخص لتصفية الجدول</span>
+          <span class="ora-cat-qty-scope muted">كل عملاء المندوب</span>
+          <span class="muted">كراتين = الكمية · إضافي = البونص · المبلغ = صافي الفئة · تظهر تحت كل مندوب مع الإجمالي والصافي</span>
         </div>
         <div class="si-table-wrap ora-cat-qty-wrap">
           <table class="si-table ora-cat-qty-table ora-cat-qty-table--wide">
@@ -3388,6 +3388,7 @@ const oracleRepItemsHandler = async (req, res) => {
             <tbody>${pickRow}${body}${footRow}</tbody>
           </table>
         </div>
+        ${catTotalsBar}
         <div class="ora-pick-foot no-print is-empty">
           <div class="ora-pick-bar-main">
             <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
@@ -3399,12 +3400,8 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
-      catTotalsHtml += `<section class="ora-cust-block ora-cat-totals-block" data-ora-rep-key="${esc(repKey)}">
-        <header class="ora-cust-head">
-          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
-        </header>
-        ${catTotalsBar}
-      </section>`;
+      // عرض «مبيعات جميع المندوبين»: ملخص كل مندوب + مجاميع الفئات تحته
+      catTotalsHtml += sectionOf(summaryBody);
       detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
