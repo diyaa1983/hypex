@@ -2859,6 +2859,17 @@ const oracleRepItemsHandler = async (req, res) => {
       ? `<p class="muted ora-heavy-skip-note">التفصيلي والفواتير غير مضمّنة هنا لتفادي بطء الذاكرة مع البيانات الكثيرة. اختر مندوباً واحداً من الفلتر ثم أعد العرض لرؤية التفصيلي.</p>`
       : '';
     // مجاميع نهائية لكل المندوبين (نهاية التقرير)
+    const emptyGrandYear = () => ({
+      gross: 0,
+      disc: 0,
+      net: 0,
+      sale: 0,
+      retLines: 0,
+      retAmt: 0,
+      tax: 0,
+      qty: 0,
+      bonus: 0,
+    });
     const grandAll = {
       reps: 0,
       gross: 0,
@@ -2870,6 +2881,12 @@ const oracleRepItemsHandler = async (req, res) => {
       tax: 0,
       qty: 0,
       bonus: 0,
+      byYear: new Map(compareYears.map((y) => [y, emptyGrandYear()])),
+    };
+    const rowYearOf = (r) => {
+      const fromDate = Number(String(r?.sale_date || '').slice(0, 4)) || 0;
+      if (fromDate >= 2000) return fromDate;
+      return Number(r?.invoice_year) || 0;
     };
     let i = 0;
     while (i < sourceRows.length) {
@@ -3573,6 +3590,44 @@ const oracleRepItemsHandler = async (req, res) => {
       grandAll.tax += Number(repTaxNet) || 0;
       grandAll.qty += Number(repQtyNet) || 0;
       grandAll.bonus += Number(repBonusNet) || 0;
+      if (yearCompare) {
+        compareYears.forEach((y) => {
+          const slot = grandAll.byYear.get(y) || emptyGrandYear();
+          slot.gross += Number(repYearGrossTotals.get(y) || 0) || 0;
+          slot.disc += Number(repYearDiscTotals.get(y) || 0) || 0;
+          slot.net += Number(repYearNetTotals.get(y) || 0) || 0;
+          grandAll.byYear.set(y, slot);
+        });
+        const seenInvTaxY = new Set();
+        repRows.forEach((r) => {
+          const y = rowYearOf(r);
+          if (!y || !grandAll.byYear.has(y)) return;
+          const slot = grandAll.byYear.get(y);
+          const amount = Number(r.amount) || 0;
+          const qty = Number(r.qty) || 0;
+          const bonus = Number(r.bonus) || 0;
+          const isRet =
+            String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
+          if (isRet) {
+            slot.retAmt += Math.abs(amount);
+            slot.retLines += 1;
+          } else {
+            slot.sale += amount;
+          }
+          slot.qty += qty;
+          slot.bonus += bonus;
+          const kind = isRet ? 'R' : 'S';
+          const invUniq = `${kind}|${Number(r.invoice_year) || 0}|${Number(r.invoice_no) || 0}`;
+          if (!seenInvTaxY.has(invUniq)) {
+            seenInvTaxY.add(invUniq);
+            let tax = Math.abs(Number(r.vou_tax) || 0);
+            if (!tax) {
+              tax = lookupInvTax(kind, no, r.invoice_year, r.invoice_no, r.customer_acc);
+            }
+            slot.tax += isRet ? -tax : tax;
+          }
+        });
+      }
       if (!skipHeavyLineViews) {
         detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
@@ -3644,9 +3699,85 @@ const oracleRepItemsHandler = async (req, res) => {
       invoiceSumHtml = heavySkipNote;
     }
     if (grandAll.reps > 1) {
+      const fmtSignedAmt = (n) => {
+        const v = Number(n) || 0;
+        const sign = v > 0 ? '+' : '';
+        return sign + fmtAmt(v);
+      };
+      const fmtSignedQty = (n) => {
+        const v = Number(n) || 0;
+        const sign = v > 0 ? '+' : '';
+        return sign + fmtQty(v);
+      };
+      const grandMetricRow = (label, m, opts = {}) => {
+        const isDiff = !!opts.diff;
+        const rowClass = isDiff
+          ? 'ora-cust-final ora-rep-totals-row ora-grand-final-row ora-grand-year-diff'
+          : 'ora-cust-final ora-rep-totals-row ora-grand-final-row ora-grand-year-row';
+        const a = isDiff ? fmtSignedAmt : fmtAmt;
+        const q = isDiff ? fmtSignedQty : fmtQty;
+        return `<tr class="${rowClass}">
+          <th scope="row">${esc(label)}</th>
+          <td class="si-num ora-gross-cell" dir="ltr">${esc(a(m.gross))}</td>
+          <td class="si-num ora-disc-cell" dir="ltr">${esc(a(m.disc))}</td>
+          <td class="si-num ora-net-cell" dir="ltr">${esc(a(m.net))}</td>
+          <td class="si-num" dir="ltr">${esc(a(m.sale))}</td>
+          <td class="si-num" dir="ltr">${esc(isDiff ? fmtSignedQty(m.retLines) : String(m.retLines))}</td>
+          <td class="si-num" dir="ltr">${esc(a(m.retAmt))}</td>
+          <td class="si-num" dir="ltr">${esc(a(m.tax))}</td>
+          <td class="si-num" dir="ltr">${esc(q(m.qty))}</td>
+          <td class="si-num" dir="ltr">${esc(q(m.bonus))}</td>
+        </tr>`;
+      };
+      const grandNetMetricRow = (label, m, opts = {}) => {
+        const isDiff = !!opts.diff;
+        const rowClass = isDiff
+          ? 'ora-cust-final ora-rep-totals-row ora-grand-final-row ora-grand-year-diff'
+          : 'ora-cust-final ora-rep-totals-row ora-grand-final-row ora-grand-year-row';
+        const a = isDiff ? fmtSignedAmt : fmtAmt;
+        return `<tr class="${rowClass}">
+          <th scope="row">${esc(label)}</th>
+          <td class="si-num ora-gross-cell" dir="ltr">${esc(a(m.gross))}</td>
+          <td class="si-num ora-disc-cell" dir="ltr">${esc(a(m.disc))}</td>
+          <td class="si-num ora-net-cell" dir="ltr">${esc(a(m.net))}</td>
+        </tr>`;
+      };
+      let grandBodyRows = '';
+      let grandNetBodyRows = '';
+      let grandHeadNote = `المجاميع النهائية — كل المندوبين (${grandAll.reps})`;
+      if (yearCompare) {
+        grandHeadNote = `المجاميع النهائية حسب السنة — كل المندوبين (${grandAll.reps}) · ${compareYears.join(' و ')}`;
+        compareYears.forEach((y) => {
+          const m = grandAll.byYear.get(y) || emptyGrandYear();
+          grandBodyRows += grandMetricRow(`سنة ${y}`, m);
+          grandNetBodyRows += grandNetMetricRow(`سنة ${y}`, m);
+        });
+        const first = grandAll.byYear.get(compareYears[0]) || emptyGrandYear();
+        const last = grandAll.byYear.get(compareYears[compareYears.length - 1]) || emptyGrandYear();
+        const diff = {
+          gross: (Number(last.gross) || 0) - (Number(first.gross) || 0),
+          disc: (Number(last.disc) || 0) - (Number(first.disc) || 0),
+          net: (Number(last.net) || 0) - (Number(first.net) || 0),
+          sale: (Number(last.sale) || 0) - (Number(first.sale) || 0),
+          retLines: (Number(last.retLines) || 0) - (Number(first.retLines) || 0),
+          retAmt: (Number(last.retAmt) || 0) - (Number(first.retAmt) || 0),
+          tax: (Number(last.tax) || 0) - (Number(first.tax) || 0),
+          qty: (Number(last.qty) || 0) - (Number(first.qty) || 0),
+          bonus: (Number(last.bonus) || 0) - (Number(first.bonus) || 0),
+        };
+        const diffLabel =
+          compareYears.length === 2
+            ? `الفرق (${compareYears[1]} − ${compareYears[0]})`
+            : `الفرق (آخر سنة − أول سنة)`;
+        grandBodyRows += grandMetricRow(diffLabel, diff, { diff: true });
+        grandNetBodyRows += grandNetMetricRow(diffLabel, diff, { diff: true });
+      } else {
+        grandBodyRows = grandMetricRow('المجاميع النهائية', grandAll);
+        grandNetBodyRows = grandNetMetricRow('المجاميع النهائية', grandAll);
+      }
       const grandFinalHtml = `<section class="ora-cust-block ora-grand-final-block">
         <header class="ora-cust-head">
-          <div class="ora-rep">المجاميع النهائية — كل المندوبين (${esc(String(grandAll.reps))})</div>
+          <div class="ora-rep">${esc(grandHeadNote)}</div>
         </header>
         <div class="si-table-wrap ora-rep-totals-wrap ora-grand-final-wrap">
           <table class="si-table ora-rep-totals-table ora-grand-final-table">
@@ -3665,18 +3796,7 @@ const oracleRepItemsHandler = async (req, res) => {
               </tr>
             </thead>
             <tbody>
-              <tr class="ora-cust-final ora-rep-totals-row ora-grand-final-row">
-                <th scope="row">المجاميع النهائية</th>
-                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(grandAll.gross))}</td>
-                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(grandAll.disc))}</td>
-                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(grandAll.net))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtAmt(grandAll.sale))}</td>
-                <td class="si-num" dir="ltr">${esc(String(grandAll.retLines))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtAmt(grandAll.retAmt))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtAmt(grandAll.tax))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtQty(grandAll.qty))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtQty(grandAll.bonus))}</td>
-              </tr>
+              ${grandBodyRows}
             </tbody>
           </table>
         </div>
@@ -3684,7 +3804,7 @@ const oracleRepItemsHandler = async (req, res) => {
       summaryHtml += grandFinalHtml;
       catTotalsHtml += `<section class="ora-cust-block ora-grand-final-block">
         <header class="ora-cust-head">
-          <div class="ora-rep">المجاميع النهائية — كل المندوبين (${esc(String(grandAll.reps))})</div>
+          <div class="ora-rep">${esc(grandHeadNote)}</div>
         </header>
         <div class="si-table-wrap ora-rep-totals-wrap ora-grand-final-wrap ora-cat-net-wrap">
           <table class="si-table ora-rep-totals-table ora-grand-final-table ora-cat-net-table">
@@ -3697,12 +3817,7 @@ const oracleRepItemsHandler = async (req, res) => {
               </tr>
             </thead>
             <tbody>
-              <tr class="ora-cust-final ora-rep-totals-row ora-grand-final-row">
-                <th scope="row">المجاميع النهائية</th>
-                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(grandAll.gross))}</td>
-                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(grandAll.disc))}</td>
-                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(grandAll.net))}</td>
-              </tr>
+              ${grandNetBodyRows}
             </tbody>
           </table>
         </div>
@@ -4667,6 +4782,14 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-grand-final-row td {
           font-weight: 900 !important;
           font-size: .92rem;
+        }
+        .ora-grand-year-row th {
+          background: #dbeafe !important;
+        }
+        .ora-grand-year-diff th,
+        .ora-grand-year-diff td {
+          background: #fef3c7 !important;
+          color: #92400e;
         }
         .ora-cat-net-wrap {
           margin: .35rem 0 .85rem;
