@@ -3430,14 +3430,38 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
         ${catTotalsBar}
-        <p class="ora-grand ora-rep-grand">الإجمالي ${esc(fmtAmt(repGross))} · الخصم ${esc(
-          fmtAmt(repDisc)
-        )} · الصافي ${esc(fmtAmt(repNet))}
-          <span class="muted">(مبيعات ${esc(fmtAmt(repSaleAmt))} − مرتجعات ${esc(
-            String(repRetLines)
-          )} بمبلغ ${esc(fmtAmt(repRetAmt))} · ضريبة للإيضاح ${esc(fmtAmt(repTaxNet))} · الكمية ${esc(
-            fmtQty(repQtyNet)
-          )} · إضافي ${esc(fmtQty(repBonusNet))})</span></p>
+        <div class="si-table-wrap ora-rep-totals-wrap">
+          <table class="si-table ora-rep-totals-table">
+            <thead>
+              <tr>
+                <th>البيان</th>
+                <th class="si-num">الإجمالي</th>
+                <th class="si-num">الخصم</th>
+                <th class="si-num">الصافي</th>
+                <th class="si-num">مبيعات</th>
+                <th class="si-num">مرتجعات</th>
+                <th class="si-num">مبلغ المرتجعات</th>
+                <th class="si-num">ضريبة للإيضاح</th>
+                <th class="si-num">الكمية</th>
+                <th class="si-num">إضافي</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ora-cust-final ora-rep-totals-row">
+                <th scope="row">مجموع المندوب</th>
+                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(repGross))}</td>
+                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(repDisc))}</td>
+                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(repNet))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(repSaleAmt))}</td>
+                <td class="si-num" dir="ltr">${esc(String(repRetLines))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(repRetAmt))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(repTaxNet))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtQty(repQtyNet))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtQty(repBonusNet))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
         <div class="ora-pick-foot no-print is-empty">
           <div class="ora-pick-bar-main">
             <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
@@ -4415,11 +4439,45 @@ const oracleRepItemsHandler = async (req, res) => {
           border: 1px solid #e2e8f0;
         }
         .ora-grand { background: #eef2f7; }
-        .ora-rep-grand {
+        .ora-rep-totals-wrap {
           margin: .45rem 0 .85rem;
+          overflow: auto;
           border-radius: 10px;
+          border: 1px solid #c5d6ea;
           background: #eef2f7;
-          border-color: #c5d6ea;
+        }
+        .ora-rep-totals-table {
+          width: 100%;
+          margin: 0;
+          border-collapse: collapse;
+          font-size: .86rem;
+        }
+        .ora-rep-totals-table th,
+        .ora-rep-totals-table td {
+          padding: .4rem .55rem;
+          border: 1px solid #dbe3ee;
+          white-space: nowrap;
+        }
+        .ora-rep-totals-table thead th {
+          background: #dbeafe;
+          color: #1e3a5f;
+          font-weight: 800;
+          text-align: center;
+        }
+        .ora-rep-totals-table tbody th {
+          background: #e2e8f0;
+          font-weight: 800;
+          text-align: right;
+        }
+        .ora-rep-totals-table td.ora-net-cell {
+          background: #dbeafe !important;
+          font-weight: 900;
+        }
+        .ora-rep-totals-table td.ora-disc-cell {
+          background: #fde68a !important;
+        }
+        .ora-rep-totals-table td.ora-gross-cell {
+          background: #ecfdf5 !important;
         }
         @media print {
           @page { size: A4 landscape; margin: 6mm 5mm 8mm 5mm; }
