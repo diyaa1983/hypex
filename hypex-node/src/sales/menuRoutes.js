@@ -2800,13 +2800,16 @@ const oracleRepItemsHandler = async (req, res) => {
       });
     };
     const invDiscLookup = new Map();
+    const invTaxLookup = new Map();
     for (const d of invoiceDiscounts || []) {
       const acc = normAccKey(d.customer_acc);
       const y = Number(d.invoice_year) || 0;
       const n = Number(d.invoice_no) || 0;
       const kind = String(d.doc_kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
       if (!acc || n < 1) continue;
-      invDiscLookup.set(`${kind}|${y}|${n}|${acc}`, Number(d.vou_disc) || 0);
+      const key = `${kind}|${y}|${n}|${acc}`;
+      invDiscLookup.set(key, Number(d.vou_disc) || 0);
+      invTaxLookup.set(key, Number(d.vou_tax) || 0);
     }
     const buildOraViews = (sourceRows) => {
     let summaryHtml = '';
@@ -2957,6 +2960,44 @@ const oracleRepItemsHandler = async (req, res) => {
       let invRepQty = 0;
       let invRepBonus = 0;
       let invRepAmt = 0;
+      // مجاميع شريط المندوب (مثل ora-grand النهائي)
+      let repSaleAmt = 0;
+      let repRetAmt = 0;
+      let repRetLines = 0;
+      let repQtyNet = 0;
+      let repBonusNet = 0;
+      let repTaxNet = 0;
+      const seenRepTaxKeys = new Set();
+      repRows.forEach((r) => {
+        const amount = Number(r.amount) || 0;
+        const qty = Number(r.qty) || 0;
+        const bonus = Number(r.bonus) || 0;
+        // في netRows المرتجع مسبوق بإشارة سالبة
+        const isRet =
+          String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
+        const docKind = isRet ? 'R' : 'S';
+        if (isRet) {
+          repRetAmt += Math.abs(amount);
+          repRetLines += 1;
+        } else {
+          repSaleAmt += amount;
+        }
+        repQtyNet += qty;
+        repBonusNet += bonus;
+        const acc = normAccKey(r.customer_acc);
+        const invNo = Number(r.invoice_no) || 0;
+        const invYear = Number(r.invoice_year) || 0;
+        if (acc && invNo > 0) {
+          const taxKey = `${docKind}|${invYear}|${invNo}|${acc}`;
+          if (!seenRepTaxKeys.has(taxKey)) {
+            seenRepTaxKeys.add(taxKey);
+            const tax = Number(invTaxLookup.get(taxKey) || 0) || 0;
+            if (tax) {
+              repTaxNet += isRet ? -tax : tax;
+            }
+          }
+        }
+      });
       const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
       const fmtSaleDate = (iso) => {
         const s = String(iso || '');
@@ -3389,6 +3430,14 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
         ${catTotalsBar}
+        <p class="ora-grand ora-rep-grand">الإجمالي ${esc(fmtAmt(repGross))} · الخصم ${esc(
+          fmtAmt(repDisc)
+        )} · الصافي ${esc(fmtAmt(repNet))}
+          <span class="muted">(مبيعات ${esc(fmtAmt(repSaleAmt))} − مرتجعات ${esc(
+            String(repRetLines)
+          )} بمبلغ ${esc(fmtAmt(repRetAmt))} · ضريبة للإيضاح ${esc(fmtAmt(repTaxNet))} · الكمية ${esc(
+            fmtQty(repQtyNet)
+          )} · إضافي ${esc(fmtQty(repBonusNet))})</span></p>
         <div class="ora-pick-foot no-print is-empty">
           <div class="ora-pick-bar-main">
             <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
@@ -4366,6 +4415,12 @@ const oracleRepItemsHandler = async (req, res) => {
           border: 1px solid #e2e8f0;
         }
         .ora-grand { background: #eef2f7; }
+        .ora-rep-grand {
+          margin: .45rem 0 .85rem;
+          border-radius: 10px;
+          background: #eef2f7;
+          border-color: #c5d6ea;
+        }
         @media print {
           @page { size: A4 landscape; margin: 6mm 5mm 8mm 5mm; }
           .ora-report-sticky-chrome {
