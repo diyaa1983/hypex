@@ -33,25 +33,11 @@ $parseOracleRepNo = static function (string $code): int {
     return 0;
 };
 
-// أسماء هايبكس (الرمز = MAN_NUM Forms) — EMP_INFO غالباً غير مطابق للمناديب
-$hypex = $pdo->query(
-    'SELECT code, name_ar FROM crm_sales_rep WHERE is_active = 1 ORDER BY name_ar'
-)->fetchAll(PDO::FETCH_ASSOC) ?: [];
-$hypexNameByMan = [];
-foreach ($hypex as $r) {
-    $manNo = $parseOracleRepNo((string) ($r['code'] ?? ''));
-    if ($manNo < 1 || isset($hypexNameByMan[$manNo])) {
-        continue;
-    }
-    $nm = trim((string) ($r['name_ar'] ?? ''));
-    if ($nm !== '') {
-        $hypexNameByMan[$manNo] = $nm;
-    }
-}
-
+// أسماء المناديب من Oracle EMP_INFO (كما في قائمة Forms) — ليس من هايبكس
 $oraReps = oracle_list_rep_net_sales_reps();
 $reps = [];
 $seen = [];
+$oraNameByMan = [];
 if (!empty($oraReps['ok']) && is_array($oraReps['rows'] ?? null)) {
     foreach ($oraReps['rows'] as $r) {
         $no = (int) ($r['id'] ?? 0);
@@ -59,23 +45,17 @@ if (!empty($oraReps['ok']) && is_array($oraReps['rows'] ?? null)) {
             continue;
         }
         $seen[$no] = true;
+        $nm = trim((string) ($r['name_ar'] ?? ''));
+        if ($nm === '') {
+            $nm = 'مندوب ' . $no;
+        }
+        $oraNameByMan[$no] = $nm;
         $reps[] = [
             'id' => $no,
             'code' => (string) $no,
-            'name_ar' => $hypexNameByMan[$no] ?? (string) ($r['name_ar'] ?? ('مندوب ' . $no)),
+            'name_ar' => $nm,
         ];
     }
-}
-foreach ($hypexNameByMan as $manNo => $nm) {
-    if (isset($seen[$manNo])) {
-        continue;
-    }
-    $seen[$manNo] = true;
-    $reps[] = [
-        'id' => (int) $manNo,
-        'code' => (string) $manNo,
-        'name_ar' => $nm,
-    ];
 }
 usort(
     $reps,
@@ -109,7 +89,7 @@ $rows = [];
 $totals = ['inv_cnt' => 0, 'net' => 0.0, 'cost' => 0.0, 'profit' => 0.0, 'profit_pct' => 0.0];
 $repName = '';
 $repOracleNo = null;
-$mapNote = 'الفلتر برقم المندوب (MAN_NUM / رمز البطاقة) — الاسم من بطاقة المناديب في هايبكس (مثل Forms). المبالغ من Oracle.';
+$mapNote = 'الفلتر برقم المندوب (MAN_NUM) — الاسم من EMP_INFO في Oracle (كما في قائمة Forms). المبالغ من Oracle.';
 
 $submitted = isset($_GET['run']) || isset($_GET['sales_rep_id']) || isset($_GET['from']) || isset($_GET['to']);
 
@@ -139,7 +119,7 @@ if ($submitted) {
 
         if ($salesRepId > 0) {
             $repOracleNo = $salesRepId;
-            $repName = $hypexNameByMan[$salesRepId] ?? '';
+            $repName = $oraNameByMan[$salesRepId] ?? '';
             if ($repName === '') {
                 foreach ($reps as $r) {
                     if ((int) ($r['id'] ?? 0) === $salesRepId) {
@@ -164,8 +144,11 @@ if ($submitted) {
                 $rows = is_array($result['rows'] ?? null) ? $result['rows'] : [];
                 foreach ($rows as &$row) {
                     $no = (int) ($row['rep_no'] ?? 0);
-                    if ($no > 0 && isset($hypexNameByMan[$no])) {
-                        $row['rep_name'] = $hypexNameByMan[$no];
+                    $fromOra = trim((string) ($row['rep_name'] ?? ''));
+                    if ($fromOra === '' || preg_match('/^مندوب\s+\d+$/u', $fromOra)) {
+                        if ($no > 0 && isset($oraNameByMan[$no])) {
+                            $row['rep_name'] = $oraNameByMan[$no];
+                        }
                     }
                 }
                 unset($row);
@@ -196,10 +179,10 @@ if ($submitted) {
                 if ($rows === [] && ($result['message'] ?? '') !== '') {
                     $err = (string) $result['message'];
                 }
-                if ($salesRepId > 0 && isset($hypexNameByMan[$salesRepId])) {
-                    $repName = $hypexNameByMan[$salesRepId];
-                } elseif (count($rows) === 1 && trim((string) ($rows[0]['rep_name'] ?? '')) !== '') {
+                if (count($rows) === 1 && trim((string) ($rows[0]['rep_name'] ?? '')) !== '') {
                     $repName = (string) $rows[0]['rep_name'];
+                } elseif ($salesRepId > 0 && isset($oraNameByMan[$salesRepId])) {
+                    $repName = $oraNameByMan[$salesRepId];
                 }
             }
         }

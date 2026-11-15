@@ -2237,7 +2237,7 @@ const oracleRepItemsHandler = async (req, res) => {
     if (man > 0) set.add(String(man));
   };
 
-  // أسماء هايبكس للعرض عند التطابق مع MAN_NUM
+  // الوضع العادي: أسماء هايبكس | وضع كل مندوبي Oracle: أسماء EMP_INFO كما في Forms
   const hypexReps = await q.listRepsSimple();
   const hypexNameByMan = new Map();
   for (const r of hypexReps || []) {
@@ -2249,21 +2249,16 @@ const oracleRepItemsHandler = async (req, res) => {
   let reps = [];
   const seen = new Set();
   if (oraMode === 'all_oracle') {
-    // قائمة هذه الكبسة فقط: كل مندوبي Oracle (MAN_NUM / EMP_INFO)
     const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
     const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
     for (const r of oraRows) {
       const manNo = Number(r.id) || parseManNo(r.code);
       if (manNo < 1 || seen.has(manNo)) continue;
       seen.add(manNo);
-      reps.push({
-        id: manNo,
-        code: String(manNo),
-        name_ar: hypexNameByMan.get(manNo) || String(r.name_ar || '').trim() || `مندوب ${manNo}`,
-      });
+      const nm = String(r.name_ar || '').trim() || `مندوب ${manNo}`;
+      reps.push({ id: manNo, code: String(manNo), name_ar: nm });
     }
   } else {
-    // الوضع العادي: مندوبو هايبكس فقط
     for (const r of hypexReps || []) {
       const manNo = parseManNo(r.code);
       if (manNo < 1 || seen.has(manNo)) continue;
@@ -2471,10 +2466,10 @@ const oracleRepItemsHandler = async (req, res) => {
     const current = String(r.rep_name || '').trim();
     const fromList = no > 0 ? String(reps.find((x) => Number(x.id) === no)?.name_ar || '').trim() : '';
     const named = current && !/^مندوب\s+\d+$/.test(current) ? current : '';
-    // في وضع كل مندوبي Oracle: اسم Oracle/القائمة أولاً ثم هايبكس
+    // كل مندوبي Oracle: اسم EMP_INFO فقط | الوضع العادي: هايبكس أولاً
     const rep_name =
       oraMode === 'all_oracle'
-        ? named || fromList || hx || current || (no > 0 ? `مندوب ${no}` : '')
+        ? named || fromList || current || (no > 0 ? `مندوب ${no}` : '')
         : hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
     return { ...r, rep_no: no, rep_name };
   };
@@ -2584,7 +2579,6 @@ const oracleRepItemsHandler = async (req, res) => {
       repName =
         oracleRepNos.length === 1
           ? reps.find((r) => Number(r.id) === oracleRepNos[0])?.name_ar ||
-            hypexNameByMan.get(oracleRepNos[0]) ||
             `مندوب ${oracleRepNos[0]}`
           : oracleRepNos.length > 1
             ? `${oracleRepNos.length} مندوبين (Oracle)`
