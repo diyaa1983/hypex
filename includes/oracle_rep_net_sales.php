@@ -39,35 +39,37 @@ function oracle_list_rep_net_sales_reps(): array
         return $empty;
     }
 
-    // أسماء المناديب من EMP_INFO عبر EMP_NO = DAILY.MAN_NUM (رقم المندوب في الفاتورة)
+    // نفس قائمة Forms (قائمة اسماء المندوبين): EMP_INFO مرتّبة بالاسم
     $sql = "
-SELECT DISTINCT
-       d.MAN_NUM AS EMP_NO,
-       NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(d.MAN_NUM)) AS EMP_NAME
-FROM {$fromQ} d
-LEFT JOIN {$empQ} e
-  ON e.EMP_NO = d.MAN_NUM
-WHERE d.COMP_NUM = :comp_num
-  AND d.TYPE = :sale_type
-  AND d.MAN_NUM IS NOT NULL
-  AND d.MAN_NUM > 0
-ORDER BY d.MAN_NUM
+SELECT e.EMP_NO,
+       NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(e.EMP_NO)) AS EMP_NAME
+FROM {$empQ} e
+WHERE e.EMP_NO IS NOT NULL
+  AND e.EMP_NO > 0
+ORDER BY e.EMP_NAME
 ";
 
     try {
-        $raw = oracle_query_all($conn, $sql, [
-            'comp_num' => $compNum,
-            'sale_type' => $saleType,
-        ]);
+        $raw = oracle_query_all($conn, $sql, []);
     } catch (Throwable $e) {
-        // احتياطي: كل EMP_INFO
+        // احتياطي: مناديب لهم حركة مبيعات في DAILY
         try {
             $raw = oracle_query_all(
                 $conn,
-                "SELECT EMP_NO, EMP_NAME FROM {$empQ}
-                 WHERE EMP_NO IS NOT NULL
-                 ORDER BY EMP_NO",
-                []
+                "SELECT DISTINCT
+                        d.MAN_NUM AS EMP_NO,
+                        NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(d.MAN_NUM)) AS EMP_NAME
+                 FROM {$fromQ} d
+                 LEFT JOIN {$empQ} e ON e.EMP_NO = d.MAN_NUM
+                 WHERE d.COMP_NUM = :comp_num
+                   AND d.TYPE = :sale_type
+                   AND d.MAN_NUM IS NOT NULL
+                   AND d.MAN_NUM > 0
+                 ORDER BY EMP_NAME",
+                [
+                    'comp_num' => $compNum,
+                    'sale_type' => $saleType,
+                ]
             );
         } catch (Throwable $e2) {
             $empty['message'] = 'تعذر قراءة المناديب: ' . $e->getMessage();
@@ -498,19 +500,24 @@ WHERE d.COMP_NUM = :comp_num
         'with_returns_disc_pct' => $mk($gDiscPct - $vouDisc + $retNet, $costBonus + $retCost),
     ];
 
-    // اختر أقرب معادلة لأرقام Forms؛ إن لم يقترب أحدها (< 1) نفضّل disc_pct + تكلفة بونص
+    // معايرة Forms فقط عند مندوب واحد؛ لـ«كل المندوبين» المعادلة الثابتة حتى لا ينحرف الإجمالي
     $winnerKey = 'disc_pct_bonus_cost';
     $bestSum = PHP_FLOAT_MAX;
-    foreach ($cand as $key => $cnd) {
-        $ds = (float) ($cnd['d_sum'] ?? 999999);
-        if ($ds < $bestSum) {
-            $bestSum = $ds;
-            $winnerKey = $key;
+    $calibrateForms = $repFrom !== null && $repFrom > 0 && $repFrom === $repTo;
+    if ($calibrateForms) {
+        foreach ($cand as $key => $cnd) {
+            $ds = (float) ($cnd['d_sum'] ?? 999999);
+            if ($ds < $bestSum) {
+                $bestSum = $ds;
+                $winnerKey = $key;
+            }
         }
-    }
-    if ($bestSum > 1.0 && isset($cand['disc_pct_bonus_cost'])) {
-        // لا نثبت معايرة ضعيفة على فترة مختلفة — نستخدم المعادلة الافتراضية الجديدة
-        $winnerKey = 'disc_pct_bonus_cost';
+        if ($bestSum > 1.0 && isset($cand['disc_pct_bonus_cost'])) {
+            // لا نثبت معايرة ضعيفة على فترة مختلفة — نستخدم المعادلة الافتراضية
+            $winnerKey = 'disc_pct_bonus_cost';
+        }
+    } else {
+        $bestSum = (float) ($cand[$winnerKey]['d_sum'] ?? 999999);
     }
 
     $winner = $cand[$winnerKey];
@@ -562,10 +569,36 @@ WHERE d.COMP_NUM = :comp_num
     };
 
     $rows = array_map(static fn (array $row): array => $applyRow($row, $winnerKey), $rows);
-    $totNet = (float) $winner['net'];
-    $totCost = (float) $winner['cost'];
-    $totProfit = (float) $winner['profit'];
-    $totPct = (float) $winner['profit_pct'];
+
+    // المجاميع النهائية = مجموع صفوف المندوبين المعروضة (وليس معادلة عامة منفصلة)
+    $sumRows = static function (array $list): array {
+        $inv = 0;
+        $net = 0.0;
+        $cost = 0.0;
+        foreach ($list as $row) {
+            $inv += (int) ($row['inv_cnt'] ?? 0);
+            $net += (float) ($row['net'] ?? 0);
+            $cost += (float) ($row['cost'] ?? 0);
+        }
+        $net = round($net, 3);
+        $cost = round($cost, 3);
+        $profit = round($net - $cost, 3);
+        $pct = $net != 0.0 ? round(100.0 * $profit / $net, 3) : 0.0;
+
+        return [
+            'inv_cnt' => $inv,
+            'net' => $net,
+            'cost' => $cost,
+            'profit' => $profit,
+            'profit_pct' => $pct,
+        ];
+    };
+    $rowTotals = $sumRows($rows);
+    $totInv = (int) $rowTotals['inv_cnt'];
+    $totNet = (float) $rowTotals['net'];
+    $totCost = (float) $rowTotals['cost'];
+    $totProfit = (float) $rowTotals['profit'];
+    $totPct = (float) $rowTotals['profit_pct'];
 
     $filters = [
         'from' => $fromIso,
@@ -692,22 +725,32 @@ WHERE d.COMP_NUM = :comp_num AND d.TYPE = :sale_type AND d.STORE = :store_num
                 $winnerKey2 = $key;
             }
         }
-        if ($bestSum2 <= 0.05 && isset($filters['candidates'][$winnerKey2])) {
+        // تطابق شبه تام مع Forms لمندوب واحد فقط — مع الإبقاء على: الإجمالي = مجموع الصفوف
+        if ($bestSum2 <= 0.05 && isset($filters['candidates'][$winnerKey2]) && count($rows) === 1) {
             $winnerKey = $winnerKey2;
             $winner = $filters['candidates'][$winnerKey2];
             $filters['formula'] = $winnerKey;
             $filters['formula_delta'] = $bestSum2;
             $filters['candidates']['base'] = $winner;
-            $totNet = (float) $winner['net'];
-            $totCost = (float) $winner['cost'];
-            $totProfit = (float) ($winner['profit'] ?? round($totNet - $totCost, 3));
-            $totPct = (float) ($winner['profit_pct'] ?? ($totNet != 0.0 ? round(100.0 * $totProfit / $totNet, 3) : 0.0));
-            if (count($rows) === 1) {
-                $rows[0]['net'] = $totNet;
-                $rows[0]['cost'] = $totCost;
-                $rows[0]['profit'] = $totProfit;
-                $rows[0]['profit_pct'] = $totPct;
-            }
+            $rows[0]['net'] = round((float) ($winner['net'] ?? 0), 3);
+            $rows[0]['cost'] = round((float) ($winner['cost'] ?? 0), 3);
+            $rows[0]['profit'] = round(
+                (float) ($winner['profit'] ?? ($rows[0]['net'] - $rows[0]['cost'])),
+                3
+            );
+            $rows[0]['profit_pct'] = (float) (
+                $winner['profit_pct']
+                ?? ($rows[0]['net'] != 0.0 ? round(100.0 * $rows[0]['profit'] / $rows[0]['net'], 3) : 0.0)
+            );
+            $rowTotals = $sumRows($rows);
+            $totInv = (int) $rowTotals['inv_cnt'];
+            $totNet = (float) $rowTotals['net'];
+            $totCost = (float) $rowTotals['cost'];
+            $totProfit = (float) $rowTotals['profit'];
+            $totPct = (float) $rowTotals['profit_pct'];
+        } elseif ($bestSum2 <= 0.05 && isset($filters['candidates'][$winnerKey2])) {
+            $filters['formula_near'] = $winnerKey2;
+            $filters['formula_near_delta'] = $bestSum2;
         }
     }
 

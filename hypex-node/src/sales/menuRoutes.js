@@ -1889,37 +1889,18 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     return 0;
   };
 
-  // أسماء المناديب المعتمدة عندكم: بطاقة هايبكس (الرمز = MAN_NUM Forms)
-  // EMP_INFO غالباً موظفون وليسوا مناديب الفواتير → لا نعتمد اسمه للعرض
-  const hypexReps = await q.listRepsSimple();
-  const hypexNameByMan = new Map();
-  for (const r of hypexReps || []) {
-    const manNo = parseManNo(r.code);
-    if (manNo < 1 || hypexNameByMan.has(manNo)) continue;
-    const nm = String(r.name_ar || '').trim();
-    if (nm) hypexNameByMan.set(manNo, nm);
-  }
-
+  // أسماء المناديب من Oracle EMP_INFO (كما في قائمة Forms) — ليس من هايبكس
   const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
   const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+  const oraNameByMan = new Map();
   const seen = new Set();
   let reps = [];
-
-  // أرقام لها حركات في Oracle + اسم هايبكس إن وُجد
   for (const r of oraRows) {
     const manNo = Number(r.id) || parseManNo(r.code);
     if (manNo < 1 || seen.has(manNo)) continue;
     seen.add(manNo);
-    reps.push({
-      id: manNo,
-      code: String(manNo),
-      name_ar: hypexNameByMan.get(manNo) || String(r.name_ar || '').trim() || `مندوب ${manNo}`,
-    });
-  }
-  // أضف بطاقات هايبكس حتى لو لم تظهر بعد في حركات الفترة
-  for (const [manNo, nm] of hypexNameByMan.entries()) {
-    if (seen.has(manNo)) continue;
-    seen.add(manNo);
+    const nm = String(r.name_ar || '').trim() || `مندوب ${manNo}`;
+    oraNameByMan.set(manNo, nm);
     reps.push({ id: manNo, code: String(manNo), name_ar: nm });
   }
   reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
@@ -1934,7 +1915,8 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     let repFrom = null;
     let repTo = null;
     if (oracleRepNo > 0) {
-      repName = hypexNameByMan.get(oracleRepNo) ||
+      repName =
+        oraNameByMan.get(oracleRepNo) ||
         (reps.find((r) => Number(r.id) === oracleRepNo)?.name_ar) ||
         `مندوب ${oracleRepNo}`;
       repFrom = oracleRepNo;
@@ -1951,26 +1933,47 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
     if (!data || data.ok === false) {
       err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
     } else {
+      // أبقِ اسم EMP_INFO من Oracle؛ أكمل من القائمة إن نقص
       rows = (Array.isArray(data.rows) ? data.rows : []).map((r) => {
         const no = Number(r.rep_no) || 0;
-        const hx = no > 0 ? hypexNameByMan.get(no) : '';
-        return hx ? { ...r, rep_name: hx } : r;
+        const fromOra = String(r.rep_name || '').trim();
+        const fromList = no > 0 ? oraNameByMan.get(no) || '' : '';
+        const rep_name =
+          (fromOra && !/^مندوب\s+\d+$/.test(fromOra) ? fromOra : '') ||
+          fromList ||
+          fromOra ||
+          (no > 0 ? `مندوب ${no}` : '');
+        return { ...r, rep_name };
       });
       totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
       oraFilters = data.filters && typeof data.filters === 'object' ? data.filters : null;
       if (!rows.length && data.message) err = String(data.message);
       if (oracleRepNo > 0) {
-        const hx = hypexNameByMan.get(oracleRepNo);
-        if (hx) repName = hx;
-        else if (rows.length === 1 && rows[0].rep_name) repName = String(rows[0].rep_name);
+        if (rows.length === 1 && rows[0].rep_name) repName = String(rows[0].rep_name);
+        else if (oraNameByMan.get(oracleRepNo)) repName = oraNameByMan.get(oracleRepNo);
       } else if (rows.length === 1 && rows[0].rep_name) {
         repName = String(rows[0].rep_name);
       }
     }
   }
 
+  // الإجمالي المعروض = مجموع صفوف المندوبين (يتطابق مع «مجموع المندوب»)
+  if (rows.length) {
+    const sumNet = rows.reduce((s, r) => s + (Number(r.net) || 0), 0);
+    const sumCost = rows.reduce((s, r) => s + (Number(r.cost) || 0), 0);
+    const sumProfit = rows.reduce((s, r) => s + (Number(r.profit) || 0), 0);
+    const sumInv = rows.reduce((s, r) => s + (Number(r.inv_cnt) || 0), 0);
+    totals = {
+      inv_cnt: sumInv,
+      net: Math.round(sumNet * 1000) / 1000,
+      cost: Math.round(sumCost * 1000) / 1000,
+      profit: Math.round(sumProfit * 1000) / 1000,
+      profit_pct: sumNet !== 0 ? Math.round((1000 * 100 * sumProfit) / sumNet) / 1000 : 0,
+    };
+  }
+
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
-  const mapWarn = `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">الفلتر برقم المندوب (MAN_NUM / رمز البطاقة) — الاسم من بطاقة المناديب في هايبكس (مثل Forms). المبالغ من Oracle.</p>`;
+  const mapWarn = `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">الفلتر برقم المندوب (MAN_NUM) — الاسم من EMP_INFO في Oracle (كما في قائمة Forms). المبالغ من Oracle.</p>`;
   const mismatchWarn = '';
 
   const rowsHtml =

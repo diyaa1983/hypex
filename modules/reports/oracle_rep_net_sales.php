@@ -170,6 +170,29 @@ if ($submitted) {
                 }
                 unset($row);
                 $totals = is_array($result['totals'] ?? null) ? $result['totals'] : $totals;
+                // الإجمالي = مجموع صفوف المندوبين المعروضة
+                if ($rows !== []) {
+                    $sumNet = 0.0;
+                    $sumCost = 0.0;
+                    $sumProfit = 0.0;
+                    $sumInv = 0;
+                    foreach ($rows as $rr) {
+                        $sumNet += (float) ($rr['net'] ?? 0);
+                        $sumCost += (float) ($rr['cost'] ?? 0);
+                        $sumProfit += (float) ($rr['profit'] ?? 0);
+                        $sumInv += (int) ($rr['inv_cnt'] ?? 0);
+                    }
+                    $sumNet = round($sumNet, 3);
+                    $sumCost = round($sumCost, 3);
+                    $sumProfit = round($sumProfit, 3);
+                    $totals = [
+                        'inv_cnt' => $sumInv,
+                        'net' => $sumNet,
+                        'cost' => $sumCost,
+                        'profit' => $sumProfit,
+                        'profit_pct' => $sumNet != 0.0 ? round(100.0 * $sumProfit / $sumNet, 3) : 0.0,
+                    ];
+                }
                 if ($rows === [] && ($result['message'] ?? '') !== '') {
                     $err = (string) $result['message'];
                 }
