@@ -2194,10 +2194,12 @@ const oracleRepItemsHandler = async (req, res) => {
   const categoryIds = asList(params.category_id);
   const reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
   const reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
+  const oraMode = String(params.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex';
   // أي POST من النموذج = تشغيل؛ وrun=1 للتوافق مع GET
   const run =
     req.method === 'POST' ||
     String(params.run || '') === '1' ||
+    oraMode === 'all_oracle' ||
     oracleRepNos.length > 0 ||
     customerIds.length > 0 ||
     categoryIds.length > 0 ||
@@ -2232,19 +2234,41 @@ const oracleRepItemsHandler = async (req, res) => {
     if (man > 0) set.add(String(man));
   };
 
-  // قائمة المندوبين من هايبكس فقط (crm_sales_rep) — لا نعرض مندوبي Oracle غير الموجودين بالنظام
+  // أسماء هايبكس للعرض عند التطابق مع MAN_NUM
   const hypexReps = await q.listRepsSimple();
   const hypexNameByMan = new Map();
-  const seen = new Set();
-  let reps = [];
   for (const r of hypexReps || []) {
     const manNo = parseManNo(r.code);
-    if (manNo < 1 || seen.has(manNo)) continue;
+    if (manNo < 1 || hypexNameByMan.has(manNo)) continue;
     const nm = String(r.name_ar || '').trim();
-    if (!nm) continue;
-    seen.add(manNo);
-    hypexNameByMan.set(manNo, nm);
-    reps.push({ id: manNo, code: String(manNo), name_ar: nm });
+    if (nm) hypexNameByMan.set(manNo, nm);
+  }
+  let reps = [];
+  const seen = new Set();
+  if (oraMode === 'all_oracle') {
+    // قائمة هذه الكبسة فقط: كل مندوبي Oracle (MAN_NUM / EMP_INFO)
+    const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
+    const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+    for (const r of oraRows) {
+      const manNo = Number(r.id) || parseManNo(r.code);
+      if (manNo < 1 || seen.has(manNo)) continue;
+      seen.add(manNo);
+      reps.push({
+        id: manNo,
+        code: String(manNo),
+        name_ar: hypexNameByMan.get(manNo) || String(r.name_ar || '').trim() || `مندوب ${manNo}`,
+      });
+    }
+  } else {
+    // الوضع العادي: مندوبو هايبكس فقط
+    for (const r of hypexReps || []) {
+      const manNo = parseManNo(r.code);
+      if (manNo < 1 || seen.has(manNo)) continue;
+      const nm = String(r.name_ar || '').trim();
+      if (!nm) continue;
+      seen.add(manNo);
+      reps.push({ id: manNo, code: String(manNo), name_ar: nm });
+    }
   }
   reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
 
@@ -2316,9 +2340,13 @@ const oracleRepItemsHandler = async (req, res) => {
   let scopeCustomerIds = customerIds.slice();
   let filterOracleRep = true;
   const selectedRepCodes = new Set(oracleRepNos.map(String));
-  // خريطة حساب Oracle → رقم مندوب هايبكس الحالي
+  // خريطة حساب Oracle → رقم مندوب هايبكس الحالي (للوضع العادي فقط)
   const accToRep = new Map();
-  if (oracleRepNos.length) {
+  if (oraMode === 'all_oracle') {
+    // مبيعات حسب MAN_NUM في Oracle مباشرة — بدون ربط عملاء هايبكس
+    filterOracleRep = true;
+    scopeCustomerIds = customerIds.slice();
+  } else if (oracleRepNos.length) {
     // مندوبو هايبكس الحاليون: كل مبيعات عملائهم (حتى ما بيع تحت مندوب قديم في Oracle)
     filterOracleRep = false;
     const linkedIds = (customers || [])
@@ -2342,6 +2370,7 @@ const oracleRepItemsHandler = async (req, res) => {
     if (!acc || seenAcc.has(acc)) return;
     seenAcc.add(acc);
     custAccs.push(acc);
+    if (oraMode === 'all_oracle') return;
     const cid = String(Number(picked.id) || 0);
     const codes = [...(custRepCodes.get(cid) || [])];
     const primary = String(picked.primary_rep_code || '').trim();
@@ -2354,7 +2383,12 @@ const oracleRepItemsHandler = async (req, res) => {
     }
     if (prefer) accToRep.set(acc, Number(prefer) || 0);
   };
-  if (scopeCustomerIds.length) {
+  if (oraMode === 'all_oracle') {
+    customerIds.forEach((id) => {
+      const picked = (customers || []).find((c) => Number(c.id) === id);
+      if (picked) pushAcc(picked);
+    });
+  } else if (scopeCustomerIds.length) {
     scopeCustomerIds.forEach((id) => {
       const picked = (customers || []).find((c) => Number(c.id) === id);
       if (picked) pushAcc(picked);
@@ -2434,7 +2468,11 @@ const oracleRepItemsHandler = async (req, res) => {
     const current = String(r.rep_name || '').trim();
     const fromList = no > 0 ? String(reps.find((x) => Number(x.id) === no)?.name_ar || '').trim() : '';
     const named = current && !/^مندوب\s+\d+$/.test(current) ? current : '';
-    const rep_name = hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
+    // في وضع كل مندوبي Oracle: اسم Oracle/القائمة أولاً ثم هايبكس
+    const rep_name =
+      oraMode === 'all_oracle'
+        ? named || fromList || hx || current || (no > 0 ? `مندوب ${no}` : '')
+        : hx || named || fromList || current || (no > 0 ? `مندوب ${no}` : '');
     return { ...r, rep_no: no, rep_name };
   };
 
@@ -2539,7 +2577,16 @@ const oracleRepItemsHandler = async (req, res) => {
   };
 
   if (run) {
-    if (oracleRepNos.length === 1) {
+    if (oraMode === 'all_oracle') {
+      repName =
+        oracleRepNos.length === 1
+          ? reps.find((r) => Number(r.id) === oracleRepNos[0])?.name_ar ||
+            hypexNameByMan.get(oracleRepNos[0]) ||
+            `مندوب ${oracleRepNos[0]}`
+          : oracleRepNos.length > 1
+            ? `${oracleRepNos.length} مندوبين (Oracle)`
+            : 'جميع مندوبي Oracle';
+    } else if (oracleRepNos.length === 1) {
       const one = oracleRepNos[0];
       repName =
         hypexNameByMan.get(one) ||
@@ -2548,9 +2595,9 @@ const oracleRepItemsHandler = async (req, res) => {
     } else if (oracleRepNos.length > 1) {
       repName = `${oracleRepNos.length} مندوبين`;
     }
-    if (oracleRepNos.length && !scopeCustomerIds.length) {
+    if (oraMode !== 'all_oracle' && oracleRepNos.length && !scopeCustomerIds.length) {
       err = 'لا يوجد عملاء مربوطون بالمندوبين المحددين في النظام.';
-    } else if (oracleRepNos.length && !custAccs.length) {
+    } else if (oraMode !== 'all_oracle' && oracleRepNos.length && !custAccs.length) {
       err = 'عملاء المندوبين المحددين غير مربوطين بحساب في Oracle.';
     } else if (customerIds.length && !custAccs.length) {
       err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
@@ -2612,6 +2659,13 @@ const oracleRepItemsHandler = async (req, res) => {
       rows = rows.map(applyExcelCat);
       returnRows = returnRows.map(applyExcelCat);
       netRows = netRows.map(applyExcelCat);
+      if (oraMode === 'all_oracle' && oracleRepNos.length > 1) {
+        const allowReps = new Set(oracleRepNos.map(Number));
+        const keep = (r) => allowReps.has(Number(r.rep_no) || 0);
+        rows = rows.filter(keep);
+        returnRows = returnRows.filter(keep);
+        netRows = netRows.filter(keep);
+      }
       netRows.sort((a, b) => {
         const c = (Number(a.rep_no) || 0) - (Number(b.rep_no) || 0);
         if (c) return c;
@@ -3491,20 +3545,36 @@ const oracleRepItemsHandler = async (req, res) => {
       fmtQty(netTotals.bonus || 0)
     )})</span></p>`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
+    const defaultView = oraMode === 'all_oracle' ? 'all-reps' : 'summary';
+    const viewBtn = (id, label) =>
+      `<button type="button" class="si-btn${defaultView === id ? ' si-btn--primary' : ''}" data-ora-view="${id}">${label}</button>`;
     const toolsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
-        <button type="button" class="si-btn si-btn--primary" data-ora-view="summary">ملخص</button>
-        <button type="button" class="si-btn" data-ora-view="detail">تفصيلي</button>
-        <button type="button" class="si-btn" data-ora-view="invoice">فواتير تفصيلي</button>
-        <button type="button" class="si-btn" data-ora-view="invoice-sum">فواتير إجمالي</button>
-        <button type="button" class="si-btn" data-ora-view="cat-totals">مجاميع الفئات</button>
+        ${viewBtn('summary', 'ملخص')}
+        ${viewBtn('detail', 'تفصيلي')}
+        ${viewBtn('invoice', 'فواتير تفصيلي')}
+        ${viewBtn('invoice-sum', 'فواتير إجمالي')}
+        ${viewBtn('all-reps', 'مبيعات جميع المندوبين')}
+        ${viewBtn('cat-totals', 'مجاميع الفئات')}
       </div>`;
+    const panel = (id, html) =>
+      `<div class="ora-view" id="ora-view-net-${id}" data-ora-mode-panel="net" data-ora-view-panel="${id}"${
+        defaultView === id ? '' : ' hidden'
+      }>${html || emptyNet}${netGrand}</div>`;
     rowsHtml = `${toolsHtml}
-      <div class="ora-view" id="ora-view-net-summary" data-ora-mode-panel="net" data-ora-view-panel="summary">${netV.summaryHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-detail" data-ora-mode-panel="net" data-ora-view-panel="detail" hidden>${netV.detailHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-invoice" data-ora-mode-panel="net" data-ora-view-panel="invoice" hidden>${netV.invoiceHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-invoice-sum" data-ora-mode-panel="net" data-ora-view-panel="invoice-sum" hidden>${netV.invoiceSumHtml || emptyNet}${netGrand}</div>
-      <div class="ora-view" id="ora-view-net-cat-totals" data-ora-mode-panel="net" data-ora-view-panel="cat-totals" hidden>${netV.catTotalsHtml || emptyNet}${netGrand}</div>`;
+      ${panel('summary', netV.summaryHtml)}
+      ${panel('detail', netV.detailHtml)}
+      ${panel('invoice', netV.invoiceHtml)}
+      ${panel('invoice-sum', netV.invoiceSumHtml)}
+      ${panel(
+        'all-reps',
+        `<div class="ora-all-reps-note muted no-print">${
+          oraMode === 'all_oracle'
+            ? 'عرض مجاميع مبيعات كل المندوبين حسب رقم المندوب في Oracle (MAN_NUM). القائمة أعلاه من نظام Oracle.'
+            : 'اضغط «مبيعات جميع المندوبين» لتحميل مجاميع كل مندوبي Oracle لهذه الفترة.'
+        }</div>${netV.catTotalsHtml || ''}`
+      )}
+      ${panel('cat-totals', netV.catTotalsHtml)}`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
@@ -3524,6 +3594,11 @@ const oracleRepItemsHandler = async (req, res) => {
     }
   } else {
     tableBlock = `<p class="muted" style="padding:.5rem 0">حدّد الفلاتر ثم اضغط «عرض».</p>`;
+  }
+  if (!stickyToolsHtml) {
+    stickyToolsHtml = `<div class="ora-tools no-print">
+        <button type="button" class="si-btn${oraMode === 'all_oracle' ? ' si-btn--primary' : ''}" data-ora-view="all-reps">مبيعات جميع المندوبين</button>
+      </div>`;
   }
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
@@ -3585,17 +3660,28 @@ const oracleRepItemsHandler = async (req, res) => {
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print ora-report-sticky-note">قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).</p>
+      <p class="muted no-print ora-report-sticky-note">${
+        oraMode === 'all_oracle'
+          ? 'وضع مبيعات جميع المندوبين: قائمة المندوب من Oracle مباشرة (MAN_NUM). مجاميع المبيعات حسب مندوب الفاتورة في Oracle.'
+          : 'قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).'
+      }</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />
+          <input type="hidden" name="ora_mode" id="ora-mode" value="${esc(oraMode)}" />
           <label>المندوب
-            <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل المندوبين">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل المندوبين</button>
+            <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="${
+              oraMode === 'all_oracle' ? 'كل مندوبي Oracle' : 'كل المندوبين'
+            }">
+              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>${
+                oraMode === 'all_oracle' ? 'كل مندوبي Oracle' : 'كل المندوبين'
+              }</button>
               <div class="ora-multi-panel" data-ora-multi-panel hidden>
                 <div class="ora-multi-actions">
                   <button type="button" data-ora-all>تحديد الكل</button>
-                  <button type="button" data-ora-none>كل المندوبين</button>
+                  <button type="button" data-ora-none>${
+                    oraMode === 'all_oracle' ? 'كل مندوبي Oracle' : 'كل المندوبين'
+                  }</button>
                 </div>
                 <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرقم…" autocomplete="off">
                 <div class="ora-multi-list" data-ora-multi-list></div>
@@ -4991,6 +5077,20 @@ const oracleRepItemsHandler = async (req, res) => {
         var block = t.closest('.ora-summary-block');
         refreshOraCustPick(block);
       });
+      (function bindOraModeSubmit() {
+        var form = document.getElementById('ora-rep-filter');
+        var modeEl = document.getElementById('ora-mode');
+        if (!form || !modeEl) return;
+        form.addEventListener('submit', function () {
+          // إرسال من كبسة «مبيعات جميع المندوبين» يضبط الوضع مسبقاً؛ أي «عرض» عادي يعيد وضع هايبكس
+          if (modeEl.getAttribute('data-submit-all-oracle') === '1') {
+            modeEl.value = 'all_oracle';
+            modeEl.removeAttribute('data-submit-all-oracle');
+            return;
+          }
+          modeEl.value = 'hypex';
+        });
+      })();
       document.addEventListener('click', function (ev) {
         var clearBtn = ev.target.closest && ev.target.closest('.ora-pick-clear');
         if (clearBtn) {
@@ -5024,6 +5124,22 @@ const oracleRepItemsHandler = async (req, res) => {
         if (viewBtn) {
           var which = viewBtn.getAttribute('data-ora-view') || 'summary';
           if (which === 'invoice-net') which = 'invoice-sum';
+          var modeEl = document.getElementById('ora-mode');
+          var form = document.getElementById('ora-rep-filter');
+          var curMode = modeEl ? String(modeEl.value || '') : '';
+          if (which === 'all-reps' && curMode !== 'all_oracle' && form) {
+            if (modeEl) {
+              modeEl.value = 'all_oracle';
+              modeEl.setAttribute('data-submit-all-oracle', '1');
+            }
+            // كل مندوبي Oracle — بدون حصر على تحديد المندوبين الحالي
+            form.querySelectorAll('input[name="sales_rep_id"][data-ora-hidden]').forEach(function (n) {
+              n.remove();
+            });
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.submit();
+            return;
+          }
           document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
             if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
             else btn.classList.remove('si-btn--primary');
