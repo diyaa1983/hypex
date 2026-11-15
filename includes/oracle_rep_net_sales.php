@@ -13,10 +13,42 @@ require_once app_path('includes/oracle_pdo.php');
 require_once app_path('includes/oracle_sales_invoice.php');
 
 /**
- * قائمة مندوبي Oracle للفلتر (رقم MAN_NUM / EMP_NO + الاسم من EMP_INFO).
- * لا تعتمد على crm_sales_rep في هايبكس حتى لا يختلط الرمز بالاسم.
+ * حوّل صفوف Oracle إلى قائمة مندوبين موحّدة.
  *
- * @return array{ok:bool, message:string, rows:list<array{id:int,code:string,name_ar:string}>}
+ * @param list<array<string,mixed>> $raw
+ * @return list<array{id:int,code:string,name_ar:string}>
+ */
+function oracle_rep_list_normalize_rows(array $raw, string $idCol, string $nameCol): array
+{
+    $rows = [];
+    $seen = [];
+    foreach ($raw as $r) {
+        $no = (int) oracle_statement_row_val($r, $idCol);
+        if ($no < 1 || isset($seen[$no])) {
+            continue;
+        }
+        $seen[$no] = true;
+        $name = trim((string) oracle_statement_row_val($r, $nameCol));
+        $rows[] = [
+            'id' => $no,
+            'code' => (string) $no,
+            'name_ar' => $name !== '' ? $name : ('مندوب ' . $no),
+        ];
+    }
+    usort(
+        $rows,
+        static fn (array $a, array $b): int => strcmp((string) $a['name_ar'], (string) $b['name_ar'])
+    );
+
+    return $rows;
+}
+
+/**
+ * قائمة مندوبي Oracle كما في Forms «قائمة اسماء المندوبين» (INV00078).
+ * المصدر بالترتيب: ACCINV.REP → EMP_INFO بـ JOB_TYPE للمناديب → MAN_NUM من DAILY.
+ * لا نعرض كل موظفي EMP_INFO.
+ *
+ * @return array{ok:bool, message:string, rows:list<array{id:int,code:string,name_ar:string}>, source?:string}
  */
 function oracle_list_rep_net_sales_reps(): array
 {
@@ -28,9 +60,15 @@ function oracle_list_rep_net_sales_reps(): array
     }
     $c = oracle_rep_net_sales_cfg();
     $fromQ = oracle_stmt_q($c['owner']) . '.' . oracle_stmt_q($c['table']);
-    $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
+    $empOwner = (string) $c['emp_owner'];
+    $empTable = (string) $c['emp_table'];
+    $empQ = oracle_stmt_q($empOwner) . '.' . oracle_stmt_q($empTable);
+    $repOwner = strtoupper(trim((string) ($c['rep_owner'] ?? $empOwner))) ?: $empOwner;
+    $repTable = strtoupper(trim((string) ($c['rep_table'] ?? 'REP'))) ?: 'REP';
+    $repQ = oracle_stmt_q($repOwner) . '.' . oracle_stmt_q($repTable);
     $saleType = (int) $c['sale_type'];
     $compNum = (int) $c['comp_num'];
+    $cfgJobTypes = is_array($c['rep_list_job_types'] ?? null) ? $c['rep_list_job_types'] : [];
 
     $conn = oracle_connect();
     if (empty($conn['ok'])) {
@@ -39,62 +77,122 @@ function oracle_list_rep_net_sales_reps(): array
         return $empty;
     }
 
-    // نفس قائمة Forms (قائمة اسماء المندوبين): EMP_INFO مرتّبة بالاسم
-    $sql = "
-SELECT e.EMP_NO,
-       NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(e.EMP_NO)) AS EMP_NAME
-FROM {$empQ} e
-WHERE e.EMP_NO IS NOT NULL
-  AND e.EMP_NO > 0
-ORDER BY e.EMP_NAME
-";
-
-    try {
-        $raw = oracle_query_all($conn, $sql, []);
-    } catch (Throwable $e) {
-        // احتياطي: مناديب لهم حركة مبيعات في DAILY
+    // 1) جدول المناديب ACCINV.REP (قائمة Forms «اسماء المندوبين»)
+    $repSqlTries = [
+        "SELECT REP_NO AS EMP_NO, NVL(TRIM(REP_NAME), 'مندوب ' || TO_CHAR(REP_NO)) AS EMP_NAME FROM {$repQ} WHERE REP_NO IS NOT NULL AND REP_NO > 0 ORDER BY EMP_NAME",
+        "SELECT REP_NUM AS EMP_NO, NVL(TRIM(REP_NAME), 'مندوب ' || TO_CHAR(REP_NUM)) AS EMP_NAME FROM {$repQ} WHERE REP_NUM IS NOT NULL AND REP_NUM > 0 ORDER BY EMP_NAME",
+        "SELECT MAN_NUM AS EMP_NO, NVL(TRIM(MAN_NAME), 'مندوب ' || TO_CHAR(MAN_NUM)) AS EMP_NAME FROM {$repQ} WHERE MAN_NUM IS NOT NULL AND MAN_NUM > 0 ORDER BY EMP_NAME",
+        "SELECT EMP_NO, NVL(TRIM(EMP_NAME), 'مندوب ' || TO_CHAR(EMP_NO)) AS EMP_NAME FROM {$repQ} WHERE EMP_NO IS NOT NULL AND EMP_NO > 0 ORDER BY EMP_NAME",
+        "SELECT SALESMAN AS EMP_NO, NVL(TRIM(SALESMAN_NAME), 'مندوب ' || TO_CHAR(SALESMAN)) AS EMP_NAME FROM {$repQ} WHERE SALESMAN IS NOT NULL AND SALESMAN > 0 ORDER BY EMP_NAME",
+    ];
+    foreach ($repSqlTries as $repSql) {
         try {
+            $raw = oracle_query_all($conn, $repSql);
+            $rows = oracle_rep_list_normalize_rows($raw, 'EMP_NO', 'EMP_NAME');
+            if ($rows !== []) {
+                return ['ok' => true, 'message' => '', 'rows' => $rows, 'source' => $repOwner . '.' . $repTable];
+            }
+        } catch (Throwable $e) {
+            // جرّب الصيغة التالية
+        }
+    }
+
+    // 2) EMP_INFO مفلتر بـ JOB_TYPE (مناديب Forms وليس كل الموظفين)
+    try {
+        $jobTypes = [];
+        foreach ($cfgJobTypes as $jt) {
+            $jt = trim((string) $jt);
+            if ($jt !== '') {
+                $jobTypes[$jt] = $jt;
+            }
+        }
+        if ($jobTypes === []) {
+            // عيّنة معروفة من قائمة Forms (إبراهيم/جاد/سامر/…) لاكتشاف JOB_TYPE
+            $probe = oracle_query_all(
+                $conn,
+                "SELECT DISTINCT TRIM(TO_CHAR(JOB_TYPE)) AS JT
+                 FROM {$empQ}
+                 WHERE EMP_NO IN (6,22,26,27,28,29,31,34,37,38,39,40,41,42)
+                   AND JOB_TYPE IS NOT NULL"
+            );
+            foreach ($probe as $pr) {
+                $jt = trim((string) oracle_statement_row_val($pr, 'JT'));
+                if ($jt !== '') {
+                    $jobTypes[$jt] = $jt;
+                }
+            }
+        }
+        if ($jobTypes !== []) {
+            $ph = [];
+            $binds = [];
+            $i = 0;
+            foreach ($jobTypes as $jt) {
+                $name = 'jt' . $i;
+                $ph[] = ':' . $name;
+                $binds[$name] = $jt;
+                $i += 1;
+            }
             $raw = oracle_query_all(
                 $conn,
-                "SELECT DISTINCT
-                        d.MAN_NUM AS EMP_NO,
-                        NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(d.MAN_NUM)) AS EMP_NAME
-                 FROM {$fromQ} d
-                 LEFT JOIN {$empQ} e ON e.EMP_NO = d.MAN_NUM
-                 WHERE d.COMP_NUM = :comp_num
-                   AND d.TYPE = :sale_type
-                   AND d.MAN_NUM IS NOT NULL
-                   AND d.MAN_NUM > 0
-                 ORDER BY EMP_NAME",
-                [
-                    'comp_num' => $compNum,
-                    'sale_type' => $saleType,
-                ]
+                "SELECT e.EMP_NO,
+                        NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(e.EMP_NO)) AS EMP_NAME
+                 FROM {$empQ} e
+                 WHERE e.EMP_NO IS NOT NULL AND e.EMP_NO > 0
+                   AND TRIM(TO_CHAR(e.JOB_TYPE)) IN (" . implode(',', $ph) . ')
+                 ORDER BY e.EMP_NAME',
+                $binds
             );
-        } catch (Throwable $e2) {
-            $empty['message'] = 'تعذر قراءة المناديب: ' . $e->getMessage();
-
-            return $empty;
+            $rows = oracle_rep_list_normalize_rows($raw, 'EMP_NO', 'EMP_NAME');
+            if ($rows !== []) {
+                return [
+                    'ok' => true,
+                    'message' => '',
+                    'rows' => $rows,
+                    'source' => $empOwner . '.' . $empTable . ':JOB_TYPE',
+                ];
+            }
         }
+    } catch (Throwable $e) {
+        // تابع
     }
 
-    $rows = [];
-    $seen = [];
-    foreach ($raw as $r) {
-        $no = (int) oracle_statement_row_val($r, 'EMP_NO');
-        if ($no < 1 || isset($seen[$no])) {
-            continue;
+    // 3) مناديب ظهروا كـ MAN_NUM في فواتير المبيعات + الاسم من EMP_INFO
+    try {
+        $raw = oracle_query_all(
+            $conn,
+            "SELECT DISTINCT
+                    d.MAN_NUM AS EMP_NO,
+                    NVL(TRIM(e.EMP_NAME), 'مندوب ' || TO_CHAR(d.MAN_NUM)) AS EMP_NAME
+             FROM {$fromQ} d
+             LEFT JOIN {$empQ} e ON e.EMP_NO = d.MAN_NUM
+             WHERE d.COMP_NUM = :comp_num
+               AND d.TYPE = :sale_type
+               AND d.MAN_NUM IS NOT NULL
+               AND d.MAN_NUM > 0
+             ORDER BY EMP_NAME",
+            [
+                'comp_num' => $compNum,
+                'sale_type' => $saleType,
+            ]
+        );
+        $rows = oracle_rep_list_normalize_rows($raw, 'EMP_NO', 'EMP_NAME');
+        if ($rows !== []) {
+            return [
+                'ok' => true,
+                'message' => '',
+                'rows' => $rows,
+                'source' => 'DAILY.MAN_NUM',
+            ];
         }
-        $seen[$no] = true;
-        $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
-        $rows[] = [
-            'id' => $no,
-            'code' => (string) $no,
-            'name_ar' => $name !== '' ? $name : ('مندوب ' . $no),
-        ];
+    } catch (Throwable $e) {
+        $empty['message'] = 'تعذر قراءة المناديب: ' . $e->getMessage();
+
+        return $empty;
     }
 
-    return ['ok' => true, 'message' => '', 'rows' => $rows];
+    $empty['message'] = 'لا توجد قائمة مندوبين في Oracle.';
+
+    return $empty;
 }
 
 /**
@@ -142,6 +240,9 @@ function oracle_rep_net_sales_cfg(): array
         'customer_table' => strtoupper(trim((string) ($s['customer_table'] ?? 'CUSTOMER'))) ?: 'CUSTOMER',
         'emp_owner' => strtoupper(trim((string) ($s['emp_owner'] ?? 'ACCINV'))) ?: 'ACCINV',
         'emp_table' => strtoupper(trim((string) ($s['emp_table'] ?? 'EMP_INFO'))) ?: 'EMP_INFO',
+        'rep_owner' => strtoupper(trim((string) ($s['rep_owner'] ?? ($s['emp_owner'] ?? 'ACCINV')))) ?: 'ACCINV',
+        'rep_table' => strtoupper(trim((string) ($s['rep_table'] ?? 'REP'))) ?: 'REP',
+        'rep_list_job_types' => is_array($s['rep_list_job_types'] ?? null) ? $s['rep_list_job_types'] : [],
         'sale_type' => (int) ($s['sale_type'] ?? ($inv['sale_type'] ?? 9)),
         'return_types' => $returnTypes,
         'comp_num' => (int) ($s['comp_num'] ?? ($inv['comp_num'] ?? 1)),

@@ -1973,7 +1973,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   }
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
-  const mapWarn = `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">الفلتر برقم المندوب (MAN_NUM) — الاسم من EMP_INFO في Oracle (كما في قائمة Forms). المبالغ من Oracle.</p>`;
+  const mapWarn = `<p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">قائمة المندوب كما في Forms (ACCINV.REP / JOB_TYPE) — الرقم = MAN_NUM. المبالغ من Oracle.</p>`;
   const mismatchWarn = '';
 
   const rowsHtml =
@@ -3659,7 +3659,7 @@ const oracleRepItemsHandler = async (req, res) => {
       })}
       <p class="muted no-print ora-report-sticky-note">${
         oraMode === 'all_oracle'
-          ? 'وضع مبيعات جميع المندوبين: قائمة المندوب من Oracle مباشرة (MAN_NUM). مجاميع المبيعات حسب مندوب الفاتورة في Oracle.'
+          ? 'وضع مبيعات جميع المندوبين: قائمة المندوب كما في Forms (رقم MAN_NUM). مجاميع المبيعات حسب مندوب الفاتورة في Oracle.'
           : 'قوائم المندوب والفئة من النظام الحالي. المبيعات من Oracle حسب السنة والشهر. عند اختيار مندوب تُعرض كل مبيعات عملائه الحاليين (بما فيها ما بيع سابقاً تحت مندوب آخر).'
       }</p>
       <div class="si-rail no-print">

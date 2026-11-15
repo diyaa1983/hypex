@@ -89,7 +89,7 @@ $rows = [];
 $totals = ['inv_cnt' => 0, 'net' => 0.0, 'cost' => 0.0, 'profit' => 0.0, 'profit_pct' => 0.0];
 $repName = '';
 $repOracleNo = null;
-$mapNote = 'الفلتر برقم المندوب (MAN_NUM) — الاسم من EMP_INFO في Oracle (كما في قائمة Forms). المبالغ من Oracle.';
+$mapNote = 'قائمة المندوب كما في Forms (ACCINV.REP / JOB_TYPE) — الرقم = MAN_NUM. المبالغ من Oracle.';
 
 $submitted = isset($_GET['run']) || isset($_GET['sales_rep_id']) || isset($_GET['from']) || isset($_GET['to']);
 
