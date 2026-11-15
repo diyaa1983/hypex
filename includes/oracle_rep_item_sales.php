@@ -692,7 +692,7 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
 }
 
 /**
- * اسم المندوب: بطاقة هايبكس (الرمز = MAN_NUM) ثم EMP_INFO.
+ * اسم المندوب من Oracle MANINFO (Forms) — ليس EMP_INFO ولا هايبكس.
  *
  * @param list<int> $repNos
  * @return array<int,string>
@@ -706,68 +706,39 @@ function oracle_rep_item_sales_rep_names(array $conn, array $repNos): array
             $ids[$n] = true;
         }
     }
-    if ($ids === []) {
+    if ($ids === [] || empty($conn['ok'])) {
         return [];
     }
 
     $out = [];
-    try {
-        $pdo = db();
-        $rows = $pdo->query(
-            'SELECT code, name_ar FROM crm_sales_rep WHERE is_active = 1'
-        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($rows as $r) {
-            $name = trim((string) ($r['name_ar'] ?? ''));
-            $code = trim((string) ($r['code'] ?? ''));
-            if ($name === '' || $code === '') {
-                continue;
-            }
-            $no = 0;
-            if (preg_match('/^[1-9]\d*$/', $code)) {
-                $no = (int) $code;
-            } elseif (preg_match('/(\d+)/', $code, $m)) {
-                $n = (int) $m[1];
-                if ($n > 0 && $n < 100000) {
-                    $no = $n;
-                }
-            }
-            if ($no > 0 && isset($ids[$no]) && !isset($out[$no])) {
-                $out[$no] = $name;
-            }
-        }
-    } catch (Throwable $e) {
-        // الاسم من Oracle يكفي
-    }
-
-    $missing = [];
-    foreach (array_keys($ids) as $no) {
-        if (!isset($out[$no])) {
-            $missing[] = (int) $no;
-        }
-    }
-    if ($missing === [] || empty($conn['ok'])) {
-        return $out;
-    }
-
     $c = oracle_rep_net_sales_cfg();
-    $empQ = oracle_stmt_q($c['emp_owner']) . '.' . oracle_stmt_q($c['emp_table']);
-    foreach (array_chunk($missing, 400) as $chunk) {
+    $manQ = oracle_stmt_q((string) ($c['man_owner'] ?? 'ACCINV'))
+        . '.' . oracle_stmt_q((string) ($c['man_table'] ?? 'MANINFO'));
+    $disp = "NVL(NULLIF(TRIM(MAN_ANAME), ''), NULLIF(TRIM(MAN_NAME), ''))";
+
+    foreach (array_chunk(array_map('intval', array_keys($ids)), 400) as $chunk) {
         $list = implode(',', $chunk);
-        try {
-            $raw = oracle_query_all(
-                $conn,
-                "SELECT EMP_NO, TRIM(EMP_NAME) AS EMP_NAME FROM {$empQ} WHERE EMP_NO IN ({$list})",
-                []
-            );
-            foreach ($raw as $r) {
-                $no = (int) oracle_statement_row_val($r, 'EMP_NO');
-                $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
-                if ($no > 0 && $name !== '' && !isset($out[$no])) {
-                    $out[$no] = $name;
+        $sqlTries = [
+            "SELECT MAN_NUM AS EMP_NO, {$disp} AS EMP_NAME FROM {$manQ} WHERE MAN_NUM IN ({$list})",
+            "SELECT MAN_NO AS EMP_NO, {$disp} AS EMP_NAME FROM {$manQ} WHERE MAN_NO IN ({$list})",
+            "SELECT MAN_NUM AS EMP_NO, TRIM(MAN_NAME) AS EMP_NAME FROM {$manQ} WHERE MAN_NUM IN ({$list})",
+        ];
+        foreach ($sqlTries as $sql) {
+            try {
+                $raw = oracle_query_all($conn, $sql, []);
+                foreach ($raw as $r) {
+                    $no = (int) oracle_statement_row_val($r, 'EMP_NO');
+                    $name = trim((string) oracle_statement_row_val($r, 'EMP_NAME'));
+                    if ($no > 0 && $name !== '' && !isset($out[$no])) {
+                        $out[$no] = $name;
+                    }
                 }
+                if ($out !== []) {
+                    break;
+                }
+            } catch (Throwable $e) {
+                // جرّب الصيغة التالية
             }
-        } catch (Throwable $e) {
-            // يبقى «مندوب + الرقم»
         }
     }
 

@@ -91,11 +91,9 @@ return [
         'customer_table' => 'CUSTOMER',
         'emp_owner' => 'ACCINV',
         'emp_table' => 'EMP_INFO',
-        // قائمة Forms «اسماء المندوبين»: جدول REP أولاً ثم EMP_INFO/JOB_TYPE
-        'rep_owner' => 'ACCINV',
-        'rep_table' => 'REP',
-        // اختياري: ثبّت JOB_TYPE إن عرفته (مثال: [1] أو ['S'])
-        // 'rep_list_job_types' => [1],
+        // قائمة Forms «اسماء المندوبين»: ACCINV.MANINFO (ليس EMP_INFO)
+        'man_owner' => 'ACCINV',
+        'man_table' => 'MANINFO',
         'rep_key' => 'man_num', // man_num | cus_salesman
         'sale_type' => 9,
         // أنواع مرتجع المبيعات في MAS.DAILY — عندكم TYPE=2 = INV00025 مرتجع مبيعات
