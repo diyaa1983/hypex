@@ -574,7 +574,6 @@ SELECT NVL(d.MAN_NUM, 0) AS MAN_NUM,
        ROUND(MAX(NVL(d.VOU_TAX, 0)), 3) AS VOU_TAX
 FROM {$fromQ} d
 WHERE d.COMP_NUM = :comp_num
-  AND NVL(d.V_NUM, 0) > 0
   AND d.STORE = :store_num
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
@@ -618,70 +617,69 @@ GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
         $debugProbe['vou_disc_error'] = $e->getMessage();
     }
 
-    // صافي Forms الرسمي (مستوى الفاتورة مثل Toad) — مصدر مرجع الشاشة
+    // صافي Forms = نفس معادلة Toad الحرفية (بدون year_months — كانت تفسد المجموع)
     $formsNet = null;
     $formsSaleNet = null;
     $formsRetNet = null;
+    try {
+        @oracle_execute($conn, "ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,'", []);
+    } catch (Throwable $e) {
+        // تجاهل
+    }
     try {
         $formsBinds = [
             'comp_num' => (int) $c['comp_num'],
             'store_num' => $storeNum,
             'd_from' => $fromIso,
             'd_to' => $toIso,
-            'sale_type' => $saleType,
         ];
-        $formsManSql = '';
-        if (!$byCurrentLink) {
-            if ($filterOracleRep && $repNo !== null && $repNo > 0) {
-                $formsManSql = ' AND d.MAN_NUM = :rep_no';
-                $formsBinds['rep_no'] = $repNo;
-            } else {
-                $formsManSql = ' AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0';
-            }
+        $formsManSql = ' AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0';
+        if (!$byCurrentLink && $filterOracleRep && $repNo !== null && $repNo > 0) {
+            $formsManSql = ' AND d.MAN_NUM = :rep_no';
+            $formsBinds['rep_no'] = $repNo;
+        } elseif ($byCurrentLink) {
+            $formsManSql = '';
         }
+        // فلاتر عملاء فقط عند التحديد اليدوي — لا نمرّر year_months هنا
+        $formsCustSql = $custSql;
         foreach ($bindsCommon as $bk => $bv) {
-            if ($bk === 'comp_num' || $bk === 'd_from' || $bk === 'd_to') {
-                continue;
-            }
-            if (!array_key_exists($bk, $formsBinds)) {
+            if (str_starts_with((string) $bk, 'cacc') && !array_key_exists($bk, $formsBinds)) {
                 $formsBinds[$bk] = $bv;
             }
         }
-        $formsInvSql = static function (string $typePred) use (
+        $unitPrice = 'NVL(CASE WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX ELSE d.SELL END, 0)';
+        $discExpr = "CASE
+               WHEN NVL(d.DISC, 0) = 0 THEN 0
+               WHEN NVL(d.DISC, 0) <= 1 THEN NVL(d.QTY, 0) * {$unitPrice} * NVL(d.DISC, 0)
+               WHEN NVL(d.DISC, 0) <= 100 THEN NVL(d.QTY, 0) * {$unitPrice} * NVL(d.DISC, 0) / 100
+               ELSE NVL(d.DISC, 0)
+             END";
+        $formsInvSql = static function (int $docType) use (
             $fromQ,
-            $price,
-            $lineDisc,
+            $unitPrice,
+            $discExpr,
             $formsManSql,
-            $custSql,
-            $ymSql
+            $formsCustSql
         ): string {
             return "
 SELECT ROUND(SUM(x.GROSS_DISC) - SUM(x.VOU_DISC), 3) AS NET_AMT
 FROM (
   SELECT MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
-         SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})) AS GROSS_DISC
+         SUM(NVL(d.QTY, 0) * {$unitPrice} - ({$discExpr})) AS GROSS_DISC
   FROM {$fromQ} d
-  WHERE d.COMP_NUM = :comp_num AND {$typePred} AND d.STORE = :store_num
+  WHERE d.COMP_NUM = :comp_num
+    AND d.TYPE = {$docType}
+    AND d.STORE = :store_num
     AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
     AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
     {$formsManSql}
-    {$custSql}{$ymSql}
+    {$formsCustSql}
   GROUP BY d.VYEAR, d.V_NUM, d.MAN_NUM
 ) x
 ";
         };
-        $saleFormsRaw = oracle_query_all(
-            $conn,
-            $formsInvSql('d.TYPE = :sale_type'),
-            $formsBinds
-        );
-        $retFormsBinds = $formsBinds;
-        unset($retFormsBinds['sale_type']);
-        $retFormsRaw = oracle_query_all(
-            $conn,
-            $formsInvSql('d.TYPE IN (' . $retInList . ')'),
-            $retFormsBinds
-        );
+        $saleFormsRaw = oracle_query_all($conn, $formsInvSql($saleType), $formsBinds);
+        $retFormsRaw = oracle_query_all($conn, $formsInvSql(2), $formsBinds);
         $formsSaleNet = $saleFormsRaw !== []
             ? (float) oracle_statement_row_val($saleFormsRaw[0], 'NET_AMT')
             : 0.0;
@@ -699,12 +697,12 @@ FROM (
     $netAmount = round($totAmt - $retAmt, 3);
     $netVouDisc = round($totVouDisc - $retVouDisc, 3);
     $netVouTax = round($totVouTax - $retVouTax, 3);
-    // Forms = مبيعات TYPE=9 − مرتجعات TYPE=2 (بعد خصم البند وVOU_DISC) بدون ضريبة
+    // احتياط من مجاميع البنود إن فشل استعلام Forms
     if ($formsNet === null) {
         $formsNet = round(($totAmt - $totVouDisc) - ($retAmt - $retVouDisc), 3);
     }
     $netAfterDisc = $formsNet;
-    // الخصم الظاهر يطابق: الإجمالي − الصافي = صافي Forms
+    // خصم ظاهر متسق مع الصافي المعروض (Forms)
     $netVouDisc = round($netAmount - $formsNet, 3);
 
     return [
