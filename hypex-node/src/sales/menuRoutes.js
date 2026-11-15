@@ -2787,47 +2787,64 @@ const oracleRepItemsHandler = async (req, res) => {
     };
     const invDiscLookup = new Map();
     const invTaxLookup = new Map();
-    // المفتاح يشمل MAN_NUM حتى لا يختلط خصم فاتورة مندوب مع آخر (نفس V_NUM/عميل)
+    // مفاتيح متعددة: مع/بدون مندوب ومع/بدون عميل — لأن MAX(CUST_ACC) قد لا يطابق سطر الحركة
     for (const d of invoiceDiscounts || []) {
       const acc = normAccKey(d.customer_acc);
       const y = Number(d.invoice_year) || 0;
       const n = Number(d.invoice_no) || 0;
       const rep = Number(d.rep_no) || 0;
       const kind = String(d.doc_kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
-      if (!acc || n < 1) continue;
-      const key = `${kind}|${rep}|${y}|${n}|${acc}`;
-      const keyNoRep = `${kind}|${y}|${n}|${acc}`;
-      invDiscLookup.set(key, Number(d.vou_disc) || 0);
-      invTaxLookup.set(key, Number(d.vou_tax) || 0);
-      // توافق قديم إن وُجدت فواتير بلا rep_no
-      if (rep < 1) {
-        invDiscLookup.set(keyNoRep, Number(d.vou_disc) || 0);
-        invTaxLookup.set(keyNoRep, Number(d.vou_tax) || 0);
-      }
+      if (n < 1) continue;
+      const disc = Number(d.vou_disc) || 0;
+      const tax = Number(d.vou_tax) || 0;
+      const keys = [
+        `${kind}|${rep}|${y}|${n}|${acc}`,
+        `${kind}|${rep}|${y}|${n}|`,
+        `${kind}|${y}|${n}|${acc}`,
+        `${kind}|${y}|${n}|`,
+      ];
+      keys.forEach((key) => {
+        if (!invDiscLookup.has(key) && disc) invDiscLookup.set(key, disc);
+        if (!invTaxLookup.has(key) && tax) invTaxLookup.set(key, tax);
+      });
     }
-    const lookupInvDisc = (kind, repNo, year, num, acc) => {
+    const lookupInvAmt = (map, kind, repNo, year, num, acc) => {
       const a = normAccKey(acc);
       const k = String(kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
       const y = Number(year) || 0;
       const n = Number(num) || 0;
       const r = Number(repNo) || 0;
-      if (!a || n < 1) return 0;
-      if (r > 0 && invDiscLookup.has(`${k}|${r}|${y}|${n}|${a}`)) {
-        return Number(invDiscLookup.get(`${k}|${r}|${y}|${n}|${a}`)) || 0;
+      if (n < 1) return 0;
+      const tryKeys = [
+        `${k}|${r}|${y}|${n}|${a}`,
+        `${k}|${r}|${y}|${n}|`,
+        `${k}|${y}|${n}|${a}`,
+        `${k}|${y}|${n}|`,
+      ];
+      for (const key of tryKeys) {
+        if (map.has(key)) return Number(map.get(key)) || 0;
       }
-      return Number(invDiscLookup.get(`${k}|${y}|${n}|${a}`)) || 0;
+      return 0;
     };
-    const lookupInvTax = (kind, repNo, year, num, acc) => {
-      const a = normAccKey(acc);
-      const k = String(kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
-      const y = Number(year) || 0;
-      const n = Number(num) || 0;
+    const lookupInvDisc = (kind, repNo, year, num, acc) =>
+      lookupInvAmt(invDiscLookup, kind, repNo, year, num, acc);
+    const lookupInvTax = (kind, repNo, year, num, acc) =>
+      lookupInvAmt(invTaxLookup, kind, repNo, year, num, acc);
+    const sumRepVouDisc = (repNo) => {
       const r = Number(repNo) || 0;
-      if (!a || n < 1) return 0;
-      if (r > 0 && invTaxLookup.has(`${k}|${r}|${y}|${n}|${a}`)) {
-        return Number(invTaxLookup.get(`${k}|${r}|${y}|${n}|${a}`)) || 0;
+      let sum = 0;
+      let found = false;
+      for (const d of invoiceDiscounts || []) {
+        const dRep = Number(d.rep_no) || 0;
+        if (r > 0 && dRep > 0 && dRep !== r) continue;
+        if (r > 0 && dRep > 0) found = true;
+        else if (r > 0 && dRep < 1) continue;
+        const disc = Number(d.vou_disc) || 0;
+        if (!disc) continue;
+        const kind = String(d.doc_kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
+        sum += kind === 'R' ? -disc : disc;
       }
-      return Number(invTaxLookup.get(`${k}|${y}|${n}|${a}`)) || 0;
+      return { sum, found };
     };
     const buildOraViews = (sourceRows) => {
     let summaryHtml = '';
@@ -2956,38 +2973,30 @@ const oracleRepItemsHandler = async (req, res) => {
         inv.amount += amount;
         inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
-      // خصم هذا المندوب فقط: من فواتير MAN_NUM=هذا المندوب (أو فواتيره الظاهرة في invMap)
+      // خصم لكل عميل من فواتير هذا المندوب الظاهرة في invMap (موثوق مع كل المندوبين)
       const discByCustRep = new Map();
-      const addCustDisc = (accRaw, signed, saleDate, invYear) => {
-        const acc = normAccKey(accRaw);
-        if (!acc || !signed) return;
+      invMap.forEach((inv) => {
+        const acc = normAccKey(inv.customerAcc);
+        if (!acc) return;
+        const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
+        const disc = lookupInvDisc(kind, no, inv.invYear, inv.invNo, inv.customerAcc);
+        if (!disc) return;
+        const signed = kind === 'R' ? -disc : disc;
         if (!discByCustRep.has(acc)) discByCustRep.set(acc, { total: 0, byYear: new Map() });
         const slot = discByCustRep.get(acc);
         slot.total += signed;
         const y =
-          Number((String(saleDate || '').match(/^(\d{4})/) || [])[1]) || Number(invYear) || 0;
+          Number((String(inv.saleDate || '').match(/^(\d{4})/) || [])[1]) ||
+          Number(inv.invYear) ||
+          0;
         if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
-      };
-      let usedRepTaggedDiscs = false;
-      for (const d of invoiceDiscounts || []) {
-        const dRep = Number(d.rep_no) || 0;
-        if (dRep < 1 || dRep !== no) continue;
-        usedRepTaggedDiscs = true;
-        const disc = Number(d.vou_disc) || 0;
-        if (!disc) continue;
-        const kind = String(d.doc_kind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
-        addCustDisc(d.customer_acc, kind === 'R' ? -disc : disc, d.sale_date, d.invoice_year);
-      }
-      if (!usedRepTaggedDiscs) {
-        // احتياط: ربط عبر فواتير هذا المندوب الظاهرة في الحركة
-        invMap.forEach((inv) => {
-          const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
-          const disc = lookupInvDisc(kind, no, inv.invYear, inv.invNo, inv.customerAcc);
-          if (!disc) return;
-          addCustDisc(inv.customerAcc, kind === 'R' ? -disc : disc, inv.saleDate, inv.invYear);
-        });
-      }
+      });
       const custDiscOf = (acc) => discByCustRep.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
+      // خصم مجموع المندوب = كل VOU لـ MAN_NUM هذا المندوب (لا يعتمد على تطابق عميل السطر)
+      const repVou = sumRepVouDisc(no);
+      let repDiscFixed = repVou.found
+        ? repVou.sum
+        : [...discByCustRep.values()].reduce((s, x) => s + (Number(x.total) || 0), 0);
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
         if (b === 'بدون فئة') return -1;
@@ -3215,6 +3224,9 @@ const oracleRepItemsHandler = async (req, res) => {
         detailBody += `<tr class="ora-cust-band" data-ora-group="1"><td colspan="9">${esc(slot.label)}</td></tr>${lines}`;
         detailBody += `<tr class="ora-cust-final" data-ora-group-end="1"><td colspan="4">المجموع النهائي لمبيعات العميل</td>${qtyExtraCell(custQty, custBonus)}<td class="si-num" dir="ltr">${esc(fmtAmt(rowGross))}</td><td class="si-num ora-disc-cell" dir="ltr">${rowDisc ? esc(fmtAmt(rowDisc)) : ''}</td><td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td></tr>`;
       });
+      // خصم/صافي المندوب من VOU حسب MAN_NUM مباشرة — لا يختفي عند «كل المندوبين»
+      repDisc = Math.round(Number(repDiscFixed) * 1000) / 1000;
+      repNet = Math.round((Number(repGross) - Number(repDisc)) * 1000) / 1000;
       const invList = [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
         if (d) return d;
