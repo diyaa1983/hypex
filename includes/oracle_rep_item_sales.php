@@ -598,6 +598,7 @@ GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
             $isRetDisc = isset($returnTypeMap[$docType]) || ($docType !== $saleType && $docType >= 8);
             $invoiceDiscounts[] = [
                 'doc_kind' => $isRetDisc ? 'R' : 'S',
+                'rep_no' => (int) oracle_statement_row_val($vr, 'MAN_NUM'),
                 'customer_acc' => trim((string) oracle_statement_row_val($vr, 'CUST_ACC')),
                 'invoice_year' => (int) oracle_statement_row_val($vr, 'VYEAR'),
                 'invoice_no' => (int) oracle_statement_row_val($vr, 'V_NUM'),

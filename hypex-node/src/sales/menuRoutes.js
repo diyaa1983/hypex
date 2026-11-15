@@ -2770,21 +2770,7 @@ const oracleRepItemsHandler = async (req, res) => {
     const yearCompare = compareYears.length > 1;
     const normAccKey = (a) => String(a || '').replace(/\D+/g, '').replace(/^0+/, '') || String(a || '').trim();
     // خصم رأس الفاتورة كما في أوراكل: الصافي = الإجمالي − VOU_DISC
-    const discByCust = new Map();
-    for (const d of invoiceDiscounts || []) {
-      const acc = normAccKey(d.customer_acc);
-      if (!acc) continue;
-      const disc = Number(d.vou_disc) || 0;
-      if (!disc) continue;
-      const signed = String(d.doc_kind || 'S').toUpperCase() === 'R' ? -disc : disc;
-      if (!discByCust.has(acc)) discByCust.set(acc, { total: 0, byYear: new Map() });
-      const slot = discByCust.get(acc);
-      slot.total += signed;
-      const y =
-        Number((String(d.sale_date || '').match(/^(\d{4})/) || [])[1]) || Number(d.invoice_year) || 0;
-      if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
-    }
-    const custDiscOf = (acc) => discByCust.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
+    // مهم: لا نجمّع الخصم على العميل فقط — عند كل المندوبين يُنسب خصم فواتير مندوب آخر لنفس العميل
     const allocDisc = (parts, discTotal) => {
       const vals = (parts || []).map((n) => Number(n) || 0);
       const disc = Number(discTotal) || 0;
@@ -2938,6 +2924,26 @@ const oracleRepItemsHandler = async (req, res) => {
         inv.amount += amount;
         inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
+      // خصم هذا المندوب فقط = فواتيره في invMap (وليس كل خصومات العميل عبر المندوبين)
+      const discByCustRep = new Map();
+      invMap.forEach((inv) => {
+        const acc = normAccKey(inv.customerAcc);
+        if (!acc) return;
+        const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
+        const key = `${kind}|${Number(inv.invYear) || 0}|${Number(inv.invNo) || 0}|${acc}`;
+        const disc = Number(invDiscLookup.get(key) || 0) || 0;
+        if (!disc) return;
+        const signed = kind === 'R' ? -disc : disc;
+        if (!discByCustRep.has(acc)) discByCustRep.set(acc, { total: 0, byYear: new Map() });
+        const slot = discByCustRep.get(acc);
+        slot.total += signed;
+        const y =
+          Number((String(inv.saleDate || '').match(/^(\d{4})/) || [])[1]) ||
+          Number(inv.invYear) ||
+          0;
+        if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
+      });
+      const custDiscOf = (acc) => discByCustRep.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
         if (b === 'بدون فئة') return -1;
@@ -3544,23 +3550,6 @@ const oracleRepItemsHandler = async (req, res) => {
     const netV = netRows.length
       ? buildOraViews(netRows)
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '', catTotalsHtml: '' };
-    const retAmtShow = returnRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
-    const netAfterDiscShow =
-      netTotals.net_after_disc != null
-        ? Number(netTotals.net_after_disc)
-        : (Number(netTotals.amount) || 0) - (Number(netTotals.vou_disc) || 0);
-    const vouDiscShow = Number(netTotals.vou_disc) || 0;
-    const vouTaxShow = Number(netTotals.vou_tax) || 0;
-    const formsNetShow =
-      netTotals.forms_net != null ? Number(netTotals.forms_net) : netAfterDiscShow;
-    const netGrand = `<p class="ora-grand">الإجمالي ${esc(fmtAmt(netTotals.amount))} · الخصم ${esc(
-      fmtAmt(vouDiscShow)
-    )} · الصافي ${esc(fmtAmt(formsNetShow))}
-      <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(
-      String(returnRows.length)
-    )} بمبلغ ${esc(fmtAmt(retAmtShow))} · ضريبة للإيضاح ${esc(fmtAmt(vouTaxShow))} · الكمية ${esc(
-      fmtQty(netTotals.qty)
-    )} · إضافي ${esc(fmtQty(netTotals.bonus || 0))})</span></p>`;
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     const defaultView = oraMode === 'all_oracle' ? 'all-reps' : 'summary';
     const viewBtn = (id, label) =>
@@ -3577,7 +3566,7 @@ const oracleRepItemsHandler = async (req, res) => {
     const panel = (id, html) =>
       `<div class="ora-view" id="ora-view-net-${id}" data-ora-mode-panel="net" data-ora-view-panel="${id}"${
         defaultView === id ? '' : ' hidden'
-      }>${html || emptyNet}${netGrand}</div>`;
+      }>${html || emptyNet}</div>`;
     rowsHtml = `${toolsHtml}
       ${panel('summary', netV.summaryHtml)}
       ${panel('detail', netV.detailHtml)}
