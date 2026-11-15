@@ -141,22 +141,18 @@ function oracle_fetch_rep_item_sales(
 
     $byCurrentLink = !$filterOracleRep && $custAccs !== [];
     $saleType = (int) $c['sale_type'];
-    // INV00025 مرتجع مبيعات في هذا التثبيت = TYPE=2 (من Toad: CUST_ACC+MAN_NUM+SELL على DAILY)
-    $defaultReturnTypes = [2];
-    $returnTypeMap = [];
-    foreach ($c['return_types'] ?? $defaultReturnTypes as $rt) {
+    // Taqwa/Forms: مرتجع المبيعات = TYPE=2 فقط (Toad 2024). لا نكتشف أنواعاً أخرى —
+    // الاكتشاف السابق كان يضم حركات غير مرتجع ويضخّم خصم المرتجعات في الصافي.
+    $returnTypeMap = [2 => 2];
+    foreach ($c['return_types'] ?? [] as $rt) {
         $rt = (int) $rt;
-        if ($rt > 0 && $rt !== $saleType) {
-            $returnTypeMap[$rt] = $rt;
+        // نسمح فقط بـ TYPE=2 لتطابق INV00078 ما لم يُضبط صراحة لاحقاً
+        if ($rt === 2) {
+            $returnTypeMap[2] = 2;
         }
     }
-    // ضمان TYPE=2 دائماً (مرتجع المبيعات الفعلي عندكم)
-    $returnTypeMap[2] = 2;
-    if ($returnTypeMap === []) {
-        foreach ($defaultReturnTypes as $rt) {
-            $returnTypeMap[$rt] = $rt;
-        }
-    }
+    $returnTypes = [2];
+    $retInList = '2';
 
     $custKeys = [];
     foreach ($custAccs as $acc) {
@@ -181,60 +177,6 @@ function oracle_fetch_rep_item_sales(
 
         return $empty;
     }
-
-    // اكتشاف أنواع مرتجع إضافية لها عميل وسعر (مثل TYPE=2)
-    try {
-        $discSql = "
-SELECT DISTINCT d.TYPE AS DOC_TYPE
-FROM {$fromQ} d
-WHERE d.COMP_NUM = :comp_num
-  AND d.TYPE <> :sale_type
-  AND d.TYPE BETWEEN 1 AND 99
-  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
-  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-  AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
-  AND NVL(d.QTY, 0) <> 0
-  AND NVL(d.CUST_ACC, 0) <> 0
-  AND (NVL(d.SELL, 0) <> 0 OR NVL(d.SELL_BTAX, 0) <> 0)
-";
-        $discBinds = [
-            'comp_num' => (int) $c['comp_num'],
-            'sale_type' => $saleType,
-            'd_from' => $fromIso,
-            'd_to' => $toIso,
-        ];
-        if ($custKeys !== []) {
-            $ph = [];
-            foreach ($custKeys as $i => $key) {
-                $name = 'dcacc' . $i;
-                $ph[] = ':' . $name;
-                $discBinds[$name] = $key;
-            }
-            $discSql .= '  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), \'0\') IN (' . implode(',', $ph) . ")\n";
-        }
-        if ($ymKeys !== []) {
-            $ph = [];
-            foreach ($ymKeys as $i => $ym) {
-                $name = 'dym' . $i;
-                $ph[] = ':' . $name;
-                $discBinds[$name] = $ym;
-            }
-            $discSql .= "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
-        }
-        $discRows = oracle_query_all($conn, $discSql, $discBinds);
-        foreach ($discRows as $dr) {
-            $t = (int) oracle_statement_row_val($dr, 'DOC_TYPE');
-            // استبعاد حركات مخزون بلا مندوب عادةً (TYPE 1 و 3…)
-            if ($t > 0 && $t !== $saleType && $t !== 1 && $t !== 3) {
-                $returnTypeMap[$t] = $t;
-            }
-        }
-    } catch (Throwable $e) {
-        // الإبقاء على القائمة الافتراضية
-    }
-
-    $returnTypes = array_values($returnTypeMap);
-    $retInList = implode(', ', array_map('intval', $returnTypes));
     $repSelectSale = $byCurrentLink ? '0 AS REP_NO' : 'd.MAN_NUM AS REP_NO';
     $repSelectRet = $byCurrentLink ? '0 AS REP_NO' : 'NVL(d.MAN_NUM, 0) AS REP_NO';
 
@@ -757,13 +699,13 @@ FROM (
     $netAmount = round($totAmt - $retAmt, 3);
     $netVouDisc = round($totVouDisc - $retVouDisc, 3);
     $netVouTax = round($totVouTax - $retVouTax, 3);
-    // من Toad 2024: Forms = (مبيعات بعد خصم البند − VOU_DISC) − مرتجعات TYPE=2
-    $netAfterDisc = $formsNet !== null
-        ? $formsNet
-        : round($netAmount - $netVouDisc, 3);
+    // Forms = مبيعات TYPE=9 − مرتجعات TYPE=2 (بعد خصم البند وVOU_DISC) بدون ضريبة
     if ($formsNet === null) {
         $formsNet = round(($totAmt - $totVouDisc) - ($retAmt - $retVouDisc), 3);
     }
+    $netAfterDisc = $formsNet;
+    // الخصم الظاهر يطابق: الإجمالي − الصافي = صافي Forms
+    $netVouDisc = round($netAmount - $formsNet, 3);
 
     return [
         'ok' => true,
