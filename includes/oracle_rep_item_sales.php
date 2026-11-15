@@ -142,7 +142,7 @@ function oracle_fetch_rep_item_sales(
     $byCurrentLink = !$filterOracleRep && $custAccs !== [];
     $saleType = (int) $c['sale_type'];
     // INV00025 مرتجع مبيعات في هذا التثبيت = TYPE=2 (من Toad: CUST_ACC+MAN_NUM+SELL على DAILY)
-    $defaultReturnTypes = [2, 8, 10, 11, 12, 13, 14, 15];
+    $defaultReturnTypes = [2];
     $returnTypeMap = [];
     foreach ($c['return_types'] ?? $defaultReturnTypes as $rt) {
         $rt = (int) $rt;
@@ -665,10 +665,11 @@ GROUP BY TRIM(TO_CHAR(d.CUST_ACC)), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
     $netAmount = round($totAmt - $retAmt, 3);
     $netVouDisc = round($totVouDisc - $retVouDisc, 3);
     $netVouTax = round($totVouTax - $retVouTax, 3);
-    // صافي هايبكس (مبيعات−مرتجعات−خصم−ضريبة) — أقرب لمعادلة Forms
-    $netAfterDisc = round($netAmount - $netVouDisc - $netVouTax, 3);
-    // صافي مثل كشف Forms (مبيعات فقط TYPE=9 بدون مرتجعات)
-    $formsNet = round($totAmt - $totVouDisc - $totVouTax, 3);
+    // من Toad 2024: Forms ≈ (مبيعات بعد خصم البند − VOU_DISC) − مرتجعات
+    // بدون خصم VOU_TAX — الضريبة تُعرض للإيضاح فقط
+    $netAfterDisc = round($netAmount - $netVouDisc, 3);
+    // صافي مطابق لكشف Forms (مبيعات − خصم فاتورة − مرتجعات + خصم مرتجع)
+    $formsNet = round(($totAmt - $totVouDisc) - ($retAmt - $retVouDisc), 3);
 
     return [
         'ok' => true,

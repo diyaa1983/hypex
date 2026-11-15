@@ -196,7 +196,8 @@ function oracle_rep_net_sales_cfg(): array
     }
 
     $returnTypes = [];
-    $rawRet = $s['return_types'] ?? ($inv['return_types'] ?? [2, 8, 10, 11, 12]);
+    // Taqwa 2024: المرتجعات الفعلية TYPE=2 فقط (INV00025)
+    $rawRet = $s['return_types'] ?? ($inv['return_types'] ?? [2]);
     if (!is_array($rawRet)) {
         $rawRet = [$rawRet];
     }
@@ -206,11 +207,10 @@ function oracle_rep_net_sales_cfg(): array
             $returnTypes[$t] = $t;
         }
     }
-    // TYPE=2 = مرتجع مبيعات (INV00025) في تثبيت Taqwa/MAS
     $returnTypes[2] = 2;
     $returnTypes = array_values($returnTypes);
     if ($returnTypes === []) {
-        $returnTypes = [2, 8, 10, 11, 12];
+        $returnTypes = [2];
     }
 
     return [
@@ -447,38 +447,73 @@ ORDER BY i.REP_NO
         return $empty;
     }
 
-    // مرتجعات TYPE 10/11 — لتشخيص الفرق مع Forms
+    // مرتجعات (TYPE=2 أساسي في Taqwa + 8/10/11/12) — نفس معادلة خصم البند
     $retNet = 0.0;
     $retCost = 0.0;
+    $retByRep = [];
+    $retTypesList = implode(',', array_map('intval', $c['return_types'] ?? [2, 8, 10, 11, 12]));
+    if ($retTypesList === '') {
+        $retTypesList = '2,8,10,11,12';
+    }
     try {
-        $retSql = "
-SELECT ROUND(SUM(NVL(d.QTY, 0) * NVL(d.SELL, 0)), 3) AS RET_GROSS,
-       ROUND(SUM(NVL(d.QTY, 0) * NVL(d.JD_COST, 0)), 3) AS RET_COST
-FROM {$fromQ} d
-WHERE d.COMP_NUM = :comp_num
-  AND d.TYPE IN (10, 11)
-  AND d.STORE = :store_num
-  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
-  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-";
         $retBinds = [
             'comp_num' => $compNum,
             'store_num' => $storeNum,
             'd_from' => $fromIso,
             'd_to' => $toIso,
         ];
+        $retInvSql = "
+SELECT NVL(x.MAN_NUM, 0) AS REP_NO,
+       ROUND(SUM(x.LINE_DISC), 3) AS RET_DISC,
+       ROUND(SUM(x.VOU_DISC), 3) AS RET_VOU,
+       ROUND(SUM(x.COST_BONUS), 3) AS RET_COST
+FROM (
+  SELECT d.VYEAR, d.V_NUM, d.MAN_NUM,
+         MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
+         SUM(
+           NVL(d.QTY, 0) * NVL(CASE WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX ELSE d.SELL END, 0)
+           - CASE
+               WHEN NVL(d.DISC, 0) = 0 THEN 0
+               WHEN NVL(d.DISC, 0) <= 1 THEN
+                 NVL(d.QTY, 0) * NVL(CASE WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX ELSE d.SELL END, 0) * NVL(d.DISC, 0)
+               WHEN NVL(d.DISC, 0) <= 100 THEN
+                 NVL(d.QTY, 0) * NVL(CASE WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX ELSE d.SELL END, 0) * NVL(d.DISC, 0) / 100
+               ELSE NVL(d.DISC, 0)
+             END
+         ) AS LINE_DISC,
+         SUM((NVL(d.QTY, 0) + NVL(d.BONUS, 0)) * NVL(d.JD_COST, 0)) AS COST_BONUS
+  FROM {$fromQ} d
+  WHERE d.COMP_NUM = :comp_num
+    AND d.TYPE IN ({$retTypesList})
+    AND d.STORE = :store_num
+    AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
+    AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
+    AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0
+";
         if ($useManNum && $repFrom !== null && $repFrom > 0) {
-            $retSql .= "  AND d.MAN_NUM >= :rep_from AND d.MAN_NUM <= :rep_to\n";
+            $retInvSql .= "    AND d.MAN_NUM >= :rep_from AND d.MAN_NUM <= :rep_to\n";
             $retBinds['rep_from'] = $repFrom;
             $retBinds['rep_to'] = $repTo !== null && $repTo > 0 ? $repTo : $repFrom;
         }
-        $retRaw = oracle_query_all($conn, $retSql, $retBinds);
-        if ($retRaw !== []) {
-            $retNet = (float) oracle_statement_row_val($retRaw[0], 'RET_GROSS');
-            $retCost = (float) oracle_statement_row_val($retRaw[0], 'RET_COST');
+        $retInvSql .= "  GROUP BY d.VYEAR, d.V_NUM, d.MAN_NUM
+) x
+GROUP BY x.MAN_NUM
+";
+        $retRaw = oracle_query_all($conn, $retInvSql, $retBinds);
+        foreach ($retRaw as $rr) {
+            $rno = (int) oracle_statement_row_val($rr, 'REP_NO');
+            $rd = (float) oracle_statement_row_val($rr, 'RET_DISC');
+            $rv = (float) oracle_statement_row_val($rr, 'RET_VOU');
+            $rc = (float) oracle_statement_row_val($rr, 'RET_COST');
+            $netR = round($rd - $rv, 3);
+            $retByRep[$rno] = ['net' => $netR, 'cost' => $rc];
+            $retNet += $netR;
+            $retCost += $rc;
         }
+        $retNet = round($retNet, 3);
+        $retCost = round($retCost, 3);
     } catch (Throwable $e) {
-        // تشخيص اختياري
+        // تشخيص اختياري — لا يوقف التقرير
     }
 
     // أهداف Forms المعروفة (مندوب 39 / أيلول 2026) — للمعايرة واختيار المعادلة
@@ -542,6 +577,7 @@ WHERE d.COMP_NUM = :comp_num
         $pureBonusSell += (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL');
         $pureBonusCost += (float) oracle_statement_row_val($r, 'PURE_BONUS_COST');
         $totInv += $invCnt;
+        $repRet = $retByRep[$repNo] ?? ['net' => 0.0, 'cost' => 0.0];
 
         $rows[] = [
             'rep_no' => $repNo,
@@ -563,6 +599,8 @@ WHERE d.COMP_NUM = :comp_num
             '_cost_qty' => (float) oracle_statement_row_val($r, 'COST_QTY_ONLY'),
             '_cost_bonus' => (float) oracle_statement_row_val($r, 'COST_WITH_BONUS'),
             '_pure_bonus_sell' => (float) oracle_statement_row_val($r, 'PURE_BONUS_SELL'),
+            '_ret_net' => (float) ($repRet['net'] ?? 0),
+            '_ret_cost' => (float) ($repRet['cost'] ?? 0),
         ];
     }
 
@@ -582,14 +620,16 @@ WHERE d.COMP_NUM = :comp_num
         'ex_tax_vd_qty' => $mk($gExTax - $vouDisc, $costQty),
         'disc_pct_minus_pure_bonus' => $mk($gDiscPct - $vouDisc - $pureBonusSell, $costBonus),
         'disc_pct_taxsum_bonus' => $mk($gDiscPct - $vouDisc - $taxSum, $costBonus),
-        'with_returns_disc_pct' => $mk($gDiscPct - $vouDisc + $retNet, $costBonus + $retCost),
+        // Forms INV00078 2024: مبيعات (بعد خصم) − مرتجعات (بعد خصم) — بدون ضريبة
+        'with_returns_disc_pct' => $mk($gDiscPct - $vouDisc - $retNet, $costBonus - $retCost),
     ];
 
-    // الافتراضي مطابق لوثيقة Forms: Σ(بعد خصم البند) − VOU_DISC − MAX(VOU_TAX)
-    $winnerKey = 'disc_pct_taxmax_bonus';
+    // مطابقة Forms 2024 للكل: مبيعات−مرتجعات؛ معايرة مندوب واحد تبقى بدون خصم مرتجع افتراضياً
+    $winnerKey = 'with_returns_disc_pct';
     $bestSum = PHP_FLOAT_MAX;
     $calibrateForms = $repFrom !== null && $repFrom > 0 && $repFrom === $repTo;
     if ($calibrateForms) {
+        $winnerKey = 'disc_pct_bonus_cost';
         foreach ($cand as $key => $cnd) {
             $ds = (float) ($cnd['d_sum'] ?? 999999);
             if ($ds < $bestSum) {
@@ -597,8 +637,8 @@ WHERE d.COMP_NUM = :comp_num
                 $winnerKey = $key;
             }
         }
-        if ($bestSum > 1.0 && isset($cand['disc_pct_taxmax_bonus'])) {
-            $winnerKey = 'disc_pct_taxmax_bonus';
+        if ($bestSum > 1.0 && isset($cand['disc_pct_bonus_cost'])) {
+            $winnerKey = 'disc_pct_bonus_cost';
         }
     } else {
         $bestSum = (float) ($cand[$winnerKey]['d_sum'] ?? 999999);
@@ -610,6 +650,8 @@ WHERE d.COMP_NUM = :comp_num
     // طبّق نفس منطق الفائز على كل مندوب
     $applyRow = static function (array $row, string $key): array {
         $vou = (float) ($row['_vou'] ?? 0);
+        $retN = (float) ($row['_ret_net'] ?? 0);
+        $retC = (float) ($row['_ret_cost'] ?? 0);
         $net = match ($key) {
             'disc_pct_bonus_cost', 'disc_pct_qty_cost' => (float) $row['_g_disc_pct'] - $vou,
             'disc_pct_taxmax_bonus' => (float) $row['_g_disc_pct'] - $vou - (float) $row['_tax_max'],
@@ -621,10 +663,12 @@ WHERE d.COMP_NUM = :comp_num
             'ex_tax_vd_bonus', 'ex_tax_vd_qty' => (float) $row['_g_ex_tax'] - $vou,
             'disc_pct_minus_pure_bonus' => (float) $row['_g_disc_pct'] - $vou - (float) $row['_pure_bonus_sell'],
             'disc_pct_taxsum_bonus' => (float) $row['_g_disc_pct'] - $vou - (float) $row['_tax_sum'],
+            'with_returns_disc_pct' => (float) $row['_g_disc_pct'] - $vou - $retN,
             default => (float) $row['_g_disc_pct'] - $vou,
         };
         $cost = match ($key) {
             'disc_pct_qty_cost', 'disc_old_qty_cost', 'raw_vd_qty', 'btax_vd_qty', 'ex_tax_vd_qty' => (float) $row['_cost_qty'],
+            'with_returns_disc_pct' => (float) $row['_cost_bonus'] - $retC,
             default => (float) $row['_cost_bonus'],
         };
         $net = round($net, 3);
@@ -642,7 +686,9 @@ WHERE d.COMP_NUM = :comp_num
             $row['_tax_sum'],
             $row['_cost_qty'],
             $row['_cost_bonus'],
-            $row['_pure_bonus_sell']
+            $row['_pure_bonus_sell'],
+            $row['_ret_net'],
+            $row['_ret_cost']
         );
         $row['net'] = $net;
         $row['cost'] = $cost;
