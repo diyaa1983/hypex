@@ -252,15 +252,15 @@ WHERE d.COMP_NUM = :comp_num
     }
     $saleSql .= "GROUP BY {$groupSale}\n";
 
-    // مرتجع مبيعات = TYPE 2 (وغيرها من القائمة) — العميل على DAILY.CUST_ACC مباشرة
+    // مرتجع مبيعات = TYPE 2 — لا نشترط السعر هنا حتى لا يضيع QTY/BONUS
+    // (المبلغ يبقى 0 تلقائياً إن كان SELL و SELL_BTAX صفراً)
     $retSql = "
 SELECT {$repSelectRet},{$selectCols}
 FROM {$fromQ} d
 WHERE d.COMP_NUM = :comp_num
   AND d.TYPE IN ({$retInList})
   AND d.STORE = :store_num
-  AND NVL(d.QTY, 0) <> 0
-  AND (NVL(d.SELL, 0) <> 0 OR NVL(d.SELL_BTAX, 0) <> 0)
+  AND (NVL(d.QTY, 0) <> 0 OR NVL(d.BONUS, 0) <> 0)
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
   AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
