@@ -2852,6 +2852,19 @@ const oracleRepItemsHandler = async (req, res) => {
     let invoiceHtml = '';
     let invoiceSumHtml = '';
     let catTotalsHtml = '';
+    // مجاميع نهائية لكل المندوبين (نهاية التقرير)
+    const grandAll = {
+      reps: 0,
+      gross: 0,
+      disc: 0,
+      net: 0,
+      sale: 0,
+      retLines: 0,
+      retAmt: 0,
+      tax: 0,
+      qty: 0,
+      bonus: 0,
+    };
     let i = 0;
     while (i < sourceRows.length) {
       const repStart = i;
@@ -3562,6 +3575,16 @@ const oracleRepItemsHandler = async (req, res) => {
       summaryHtml += sectionOf(summaryBody);
       // عرض «مبيعات جميع المندوبين»: ملخص كل مندوب + مجاميع الفئات تحته
       catTotalsHtml += sectionOf(summaryBody);
+      grandAll.reps += 1;
+      grandAll.gross += Number(repGross) || 0;
+      grandAll.disc += Number(repDisc) || 0;
+      grandAll.net += Number(repNet) || 0;
+      grandAll.sale += Number(repSaleAmt) || 0;
+      grandAll.retLines += Number(repRetLines) || 0;
+      grandAll.retAmt += Number(repRetAmt) || 0;
+      grandAll.tax += Number(repTaxNet) || 0;
+      grandAll.qty += Number(repQtyNet) || 0;
+      grandAll.bonus += Number(repBonusNet) || 0;
       detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
@@ -3624,6 +3647,47 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
+    }
+    if (grandAll.reps > 1) {
+      const grandFinalHtml = `<section class="ora-cust-block ora-grand-final-block">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المجاميع النهائية — كل المندوبين (${esc(String(grandAll.reps))})</div>
+        </header>
+        <div class="si-table-wrap ora-rep-totals-wrap ora-grand-final-wrap">
+          <table class="si-table ora-rep-totals-table ora-grand-final-table">
+            <thead>
+              <tr>
+                <th>البيان</th>
+                <th class="si-num">الإجمالي</th>
+                <th class="si-num">الخصم</th>
+                <th class="si-num">الصافي</th>
+                <th class="si-num">مبيعات</th>
+                <th class="si-num">مرتجعات</th>
+                <th class="si-num">مبلغ المرتجعات</th>
+                <th class="si-num">ضريبة للإيضاح</th>
+                <th class="si-num">الكمية</th>
+                <th class="si-num">إضافي</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ora-cust-final ora-rep-totals-row ora-grand-final-row">
+                <th scope="row">المجاميع النهائية</th>
+                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(grandAll.gross))}</td>
+                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(grandAll.disc))}</td>
+                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(grandAll.net))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(grandAll.sale))}</td>
+                <td class="si-num" dir="ltr">${esc(String(grandAll.retLines))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(grandAll.retAmt))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtAmt(grandAll.tax))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtQty(grandAll.qty))}</td>
+                <td class="si-num" dir="ltr">${esc(fmtQty(grandAll.bonus))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>`;
+      summaryHtml += grandFinalHtml;
+      catTotalsHtml += grandFinalHtml;
     }
     return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
     };
@@ -4548,6 +4612,30 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         .ora-rep-totals-table td.ora-gross-cell {
           background: #ecfdf5 !important;
+        }
+        .ora-grand-final-block {
+          margin-top: 1rem;
+          border: 2px solid #1e3a5f;
+          border-radius: 12px;
+          overflow: hidden;
+          background: #f8fafc;
+        }
+        .ora-grand-final-block .ora-cust-head {
+          background: #1e3a5f;
+          color: #fff;
+          padding: .55rem .75rem;
+        }
+        .ora-grand-final-block .ora-rep { color: #fff; font-weight: 900; }
+        .ora-grand-final-wrap {
+          margin: 0;
+          border: none;
+          border-radius: 0;
+          background: #eef2f7;
+        }
+        .ora-grand-final-row th,
+        .ora-grand-final-row td {
+          font-weight: 900 !important;
+          font-size: .92rem;
         }
         @media print {
           @page { size: A4 landscape; margin: 6mm 5mm 8mm 5mm; }
