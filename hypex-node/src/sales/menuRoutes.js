@@ -2614,20 +2614,27 @@ const oracleRepItemsHandler = async (req, res) => {
         (Number(data.return_totals?.vou_tax) || 0);
       netTotals =
         data.net_totals && typeof data.net_totals === 'object'
-          ? data.net_totals
+          ? { ...data.net_totals }
           : {
               qty: (Number(totals.qty) || 0) - returnRows.reduce((s, r) => s + (Number(r.qty) || 0), 0),
               bonus: (Number(totals.bonus) || 0) - returnRows.reduce((s, r) => s + (Number(r.bonus) || 0), 0),
               amount: netAmtFallback,
               vou_disc: vouDiscNet,
               vou_tax: vouTaxNet,
-              // Forms 2024: بدون خصم الضريبة — مبيعات−خصم−مرتجعات
               net_after_disc: netAmtFallback - vouDiscNet,
               forms_net: netAmtFallback - vouDiscNet,
               reps: totals.reps,
               items: rows.length + returnRows.length,
             };
-      if (netTotals.net_after_disc == null) {
+      // مرجع Forms من استعلام الفاتورة في PHP يتقدّم على إعادة الحساب من البنود
+      if (data.net_totals?.forms_net != null && Number.isFinite(Number(data.net_totals.forms_net))) {
+        netTotals.forms_net = Number(data.net_totals.forms_net);
+        netTotals.net_after_disc = Number(
+          data.net_totals.net_after_disc != null
+            ? data.net_totals.net_after_disc
+            : data.net_totals.forms_net
+        );
+      } else if (netTotals.net_after_disc == null) {
         netTotals.net_after_disc =
           (Number(netTotals.amount) || 0) - (Number(netTotals.vou_disc) || 0);
       }
@@ -3478,8 +3485,7 @@ const oracleRepItemsHandler = async (req, res) => {
       netTotals.forms_net != null ? Number(netTotals.forms_net) : netAfterDiscShow;
     const netGrand = `<p class="ora-grand">الإجمالي ${esc(fmtAmt(netTotals.amount))} · الخصم ${esc(
       fmtAmt(vouDiscShow)
-    )} · الصافي ${esc(fmtAmt(netAfterDiscShow))}
-      <span class="muted"> · مرجع Forms ${esc(fmtAmt(formsNetShow))}</span>
+    )} · الصافي ${esc(fmtAmt(formsNetShow))}
       <span class="muted">(مبيعات ${esc(fmtAmt(totals.amount))} − مرتجعات ${esc(
       String(returnRows.length)
     )} بمبلغ ${esc(fmtAmt(retAmtShow))} · ضريبة للإيضاح ${esc(fmtAmt(vouTaxShow))} · الكمية ${esc(
