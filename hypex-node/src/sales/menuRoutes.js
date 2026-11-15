@@ -2964,6 +2964,8 @@ const oracleRepItemsHandler = async (req, res) => {
             qty: 0,
             bonus: 0,
             amount: 0,
+            vouDisc: 0,
+            vouTax: 0,
           });
         }
         const inv = invMap.get(invKey);
@@ -2971,17 +2973,39 @@ const oracleRepItemsHandler = async (req, res) => {
         inv.qty += qty;
         inv.bonus += bonus;
         inv.amount += amount;
+        // خصم الفاتورة مختوم على السطر من PHP (vou_disc) — أو من القائمة الاحتياطية
+        const rowVou = Number(r.vou_disc);
+        const rowTax = Number(r.vou_tax);
+        if (Number.isFinite(rowVou) && rowVou !== 0) inv.vouDisc = rowVou;
+        else if (!inv.vouDisc) {
+          inv.vouDisc = lookupInvDisc(docKind, no, invYear, invNo, acc);
+        }
+        if (Number.isFinite(rowTax) && rowTax !== 0) inv.vouTax = rowTax;
+        else if (!inv.vouTax) {
+          inv.vouTax = lookupInvTax(docKind, no, invYear, invNo, acc);
+        }
         inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
-      // خصم لكل عميل من فواتير هذا المندوب الظاهرة في invMap (موثوق مع كل المندوبين)
+      // خصم لكل عميل + مجموع المندوب من فواتير invMap (نفس مصدر الحركة)
       const discByCustRep = new Map();
+      let repDiscFixed = 0;
+      let repTaxFixed = 0;
+      const seenInvForRepDisc = new Set();
       invMap.forEach((inv) => {
         const acc = normAccKey(inv.customerAcc);
-        if (!acc) return;
         const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
-        const disc = lookupInvDisc(kind, no, inv.invYear, inv.invNo, inv.customerAcc);
-        if (!disc) return;
+        const disc = Number(inv.vouDisc) || 0;
+        const tax = Number(inv.vouTax) || 0;
         const signed = kind === 'R' ? -disc : disc;
+        const signedTax = kind === 'R' ? -tax : tax;
+        // فاتورة واحدة مرة واحدة حتى لو تعدد شكل حساب العميل
+        const invUniq = `${kind}|${Number(inv.invYear) || 0}|${Number(inv.invNo) || 0}`;
+        if (!seenInvForRepDisc.has(invUniq)) {
+          seenInvForRepDisc.add(invUniq);
+          repDiscFixed += signed;
+          repTaxFixed += signedTax;
+        }
+        if (!acc || !signed) return;
         if (!discByCustRep.has(acc)) discByCustRep.set(acc, { total: 0, byYear: new Map() });
         const slot = discByCustRep.get(acc);
         slot.total += signed;
@@ -2991,12 +3015,12 @@ const oracleRepItemsHandler = async (req, res) => {
           0;
         if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
       });
+      // إن لم يُختم على السطور: احتياط من قائمة الخصوم حسب MAN_NUM
+      if (!repDiscFixed) {
+        const repVou = sumRepVouDisc(no);
+        if (repVou.found) repDiscFixed = repVou.sum;
+      }
       const custDiscOf = (acc) => discByCustRep.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
-      // خصم مجموع المندوب = كل VOU لـ MAN_NUM هذا المندوب (لا يعتمد على تطابق عميل السطر)
-      const repVou = sumRepVouDisc(no);
-      let repDiscFixed = repVou.found
-        ? repVou.sum
-        : [...discByCustRep.values()].reduce((s, x) => s + (Number(x.total) || 0), 0);
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
         if (b === 'بدون فئة') return -1;
@@ -3025,8 +3049,7 @@ const oracleRepItemsHandler = async (req, res) => {
       let repRetLines = 0;
       let repQtyNet = 0;
       let repBonusNet = 0;
-      let repTaxNet = 0;
-      const seenRepTaxKeys = new Set();
+      let repTaxNet = repTaxFixed;
       repRows.forEach((r) => {
         const amount = Number(r.amount) || 0;
         const qty = Number(r.qty) || 0;
@@ -3034,7 +3057,6 @@ const oracleRepItemsHandler = async (req, res) => {
         // في netRows المرتجع مسبوق بإشارة سالبة
         const isRet =
           String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
-        const docKind = isRet ? 'R' : 'S';
         if (isRet) {
           repRetAmt += Math.abs(amount);
           repRetLines += 1;
@@ -3043,19 +3065,6 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         repQtyNet += qty;
         repBonusNet += bonus;
-        const acc = normAccKey(r.customer_acc);
-        const invNo = Number(r.invoice_no) || 0;
-        const invYear = Number(r.invoice_year) || 0;
-        if (acc && invNo > 0) {
-          const taxKey = `${docKind}|${no}|${invYear}|${invNo}|${acc}`;
-          if (!seenRepTaxKeys.has(taxKey)) {
-            seenRepTaxKeys.add(taxKey);
-            const tax = lookupInvTax(docKind, no, invYear, invNo, acc);
-            if (tax) {
-              repTaxNet += isRet ? -tax : tax;
-            }
-          }
-        }
       });
       const cleanName = (name) => String(name || '').replace(/\d{8,}/g, ' ').replace(/\s+/g, ' ').trim();
       const fmtSaleDate = (iso) => {
@@ -3252,13 +3261,9 @@ const oracleRepItemsHandler = async (req, res) => {
           ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
           : esc(invLabel);
         const accKey = normAccKey(inv.customerAcc);
-        const vouDisc = lookupInvDisc(
-          isRet ? 'R' : 'S',
-          no,
-          inv.invYear,
-          inv.invNo,
-          accKey
-        );
+        const vouDisc =
+          Number(inv.vouDisc) ||
+          lookupInvDisc(isRet ? 'R' : 'S', no, inv.invYear, inv.invNo, accKey);
         const invGross = Number(inv.amount) || 0;
         const invNet = invGross - vouDisc;
         const sortedLines = inv.lines.slice().sort((a, b) => {

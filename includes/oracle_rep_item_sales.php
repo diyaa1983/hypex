@@ -588,6 +588,7 @@ WHERE d.COMP_NUM = :comp_num
 GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
 ";
         $vouRaw = oracle_query_all($conn, $vouSql, $vouBinds);
+        $vouByInv = [];
         foreach ($vouRaw as $vr) {
             $disc = round((float) oracle_statement_row_val($vr, 'VOU_DISC'), 3);
             $tax = round((float) oracle_statement_row_val($vr, 'VOU_TAX'), 3);
@@ -596,13 +597,21 @@ GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
             }
             $docType = (int) oracle_statement_row_val($vr, 'DOC_TYPE');
             $isRetDisc = isset($returnTypeMap[$docType]) || ($docType !== $saleType && $docType >= 8);
+            $manNo = (int) oracle_statement_row_val($vr, 'MAN_NUM');
+            $vYear = (int) oracle_statement_row_val($vr, 'VYEAR');
+            $vNum = (int) oracle_statement_row_val($vr, 'V_NUM');
+            $kind = $isRetDisc ? 'R' : 'S';
             $invoiceDiscounts[] = [
-                'doc_kind' => $isRetDisc ? 'R' : 'S',
-                'rep_no' => (int) oracle_statement_row_val($vr, 'MAN_NUM'),
+                'doc_kind' => $kind,
+                'rep_no' => $manNo,
                 'customer_acc' => trim((string) oracle_statement_row_val($vr, 'CUST_ACC')),
-                'invoice_year' => (int) oracle_statement_row_val($vr, 'VYEAR'),
-                'invoice_no' => (int) oracle_statement_row_val($vr, 'V_NUM'),
+                'invoice_year' => $vYear,
+                'invoice_no' => $vNum,
                 'sale_date' => trim((string) oracle_statement_row_val($vr, 'SALE_DATE')),
+                'vou_disc' => $disc,
+                'vou_tax' => $tax,
+            ];
+            $vouByInv[$kind . '|' . $manNo . '|' . $vYear . '|' . $vNum] = [
                 'vou_disc' => $disc,
                 'vou_tax' => $tax,
             ];
@@ -614,6 +623,20 @@ GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
                 $totVouTax += $tax;
             }
         }
+        // ختم الخصم/الضريبة على كل سطر حركة — مصدر موثوق لمجموع المندوب حتى مع كل المندوبين
+        $stampVou = static function (array &$list) use ($vouByInv): void {
+            foreach ($list as &$row) {
+                $kind = (string) ($row['doc_kind'] ?? 'S');
+                $key = $kind . '|' . (int) ($row['rep_no'] ?? 0) . '|'
+                    . (int) ($row['invoice_year'] ?? 0) . '|' . (int) ($row['invoice_no'] ?? 0);
+                $hit = $vouByInv[$key] ?? null;
+                $row['vou_disc'] = $hit ? (float) $hit['vou_disc'] : 0.0;
+                $row['vou_tax'] = $hit ? (float) $hit['vou_tax'] : 0.0;
+            }
+            unset($row);
+        };
+        $stampVou($rows);
+        $stampVou($returnRows);
     } catch (Throwable $e) {
         $debugProbe['vou_disc_error'] = $e->getMessage();
     }
