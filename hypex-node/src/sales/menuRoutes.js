@@ -3529,38 +3529,6 @@ const oracleRepItemsHandler = async (req, res) => {
             <tbody>${pickRow}${body}${footRow}</tbody>
           </table>
         </div>
-        <div class="si-table-wrap ora-rep-totals-wrap">
-          <table class="si-table ora-rep-totals-table">
-            <thead>
-              <tr>
-                <th>البيان</th>
-                <th class="si-num">الإجمالي</th>
-                <th class="si-num">الخصم</th>
-                <th class="si-num">الصافي</th>
-                <th class="si-num">مبيعات</th>
-                <th class="si-num">مرتجعات</th>
-                <th class="si-num">مبلغ المرتجعات</th>
-                <th class="si-num">ضريبة للإيضاح</th>
-                <th class="si-num">الكمية</th>
-                <th class="si-num">إضافي</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="ora-cust-final ora-rep-totals-row">
-                <th scope="row">مجموع المندوب</th>
-                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(repGross))}</td>
-                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(repDisc))}</td>
-                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(repNet))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtAmt(repSaleAmt))}</td>
-                <td class="si-num" dir="ltr">${esc(String(repRetLines))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtAmt(repRetAmt))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtAmt(repTaxNet))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtQty(repQtyNet))}</td>
-                <td class="si-num" dir="ltr">${esc(fmtQty(repBonusNet))}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
         <div class="ora-pick-foot no-print is-empty">
           <div class="ora-pick-bar-main">
             <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
@@ -3572,12 +3540,32 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
-      // عرض «مجاميع الفئات» فقط: جدول الفئات لوحده بدون ملخص العملاء
+      // عرض «مجاميع الفئات» فقط: جدول الفئات + الإجمالي/الخصم/الصافي
       catTotalsHtml += `<section class="ora-cust-block ora-cat-totals-only" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
         ${catTotalsBar}
+        <div class="si-table-wrap ora-rep-totals-wrap ora-cat-net-wrap">
+          <table class="si-table ora-rep-totals-table ora-cat-net-table">
+            <thead>
+              <tr>
+                <th>البيان</th>
+                <th class="si-num">الإجمالي</th>
+                <th class="si-num">الخصم</th>
+                <th class="si-num">الصافي</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ora-cust-final ora-rep-totals-row">
+                <th scope="row">صافي المندوب</th>
+                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(repGross))}</td>
+                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(repDisc))}</td>
+                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(repNet))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>`;
       grandAll.reps += 1;
       grandAll.gross += Number(repGross) || 0;
@@ -3691,6 +3679,31 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       summaryHtml += grandFinalHtml;
+      catTotalsHtml += `<section class="ora-cust-block ora-grand-final-block">
+        <header class="ora-cust-head">
+          <div class="ora-rep">المجاميع النهائية — كل المندوبين (${esc(String(grandAll.reps))})</div>
+        </header>
+        <div class="si-table-wrap ora-rep-totals-wrap ora-grand-final-wrap ora-cat-net-wrap">
+          <table class="si-table ora-rep-totals-table ora-grand-final-table ora-cat-net-table">
+            <thead>
+              <tr>
+                <th>البيان</th>
+                <th class="si-num">الإجمالي</th>
+                <th class="si-num">الخصم</th>
+                <th class="si-num">الصافي</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ora-cust-final ora-rep-totals-row ora-grand-final-row">
+                <th scope="row">المجاميع النهائية</th>
+                <td class="si-num ora-gross-cell" dir="ltr">${esc(fmtAmt(grandAll.gross))}</td>
+                <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(grandAll.disc))}</td>
+                <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(grandAll.net))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>`;
     }
     return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
     };
@@ -4639,6 +4652,12 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-grand-final-row td {
           font-weight: 900 !important;
           font-size: .92rem;
+        }
+        .ora-cat-net-wrap {
+          margin: .35rem 0 .85rem;
+        }
+        .ora-cat-net-table {
+          max-width: 28rem;
         }
         @media print {
           @page { size: A4 landscape; margin: 6mm 5mm 8mm 5mm; }
