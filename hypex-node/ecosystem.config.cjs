@@ -17,16 +17,20 @@ module.exports = {
       watch: ['src'],
       ignore_watch: ['node_modules', 'public', 'logs', '.git', '*.log', '**/*.md'],
       watch_delay: 2500,
-      max_memory_restart: '350M',
+      // التقارير الكبيرة (Oracle كل المندوبين) تتجاوز 350MB بسهولة —
+      // القيمة القديمة كانت تعيد تشغيل العملية أثناء الطلب → Connection was reset
+      max_memory_restart: '2048M',
+      node_args: '--max-old-space-size=4096',
       autorestart: true,
       max_restarts: 20,
       min_uptime: '10s',
       restart_delay: 2000,
-      kill_timeout: 5000,
+      kill_timeout: 15000,
       env: {
         NODE_ENV: 'production',
         PHP_BIN: 'C:\\xampp\\php\\php.exe',
         PHP_INI: 'C:\\xampp\\php\\php.ini',
+        NODE_OPTIONS: '--max-old-space-size=4096',
       },
     },
   ],

@@ -2852,6 +2852,12 @@ const oracleRepItemsHandler = async (req, res) => {
     let invoiceHtml = '';
     let invoiceSumHtml = '';
     let catTotalsHtml = '';
+    // عند البيانات الكثيرة: لا نبني التفصيلي/الفواتير في نفس الصفحة (يمنع نفاد ذاكرة Node وإعادة التشغيل)
+    const skipHeavyLineViews =
+      oraMode === 'all_oracle' || (Array.isArray(sourceRows) && sourceRows.length > 6000);
+    const heavySkipNote = skipHeavyLineViews
+      ? `<p class="muted ora-heavy-skip-note">التفصيلي والفواتير غير مضمّنة هنا لتفادي بطء الذاكرة مع البيانات الكثيرة. اختر مندوباً واحداً من الفلتر ثم أعد العرض لرؤية التفصيلي.</p>`
+      : '';
     // مجاميع نهائية لكل المندوبين (نهاية التقرير)
     const grandAll = {
       reps: 0,
@@ -3193,6 +3199,7 @@ const oracleRepItemsHandler = async (req, res) => {
           ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(rowByYearNet, true)}</td>`
           : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td>`;
         summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
+        if (skipHeavyLineViews) return;
         let custQty = 0;
         let custBonus = 0;
         let lines = '';
@@ -3264,7 +3271,7 @@ const oracleRepItemsHandler = async (req, res) => {
       // خصم/صافي المندوب من VOU حسب MAN_NUM مباشرة — لا يختفي عند «كل المندوبين»
       repDisc = Math.round(Number(repDiscFixed) * 1000) / 1000;
       repNet = Math.round((Number(repGross) - Number(repDisc)) * 1000) / 1000;
-      const invList = [...invMap.values()].sort((a, b) => {
+      const invList = skipHeavyLineViews ? [] : [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
         if (d) return d;
         const k = String(a.docKind || 'S').localeCompare(String(b.docKind || 'S'));
@@ -3566,7 +3573,8 @@ const oracleRepItemsHandler = async (req, res) => {
       grandAll.tax += Number(repTaxNet) || 0;
       grandAll.qty += Number(repQtyNet) || 0;
       grandAll.bonus += Number(repBonusNet) || 0;
-      detailHtml += `<section class="ora-cust-block ora-lines-block">
+      if (!skipHeavyLineViews) {
+        detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
@@ -3587,7 +3595,7 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
-      invoiceHtml += `<section class="ora-cust-block ora-lines-block">
+        invoiceHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
@@ -3607,7 +3615,7 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
-      invoiceSumHtml += `<section class="ora-cust-block">
+        invoiceSumHtml += `<section class="ora-cust-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
         </header>
@@ -3628,6 +3636,12 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
+      }
+    }
+    if (skipHeavyLineViews) {
+      detailHtml = heavySkipNote;
+      invoiceHtml = heavySkipNote;
+      invoiceSumHtml = heavySkipNote;
     }
     if (grandAll.reps > 1) {
       const grandFinalHtml = `<section class="ora-cust-block ora-grand-final-block">

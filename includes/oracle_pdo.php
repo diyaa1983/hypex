@@ -206,7 +206,10 @@ function oracle_connect(): array
     $host = trim((string) ($cfg['host'] ?? ''));
     $port = (int) ($cfg['port'] ?? 1521);
 
-    @set_time_limit(45);
+    // لا تخفّض مهلة CLI/التقارير الطويلة (كانت 45ث فتقطع التقارير الكبيرة)
+    if (PHP_SAPI !== 'cli') {
+        @set_time_limit(120);
+    }
     $tcp = oracle_tcp_probe($host, $port, 5.0);
     if (!$tcp['ok']) {
         return [
@@ -246,8 +249,10 @@ function oracle_connect(): array
     if (function_exists('oci_connect')) {
         $conn = @oci_connect($user, $pass, $tns, $charset);
         if ($conn) {
+            // مهلة استدعاء OCI بالميلي ثانية — 15ث كانت تقطع تقارير السنة الكاملة
             if (function_exists('oci_set_call_timeout')) {
-                @oci_set_call_timeout($conn, 15000);
+                $ociMs = PHP_SAPI === 'cli' ? 600000 : 120000;
+                @oci_set_call_timeout($conn, $ociMs);
             }
 
             return [

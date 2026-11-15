@@ -473,8 +473,9 @@ try {
     }
 
     if ($action === 'oracle_rep_item_sales') {
-        @ini_set('memory_limit', '1024M');
-        @set_time_limit(300);
+        @ini_set('memory_limit', '2048M');
+        @ini_set('max_execution_time', '900');
+        @set_time_limit(900);
         require_once app_path('includes/oracle_rep_item_sales.php');
         $store = (int) ($payload['store'] ?? 0);
         $repNo = isset($payload['rep_no']) && $payload['rep_no'] !== '' && $payload['rep_no'] !== null
