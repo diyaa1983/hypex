@@ -206,6 +206,8 @@ function oracle_fetch_rep_item_sales(
         $ymSql = "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
     }
 
+    // VOU_DISC/TAX ثابتان على مستوى الفاتورة — MAX مع GROUP BY المادة يمرّرهما على كل سطر
+    // حتى لا يضيع الخصم عند تحميل كل المندوبين (استعلام الخصوم المنفصل كان يفشل/يُقطع)
     $selectCols = "
        d.TYPE AS DOC_TYPE,
        TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
@@ -216,7 +218,9 @@ function oracle_fetch_rep_item_sales(
        TO_CHAR(TRUNC(d.VDATE), 'YYYY-MM-DD') AS SALE_DATE,
        SUM(NVL(d.QTY, 0)) AS QTY,
        SUM(NVL(d.BONUS, 0)) AS BONUS,
-       ROUND(SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})), 3) AS AMOUNT
+       ROUND(SUM(NVL(d.QTY, 0) * ({$price}) - ({$lineDisc})), 3) AS AMOUNT,
+       ROUND(MAX(NVL(d.VOU_DISC, 0)), 3) AS VOU_DISC,
+       ROUND(MAX(NVL(d.VOU_TAX, 0)), 3) AS VOU_TAX
 ";
     $groupSale = $byCurrentLink
         ? 'd.TYPE, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)'
@@ -373,6 +377,8 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
         $qty = (float) oracle_statement_row_val($r, 'QTY');
         $bonus = (float) oracle_statement_row_val($r, 'BONUS');
         $amount = (float) oracle_statement_row_val($r, 'AMOUNT');
+        $vouDiscLine = round((float) oracle_statement_row_val($r, 'VOU_DISC'), 3);
+        $vouTaxLine = round((float) oracle_statement_row_val($r, 'VOU_TAX'), 3);
         $docType = (int) oracle_statement_row_val($r, 'DOC_TYPE');
         $isReturn = isset($returnTypeMap[$docType])
             || ($docType !== $saleType && $docType >= 8)
@@ -464,6 +470,8 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
             'qty' => $qty,
             'bonus' => $bonus,
             'amount' => round($amount, 3),
+            'vou_disc' => $vouDiscLine,
+            'vou_tax' => $vouTaxLine,
         ];
     }
 
@@ -479,6 +487,8 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
         $merged[$key]['qty'] = (float) $merged[$key]['qty'] + (float) $row['qty'];
         $merged[$key]['bonus'] = (float) $merged[$key]['bonus'] + (float) $row['bonus'];
         $merged[$key]['amount'] = round((float) $merged[$key]['amount'] + (float) $row['amount'], 3);
+        $merged[$key]['vou_disc'] = max((float) ($merged[$key]['vou_disc'] ?? 0), (float) ($row['vou_disc'] ?? 0));
+        $merged[$key]['vou_tax'] = max((float) ($merged[$key]['vou_tax'] ?? 0), (float) ($row['vou_tax'] ?? 0));
     }
     $rowsAll = array_values($merged);
 
