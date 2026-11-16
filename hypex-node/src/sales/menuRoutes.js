@@ -3525,9 +3525,18 @@ const oracleRepItemsHandler = async (req, res) => {
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
-      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block" data-ora-rep-key="${esc(repKey)}">
+      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block is-collapsed" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
-          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+          <div class="ora-rep-line">
+            <button type="button" class="ora-rep-toggle no-print" aria-expanded="false" title="فتح أو إغلاق عملاء المندوب">
+              <span class="ora-rep-arrow" aria-hidden="true"></span>
+            </button>
+            <label class="ora-rep-pick-lab no-print" title="تحديد كل عملاء هذا المندوب">
+              <input type="checkbox" class="ora-rep-pick">
+            </label>
+            <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+            <span class="ora-rep-cust-hint muted no-print">عملاء مطويون — اضغط السهم للفتح</span>
+          </div>
           ${yearNote}
           ${catDiffToggle}
           <div class="ora-pick-bar no-print is-empty">
@@ -3541,36 +3550,38 @@ const oracleRepItemsHandler = async (req, res) => {
             <div class="ora-pick-bar-cats" aria-label="مجاميع الفئات للمحددين"></div>
           </div>
         </header>
-        <div class="si-table-wrap ora-portrait-wrap">
-          <table class="si-table ora-portrait-table report-sales-table js-sortable-report ora-summary-pick${
-            yearCompare ? ' ora-year-compare' : ''
-          }" data-no-default-sort="1" data-ora-cat-count="${catOrder.length}" data-ora-compare-years="${esc(
-            compareYears.join(',')
-          )}">
-            <thead><tr>
-              <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
-              ${heads}
-              <th class="ora-vhead js-sort-th ora-col-gross" data-sort="gross" data-sort-type="number" title="إجمالي المبيعات بعد خصم المرتجعات (قبل خصم الفاتورة)"><span class="ora-cat-title">الإجمالي</span>${
-                yearCompare ? yearHeadHtml(false) : ''
-              }</th>
-              <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number" title="خصم الفاتورة VOU_DISC"><span class="ora-cat-title">الخصم</span>${
-                yearCompare ? yearHeadHtml(false) : ''
-              }</th>
-              <th class="ora-vhead js-sort-th ora-col-net" data-sort="total" data-sort-type="number" title="الصافي = الإجمالي − الخصم"><span class="ora-cat-title">الصافي</span>${
-                yearCompare ? yearHeadHtml(true) : ''
-              }</th>
-            </tr></thead>
-            <tbody>${pickRow}${body}${footRow}</tbody>
-          </table>
-        </div>
-        <div class="ora-pick-foot no-print is-empty">
-          <div class="ora-pick-bar-main">
-            <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
-            <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
-            <span class="ora-pick-pair">خصم <strong class="ora-pick-disc-amt" dir="ltr">0</strong></span>
-            <span class="ora-pick-pair">صافي <strong class="ora-pick-amt" dir="ltr">0</strong></span>
+        <div class="ora-rep-body">
+          <div class="si-table-wrap ora-portrait-wrap">
+            <table class="si-table ora-portrait-table report-sales-table js-sortable-report ora-summary-pick${
+              yearCompare ? ' ora-year-compare' : ''
+            }" data-no-default-sort="1" data-ora-cat-count="${catOrder.length}" data-ora-compare-years="${esc(
+              compareYears.join(',')
+            )}">
+              <thead><tr>
+                <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
+                ${heads}
+                <th class="ora-vhead js-sort-th ora-col-gross" data-sort="gross" data-sort-type="number" title="إجمالي المبيعات بعد خصم المرتجعات (قبل خصم الفاتورة)"><span class="ora-cat-title">الإجمالي</span>${
+                  yearCompare ? yearHeadHtml(false) : ''
+                }</th>
+                <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number" title="خصم الفاتورة VOU_DISC"><span class="ora-cat-title">الخصم</span>${
+                  yearCompare ? yearHeadHtml(false) : ''
+                }</th>
+                <th class="ora-vhead js-sort-th ora-col-net" data-sort="total" data-sort-type="number" title="الصافي = الإجمالي − الخصم"><span class="ora-cat-title">الصافي</span>${
+                  yearCompare ? yearHeadHtml(true) : ''
+                }</th>
+              </tr></thead>
+              <tbody>${pickRow}${body}${footRow}</tbody>
+            </table>
           </div>
-          <div class="ora-pick-foot-cats"></div>
+          <div class="ora-pick-foot no-print is-empty">
+            <div class="ora-pick-bar-main">
+              <span>مجموع التحديد أسفل الجدول (<span class="ora-pick-count">0</span>):</span>
+              <span class="ora-pick-pair">إجمالي <strong class="ora-pick-gross-amt" dir="ltr">0</strong></span>
+              <span class="ora-pick-pair">خصم <strong class="ora-pick-disc-amt" dir="ltr">0</strong></span>
+              <span class="ora-pick-pair">صافي <strong class="ora-pick-amt" dir="ltr">0</strong></span>
+            </div>
+            <div class="ora-pick-foot-cats"></div>
+          </div>
         </div>
       </section>`;
       summaryHtml += sectionOf(summaryBody);
@@ -4276,6 +4287,46 @@ const oracleRepItemsHandler = async (req, res) => {
           border-bottom: 0;
           padding: .7rem .9rem;
         }
+        .ora-rep-line {
+          display: flex;
+          align-items: center;
+          gap: .55rem;
+          flex-wrap: wrap;
+        }
+        .ora-rep-toggle {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 1.7rem;
+          height: 1.7rem;
+          padding: 0;
+          border: 1px solid #c5d6ea;
+          border-radius: 6px;
+          background: #fff;
+          color: #1e3a5f;
+          cursor: pointer;
+          flex: 0 0 auto;
+        }
+        .ora-rep-toggle:hover { background: #e8eef8; }
+        .ora-rep-arrow::before { content: "▸"; font-size: 1rem; line-height: 1; }
+        .ora-summary-block:not(.is-collapsed) .ora-rep-arrow::before { content: "▾"; }
+        .ora-rep-pick-lab {
+          display: inline-flex;
+          align-items: center;
+          margin: 0;
+          cursor: pointer;
+          flex: 0 0 auto;
+        }
+        .ora-rep-pick {
+          width: 1.15rem;
+          height: 1.15rem;
+          accent-color: #1e3a5f;
+          cursor: pointer;
+        }
+        .ora-rep-cust-hint { font-size: .82rem; }
+        .ora-summary-block:not(.is-collapsed) .ora-rep-cust-hint { display: none; }
+        .ora-summary-block.is-collapsed .ora-rep-body { display: none; }
+        .ora-summary-block.is-collapsed .ora-cust-head { border-bottom: 1px solid #d5deea; border-radius: 0 0 8px 8px; }
         .ora-cust-head .ora-rep { font-weight: 800; color: #1e3a5f; }
         .ora-cust-head .ora-who { font-weight: 800; font-size: 1.02rem; margin-top: .25rem; }
         .ora-cat-head { cursor: pointer; }
@@ -4868,6 +4919,9 @@ const oracleRepItemsHandler = async (req, res) => {
           tr.ora-item[hidden] { display: table-row !important; }
           .ora-arrow { display: none; }
           .ora-cust-pick-lab,
+          .ora-rep-pick-lab,
+          .ora-rep-toggle,
+          .ora-rep-cust-hint,
           .ora-pick-bar,
           .ora-pick-foot,
           tr.ora-pick-sum,
@@ -4875,6 +4929,7 @@ const oracleRepItemsHandler = async (req, res) => {
           .ora-tools,
           .ora-year-note,
           .ora-report-sticky-note { display: none !important; }
+          .ora-summary-block.is-collapsed .ora-rep-body { display: block !important; }
           tr.ora-sum-row.is-picked td { outline: none !important; }
         }
       </style>
@@ -5453,6 +5508,15 @@ const oracleRepItemsHandler = async (req, res) => {
           if (catsEl) catsEl.innerHTML = pills;
         }
         refreshOraCatQtyBox(block, count, sums, qtySums, bonusSums, gross, disc, total);
+        var repPick = block.querySelector('.ora-rep-pick');
+        if (repPick) {
+          var allCbs = block.querySelectorAll('.ora-cust-pick');
+          var checkedN = 0;
+          allCbs.forEach(function (cb) { if (cb.checked) checkedN += 1; });
+          var allN = allCbs.length;
+          repPick.indeterminate = checkedN > 0 && checkedN < allN;
+          repPick.checked = allN > 0 && checkedN === allN;
+        }
       }
       document.addEventListener('change', function (ev) {
         var t = ev.target;
@@ -5462,6 +5526,21 @@ const oracleRepItemsHandler = async (req, res) => {
           var tableDiff = blockDiff && blockDiff.querySelector('table.ora-summary-pick');
           if (tableDiff) tableDiff.classList.toggle('is-show-cat-diff', !!t.checked);
           refreshOraCustPick(blockDiff);
+          return;
+        }
+        if (t.classList.contains('ora-rep-pick')) {
+          var blockRep = t.closest('.ora-summary-block');
+          if (!blockRep) return;
+          var on = !!t.checked;
+          blockRep.querySelectorAll('.ora-cust-pick').forEach(function (cb) { cb.checked = on; });
+          t.indeterminate = false;
+          // عند التحديد الجماعي افتح قائمة العملاء إن كانت مطوية
+          if (on) {
+            blockRep.classList.remove('is-collapsed');
+            var tog = blockRep.querySelector('.ora-rep-toggle');
+            if (tog) tog.setAttribute('aria-expanded', 'true');
+          }
+          refreshOraCustPick(blockRep);
           return;
         }
         if (!t.classList.contains('ora-cust-pick')) return;
@@ -5483,11 +5562,23 @@ const oracleRepItemsHandler = async (req, res) => {
         });
       })();
       document.addEventListener('click', function (ev) {
+        var togBtn = ev.target.closest && ev.target.closest('.ora-rep-toggle');
+        if (togBtn) {
+          var blockTog = togBtn.closest('.ora-summary-block');
+          if (blockTog) {
+            var open = blockTog.classList.contains('is-collapsed');
+            blockTog.classList.toggle('is-collapsed', !open);
+            togBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+          }
+          return;
+        }
         var clearBtn = ev.target.closest && ev.target.closest('.ora-pick-clear');
         if (clearBtn) {
           var block = clearBtn.closest('.ora-summary-block');
           if (block) {
             block.querySelectorAll('.ora-cust-pick').forEach(function (cb) { cb.checked = false; });
+            var rp = block.querySelector('.ora-rep-pick');
+            if (rp) { rp.checked = false; rp.indeterminate = false; }
             refreshOraCustPick(block);
           }
           return;
@@ -5497,8 +5588,11 @@ const oracleRepItemsHandler = async (req, res) => {
           var view = document.querySelector('.ora-view:not([hidden])');
           if (!view) return;
           var clone = view.cloneNode(true);
-          clone.querySelectorAll('.ora-cust-pick-lab, .ora-pick-bar, .ora-pick-foot, tr.ora-pick-sum').forEach(function (el) {
+          clone.querySelectorAll('.ora-cust-pick-lab, .ora-rep-pick-lab, .ora-rep-toggle, .ora-rep-cust-hint, .ora-pick-bar, .ora-pick-foot, tr.ora-pick-sum').forEach(function (el) {
             el.remove();
+          });
+          clone.querySelectorAll('.ora-summary-block.is-collapsed').forEach(function (el) {
+            el.classList.remove('is-collapsed');
           });
           var html = '<html><head><meta charset="UTF-8"></head><body dir="rtl">' + clone.innerHTML + '</body></html>';
           var blob = new Blob(['\\uFEFF' + html], { type: 'application/vnd.ms-excel;charset=utf-8' });
