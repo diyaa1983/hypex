@@ -4999,65 +4999,93 @@ const oracleRepItemsHandler = async (req, res) => {
       </style>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
       <script>
-      (function syncOraReportSticky() {
+      (function pinOraReportChrome() {
         var page = document.querySelector('.si-report-page[data-report-route="report_oracle_rep_item_sales"]');
         if (!page) return;
         var chrome = page.querySelector('.ora-report-sticky-chrome');
         var result = page.querySelector('.si-print-area.report-sales-result');
+        if (!chrome || !result) return;
+        var title = document.querySelector('.hx-ora-screen-title');
         var main = document.querySelector('main.si-main, main.app-embed-main, main.main');
-        var screen = document.querySelector('.hx-ora-screen');
-        var body = document.querySelector('.hx-ora-screen-body');
-        function lockChrome() {
-          if (main) {
-            main.style.overflow = 'hidden';
-            main.style.display = 'flex';
-            main.style.flexDirection = 'column';
-            main.style.minHeight = '0';
-          }
-          if (screen) {
-            screen.style.flex = '1 1 auto';
-            screen.style.minHeight = '0';
-            screen.style.height = '100%';
-            screen.style.display = 'flex';
-            screen.style.flexDirection = 'column';
-            screen.style.overflow = 'hidden';
-          }
-          if (body) {
-            body.style.flex = '1 1 auto';
-            body.style.minHeight = '0';
-            body.style.display = 'flex';
-            body.style.flexDirection = 'column';
-            body.style.overflow = 'hidden';
-          }
-          page.style.flex = '1 1 auto';
-          page.style.minHeight = '0';
-          page.style.height = '100%';
-          page.style.display = 'flex';
-          page.style.flexDirection = 'column';
-          page.style.overflow = 'hidden';
-          if (chrome) {
-            chrome.style.position = 'relative';
-            chrome.style.top = 'auto';
-            chrome.style.flex = '0 0 auto';
-            chrome.style.zIndex = '12';
-          }
-          if (result) {
-            result.style.flex = '1 1 auto';
-            result.style.minHeight = '0';
-            result.style.overflow = 'auto';
-          }
-          page.style.setProperty('--ora-report-sticky-h', '0px');
-          if (main) main.style.setProperty('--ora-report-sticky-h', '0px');
+        var spacer = document.createElement('div');
+        spacer.className = 'ora-report-chrome-spacer no-print';
+        spacer.setAttribute('aria-hidden', 'true');
+        if (!chrome.nextElementSibling || !chrome.nextElementSibling.classList.contains('ora-report-chrome-spacer')) {
+          chrome.parentNode.insertBefore(spacer, chrome.nextSibling);
+        } else {
+          spacer = chrome.nextElementSibling;
         }
-        lockChrome();
-        requestAnimationFrame(lockChrome);
-        window.addEventListener('resize', lockChrome);
+        function pin() {
+          if (window.matchMedia && window.matchMedia('print').matches) return;
+          var box = (main || document.documentElement).getBoundingClientRect();
+          var top = 0;
+          if (title) {
+            var tr = title.getBoundingClientRect();
+            top = Math.max(0, Math.ceil(tr.bottom));
+          }
+          // ثبّت الترويسة على الشاشة
+          chrome.style.position = 'fixed';
+          chrome.style.top = top + 'px';
+          chrome.style.left = Math.max(0, Math.floor(box.left)) + 'px';
+          chrome.style.right = Math.max(0, Math.floor(window.innerWidth - box.right)) + 'px';
+          chrome.style.width = 'auto';
+          chrome.style.zIndex = '45';
+          chrome.style.margin = '0';
+          chrome.style.boxSizing = 'border-box';
+          var chromeH = Math.ceil(chrome.getBoundingClientRect().height || chrome.offsetHeight || 0);
+          spacer.style.height = chromeH + 'px';
+          spacer.style.display = 'block';
+          // منطقة النتائج فقط تتمرّر تحت الترويسة
+          var resultTop = top + chromeH;
+          result.style.position = 'fixed';
+          result.style.top = resultTop + 'px';
+          result.style.left = Math.max(0, Math.floor(box.left)) + 'px';
+          result.style.right = Math.max(0, Math.floor(window.innerWidth - box.right)) + 'px';
+          result.style.bottom = '0';
+          result.style.height = Math.max(120, window.innerHeight - resultTop) + 'px';
+          result.style.overflow = 'auto';
+          result.style.zIndex = '5';
+          result.style.background = '#fff';
+          result.style.webkitOverflowScrolling = 'touch';
+          // امنع تمرير الصفحة خلف الترويسة
+          document.documentElement.style.overflow = 'hidden';
+          document.body.style.overflow = 'hidden';
+          if (main) main.style.overflow = 'hidden';
+          page.style.setProperty('--ora-report-sticky-h', '0px');
+        }
+        function unpinForPrint() {
+          chrome.style.position = '';
+          chrome.style.top = '';
+          chrome.style.left = '';
+          chrome.style.right = '';
+          chrome.style.width = '';
+          chrome.style.zIndex = '';
+          result.style.position = '';
+          result.style.top = '';
+          result.style.left = '';
+          result.style.right = '';
+          result.style.bottom = '';
+          result.style.height = '';
+          result.style.overflow = '';
+          spacer.style.height = '0';
+          document.documentElement.style.overflow = '';
+          document.body.style.overflow = '';
+          if (main) main.style.overflow = '';
+        }
+        pin();
+        requestAnimationFrame(pin);
+        setTimeout(pin, 50);
+        setTimeout(pin, 300);
+        window.addEventListener('resize', pin);
+        window.addEventListener('orientationchange', pin);
         if (typeof ResizeObserver !== 'undefined') {
-          var ro = new ResizeObserver(lockChrome);
-          if (chrome) ro.observe(chrome);
-          if (result) ro.observe(result);
+          var ro = new ResizeObserver(pin);
+          ro.observe(chrome);
+          if (title) ro.observe(title);
           if (main) ro.observe(main);
         }
+        window.addEventListener('beforeprint', unpinForPrint);
+        window.addEventListener('afterprint', pin);
       })();
       </script>
       <script type="application/json" id="report-sales-reps-json">${repsPickerJson}</script>
