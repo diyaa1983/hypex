@@ -2852,12 +2852,6 @@ const oracleRepItemsHandler = async (req, res) => {
     let invoiceHtml = '';
     let invoiceSumHtml = '';
     let catTotalsHtml = '';
-    // «فواتير تفصيلي» فقط تُستثنى عند البيانات الكثيرة (أسطر داخل كل فاتورة). التفصيلي وفواتير إجمالي متاحان ومطويان.
-    const skipInvoiceDetailView =
-      oraMode === 'all_oracle' || (Array.isArray(sourceRows) && sourceRows.length > 6000);
-    const heavySkipNote = skipInvoiceDetailView
-      ? `<p class="muted ora-heavy-skip-note">«فواتير تفصيلي» غير مضمّنة هنا لتفادي بطء الذاكرة مع البيانات الكثيرة. استخدم «فواتير إجمالي» أو «تفصيلي»، أو اختر مندوباً واحداً ثم أعد العرض.</p>`
-      : '';
     // مجاميع نهائية لكل المندوبين (نهاية التقرير)
     const emptyGrandYear = () => ({
       gross: 0,
@@ -3058,9 +3052,7 @@ const oracleRepItemsHandler = async (req, res) => {
           const fb = lookupInvTax(docKind, no, invYear, invNo, acc);
           if (fb) inv.vouTax = fb;
         }
-        if (!skipInvoiceDetailView) {
-          inv.lines.push({ cat, name, barcode, qty, bonus, amount });
-        }
+        inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
       // خصم مجموع المندوب مباشرة من vou_disc على صفوف حركته (مرة لكل فاتورة)
       let repDiscFixed = 0;
@@ -3398,7 +3390,7 @@ const oracleRepItemsHandler = async (req, res) => {
           lookupInvDisc(isRet ? 'R' : 'S', no, inv.invYear, inv.invNo, accKey);
         const invGross = Number(inv.amount) || 0;
         const invNet = invGross - vouDisc;
-        if (!skipInvoiceDetailView) {
+        {
           const sortedLines = inv.lines.slice().sort((a, b) => {
             const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
             if (c) return c;
@@ -3752,7 +3744,7 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       }
-      if (!skipInvoiceDetailView && invoiceBody) {
+      if (invoiceBody) {
         invoiceHtml += `<section class="ora-cust-block ora-summary-block ora-lines-block is-collapsed" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
           <div class="ora-rep-line">
@@ -3813,9 +3805,6 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
       }
-    }
-    if (skipInvoiceDetailView) {
-      invoiceHtml = heavySkipNote;
     }
     if (grandAll.reps > 1) {
       const fmtSignedAmt = (n) => {
