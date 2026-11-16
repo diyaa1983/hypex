@@ -2852,11 +2852,11 @@ const oracleRepItemsHandler = async (req, res) => {
     let invoiceHtml = '';
     let invoiceSumHtml = '';
     let catTotalsHtml = '';
-    // عند البيانات الكثيرة: لا نبني التفصيلي/الفواتير في نفس الصفحة (يمنع نفاد ذاكرة Node وإعادة التشغيل)
+    // عند البيانات الكثيرة: لا نبني التفصيلي/فواتير الأسطر (ثقيلة). «فواتير إجمالي» صف واحد لكل فاتورة فتبقى متاحة.
     const skipHeavyLineViews =
       oraMode === 'all_oracle' || (Array.isArray(sourceRows) && sourceRows.length > 6000);
     const heavySkipNote = skipHeavyLineViews
-      ? `<p class="muted ora-heavy-skip-note">التفصيلي والفواتير غير مضمّنة هنا لتفادي بطء الذاكرة مع البيانات الكثيرة. اختر مندوباً واحداً من الفلتر ثم أعد العرض لرؤية التفصيلي.</p>`
+      ? `<p class="muted ora-heavy-skip-note">التفصيلي و«فواتير تفصيلي» غير مضمّنة هنا لتفادي بطء الذاكرة مع البيانات الكثيرة. استخدم «فواتير إجمالي»، أو اختر مندوباً واحداً ثم أعد العرض لرؤية التفصيلي.</p>`
       : '';
     // مجاميع نهائية لكل المندوبين (نهاية التقرير)
     const emptyGrandYear = () => ({
@@ -3008,16 +3008,18 @@ const oracleRepItemsHandler = async (req, res) => {
             ye.sale += amount;
           }
         }
-        const found = bag.items.find(
-          (it) => it.code === code && it.name === name && it.saleDate === saleDate && it.invNo === invNo && it.invYear === invYear
-        );
-        if (found) {
-          found.amount += amount;
-          found.qty += qty;
-          found.bonus += bonus;
-          if (!found.barcode && barcode) found.barcode = barcode;
-        } else {
-          bag.items.push({ name, code, barcode, saleDate, qty, bonus, amount, invNo, invYear });
+        if (!skipHeavyLineViews) {
+          const found = bag.items.find(
+            (it) => it.code === code && it.name === name && it.saleDate === saleDate && it.invNo === invNo && it.invYear === invYear
+          );
+          if (found) {
+            found.amount += amount;
+            found.qty += qty;
+            found.bonus += bonus;
+            if (!found.barcode && barcode) found.barcode = barcode;
+          } else {
+            bag.items.push({ name, code, barcode, saleDate, qty, bonus, amount, invNo, invYear });
+          }
         }
         const invKey = `${docKind}|${invYear}|${invNo}|${acc}`;
         if (!invMap.has(invKey)) {
@@ -3056,7 +3058,9 @@ const oracleRepItemsHandler = async (req, res) => {
           const fb = lookupInvTax(docKind, no, invYear, invNo, acc);
           if (fb) inv.vouTax = fb;
         }
-        inv.lines.push({ cat, name, barcode, qty, bonus, amount });
+        if (!skipHeavyLineViews) {
+          inv.lines.push({ cat, name, barcode, qty, bonus, amount });
+        }
       });
       // خصم مجموع المندوب مباشرة من vou_disc على صفوف حركته (مرة لكل فاتورة)
       let repDiscFixed = 0;
@@ -3365,7 +3369,7 @@ const oracleRepItemsHandler = async (req, res) => {
       // خصم/صافي المندوب من VOU حسب MAN_NUM مباشرة — لا يختفي عند «كل المندوبين»
       repDisc = Math.round(Number(repDiscFixed) * 1000) / 1000;
       repNet = Math.round((Number(repGross) - Number(repDisc)) * 1000) / 1000;
-      const invList = skipHeavyLineViews ? [] : [...invMap.values()].sort((a, b) => {
+      const invList = [...invMap.values()].sort((a, b) => {
         const d = String(a.saleDate || '').localeCompare(String(b.saleDate || ''));
         if (d) return d;
         const k = String(a.docKind || 'S').localeCompare(String(b.docKind || 'S'));
@@ -3395,18 +3399,19 @@ const oracleRepItemsHandler = async (req, res) => {
           lookupInvDisc(isRet ? 'R' : 'S', no, inv.invYear, inv.invNo, accKey);
         const invGross = Number(inv.amount) || 0;
         const invNet = invGross - vouDisc;
-        const sortedLines = inv.lines.slice().sort((a, b) => {
-          const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
-          if (c) return c;
-          return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
-        });
-        const lineNetParts = allocDisc(
-          sortedLines.map((ln) => Number(ln.amount) || 0),
-          vouDisc
-        );
-        invoiceBody += `<tr class="ora-cust-band" data-ora-group="1"><td colspan="8">${invTitle}
-          <span class="ora-inv-meta"> — ${esc(kindLabel)} — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
-        sortedLines.forEach((ln, lnIdx) => {
+        if (!skipHeavyLineViews) {
+          const sortedLines = inv.lines.slice().sort((a, b) => {
+            const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
+            if (c) return c;
+            return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
+          });
+          const lineNetParts = allocDisc(
+            sortedLines.map((ln) => Number(ln.amount) || 0),
+            vouDisc
+          );
+          invoiceBody += `<tr class="ora-cust-band" data-ora-group="1"><td colspan="8">${invTitle}
+            <span class="ora-inv-meta"> — ${esc(kindLabel)} — ${esc(fmtSaleDate(inv.saleDate) || '—')} — ${esc(inv.customer)}</span></td></tr>`;
+          sortedLines.forEach((ln, lnIdx) => {
             const lnName = cleanName(ln.name) || ln.name;
             const netAmt = lineNetParts[lnIdx] || 0;
             const discAmt = Math.round(((Number(ln.amount) || 0) - netAmt) * 1000) / 1000;
@@ -3420,11 +3425,12 @@ const oracleRepItemsHandler = async (req, res) => {
               <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(netAmt))}</td>
             </tr>`;
           });
-        invoiceBody += `<tr class="ora-cust-final" data-ora-group-end="1"><td colspan="3">مجموع ${esc(kindLabel)}</td>
-          ${qtyExtraCell(inv.qty, inv.bonus)}
-          <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
-          <td class="si-num ora-disc-cell" dir="ltr">${vouDisc ? esc(fmtAmt(vouDisc)) : ''}</td>
-          <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td></tr>`;
+          invoiceBody += `<tr class="ora-cust-final" data-ora-group-end="1"><td colspan="3">مجموع ${esc(kindLabel)}</td>
+            ${qtyExtraCell(inv.qty, inv.bonus)}
+            <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
+            <td class="si-num ora-disc-cell" dir="ltr">${vouDisc ? esc(fmtAmt(vouDisc)) : ''}</td>
+            <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td></tr>`;
+        }
         invRepQty += inv.qty;
         invRepBonus += Number(inv.bonus) || 0;
         invRepAmt += invGross;
@@ -3716,7 +3722,7 @@ const oracleRepItemsHandler = async (req, res) => {
           }
         });
       }
-      if (!skipHeavyLineViews) {
+      if (!skipHeavyLineViews && detailBody) {
         detailHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
@@ -3738,6 +3744,8 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
+      }
+      if (!skipHeavyLineViews && invoiceBody) {
         invoiceHtml += `<section class="ora-cust-block ora-lines-block">
         <header class="ora-cust-head">
           <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
@@ -3758,25 +3766,35 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </section>`;
-        invoiceSumHtml += `<section class="ora-cust-block">
+      }
+      if (invoiceSumBody) {
+        invoiceSumHtml += `<section class="ora-cust-block ora-summary-block is-collapsed" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
-          <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+          <div class="ora-rep-line">
+            <button type="button" class="ora-rep-toggle no-print" aria-expanded="false" title="فتح أو إغلاق فواتير المندوب">
+              <span class="ora-rep-arrow" aria-hidden="true"></span>
+            </button>
+            <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
+            <span class="ora-rep-cust-hint muted no-print">فواتير مطوية — اضغط السهم للفتح</span>
+          </div>
         </header>
-        <div class="si-table-wrap ora-portrait-wrap">
-          <table class="si-table ora-portrait-table ora-detail-table report-sales-table js-sortable-report" data-no-default-sort="1">
-            <thead><tr>
-              <th class="ora-vhead js-sort-th" data-sort="kind" data-sort-type="text">النوع</th>
-              <th class="ora-vhead js-sort-th" data-sort="invoice" data-sort-type="number">الفاتورة</th>
-              <th class="ora-vhead js-sort-th" data-sort="date" data-sort-type="date">التاريخ</th>
-              <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
-              <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
-              <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
-              <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number">الإجمالي</th>
-              <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number">الخصم</th>
-              <th class="ora-vhead js-sort-th ora-col-net" data-sort="amount" data-sort-type="number">الصافي</th>
-            </tr></thead>
-            <tbody>${invoiceSumBody}</tbody>
-          </table>
+        <div class="ora-rep-body">
+          <div class="si-table-wrap ora-portrait-wrap">
+            <table class="si-table ora-portrait-table ora-detail-table report-sales-table js-sortable-report" data-no-default-sort="1">
+              <thead><tr>
+                <th class="ora-vhead js-sort-th" data-sort="kind" data-sort-type="text">النوع</th>
+                <th class="ora-vhead js-sort-th" data-sort="invoice" data-sort-type="number">الفاتورة</th>
+                <th class="ora-vhead js-sort-th" data-sort="date" data-sort-type="date">التاريخ</th>
+                <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
+                <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
+                <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
+                <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number">الإجمالي</th>
+                <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number">الخصم</th>
+                <th class="ora-vhead js-sort-th ora-col-net" data-sort="amount" data-sort-type="number">الصافي</th>
+              </tr></thead>
+              <tbody>${invoiceSumBody}</tbody>
+            </table>
+          </div>
         </div>
       </section>`;
       }
@@ -3784,7 +3802,6 @@ const oracleRepItemsHandler = async (req, res) => {
     if (skipHeavyLineViews) {
       detailHtml = heavySkipNote;
       invoiceHtml = heavySkipNote;
-      invoiceSumHtml = heavySkipNote;
     }
     if (grandAll.reps > 1) {
       const fmtSignedAmt = (n) => {
