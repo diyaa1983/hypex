@@ -4034,14 +4034,61 @@ const oracleRepItemsHandler = async (req, res) => {
       ${stickyToolsHtml}
       </div>
       <style>
+        /* تثبيت الترويسة: التمرير فقط داخل نتائج التقرير */
+        body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .main.si-main,
+        body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) main.main {
+          display: flex !important;
+          flex-direction: column !important;
+          overflow: hidden !important;
+          min-height: 0 !important;
+          height: 100% !important;
+          max-height: 100% !important;
+        }
+        body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen {
+          flex: 1 1 auto;
+          min-height: 0;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen-title {
+          flex: 0 0 auto;
+          position: relative !important;
+          top: auto !important;
+        }
+        body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen-body {
+          flex: 1 1 auto;
+          min-height: 0;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] {
+          flex: 1 1 auto;
+          min-height: 0;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome {
-          position: sticky;
-          top: 0;
+          flex: 0 0 auto;
+          position: relative !important;
+          top: auto !important;
           z-index: 12;
-          margin: 0 0 .55rem;
+          margin: 0;
           padding: 0 0 .45rem;
           background: #d4d0c8;
           box-shadow: 0 1px 0 #808080;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-print-area.report-sales-result {
+          flex: 1 1 auto;
+          min-height: 0;
+          overflow: auto !important;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+          padding: 0 .15rem .75rem;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-note {
           margin: 0 0 .35rem;
@@ -4159,7 +4206,7 @@ const oracleRepItemsHandler = async (req, res) => {
           font-size: .82rem;
           padding: .55rem .45rem;
           position: sticky !important;
-          top: var(--ora-report-sticky-h, 0px);
+          top: 0;
           background: #e8eef5 !important;
           box-shadow: 0 1px 0 #94a3b8;
           z-index: 6;
@@ -4851,6 +4898,16 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         @media print {
           @page { size: A4 landscape; margin: 6mm 5mm 8mm 5mm; }
+          body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .main.si-main,
+          body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen,
+          body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen-body,
+          .si-report-page[data-report-route="report_oracle_rep_item_sales"],
+          .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-print-area.report-sales-result {
+            display: block !important;
+            height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+          }
           .ora-report-sticky-chrome {
             position: static !important;
             box-shadow: none !important;
@@ -4938,40 +4995,62 @@ const oracleRepItemsHandler = async (req, res) => {
       (function syncOraReportSticky() {
         var page = document.querySelector('.si-report-page[data-report-route="report_oracle_rep_item_sales"]');
         if (!page) return;
-        var title = document.querySelector('.hx-ora-screen-title');
         var chrome = page.querySelector('.ora-report-sticky-chrome');
+        var result = page.querySelector('.si-print-area.report-sales-result');
         var main = document.querySelector('main.si-main, main.app-embed-main, main.main');
-        function sync() {
-          var titleH = 0;
-          if (title) {
-            title.style.position = 'sticky';
-            title.style.top = '0px';
-            title.style.zIndex = '20';
-            titleH = Math.ceil(title.getBoundingClientRect().height || title.offsetHeight || 0);
+        var screen = document.querySelector('.hx-ora-screen');
+        var body = document.querySelector('.hx-ora-screen-body');
+        function lockChrome() {
+          if (main) {
+            main.style.overflow = 'hidden';
+            main.style.display = 'flex';
+            main.style.flexDirection = 'column';
+            main.style.minHeight = '0';
           }
+          if (screen) {
+            screen.style.flex = '1 1 auto';
+            screen.style.minHeight = '0';
+            screen.style.height = '100%';
+            screen.style.display = 'flex';
+            screen.style.flexDirection = 'column';
+            screen.style.overflow = 'hidden';
+          }
+          if (body) {
+            body.style.flex = '1 1 auto';
+            body.style.minHeight = '0';
+            body.style.display = 'flex';
+            body.style.flexDirection = 'column';
+            body.style.overflow = 'hidden';
+          }
+          page.style.flex = '1 1 auto';
+          page.style.minHeight = '0';
+          page.style.height = '100%';
+          page.style.display = 'flex';
+          page.style.flexDirection = 'column';
+          page.style.overflow = 'hidden';
           if (chrome) {
-            chrome.style.position = 'sticky';
-            chrome.style.top = titleH + 'px';
+            chrome.style.position = 'relative';
+            chrome.style.top = 'auto';
+            chrome.style.flex = '0 0 auto';
             chrome.style.zIndex = '12';
-            var chromeH = Math.ceil(chrome.getBoundingClientRect().height || chrome.offsetHeight || 0);
-            var total = titleH + chromeH;
-            page.style.setProperty('--ora-report-sticky-h', total + 'px');
-            if (main) main.style.setProperty('--ora-report-sticky-h', total + 'px');
-          } else {
-            page.style.setProperty('--ora-report-sticky-h', titleH + 'px');
-            if (main) main.style.setProperty('--ora-report-sticky-h', titleH + 'px');
           }
+          if (result) {
+            result.style.flex = '1 1 auto';
+            result.style.minHeight = '0';
+            result.style.overflow = 'auto';
+          }
+          page.style.setProperty('--ora-report-sticky-h', '0px');
+          if (main) main.style.setProperty('--ora-report-sticky-h', '0px');
         }
-        sync();
-        requestAnimationFrame(sync);
+        lockChrome();
+        requestAnimationFrame(lockChrome);
+        window.addEventListener('resize', lockChrome);
         if (typeof ResizeObserver !== 'undefined') {
-          var ro = new ResizeObserver(sync);
-          if (title) ro.observe(title);
+          var ro = new ResizeObserver(lockChrome);
           if (chrome) ro.observe(chrome);
+          if (result) ro.observe(result);
           if (main) ro.observe(main);
         }
-        window.addEventListener('resize', sync);
-        if (main) main.addEventListener('scroll', function () { /* keep sticky vars fresh after fonts */ }, { passive: true });
       })();
       </script>
       <script type="application/json" id="report-sales-reps-json">${repsPickerJson}</script>
