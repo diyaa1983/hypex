@@ -174,11 +174,26 @@
     var clone = area.cloneNode(true);
     clone
       .querySelectorAll(
-        '.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar, .hx-doc-bar, .hx-doc-head, .hx-logo-wm'
+        '.no-print, .si-rail, .ora-filters, script, style, .si-hero, .sidebar, .hx-doc-bar, .hx-doc-head, .hx-logo-wm,' +
+          '.ora-report-chrome-spacer, .ora-report-sticky-chrome, .ora-tools, .ora-pick-bar, .ora-pick-foot,' +
+          '.ora-year-note, .ora-cat-diff-toggle, .ora-report-sticky-note'
       )
       .forEach(function (el) {
         el.remove();
       });
+    /* أنماط position:fixed/height من تثبيت الترويسة على الشاشة لا تصلح للطباعة */
+    clone.querySelectorAll('[style]').forEach(function (el) {
+      var s = el.getAttribute('style') || '';
+      if (!/position\s*:\s*fixed|height\s*:\s*\d|overflow\s*:\s*auto/i.test(s)) return;
+      el.style.position = 'static';
+      el.style.top = '';
+      el.style.left = '';
+      el.style.right = '';
+      el.style.bottom = '';
+      el.style.height = 'auto';
+      el.style.maxHeight = 'none';
+      el.style.overflow = 'visible';
+    });
     ensureInvoiceTotalsAfterTable(clone);
     moveTotalsToTableEnd(clone);
     return clone.innerHTML;
@@ -235,11 +250,15 @@
 
   function oraYearComparePrintCss() {
     return (
-      '.ora-cust-block{margin:0 0 7px;page-break-inside:avoid}' +
-      '.ora-cust-head{margin:0 0 3px;padding:0;border:0;background:transparent}' +
+      /* كتل المندوب أطول من صفحة — avoid يسبب صفحة أولى فارغة في Chrome */
+      '.ora-cust-block,.ora-summary-block,.ora-cat-totals-only,.ora-grand-final-block{margin:0 0 7px;page-break-inside:auto;break-inside:auto}' +
+      '.si-table-wrap,.ora-portrait-wrap,.ora-rep-body{page-break-inside:auto;break-inside:auto}' +
+      '.ora-cust-head{margin:0 0 3px;padding:0;border:0;background:transparent;page-break-after:avoid;break-after:avoid}' +
       '.ora-rep{font:800 10pt Arial,Helvetica,sans-serif;margin:0 0 2px;color:#000}' +
       '.ora-year-note,.ora-cat-diff-toggle,.ora-pick-bar,.ora-pick-foot,.ora-tools,' +
-      '.ora-cust-pick-lab,tr.ora-pick-sum,.ora-report-sticky-note{display:none!important}' +
+      '.ora-cust-pick-lab,.ora-rep-pick-lab,.ora-rep-toggle,.ora-rep-cust-hint,' +
+      'tr.ora-pick-sum,.ora-report-sticky-note,.ora-report-chrome-spacer{display:none!important}' +
+      '.ora-summary-block.is-collapsed .ora-rep-body{display:block!important}' +
       'table.ora-summary-pick,table.ora-year-compare,table.ora-portrait-table{' +
       'width:100%!important;border-collapse:collapse!important;table-layout:auto!important;font-size:7.5pt!important}' +
       'table.ora-summary-pick th,table.ora-summary-pick td,' +
@@ -293,7 +312,8 @@
           'th,td{border:1px solid #334155;padding:3px 4px;vertical-align:top}';
     return (
       pageRule +
-      'html,body{margin:0;padding:0;direction:rtl;font:10pt Arial,Helvetica,sans-serif;color:#000;background:#fff}' +
+      'html,body{margin:0;padding:0;direction:rtl;font:10pt Arial,Helvetica,sans-serif;color:#000;background:#fff;' +
+      'height:auto!important;min-height:0!important;overflow:visible!important;position:relative}' +
       repTable +
       oraYearComparePrintCss() +
       'th{background:#e2e8f0;font-weight:800}' +
@@ -342,12 +362,12 @@
       '.si-surface,.ora-stmt-body,.inv-print-lines{border:1px solid #bbb;padding:0;margin:0 0 8px;overflow:visible!important}' +
       '.si-surface-head{padding:4px 6px;border-bottom:1px solid #ccc;font-weight:700}' +
       '.si-table-wrap,.ora-stmt,.hx-print-doc,.inv-print-doc{overflow:visible!important;position:relative}' +
-      '.hx-logo-wm{display:none!important}' +
-      '@media print{.hx-logo-wm{display:flex!important;position:fixed;inset:0;align-items:center;justify-content:center;pointer-events:none;z-index:0;opacity:.05;-webkit-print-color-adjust:exact;print-color-adjust:exact}.hx-logo-wm img{width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;height:auto!important;object-fit:contain}}' +
-      pageRule +
-      'html,body{margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;color:#0f172a;background:#fff}' +
-      '.hx-print-doc{padding-bottom:2mm;margin:0;position:relative;z-index:1}' +
-      '.hx-print-head{page-break-after:avoid;position:relative;z-index:1}' +
+      /* absolute وليس fixed — fixed+inset:0 يسبب صفحة فارغة أولى في Chromium */
+      '.hx-logo-wm{display:flex!important;position:absolute;top:35%;left:0;right:0;align-items:center;justify-content:center;' +
+      'pointer-events:none;z-index:0;opacity:.05;height:0;overflow:visible;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+      '.hx-logo-wm img{width:min(58%,380px)!important;max-width:380px!important;max-height:380px!important;height:auto!important;object-fit:contain}' +
+      '.hx-print-doc{padding-bottom:2mm;margin:0;position:relative;z-index:1;page-break-before:auto;break-before:auto}' +
+      '.hx-print-head{page-break-after:avoid;break-after:avoid;page-break-inside:avoid;position:relative;z-index:1;margin:0 0 8px}' +
       '.si-hero,.sidebar,.no-print,.si-rail,.ora-filters,.si-btn{display:none!important}' +
       'img.hx-print-logo{max-width:' +
       LOGO_MAX +

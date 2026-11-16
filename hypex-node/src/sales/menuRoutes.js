@@ -4911,14 +4911,32 @@ const oracleRepItemsHandler = async (req, res) => {
           .si-report-page[data-report-route="report_oracle_rep_item_sales"],
           .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-print-area.report-sales-result {
             display: block !important;
+            position: static !important;
+            top: auto !important;
+            left: auto !important;
+            right: auto !important;
+            bottom: auto !important;
             height: auto !important;
             max-height: none !important;
             overflow: visible !important;
           }
+          .ora-report-chrome-spacer { display: none !important; height: 0 !important; }
           .ora-report-sticky-chrome {
             position: static !important;
+            top: auto !important;
+            left: auto !important;
+            right: auto !important;
+            width: auto !important;
             box-shadow: none !important;
             background: transparent !important;
+          }
+          .ora-cust-block,
+          .ora-summary-block,
+          .ora-cat-totals-only,
+          .si-table-wrap,
+          .ora-portrait-wrap {
+            page-break-inside: auto !important;
+            break-inside: auto !important;
           }
           .ora-portrait-table thead th,
           .ora-portrait-table th.ora-vhead {
