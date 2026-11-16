@@ -2864,7 +2864,7 @@ const oracleRepItemsHandler = async (req, res) => {
       disc: 0,
       net: 0,
       sale: 0,
-      retLines: 0,
+      retQty: 0,
       retAmt: 0,
       tax: 0,
       qty: 0,
@@ -2876,7 +2876,7 @@ const oracleRepItemsHandler = async (req, res) => {
       disc: 0,
       net: 0,
       sale: 0,
-      retLines: 0,
+      retQty: 0,
       retAmt: 0,
       tax: 0,
       qty: 0,
@@ -3097,7 +3097,7 @@ const oracleRepItemsHandler = async (req, res) => {
       // مجاميع شريط المندوب (مثل ora-grand النهائي)
       let repSaleAmt = 0;
       let repRetAmt = 0;
-      let repRetLines = 0;
+      let repRetQty = 0;
       let repQtyNet = 0;
       let repBonusNet = 0;
       let repTaxNet = repTaxFixed;
@@ -3110,7 +3110,8 @@ const oracleRepItemsHandler = async (req, res) => {
           String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
         if (isRet) {
           repRetAmt += Math.abs(amount);
-          repRetLines += 1;
+          // كمية المرتجعات = مجموع QTY بالقيمة المطلقة (وليس عدد الأسطر)
+          repRetQty += Math.abs(qty);
         } else {
           repSaleAmt += amount;
         }
@@ -3585,7 +3586,7 @@ const oracleRepItemsHandler = async (req, res) => {
       grandAll.disc += Number(repDisc) || 0;
       grandAll.net += Number(repNet) || 0;
       grandAll.sale += Number(repSaleAmt) || 0;
-      grandAll.retLines += Number(repRetLines) || 0;
+      grandAll.retQty += Number(repRetQty) || 0;
       grandAll.retAmt += Number(repRetAmt) || 0;
       grandAll.tax += Number(repTaxNet) || 0;
       grandAll.qty += Number(repQtyNet) || 0;
@@ -3610,7 +3611,7 @@ const oracleRepItemsHandler = async (req, res) => {
             String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
           if (isRet) {
             slot.retAmt += Math.abs(amount);
-            slot.retLines += 1;
+            slot.retQty += Math.abs(qty);
           } else {
             slot.sale += amount;
           }
@@ -3722,7 +3723,7 @@ const oracleRepItemsHandler = async (req, res) => {
           <td class="si-num ora-disc-cell" dir="ltr">${esc(a(m.disc))}</td>
           <td class="si-num ora-net-cell" dir="ltr">${esc(a(m.net))}</td>
           <td class="si-num" dir="ltr">${esc(a(m.sale))}</td>
-          <td class="si-num" dir="ltr">${esc(isDiff ? fmtSignedQty(m.retLines) : String(m.retLines))}</td>
+          <td class="si-num" dir="ltr">${esc(q(m.retQty))}</td>
           <td class="si-num" dir="ltr">${esc(a(m.retAmt))}</td>
           <td class="si-num" dir="ltr">${esc(a(m.tax))}</td>
           <td class="si-num" dir="ltr">${esc(q(m.qty))}</td>
@@ -3759,7 +3760,7 @@ const oracleRepItemsHandler = async (req, res) => {
           disc: (Number(last.disc) || 0) - (Number(first.disc) || 0),
           net: (Number(last.net) || 0) - (Number(first.net) || 0),
           sale: (Number(last.sale) || 0) - (Number(first.sale) || 0),
-          retLines: (Number(last.retLines) || 0) - (Number(first.retLines) || 0),
+          retQty: (Number(last.retQty) || 0) - (Number(first.retQty) || 0),
           retAmt: (Number(last.retAmt) || 0) - (Number(first.retAmt) || 0),
           tax: (Number(last.tax) || 0) - (Number(first.tax) || 0),
           qty: (Number(last.qty) || 0) - (Number(first.qty) || 0),
@@ -3788,7 +3789,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 <th class="si-num">الخصم</th>
                 <th class="si-num">الصافي</th>
                 <th class="si-num">مبيعات</th>
-                <th class="si-num">مرتجعات</th>
+                <th class="si-num" title="مجموع كمية المرتجعات (كراتين)">كمية المرتجعات</th>
                 <th class="si-num">مبلغ المرتجعات</th>
                 <th class="si-num">ضريبة للإيضاح</th>
                 <th class="si-num">الكمية</th>
