@@ -4181,14 +4181,19 @@ const oracleRepItemsHandler = async (req, res) => {
           border: 1px solid #cbd5e1 !important;
           background: #fff !important;
         }
-        /* overflow/max-height على الحاوية وborder-collapse:collapse يكسران sticky */
-        .si-report-page .si-table-wrap.ora-portrait-wrap,
-        .ora-portrait-wrap {
+        /*
+         * مهم: أي overflow-x غير visible على غلاف الجدول يحوّل overflow-y إلى auto
+         * فيصير الغلاف scrollport وتختفي رؤوس الأعمدة عند تمرير منطقة النتائج.
+         */
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-table-wrap.ora-portrait-wrap,
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-portrait-wrap,
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-rep-body,
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-cust-block,
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-summary-block {
           max-width: none;
           max-height: none !important;
           height: auto !important;
-          overflow-x: clip !important;
-          overflow-y: visible !important;
+          overflow: visible !important;
         }
         .ora-portrait-table {
           width: 100%;
@@ -4196,8 +4201,9 @@ const oracleRepItemsHandler = async (req, res) => {
           border-collapse: separate !important;
           border-spacing: 0;
         }
-        .ora-portrait-table thead th,
-        .ora-portrait-table th.ora-vhead {
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-portrait-table thead th,
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-portrait-table th.ora-vhead,
+        body.co-ora-body .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-portrait-table thead th {
           writing-mode: horizontal-tb;
           white-space: nowrap;
           height: auto;
@@ -4206,10 +4212,11 @@ const oracleRepItemsHandler = async (req, res) => {
           font-size: .82rem;
           padding: .55rem .45rem;
           position: sticky !important;
-          top: 0;
-          background: #e8eef5 !important;
-          box-shadow: 0 1px 0 #94a3b8;
-          z-index: 6;
+          top: 0 !important;
+          background: #c5d6ea !important;
+          color: #0f172a !important;
+          box-shadow: 0 2px 0 #64748b;
+          z-index: 30 !important;
         }
         .ora-portrait-table th.ora-vhead.js-sort-th {
           cursor: pointer;

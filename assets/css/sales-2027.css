@@ -57,12 +57,15 @@ body.si-2027 .main.si-main {
   overflow-y: visible;
 }
 
-/* التقارير: main هو من يتمرر بارتفاع النافذة */
+/* التقارير: main يتمرر — ما عدا تقرير مبيعات المندوب Oracle (تمرير النتائج فقط) */
 body.si-2027:has(.si-report-page) .main.si-main,
 body.si-2027:has(.report-sales-page) .main.si-main {
   min-height: 0 !important;
   overflow-x: clip !important;
   overflow-y: auto !important;
+}
+body.si-2027:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .main.si-main {
+  overflow: hidden !important;
 }
 
 /* Atmosphere mesh */
@@ -610,12 +613,11 @@ body.si-2027 .si-main::before {
   max-height: min(62vh, 720px);
 }
 
-/* تقارير: تمرير الصفحة مع ترويسة sticky (overflow على الحاوية يكسر sticky) */
+/* تقارير: تمرير الصفحة مع ترويسة sticky — لا تضع overflow-x غير visible هنا */
 .si-report-page .si-table-wrap,
 .report-sales-page .si-table-wrap {
   max-height: none;
-  overflow-x: clip;
-  overflow-y: visible;
+  overflow: visible;
   height: auto;
 }
 

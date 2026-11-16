@@ -232,8 +232,60 @@ body.co-ora-body .report-ora12-workspace .table-wrap,
 body.co-ora-body .report-sales-page .si-table-wrap:not(.cust-list-scroll) {
   max-height: none !important;
   height: auto !important;
-  overflow-x: clip !important;
-  overflow-y: visible !important;
+  /* visible على المحورين حتى تثبت thead مع تمرير منطقة النتائج */
+  overflow: visible !important;
+}
+
+/* تقرير مبيعات المندوب Oracle: الترويسة ثابتة + تمرير النتائج فقط */
+body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .main.si-main,
+body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) main.main {
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  max-height: 100% !important;
+}
+body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+body:has(.si-report-page[data-report-route="report_oracle_rep_item_sales"]) .hx-ora-screen-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+body .si-report-page[data-report-route="report_oracle_rep_item_sales"] {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+body .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome {
+  flex: 0 0 auto !important;
+  position: relative !important;
+  top: auto !important;
+  z-index: 12 !important;
+}
+body .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-print-area.report-sales-result {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+}
+body .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-portrait-table thead th,
+body .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-portrait-table th.ora-vhead {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 30 !important;
+  background: #c5d6ea !important;
 }
 
 body.co-ora-body .si-report-page .si-table,
