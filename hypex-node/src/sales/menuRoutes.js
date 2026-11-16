@@ -2949,6 +2949,12 @@ const oracleRepItemsHandler = async (req, res) => {
           custMap.set(acc, {
             label: String(r.customer_name || acc || '—'),
             cats: new Map(),
+            sale: 0,
+            retAmt: 0,
+            retQty: 0,
+            qty: 0,
+            bonus: 0,
+            byYearExtra: new Map(),
           });
         }
         const slot = custMap.get(acc);
@@ -2966,6 +2972,14 @@ const oracleRepItemsHandler = async (req, res) => {
         bag.qty += qty;
         bag.bonus += bonus;
         if (!isRet) bag.gross += amount;
+        slot.qty += qty;
+        slot.bonus += bonus;
+        if (isRet) {
+          slot.retAmt += Math.abs(amount);
+          slot.retQty += Math.abs(qty);
+        } else {
+          slot.sale += amount;
+        }
         const saleDate = String(r.sale_date || '').trim();
         const invNo = Number(r.invoice_no) || 0;
         const invYear = Number(r.invoice_year) || 0;
@@ -2974,6 +2988,24 @@ const oracleRepItemsHandler = async (req, res) => {
           bag.byYear.set(saleYear, (bag.byYear.get(saleYear) || 0) + amount);
           if (!isRet) {
             bag.byYearGross.set(saleYear, (bag.byYearGross.get(saleYear) || 0) + amount);
+          }
+          if (!slot.byYearExtra.has(saleYear)) {
+            slot.byYearExtra.set(saleYear, {
+              sale: 0,
+              retAmt: 0,
+              retQty: 0,
+              qty: 0,
+              bonus: 0,
+            });
+          }
+          const ye = slot.byYearExtra.get(saleYear);
+          ye.qty += qty;
+          ye.bonus += bonus;
+          if (isRet) {
+            ye.retAmt += Math.abs(amount);
+            ye.retQty += Math.abs(qty);
+          } else {
+            ye.sale += amount;
           }
         }
         const found = bag.items.find(
@@ -3054,24 +3086,36 @@ const oracleRepItemsHandler = async (req, res) => {
         const repVou = sumRepVouDisc(no);
         if (repVou.found) repDiscFixed = repVou.sum;
       }
-      // خصم لكل عميل من فواتير invMap (للأعمدة في الملخص)
+      // خصم/ضريبة لكل عميل من فواتير invMap (للأعمدة في الملخص + المجاميع النهائية بالتحديد)
       const discByCustRep = new Map();
+      const taxByCustRep = new Map();
       invMap.forEach((inv) => {
         const acc = normAccKey(inv.customerAcc);
+        if (!acc) return;
         const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
         const disc = Number(inv.vouDisc) || 0;
-        const signed = kind === 'R' ? -disc : disc;
-        if (!acc || !signed) return;
-        if (!discByCustRep.has(acc)) discByCustRep.set(acc, { total: 0, byYear: new Map() });
-        const slot = discByCustRep.get(acc);
-        slot.total += signed;
+        const tax = Number(inv.vouTax) || 0;
+        const signedDisc = kind === 'R' ? -disc : disc;
+        const signedTax = kind === 'R' ? -tax : tax;
         const y =
           Number((String(inv.saleDate || '').match(/^(\d{4})/) || [])[1]) ||
           Number(inv.invYear) ||
           0;
-        if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signed);
+        if (signedDisc) {
+          if (!discByCustRep.has(acc)) discByCustRep.set(acc, { total: 0, byYear: new Map() });
+          const slot = discByCustRep.get(acc);
+          slot.total += signedDisc;
+          if (y > 0) slot.byYear.set(y, (slot.byYear.get(y) || 0) + signedDisc);
+        }
+        if (signedTax) {
+          if (!taxByCustRep.has(acc)) taxByCustRep.set(acc, { total: 0, byYear: new Map() });
+          const tSlot = taxByCustRep.get(acc);
+          tSlot.total += signedTax;
+          if (y > 0) tSlot.byYear.set(y, (tSlot.byYear.get(y) || 0) + signedTax);
+        }
       });
       const custDiscOf = (acc) => discByCustRep.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
+      const custTaxOf = (acc) => taxByCustRep.get(normAccKey(acc)) || { total: 0, byYear: new Map() };
       catOrder.sort((a, b) => {
         if (a === 'بدون فئة') return 1;
         if (b === 'بدون فئة') return -1;
@@ -3137,12 +3181,25 @@ const oracleRepItemsHandler = async (req, res) => {
           rowAmt += amt;
         });
         const discInfo = custDiscOf(acc);
+        const taxInfo = custTaxOf(acc);
         const rowGross = rowAmt;
         const rowDisc = Number(discInfo.total) || 0;
         const rowNet = rowAmt - rowDisc;
+        const rowSale = Number(slot.sale) || 0;
+        const rowRetAmt = Number(slot.retAmt) || 0;
+        const rowRetQty = Number(slot.retQty) || 0;
+        const rowQty = Number(slot.qty) || 0;
+        const rowBonus = Number(slot.bonus) || 0;
+        const rowTax = Number(taxInfo.total) || 0;
         const rowByYearGross = new Map(compareYears.map((y) => [y, 0]));
         const rowByYearDisc = new Map(compareYears.map((y) => [y, 0]));
         const rowByYearNet = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearSale = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearRetAmt = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearRetQty = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearTax = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearQty = new Map(compareYears.map((y) => [y, 0]));
+        const rowByYearBonus = new Map(compareYears.map((y) => [y, 0]));
         const catYearGrossMaps = catOrder.map(() => new Map(compareYears.map((y) => [y, 0])));
         if (yearCompare) {
           compareYears.forEach((y) => {
@@ -3151,9 +3208,16 @@ const oracleRepItemsHandler = async (req, res) => {
             );
             const yearGross = yearGrossParts.reduce((s, n) => s + n, 0);
             const yearDisc = Number(discInfo.byYear.get(y) || 0) || 0;
+            const ye = slot.byYearExtra.get(y) || {};
             rowByYearGross.set(y, yearGross);
             rowByYearDisc.set(y, yearDisc);
             rowByYearNet.set(y, yearGross - yearDisc);
+            rowByYearSale.set(y, Number(ye.sale) || 0);
+            rowByYearRetAmt.set(y, Number(ye.retAmt) || 0);
+            rowByYearRetQty.set(y, Number(ye.retQty) || 0);
+            rowByYearTax.set(y, Number(taxInfo.byYear.get(y) || 0) || 0);
+            rowByYearQty.set(y, Number(ye.qty) || 0);
+            rowByYearBonus.set(y, Number(ye.bonus) || 0);
             yearGrossParts.forEach((n, idx) => catYearGrossMaps[idx].set(y, n));
           });
         }
@@ -3205,6 +3269,18 @@ const oracleRepItemsHandler = async (req, res) => {
               compareYears.map((y) => rowByYearGross.get(y) || 0).join('|')
             )}" data-ora-years-disc="${esc(
               compareYears.map((y) => rowByYearDisc.get(y) || 0).join('|')
+            )}" data-ora-years-sale="${esc(
+              compareYears.map((y) => rowByYearSale.get(y) || 0).join('|')
+            )}" data-ora-years-ret-amt="${esc(
+              compareYears.map((y) => rowByYearRetAmt.get(y) || 0).join('|')
+            )}" data-ora-years-ret-qty="${esc(
+              compareYears.map((y) => rowByYearRetQty.get(y) || 0).join('|')
+            )}" data-ora-years-tax="${esc(
+              compareYears.map((y) => rowByYearTax.get(y) || 0).join('|')
+            )}" data-ora-years-qty="${esc(
+              compareYears.map((y) => rowByYearQty.get(y) || 0).join('|')
+            )}" data-ora-years-bonus="${esc(
+              compareYears.map((y) => rowByYearBonus.get(y) || 0).join('|')
             )}" data-ora-cat-years="${esc(catYearParts.join('|'))}"`
           : '';
         const grossCell = yearCompare
@@ -3216,7 +3292,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const netCell = yearCompare
           ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(rowByYearNet, true)}</td>`
           : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td>`;
-        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
+        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-sale="${rowSale}" data-ora-ret-amt="${rowRetAmt}" data-ora-ret-qty="${rowRetQty}" data-ora-tax="${rowTax}" data-ora-qty="${rowQty}" data-ora-bonus="${rowBonus}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
         if (skipHeavyLineViews) return;
         let custQty = 0;
         let custBonus = 0;
@@ -3787,12 +3863,44 @@ const oracleRepItemsHandler = async (req, res) => {
         grandBodyRows = grandMetricRow('المجاميع النهائية', grandAll);
         grandNetBodyRows = grandNetMetricRow('المجاميع النهائية', grandAll);
       }
-      const grandFinalHtml = `<section class="ora-cust-block ora-grand-final-block">
+      const grandYearsAttr = yearCompare ? esc(compareYears.join(',')) : '';
+      const grandBaseJson = esc(
+        JSON.stringify({
+          reps: grandAll.reps,
+          gross: grandAll.gross,
+          disc: grandAll.disc,
+          net: grandAll.net,
+          sale: grandAll.sale,
+          retQty: grandAll.retQty,
+          retAmt: grandAll.retAmt,
+          tax: grandAll.tax,
+          qty: grandAll.qty,
+          bonus: grandAll.bonus,
+          years: compareYears,
+          byYear: compareYears.map((y) => {
+            const m = grandAll.byYear.get(y) || emptyGrandYear();
+            return {
+              y,
+              gross: m.gross,
+              disc: m.disc,
+              net: m.net,
+              sale: m.sale,
+              retQty: m.retQty,
+              retAmt: m.retAmt,
+              tax: m.tax,
+              qty: m.qty,
+              bonus: m.bonus,
+            };
+          }),
+          headAll: grandHeadNote,
+        })
+      );
+      const grandFinalHtml = `<section class="ora-cust-block ora-grand-final-block" data-ora-grand-final="1" data-ora-grand-years="${grandYearsAttr}" data-ora-grand-base="${grandBaseJson}">
         <header class="ora-cust-head">
-          <div class="ora-rep">${esc(grandHeadNote)}</div>
+          <div class="ora-rep" data-ora-grand-head>${esc(grandHeadNote)}</div>
         </header>
         <div class="si-table-wrap ora-rep-totals-wrap ora-grand-final-wrap">
-          <table class="si-table ora-rep-totals-table ora-grand-final-table">
+          <table class="si-table ora-rep-totals-table ora-grand-final-table" data-ora-grand-full="1">
             <thead>
               <tr>
                 <th>البيان</th>
@@ -3807,19 +3915,19 @@ const oracleRepItemsHandler = async (req, res) => {
                 <th class="si-num">إضافي</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody data-ora-grand-body>
               ${grandBodyRows}
             </tbody>
           </table>
         </div>
       </section>`;
       summaryHtml += grandFinalHtml;
-      catTotalsHtml += `<section class="ora-cust-block ora-grand-final-block">
+      catTotalsHtml += `<section class="ora-cust-block ora-grand-final-block" data-ora-grand-final="1" data-ora-grand-net-only="1" data-ora-grand-years="${grandYearsAttr}" data-ora-grand-base="${grandBaseJson}">
         <header class="ora-cust-head">
-          <div class="ora-rep">${esc(grandHeadNote)}</div>
+          <div class="ora-rep" data-ora-grand-head>${esc(grandHeadNote)}</div>
         </header>
         <div class="si-table-wrap ora-rep-totals-wrap ora-grand-final-wrap ora-cat-net-wrap">
-          <table class="si-table ora-rep-totals-table ora-grand-final-table ora-cat-net-table">
+          <table class="si-table ora-rep-totals-table ora-grand-final-table ora-cat-net-table" data-ora-grand-net="1">
             <thead>
               <tr>
                 <th>البيان</th>
@@ -3828,7 +3936,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 <th class="si-num">الصافي</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody data-ora-grand-body>
               ${grandNetBodyRows}
             </tbody>
           </table>
@@ -4877,6 +4985,9 @@ const oracleRepItemsHandler = async (req, res) => {
           color: #fff;
           padding: .55rem .75rem;
         }
+        .ora-grand-final-block.is-pick-grand .ora-cust-head {
+          background: #0f5c4c;
+        }
         .ora-grand-final-block .ora-rep { color: #fff; font-weight: 900; }
         .ora-grand-final-wrap {
           margin: 0;
@@ -5493,13 +5604,253 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         return '<div class="ora-ystack">' + lines + diffHtml + '</div>';
       }
+      function emptyOraGrandMetrics() {
+        return { gross: 0, disc: 0, net: 0, sale: 0, retQty: 0, retAmt: 0, tax: 0, qty: 0, bonus: 0 };
+      }
+      function addOraGrandMetrics(dst, src) {
+        dst.gross += Number(src.gross) || 0;
+        dst.disc += Number(src.disc) || 0;
+        dst.net += Number(src.net) || 0;
+        dst.sale += Number(src.sale) || 0;
+        dst.retQty += Number(src.retQty) || 0;
+        dst.retAmt += Number(src.retAmt) || 0;
+        dst.tax += Number(src.tax) || 0;
+        dst.qty += Number(src.qty) || 0;
+        dst.bonus += Number(src.bonus) || 0;
+        return dst;
+      }
+      function fmtOraGrandSignedAmt(n) {
+        var v = Number(n) || 0;
+        return (v > 0 ? '+' : '') + fmtOraPickAmt(v);
+      }
+      function fmtOraGrandSignedQty(n) {
+        var v = Number(n) || 0;
+        return (v > 0 ? '+' : '') + fmtOraPickQty(v);
+      }
+      function oraGrandMetricRowHtml(label, m, opts) {
+        opts = opts || {};
+        var isDiff = !!opts.diff;
+        var netOnly = !!opts.netOnly;
+        var rowClass = isDiff
+          ? 'ora-cust-final ora-rep-totals-row ora-grand-final-row ora-grand-year-diff'
+          : 'ora-cust-final ora-rep-totals-row ora-grand-final-row ora-grand-year-row';
+        var a = isDiff ? fmtOraGrandSignedAmt : fmtOraPickAmt;
+        var q = isDiff ? fmtOraGrandSignedQty : fmtOraPickQty;
+        var html =
+          '<tr class="' +
+          rowClass +
+          '"><th scope="row">' +
+          String(label || '') +
+          '</th>' +
+          '<td class="si-num ora-gross-cell" dir="ltr">' +
+          a(m.gross) +
+          '</td>' +
+          '<td class="si-num ora-disc-cell" dir="ltr">' +
+          a(m.disc) +
+          '</td>' +
+          '<td class="si-num ora-net-cell" dir="ltr">' +
+          a(m.net) +
+          '</td>';
+        if (!netOnly) {
+          html +=
+            '<td class="si-num" dir="ltr">' +
+            a(m.sale) +
+            '</td>' +
+            '<td class="si-num" dir="ltr">' +
+            q(m.retQty) +
+            '</td>' +
+            '<td class="si-num" dir="ltr">' +
+            a(m.retAmt) +
+            '</td>' +
+            '<td class="si-num" dir="ltr">' +
+            a(m.tax) +
+            '</td>' +
+            '<td class="si-num" dir="ltr">' +
+            q(m.qty) +
+            '</td>' +
+            '<td class="si-num" dir="ltr">' +
+            q(m.bonus) +
+            '</td>';
+        }
+        return html + '</tr>';
+      }
+      function collectOraGrandSelection() {
+        var tot = emptyOraGrandMetrics();
+        tot.cust = 0;
+        tot.reps = 0;
+        var years = [];
+        var byYear = null;
+        document.querySelectorAll('.ora-summary-block').forEach(function (block) {
+          var table = block.querySelector('table.ora-summary-pick');
+          if (!table) return;
+          if (!years.length) {
+            years = String(table.getAttribute('data-ora-compare-years') || '')
+              .split(',')
+              .map(function (y) {
+                return String(y || '').trim();
+              })
+              .filter(Boolean);
+            if (years.length > 1) {
+              byYear = years.map(function () {
+                return emptyOraGrandMetrics();
+              });
+            }
+          }
+          var blockHas = false;
+          table.querySelectorAll('tr.ora-sum-row').forEach(function (tr) {
+            var cb = tr.querySelector('.ora-cust-pick');
+            if (!cb || !cb.checked) return;
+            blockHas = true;
+            tot.cust += 1;
+            addOraGrandMetrics(tot, {
+              gross: tr.getAttribute('data-ora-gross'),
+              disc: tr.getAttribute('data-ora-disc'),
+              net: tr.getAttribute('data-ora-total'),
+              sale: tr.getAttribute('data-ora-sale'),
+              retQty: tr.getAttribute('data-ora-ret-qty'),
+              retAmt: tr.getAttribute('data-ora-ret-amt'),
+              tax: tr.getAttribute('data-ora-tax'),
+              qty: tr.getAttribute('data-ora-qty'),
+              bonus: tr.getAttribute('data-ora-bonus'),
+            });
+            if (byYear) {
+              var maps = {
+                gross: String(tr.getAttribute('data-ora-years-gross') || '').split('|'),
+                disc: String(tr.getAttribute('data-ora-years-disc') || '').split('|'),
+                net: String(tr.getAttribute('data-ora-years') || '').split('|'),
+                sale: String(tr.getAttribute('data-ora-years-sale') || '').split('|'),
+                retAmt: String(tr.getAttribute('data-ora-years-ret-amt') || '').split('|'),
+                retQty: String(tr.getAttribute('data-ora-years-ret-qty') || '').split('|'),
+                tax: String(tr.getAttribute('data-ora-years-tax') || '').split('|'),
+                qty: String(tr.getAttribute('data-ora-years-qty') || '').split('|'),
+                bonus: String(tr.getAttribute('data-ora-years-bonus') || '').split('|'),
+              };
+              years.forEach(function (_y, idx) {
+                addOraGrandMetrics(byYear[idx], {
+                  gross: maps.gross[idx],
+                  disc: maps.disc[idx],
+                  net: maps.net[idx],
+                  sale: maps.sale[idx],
+                  retAmt: maps.retAmt[idx],
+                  retQty: maps.retQty[idx],
+                  tax: maps.tax[idx],
+                  qty: maps.qty[idx],
+                  bonus: maps.bonus[idx],
+                });
+              });
+            }
+          });
+          if (blockHas) tot.reps += 1;
+        });
+        return { tot: tot, years: years, byYear: byYear };
+      }
+      function refreshOraGrandFinal() {
+        var sections = document.querySelectorAll('[data-ora-grand-final="1"]');
+        if (!sections.length) return;
+        var sel = collectOraGrandSelection();
+        var usePick = sel.tot.cust > 0;
+        sections.forEach(function (section) {
+          var base = {};
+          try {
+            base = JSON.parse(section.getAttribute('data-ora-grand-base') || '{}') || {};
+          } catch (eBase) {
+            base = {};
+          }
+          var netOnly = section.getAttribute('data-ora-grand-net-only') === '1';
+          var head = section.querySelector('[data-ora-grand-head]');
+          var body = section.querySelector('[data-ora-grand-body]');
+          if (!body) return;
+          var years =
+            (Array.isArray(base.years) && base.years.length ? base.years.map(String) : null) ||
+            sel.years ||
+            [];
+          var yearMode = years.length > 1;
+          var headText;
+          if (usePick) {
+            headText =
+              (yearMode ? 'المجاميع النهائية حسب السنة — المحدّدون' : 'المجاميع النهائية — المحدّدون') +
+              ' (' +
+              sel.tot.cust +
+              ' عميل · ' +
+              sel.tot.reps +
+              ' مندوب)' +
+              (yearMode ? ' · ' + years.join(' و ') : '');
+          } else {
+            headText = base.headAll || 'المجاميع النهائية';
+          }
+          if (head) head.textContent = headText;
+          section.classList.toggle('is-pick-grand', usePick);
+          var html = '';
+          if (yearMode) {
+            var yearRows = usePick
+              ? sel.byYear
+              : (base.byYear || []).map(function (row) {
+                  return {
+                    gross: row.gross,
+                    disc: row.disc,
+                    net: row.net,
+                    sale: row.sale,
+                    retQty: row.retQty,
+                    retAmt: row.retAmt,
+                    tax: row.tax,
+                    qty: row.qty,
+                    bonus: row.bonus,
+                  };
+                });
+            years.forEach(function (y, idx) {
+              var m = yearRows[idx] || emptyOraGrandMetrics();
+              html += oraGrandMetricRowHtml('سنة ' + y, m, { netOnly: netOnly });
+            });
+            var first = yearRows[0] || emptyOraGrandMetrics();
+            var last = yearRows[yearRows.length - 1] || emptyOraGrandMetrics();
+            var diff = {
+              gross: (Number(last.gross) || 0) - (Number(first.gross) || 0),
+              disc: (Number(last.disc) || 0) - (Number(first.disc) || 0),
+              net: (Number(last.net) || 0) - (Number(first.net) || 0),
+              sale: (Number(last.sale) || 0) - (Number(first.sale) || 0),
+              retQty: (Number(last.retQty) || 0) - (Number(first.retQty) || 0),
+              retAmt: (Number(last.retAmt) || 0) - (Number(first.retAmt) || 0),
+              tax: (Number(last.tax) || 0) - (Number(first.tax) || 0),
+              qty: (Number(last.qty) || 0) - (Number(first.qty) || 0),
+              bonus: (Number(last.bonus) || 0) - (Number(first.bonus) || 0),
+            };
+            var diffLabel =
+              years.length === 2
+                ? 'الفرق (' + years[1] + ' − ' + years[0] + ')'
+                : 'الفرق (آخر سنة − أول سنة)';
+            html += oraGrandMetricRowHtml(diffLabel, diff, { diff: true, netOnly: netOnly });
+          } else {
+            var m = usePick
+              ? sel.tot
+              : {
+                  gross: base.gross,
+                  disc: base.disc,
+                  net: base.net,
+                  sale: base.sale,
+                  retQty: base.retQty,
+                  retAmt: base.retAmt,
+                  tax: base.tax,
+                  qty: base.qty,
+                  bonus: base.bonus,
+                };
+            html = oraGrandMetricRowHtml('المجاميع النهائية', m, { netOnly: netOnly });
+          }
+          body.innerHTML = html;
+        });
+      }
       function refreshOraCustPick(block) {
-        if (!block) return;
+        if (!block) {
+          refreshOraGrandFinal();
+          return;
+        }
         var table = block.querySelector('table.ora-summary-pick');
         var bar = block.querySelector('.ora-pick-bar');
         var foot = block.querySelector('.ora-pick-foot');
         var pickRow = table && table.querySelector('tr.ora-pick-sum');
-        if (!table || !pickRow) return;
+        if (!table || !pickRow) {
+          refreshOraGrandFinal();
+          return;
+        }
         var catCount = Number(table.getAttribute('data-ora-cat-count') || 0) || 0;
         var years = String(table.getAttribute('data-ora-compare-years') || '')
           .split(',')
@@ -5649,6 +6000,7 @@ const oracleRepItemsHandler = async (req, res) => {
           repPick.indeterminate = checkedN > 0 && checkedN < allN;
           repPick.checked = allN > 0 && checkedN === allN;
         }
+        refreshOraGrandFinal();
       }
       document.addEventListener('change', function (ev) {
         var t = ev.target;
