@@ -4070,72 +4070,76 @@ const oracleRepItemsHandler = async (req, res) => {
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />
           <input type="hidden" name="ora_mode" id="ora-mode" value="${esc(oraMode)}" />
-          <label>المندوب
-            <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل مندوبي Oracle">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل مندوبي Oracle</button>
-              <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <div class="ora-multi-actions">
-                  <button type="button" data-ora-all>تحديد الكل</button>
-                  <button type="button" data-ora-none>كل مندوبي Oracle</button>
+          <div class="ora-filter-cluster ora-filter-cluster--who">
+            <label>المندوب
+              <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل مندوبي Oracle">
+                <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل مندوبي Oracle</button>
+                <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                  <div class="ora-multi-actions">
+                    <button type="button" data-ora-all>تحديد الكل</button>
+                    <button type="button" data-ora-none>كل مندوبي Oracle</button>
+                  </div>
+                  <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرقم…" autocomplete="off">
+                  <div class="ora-multi-list" data-ora-multi-list></div>
                 </div>
-                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرقم…" autocomplete="off">
-                <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
-            </div>
-          </label>
-          <label>العميل
-            <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء" data-ora-collapse-all="1">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
-              <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <div class="ora-multi-actions">
-                  <button type="button" data-ora-all>تحديد الكل</button>
-                  <button type="button" data-ora-none>كل العملاء</button>
+            </label>
+            <label>العميل
+              <div class="ora-multi" id="ora-cust-multi" data-ora-name="customer_id" data-ora-empty="كل العملاء" data-ora-collapse-all="1">
+                <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل العملاء</button>
+                <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                  <div class="ora-multi-actions">
+                    <button type="button" data-ora-all>تحديد الكل</button>
+                    <button type="button" data-ora-none>كل العملاء</button>
+                  </div>
+                  <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
+                  <div class="ora-multi-list" data-ora-multi-list></div>
                 </div>
-                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث بالاسم أو الرمز…" autocomplete="off">
-                <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
-            </div>
-          </label>
-          <label>الفئة
-            <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
-              <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
-                <div class="ora-multi-list" data-ora-multi-list></div>
-              </div>
-            </div>
-          </label>
-          <label>السنة
-            <div class="ora-multi" id="ora-year-multi" data-ora-name="report_year" data-ora-empty="كل السنوات">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل السنوات</button>
-              <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <div class="ora-multi-actions">
-                  <button type="button" data-ora-all>تحديد الكل</button>
-                  <button type="button" data-ora-none>كل السنوات</button>
+            </label>
+            <label>الفئة
+              <div class="ora-multi" id="ora-cat-multi" data-ora-name="category_id" data-ora-empty="كل الفئات">
+                <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
+                <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                  <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
+                  <div class="ora-multi-list" data-ora-multi-list></div>
                 </div>
-                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن سنة…" autocomplete="off">
-                <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
-            </div>
-          </label>
-          <label>الشهر
-            <div class="ora-multi" id="ora-month-multi" data-ora-name="report_month" data-ora-empty="كل الأشهر">
-              <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الأشهر</button>
-              <div class="ora-multi-panel" data-ora-multi-panel hidden>
-                <div class="ora-multi-actions">
-                  <button type="button" data-ora-all>تحديد الكل</button>
-                  <button type="button" data-ora-none>كل الأشهر</button>
+            </label>
+          </div>
+          <div class="ora-filter-cluster ora-filter-cluster--when">
+            <label>السنة
+              <div class="ora-multi" id="ora-year-multi" data-ora-name="report_year" data-ora-empty="كل السنوات">
+                <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل السنوات</button>
+                <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                  <div class="ora-multi-actions">
+                    <button type="button" data-ora-all>تحديد الكل</button>
+                    <button type="button" data-ora-none>كل السنوات</button>
+                  </div>
+                  <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن سنة…" autocomplete="off">
+                  <div class="ora-multi-list" data-ora-multi-list></div>
                 </div>
-                <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن شهر…" autocomplete="off">
-                <div class="ora-multi-list" data-ora-multi-list></div>
               </div>
+            </label>
+            <label>الشهر
+              <div class="ora-multi" id="ora-month-multi" data-ora-name="report_month" data-ora-empty="كل الأشهر">
+                <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الأشهر</button>
+                <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                  <div class="ora-multi-actions">
+                    <button type="button" data-ora-all>تحديد الكل</button>
+                    <button type="button" data-ora-none>كل الأشهر</button>
+                  </div>
+                  <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن شهر…" autocomplete="off">
+                  <div class="ora-multi-list" data-ora-multi-list></div>
+                </div>
+              </div>
+            </label>
+            <label class="ora-filter-store">المستودع
+              <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr">
+            </label>
+            <div class="ora-filter-actions">
+              <button type="submit" class="si-btn si-btn--primary">عرض</button>
             </div>
-          </label>
-          <label>المستودع
-            <input class="si-field" type="number" name="store" value="${store}" min="1" dir="ltr">
-          </label>
-          <div class="ora-filter-actions">
-            <button type="submit" class="si-btn si-btn--primary">عرض</button>
           </div>
         </form>
       </div>
@@ -4199,33 +4203,37 @@ const oracleRepItemsHandler = async (req, res) => {
           padding: 0 .15rem .75rem;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-note {
-          margin: 0 0 .35rem;
-          font-size: .8rem;
+          margin: 0 0 .3rem;
+          font-size: .78rem;
+          line-height: 1.35;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome .si-hero {
-          margin-bottom: .45rem;
+          margin-bottom: .35rem;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome .ora-tools {
-          margin: .45rem 0 0;
+          display: flex;
+          flex-wrap: wrap;
+          gap: .35rem;
+          margin: .5rem 0 0;
+          align-items: center;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome .ora-tools .si-btn {
+          min-height: 2rem;
+          padding: .25rem .7rem;
+          font-size: .82rem;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-rail {
           display: block;
-          border-radius: 12px;
-          padding: .7rem .8rem .75rem;
-          background: #f8fafc;
+          border-radius: 10px;
+          padding: .55rem .7rem .6rem;
+          background: #f1f5f9;
+          border: 1px solid #dbe3ee;
         }
         #ora-rep-filter.ora-filter-row {
-          display: grid !important;
-          grid-template-columns:
-            minmax(0, 1.35fr)
-            minmax(0, 1.35fr)
-            minmax(0, 1.05fr)
-            minmax(7.2rem, .85fr)
-            minmax(7.2rem, .85fr)
-            4.5rem
-            auto;
-          gap: .35rem .5rem;
+          display: flex !important;
+          flex-wrap: wrap;
           align-items: end;
+          gap: .55rem .7rem;
           width: 100% !important;
           max-width: none !important;
           margin: 0 !important;
@@ -4236,10 +4244,30 @@ const oracleRepItemsHandler = async (req, res) => {
           box-shadow: none !important;
           overflow: visible;
         }
+        #ora-rep-filter .ora-filter-cluster {
+          display: grid;
+          gap: .2rem .45rem;
+          align-items: end;
+          min-width: 0;
+        }
+        #ora-rep-filter .ora-filter-cluster--who {
+          flex: 1 1 28rem;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        #ora-rep-filter .ora-filter-cluster--when {
+          flex: 0 1 22rem;
+          grid-template-columns: minmax(6.5rem, 1fr) minmax(6.5rem, 1fr) 4.25rem auto;
+        }
         #ora-rep-filter .ora-filter-actions {
           display: flex;
           align-items: end;
-          padding-bottom: 1px;
+          height: 2.2rem;
+        }
+        #ora-rep-filter .ora-filter-actions .si-btn {
+          min-height: 2.2rem;
+          height: 2.2rem;
+          padding: 0 .95rem;
+          white-space: nowrap;
         }
         .ora-multi-actions {
           display: flex;
@@ -4258,16 +4286,19 @@ const oracleRepItemsHandler = async (req, res) => {
           color: #1e3a5f;
           cursor: pointer;
         }
-        #ora-rep-filter.ora-filter-row > label {
+        #ora-rep-filter .ora-filter-cluster > label {
           display: flex;
           flex-direction: column;
-          gap: .22rem;
+          justify-content: flex-end;
+          gap: .12rem;
           min-width: 0;
+          height: auto;
           font-family: Arial, Helvetica, sans-serif;
-          font-size: 13px;
+          font-size: 12px;
           font-weight: 700;
-          color: #334155;
+          color: #475569;
           white-space: nowrap;
+          line-height: 1.2;
         }
         #ora-rep-filter .si-field,
         #ora-rep-filter .ora-multi-btn,
@@ -4276,9 +4307,13 @@ const oracleRepItemsHandler = async (req, res) => {
           width: 100% !important;
           min-width: 0 !important;
           max-width: none !important;
-          height: 2.35rem;
-          min-height: 2.35rem;
+          height: 2.2rem;
+          min-height: 2.2rem;
           box-sizing: border-box;
+        }
+        #ora-rep-filter .ora-filter-store .si-field {
+          text-align: center;
+          font-weight: 800;
         }
         #ora-rep-filter .ora-multi-btn,
         #ora-rep-filter .report-cust-pick-inp,
@@ -4288,6 +4323,28 @@ const oracleRepItemsHandler = async (req, res) => {
           white-space: nowrap;
           border: 1px solid #cbd5e1 !important;
           background: #fff !important;
+          border-radius: 7px !important;
+          padding: 0 .55rem !important;
+          font-size: 13px !important;
+        }
+        @media (max-width: 900px) {
+          #ora-rep-filter .ora-filter-cluster--who,
+          #ora-rep-filter .ora-filter-cluster--when {
+            flex: 1 1 100%;
+          }
+          #ora-rep-filter .ora-filter-cluster--who {
+            grid-template-columns: 1fr;
+          }
+          #ora-rep-filter .ora-filter-cluster--when {
+            grid-template-columns: 1fr 1fr;
+          }
+          #ora-rep-filter .ora-filter-actions {
+            grid-column: 1 / -1;
+            justify-content: stretch;
+          }
+          #ora-rep-filter .ora-filter-actions .si-btn {
+            width: 100%;
+          }
         }
         /*
          * مهم: أي overflow-x غير visible على غلاف الجدول يحوّل overflow-y إلى auto
