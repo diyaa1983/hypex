@@ -7,9 +7,12 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
+require_once app_path('includes/xlsx_simple_reader.php');
+require_once app_path('includes/crm_region_excel_import.php');
 
 $pdo = db();
 $outFile = dirname(__DIR__) . DIRECTORY_SEPARATOR . 'items' . DIRECTORY_SEPARATOR . 'link-regions-on-server.sql';
+$excelPath = $argv[1] ?? (dirname(__DIR__) . DIRECTORY_SEPARATOR . 'المناطق' . DIRECTORY_SEPARATOR . 'المناطق.xlsx');
 ob_start();
 
 function sql_str(?string $s): string
@@ -46,8 +49,41 @@ $regionLinks = $pdo->query(
      ORDER BY sr.name_ar, r.name_ar'
 )->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+/** @var list<array{code:string,region:string,address:string,rep:string}> $customerLinks */
+$customerLinks = [];
+if (is_readable($excelPath)) {
+    $xlsxRows = xlsx_simple_read_rows($excelPath);
+    if ($xlsxRows !== []) {
+        $header = array_shift($xlsxRows);
+        $map = crm_region_excel_map_columns(is_array($header) ? $header : []);
+        $seenCodes = [];
+        foreach ($xlsxRows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $code = crm_region_excel_normalize_code(crm_region_excel_cell($row, $map, 'customer_code'));
+            $region = crm_region_excel_cell($row, $map, 'region');
+            $address = crm_region_excel_cell($row, $map, 'address');
+            $rep = crm_region_excel_cell($row, $map, 'rep');
+            if ($code === '' || $region === '') {
+                continue;
+            }
+            if (isset($seenCodes[$code])) {
+                continue;
+            }
+            $seenCodes[$code] = true;
+            $customerLinks[] = [
+                'code' => $code,
+                'region' => $region,
+                'address' => $address,
+                'rep' => $rep,
+            ];
+        }
+    }
+}
+
 echo "-- نفّذ على السيرفر فقط (176.29.176.192) عبر Workbench.\n";
-echo "-- مصدر: استيراد المناطق.xlsx محلياً ثم تصدير هذا الملف.\n";
+echo "-- مصدر: استيراد المناطق.xlsx محلياً ثم تصدير هذا الملف (مناطق + عناوين + مندوبون + عملاء).\n";
 echo "USE hypex;\n";
 echo "SET SQL_SAFE_UPDATES = 0;\n";
 echo "SET FOREIGN_KEY_CHECKS = 0;\n\n";
@@ -104,12 +140,50 @@ foreach ($regionLinks as $x) {
         . 'WHERE sr.name_ar = ' . sql_str((string) $x['rep_name']) . "\n"
         . "LIMIT 1;\n";
 }
+echo "\n";
+
+echo "-- 6) ربط العميل بالمنطقة والعنوان والمندوب (حسب رمز العميل من Excel)\n";
+echo "-- عدد عملاء الملف الفريدين: " . count($customerLinks) . "\n";
+foreach ($customerLinks as $c) {
+    $code = sql_str($c['code']);
+    $region = sql_str($c['region']);
+    $address = sql_str($c['address']);
+    $rep = sql_str($c['rep']);
+    $codeLit = $c['code'];
+
+    echo "UPDATE crm_customer c\n"
+        . "INNER JOIN crm_region r ON r.name_ar = {$region}\n"
+        . "LEFT JOIN crm_region_address a ON a.region_id = r.id AND a.name_ar = {$address}\n"
+        . "LEFT JOIN crm_sales_rep sr ON sr.name_ar = {$rep}\n"
+        . "SET\n"
+        . "  c.region_id = r.id,\n"
+        . "  c.region_address_id = a.id,\n"
+        . "  c.sales_rep_id = COALESCE(sr.id, c.sales_rep_id),\n"
+        . "  c.address_ar = COALESCE(NULLIF(TRIM(c.address_ar), ''), {$address})\n"
+        . "WHERE c.code = {$code}\n"
+        . "   OR c.oracle_key = {$code}\n"
+        . "   OR c.oracle_key LIKE " . sql_str('%/' . $codeLit) . "\n"
+        . "   OR c.oracle_key LIKE " . sql_str('%' . $codeLit) . ";\n";
+
+    if ($c['rep'] !== '') {
+        echo "INSERT IGNORE INTO crm_customer_sales_rep (customer_id, sales_rep_id, sort_order)\n"
+            . "SELECT c.id, sr.id, 0\n"
+            . "FROM crm_customer c\n"
+            . "INNER JOIN crm_sales_rep sr ON sr.name_ar = {$rep}\n"
+            . "WHERE c.code = {$code}\n"
+            . "   OR c.oracle_key = {$code}\n"
+            . "   OR c.oracle_key LIKE " . sql_str('%/' . $codeLit) . "\n"
+            . "   OR c.oracle_key LIKE " . sql_str('%' . $codeLit) . ";\n";
+    }
+}
 
 echo "\nSET SQL_SAFE_UPDATES = 1;\n";
 echo "-- تحقق:\n";
 echo "SELECT COUNT(*) AS regions FROM crm_region;\n";
 echo "SELECT COUNT(*) AS addresses FROM crm_region_address;\n";
 echo "SELECT COUNT(*) AS rep_addr FROM crm_sales_rep_region_address;\n";
+echo "SELECT COUNT(*) AS customers_with_region FROM crm_customer WHERE region_id IS NOT NULL AND region_id > 0;\n";
+echo "SELECT COUNT(*) AS customers_with_address FROM crm_customer WHERE region_address_id IS NOT NULL AND region_address_id > 0;\n";
 
 $sql = (string) ob_get_clean();
 // أزل أي BOM/مسافات قبل أول تعليق SQL
