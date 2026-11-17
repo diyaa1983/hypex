@@ -606,13 +606,18 @@ function hypexRoot() {
 /**
  * استيراد Excel: رقم عميل · اسم · عنوان · منطقة · مندوب
  */
-function importRegionCustomerExcel(userId, filePath, { replaceReps = true } = {}) {
+function importRegionCustomerExcel(
+  userId,
+  filePath,
+  { replaceReps = true, mode = 'full', wipeFirst = false } = {}
+) {
   return new Promise((resolve) => {
     const script = path.join(__dirname, '..', '..', 'cli', 'crm_region_excel_import.php');
     if (!fs.existsSync(script)) {
       return resolve({ ok: false, error: 'سكربت الاستيراد غير موجود.' });
     }
-    if (!filePath || !fs.existsSync(filePath)) {
+    const wipeOnly = String(mode || '') === 'wipe' || String(mode || '') === 'wipe-only';
+    if (!wipeOnly && (!filePath || !fs.existsSync(filePath))) {
       return resolve({ ok: false, error: 'ملف Excel غير موجود على الخادم.' });
     }
     const args = [];
@@ -625,6 +630,18 @@ function importRegionCustomerExcel(userId, filePath, { replaceReps = true } = {}
       cwd: hypexRoot(),
       windowsHide: true,
     });
+    const payload = {
+      path: filePath || '',
+      replace_reps: !!replaceReps,
+      mode: String(mode || 'full'),
+      wipe_first: !!wipeFirst,
+    };
+    try {
+      child.stdin.write(JSON.stringify(payload));
+      child.stdin.end();
+    } catch {
+      /* ignore */
+    }
     let out = '';
     let err = '';
     child.stdout.on('data', (d) => {
@@ -654,13 +671,6 @@ function importRegionCustomerExcel(userId, filePath, { replaceReps = true } = {}
         resolve({ ok: false, error: 'استجابة غير صالحة: ' + line.slice(0, 200) });
       }
     });
-    child.stdin.write(
-      JSON.stringify({
-        path: filePath,
-        replace_reps: replaceReps !== false,
-      })
-    );
-    child.stdin.end();
   });
 }
 

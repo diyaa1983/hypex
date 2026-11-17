@@ -582,6 +582,17 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
 
   const flash = String(req.query.msg || '');
   const err = String(req.query.err || '');
+  const showImport = String(req.query.import || '') === '1' || !!err || !!flash;
+  let importWarns = [];
+  if (req.query.warn) {
+    try {
+      const raw = Buffer.from(String(req.query.warn), 'base64url').toString('utf8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) importWarns = parsed.map(String);
+    } catch {
+      /* ignore */
+    }
+  }
   const qsKeep = `${qv ? '&q=' + encodeURIComponent(qv) : ''}${showAll ? '&all=1' : ''}`;
 
   const regionNav =
@@ -764,8 +775,36 @@ router.get('/customers/regions', guard('customer_regions'), async (req, res) => 
             <input type="checkbox" name="all" value="1" ${showAll ? 'checked' : ''}> عرض الموقوفة
           </label>
           <button class="si-btn si-btn--primary" type="submit">عرض</button>
+          <a class="si-btn" href="/customers/regions?import=1${qsKeep}">استيراد Excel</a>
         </form>
       </div>
+      ${
+        showImport
+          ? `<section class="rg-import no-print">
+        <h3>استبدال المناطق والعناوين من Excel</h3>
+        <p>ارفع ملفاً فيه عمودا <code>المنطقة</code> و<code>العنوان</code> فقط. يُفضَّل تفعيل «حذف الكل قبل الاستيراد» ليُفرَّغ التعريف الحالي ثم يُملأ من الملف.</p>
+        <form class="rg-import-form" method="post" action="/customers/regions/import" enctype="multipart/form-data">
+          <input type="hidden" name="import_mode" value="regions">
+          <label>ملف Excel (.xlsx)
+            <input class="si-field" type="file" name="excel_file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+          </label>
+          <label class="rg-check-row" style="flex:0 0 auto;min-width:auto;padding-bottom:.35rem">
+            <input type="checkbox" name="wipe_first" value="1" checked>
+            حذف كل المناطق والعناوين الحالية قبل الاستيراد
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">استيراد المناطق/العناوين</button>
+        </form>
+        <div class="rg-import-cols">الأعمدة المتوقعة: <code>المنطقة</code> · <code>العنوان</code> (يمكن تكرار المنطقة لعدة عناوين).</div>
+        ${
+          importWarns.length
+            ? `<div class="rg-import-warn"><strong>تنبيهات:</strong><ul>${importWarns
+                .map((w) => `<li>${ui.esc(w)}</li>`)
+                .join('')}</ul></div>`
+            : ''
+        }
+      </section>`
+          : ''
+      }
       <div class="rg-layout">
         <section class="si-surface">
           <div class="si-surface-head"><h2>المناطق</h2><span class="si-count">${rows.length}</span></div>
@@ -798,8 +837,23 @@ router.post('/customers/regions/import', guard('customer_regions'), (req, res) =
         '/customers/regions?import=1&err=' + encodeURIComponent(uploadErr.message || 'فشل رفع الملف')
       );
     }
+    const modeRaw = String((req.body && req.body.import_mode) || 'regions').trim().toLowerCase();
+    const mode =
+      modeRaw === 'full' || modeRaw === 'customers'
+        ? 'full'
+        : modeRaw === 'wipe' || modeRaw === 'wipe-only'
+          ? 'wipe'
+          : 'regions';
+    const wipeFirst =
+      mode === 'wipe' ||
+      !req.body ||
+      req.body.wipe_first === undefined ||
+      req.body.wipe_first === '1' ||
+      req.body.wipe_first === 'on' ||
+      req.body.wipe_first === true ||
+      req.body.wipe_first === 'true';
     const file = req.file;
-    if (!file || !file.path) {
+    if (mode !== 'wipe' && (!file || !file.path)) {
       return res.redirect('/customers/regions?import=1&err=' + encodeURIComponent('اختر ملف Excel (.xlsx).'));
     }
     const replaceReps =
@@ -810,8 +864,10 @@ router.post('/customers/regions/import', guard('customer_regions'), (req, res) =
           req.body.replace_reps === true ||
           req.body.replace_reps === 'true';
     try {
-      const result = await masters.importRegionCustomerExcel(req.session.user.id, file.path, {
+      const result = await masters.importRegionCustomerExcel(req.session.user.id, file ? file.path : '', {
         replaceReps,
+        mode,
+        wipeFirst: mode === 'regions' ? wipeFirst : false,
       });
       try {
         fs.unlinkSync(file.path);

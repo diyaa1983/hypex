@@ -608,4 +608,275 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
     ];
 }
 
+/**
+ * حذف كل المناطق والعناوين مع فك الربط من العملاء/المندوبين/الجولات.
+ *
+ * @return array{ok:bool,message:string,stats:array<string,int>}
+ */
+function crm_region_wipe_all(PDO $pdo): array
+{
+    crm_region_ensure_schema($pdo);
+    $stats = [
+        'customers_cleared' => 0,
+        'rep_region_links' => 0,
+        'rep_address_links' => 0,
+        'tour_cleared' => 0,
+        'addresses_deleted' => 0,
+        'regions_deleted' => 0,
+    ];
+
+    $pdo->beginTransaction();
+    try {
+        try {
+            $stats['customers_cleared'] = (int) $pdo->exec(
+                'UPDATE crm_customer SET region_address_id = NULL, region_id = NULL
+                 WHERE region_id IS NOT NULL OR region_address_id IS NOT NULL'
+            );
+        } catch (Throwable $e) {
+            $stats['customers_cleared'] = (int) $pdo->exec(
+                'UPDATE crm_customer SET region_id = NULL WHERE region_id IS NOT NULL'
+            );
+        }
+
+        try {
+            $stats['tour_cleared'] = (int) $pdo->exec(
+                'UPDATE sal_rep_tour SET region_address_id = NULL, region_id = NULL
+                 WHERE region_id IS NOT NULL OR region_address_id IS NOT NULL'
+            );
+        } catch (Throwable $e) {
+            // جدول الجولات قد لا يكون موجوداً
+        }
+
+        try {
+            $stats['rep_address_links'] = (int) $pdo->exec('DELETE FROM crm_sales_rep_region_address');
+        } catch (Throwable $e) {
+            //
+        }
+        try {
+            $stats['rep_region_links'] = (int) $pdo->exec('DELETE FROM crm_sales_rep_region');
+        } catch (Throwable $e) {
+            //
+        }
+
+        try {
+            $stats['addresses_deleted'] = (int) $pdo->exec('DELETE FROM crm_region_address');
+        } catch (Throwable $e) {
+            //
+        }
+        $stats['regions_deleted'] = (int) $pdo->exec('DELETE FROM crm_region');
+
+        // تفريغ address_ar القديم إن بقي العمود
+        try {
+            $pdo->exec('UPDATE crm_region SET address_ar = NULL');
+        } catch (Throwable $e) {
+            // الجدول فارغ أصلاً
+        }
+
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    return [
+        'ok' => true,
+        'message' => sprintf(
+            'تم حذف المناطق والعناوين: %d منطقة · %d عنوان · فك ربط %d عميل.',
+            $stats['regions_deleted'],
+            $stats['addresses_deleted'],
+            $stats['customers_cleared']
+        ),
+        'stats' => $stats,
+    ];
+}
+
+/**
+ * استيراد Excel: أعمدة المنطقة + العنوان فقط (بدون عملاء/مندوبين).
+ *
+ * @return array{
+ *   ok:bool,
+ *   path:string,
+ *   message:string,
+ *   stats:array<string,int>,
+ *   warnings:list<string>,
+ *   columns:array<string,int>
+ * }
+ */
+function crm_region_excel_import_regions_only(PDO $pdo, ?string $path = null, bool $wipeFirst = false): array
+{
+    crm_region_ensure_schema($pdo);
+
+    $wipeStats = [];
+    if ($wipeFirst) {
+        $wipe = crm_region_wipe_all($pdo);
+        $wipeStats = $wipe['stats'] ?? [];
+    }
+
+    $resolved = crm_region_excel_resolve_path($path);
+    if ($resolved === null) {
+        $tried = implode(' | ', crm_region_excel_candidate_paths());
+
+        return [
+            'ok' => false,
+            'path' => (string) ($path ?? ''),
+            'message' => 'ملف Excel غير موجود. المسارات المجربة: ' . $tried,
+            'stats' => $wipeStats,
+            'warnings' => [],
+            'columns' => [],
+        ];
+    }
+
+    $rows = xlsx_simple_read_rows($resolved);
+    if ($rows === []) {
+        return [
+            'ok' => false,
+            'path' => $resolved,
+            'message' => 'ملف Excel فارغ.',
+            'stats' => $wipeStats,
+            'warnings' => [],
+            'columns' => [],
+        ];
+    }
+
+    $header = array_shift($rows);
+    if (!is_array($header)) {
+        $header = [];
+    }
+    $map = crm_region_excel_map_columns($header);
+
+    // ملف مناطق فقط: إن وُجد عمودان بدون رؤوس واضحة → عنوان ثم منطقة أو العكس
+    if (!isset($map['region']) && !isset($map['address'])) {
+        $nonEmpty = [];
+        foreach ($header as $i => $h) {
+            if (trim((string) $h) !== '') {
+                $nonEmpty[] = (int) $i;
+            }
+        }
+        if (count($nonEmpty) >= 2) {
+            $map['region'] = $nonEmpty[0];
+            $map['address'] = $nonEmpty[1];
+        } elseif (count($header) >= 2) {
+            $map['region'] = 0;
+            $map['address'] = 1;
+        }
+    }
+    // إن وُجد عنوان بلا منطقة أو العكس في ملف بصيغة مختلفة: جرّب أعمدة معروفة
+    if (!isset($map['region']) && isset($map['address']) && count($header) >= 2) {
+        foreach ($header as $i => $_h) {
+            if ((int) $i !== (int) $map['address']) {
+                $map['region'] = (int) $i;
+                break;
+            }
+        }
+    }
+    if (!isset($map['address']) && isset($map['region']) && count($header) >= 2) {
+        foreach ($header as $i => $_h) {
+            if ((int) $i !== (int) $map['region']) {
+                $map['address'] = (int) $i;
+                break;
+            }
+        }
+    }
+
+    if (!isset($map['region'])) {
+        return [
+            'ok' => false,
+            'path' => $resolved,
+            'message' => 'تعذر التعرف على عمود المنطقة. ضع رأس «المنطقة» و«العنوان».',
+            'stats' => $wipeStats,
+            'warnings' => [],
+            'columns' => $map,
+        ];
+    }
+
+    $stats = [
+        'rows' => 0,
+        'regions_created' => 0,
+        'addresses_created' => 0,
+        'pairs_used' => 0,
+        'skipped' => 0,
+        'wipe' => $wipeFirst ? 1 : 0,
+    ];
+    if ($wipeStats !== []) {
+        $stats['wipe_stats'] = $wipeStats;
+    }
+
+    $existingRegionNames = [];
+    $existingAddrKeys = [];
+    try {
+        foreach ($pdo->query('SELECT id, name_ar FROM crm_region')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $existingRegionNames[mb_strtolower(trim((string) $r['name_ar']), 'UTF-8')] = (int) $r['id'];
+        }
+        foreach ($pdo->query('SELECT id, region_id, name_ar FROM crm_region_address')->fetchAll(PDO::FETCH_ASSOC) ?: [] as $r) {
+            $key = (int) $r['region_id'] . '|' . mb_strtolower(trim((string) $r['name_ar']), 'UTF-8');
+            $existingAddrKeys[$key] = (int) $r['id'];
+        }
+    } catch (Throwable $e) {
+        //
+    }
+
+    $pdo->beginTransaction();
+    try {
+        foreach ($rows as $ri => $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $stats['rows']++;
+            $regionName = crm_region_excel_cell($row, $map, 'region');
+            $address = crm_region_excel_cell($row, $map, 'address');
+            if ($regionName === '') {
+                $stats['skipped']++;
+                continue;
+            }
+            $rnKey = mb_strtolower($regionName, 'UTF-8');
+            $wasNewRegion = !isset($existingRegionNames[$rnKey]);
+            $pair = crm_region_with_address_find_or_create($pdo, $regionName, $address, ($ri + 1) * 10);
+            $regionId = (int) $pair['region_id'];
+            $addressId = (int) $pair['address_id'];
+            if ($wasNewRegion) {
+                $stats['regions_created']++;
+                $existingRegionNames[$rnKey] = $regionId;
+            }
+            if ($address !== '' && $addressId > 0) {
+                $ak = $regionId . '|' . mb_strtolower($address, 'UTF-8');
+                if (!isset($existingAddrKeys[$ak])) {
+                    $stats['addresses_created']++;
+                    $existingAddrKeys[$ak] = $addressId;
+                }
+            }
+            $stats['pairs_used']++;
+        }
+        if ($pdo->inTransaction()) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
+    }
+
+    $msg = sprintf(
+        'تم استيراد المناطق/العناوين من «%s»: صفوف %d — مناطق جديدة %d — عناوين جديدة %d%s.',
+        basename($resolved),
+        $stats['rows'],
+        $stats['regions_created'],
+        $stats['addresses_created'],
+        $wipeFirst ? ' (بعد تفريغ الجداول)' : ''
+    );
+
+    return [
+        'ok' => true,
+        'path' => $resolved,
+        'message' => $msg,
+        'stats' => $stats,
+        'warnings' => [],
+        'columns' => $map,
+    ];
+}
+
 // crm_sales_rep_regions_detail معرّف في crm_region.php

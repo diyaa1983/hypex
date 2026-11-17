@@ -77,6 +77,24 @@ if (
 $path = trim((string) ($payload['path'] ?? $payload['file'] ?? ''));
 $replaceReps = !isset($payload['replace_reps']) || $payload['replace_reps'] === true
     || $payload['replace_reps'] === 1 || $payload['replace_reps'] === '1';
+$mode = strtolower(trim((string) ($payload['mode'] ?? 'full')));
+$wipeFirst = !empty($payload['wipe_first'])
+    || $payload['wipe_first'] === 1
+    || $payload['wipe_first'] === '1'
+    || $payload['wipe_first'] === true;
+
+if ($mode === 'wipe' || $mode === 'wipe-only') {
+    try {
+        $result = crm_region_wipe_all(db());
+        cli_out([
+            'ok' => !empty($result['ok']),
+            'message' => (string) ($result['message'] ?? ''),
+            'stats' => $result['stats'] ?? [],
+        ], !empty($result['ok']) ? 0 : 1);
+    } catch (Throwable $e) {
+        cli_out(['ok' => false, 'error' => $e->getMessage()], 1);
+    }
+}
 
 if ($path === '' || !is_readable($path)) {
     cli_out(['ok' => false, 'error' => 'ملف Excel غير موجود أو غير قابل للقراءة.'], 1);
@@ -88,7 +106,9 @@ if ($ext !== 'xlsx') {
 }
 
 try {
-    $result = crm_region_excel_import(db(), $path, $replaceReps);
+    $result = ($mode === 'regions' || $mode === 'regions-only' || $mode === 'region')
+        ? crm_region_excel_import_regions_only(db(), $path, $wipeFirst)
+        : crm_region_excel_import(db(), $path, $replaceReps);
     if (empty($result['ok'])) {
         cli_out([
             'ok' => false,
