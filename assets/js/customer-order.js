@@ -2537,10 +2537,47 @@
   var custInput = document.getElementById('co_customer');
   var custId = document.getElementById('co_customer_id');
   var custBox = document.getElementById('cust_suggest');
+  var repEl = document.getElementById('co_rep');
+
+  function selectedRepId() {
+    return Number((repEl && repEl.value) || 0) || 0;
+  }
+
+  function clearCustomerPick() {
+    if (custId) custId.value = '';
+    if (custInput) custInput.value = '';
+    setCustomerPriceMode({ use_wholesale_price: 1 });
+    loadCustomerAr(0);
+  }
+
+  function syncCustomerFieldByRep() {
+    if (!custInput || locked) return;
+    var rid = selectedRepId();
+    if (rid < 1) {
+      custInput.placeholder = 'اختر المندوب أولاً ثم ابحث عن العميل…';
+      custInput.title = 'يجب اختيار المندوب لإظهار العملاء المربوطين به';
+    } else {
+      custInput.placeholder = 'ابحث بالاسم أو الرمز (عملاء المندوب فقط)…';
+      custInput.title = 'يظهر فقط العملاء المربوطون بالمندوب المختار';
+    }
+  }
 
   function searchCustomers(q) {
     if (!custBox || locked) return;
-    fetch('/api/sales/customer-orders/customers?q=' + encodeURIComponent(q || ''))
+    var rid = selectedRepId();
+    if (rid < 1) {
+      custBox.innerHTML =
+        '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b45309;font-size:.85rem">اختر المندوب أولاً لعرض العملاء المربوطين به.</div>';
+      custBox.hidden = false;
+      custBox.removeAttribute('hidden');
+      return;
+    }
+    fetch(
+      '/api/sales/customer-orders/customers?sales_rep_id=' +
+        encodeURIComponent(String(rid)) +
+        '&q=' +
+        encodeURIComponent(q || '')
+    )
       .then(function (r) {
         return r.json();
       })
@@ -2554,16 +2591,25 @@
           custBox.removeAttribute('hidden');
           return;
         }
-        custBox.innerHTML = '';
-        var rows = data.rows || [];
-        if (!rows.length) {
+        if (data.need_rep) {
           custBox.innerHTML =
-            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا يوجد عملاء مطابقون.</div>';
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b45309;font-size:.85rem">اختر المندوب أولاً لعرض العملاء المربوطين به.</div>';
           custBox.hidden = false;
           custBox.removeAttribute('hidden');
           return;
         }
-        rows.slice(0, 25).forEach(function (c) {
+        custBox.innerHTML = '';
+        var rows = data.rows || [];
+        if (!rows.length) {
+          custBox.innerHTML =
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا يوجد عملاء مربوطون بهذا المندوب' +
+            (q ? ' مطابقون للبحث' : '') +
+            '.</div>';
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+          return;
+        }
+        rows.slice(0, 40).forEach(function (c) {
           var b = document.createElement('button');
           b.type = 'button';
           b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
@@ -2582,6 +2628,18 @@
         custBox.removeAttribute('hidden');
       });
   }
+
+  if (repEl && !locked) {
+    repEl.addEventListener('change', function () {
+      clearCustomerPick();
+      if (custBox) {
+        custBox.hidden = true;
+        custBox.setAttribute('hidden', '');
+      }
+      syncCustomerFieldByRep();
+    });
+  }
+  syncCustomerFieldByRep();
 
   if (custInput && custBox && !locked) {
     custInput.addEventListener('focus', function () {
@@ -2817,17 +2875,17 @@
   function saveOrder() {
     if (locked || busy) return Promise.resolve(null);
     var payload = collectPayload();
-    if (!payload.customer_id) {
-      hxAlert('اختر العميل.', { title: 'تنبيه', kind: 'warning' });
-      return Promise.resolve(null);
-    }
     if (!payload.sales_rep_id) {
-      hxAlert('اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.', {
+      hxAlert('اختر المندوب أولاً ثم العميل المربوط به.', {
         title: 'تنبيه',
         kind: 'warning',
       });
-      var repEl = document.getElementById('co_rep');
-      if (repEl) repEl.focus();
+      var repFocusEl = document.getElementById('co_rep');
+      if (repFocusEl) repFocusEl.focus();
+      return Promise.resolve(null);
+    }
+    if (!payload.customer_id) {
+      hxAlert('اختر العميل من عملاء المندوب المختار.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
     if (!payload.warehouse_id) {

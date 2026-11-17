@@ -621,8 +621,9 @@ async function renderForm(req, res, orderId) {
             </span>
             <div class="si-cust-wrap">
               <input type="hidden" id="co_customer_id" value="${initial.customer_id || ''}">
-              <input class="si-field" id="co_customer" type="search" placeholder="ابحث بالاسم أو الرمز…"
-                     value="${esc(initial.customer_label)}" autocomplete="off" ${locked ? 'readonly' : ''} data-nav="1">
+              <input class="si-field" id="co_customer" type="search" placeholder="اختر المندوب أولاً ثم ابحث عن العميل…"
+                     value="${esc(initial.customer_label)}" autocomplete="off" ${locked ? 'readonly' : ''} data-nav="1"
+                     data-hx-require-rep="1" title="يظهر فقط العملاء المربوطون بالمندوب المختار">
               <div class="si-suggest" id="cust_suggest" hidden></div>
             </div>
           </label>
@@ -846,7 +847,14 @@ router.get('/api/sales/customer-orders/by-no', async (req, res) => {
 
 router.get('/api/sales/customer-orders/customers', async (req, res) => {
   try {
-    const rows = await invSvc.searchCustomers(String(req.query.q || ''));
+    const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+    if (salesRepId < 1) {
+      return res.json({ ok: true, rows: [], need_rep: true });
+    }
+    const rows = await invSvc.searchCustomers(String(req.query.q || ''), 80, {
+      salesRepId,
+      requireRep: true,
+    });
     res.json({ ok: true, rows });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });

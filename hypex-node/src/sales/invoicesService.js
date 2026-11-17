@@ -647,7 +647,7 @@ async function insertLine(conn, invoiceId, ln) {
   );
 }
 
-async function searchCustomers(q, limit = 30) {
+async function searchCustomers(q, limit = 30, opts = {}) {
   try {
     const masters = require('../customers/mastersService');
     if (masters.migrateDefaultWholesaleCustomers) await masters.migrateDefaultWholesaleCustomers();
@@ -655,32 +655,59 @@ async function searchCustomers(q, limit = 30) {
     /* */
   }
   const like = `%${String(q || '').trim()}%`;
-  const cols = `id, code, name_ar, phone, COALESCE(use_wholesale_price, 1) AS use_wholesale_price`;
+  const lim = Math.min(200, Math.max(1, Number(limit) || 30));
+  const salesRepId = Number(opts.salesRepId || opts.sales_rep_id || 0) || 0;
+  const requireRep = opts.requireRep === true || opts.require_rep === true;
+  if (requireRep && salesRepId < 1) {
+    return [];
+  }
+
+  const cols = `c.id, c.code, c.name_ar, c.phone, COALESCE(c.use_wholesale_price, 1) AS use_wholesale_price`;
+  const where = ['c.is_active = 1'];
+  const params = [];
+  if (salesRepId > 0) {
+    where.push(`(
+      c.sales_rep_id = ?
+      OR EXISTS (
+        SELECT 1 FROM crm_customer_sales_rep csr
+        WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+      )
+    )`);
+    params.push(salesRepId, salesRepId);
+  }
+  if (String(q || '').trim() !== '') {
+    where.push(`(c.name_ar LIKE ? OR c.code LIKE ? OR IFNULL(c.phone,'') LIKE ?)`);
+    params.push(like, like, like);
+  }
+
   try {
-    if (String(q || '').trim() === '') {
-      return db.query(
-        `SELECT ${cols} FROM crm_customer
-         WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`
-      );
-    }
-    return db.query(
-      `SELECT ${cols} FROM crm_customer
-       WHERE is_active = 1 AND (name_ar LIKE ? OR code LIKE ? OR IFNULL(phone,'') LIKE ?)
-       ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`,
-      [like, like, like]
+    return await db.query(
+      `SELECT ${cols}
+       FROM crm_customer c
+       WHERE ${where.join(' AND ')}
+       ORDER BY c.name_ar
+       LIMIT ${lim}`,
+      params
     );
   } catch {
-    if (String(q || '').trim() === '') {
-      return db.query(
-        `SELECT id, code, name_ar, phone FROM crm_customer
-         WHERE is_active = 1 ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`
-      );
+    // بدون جدول الربط / عمود الجملة
+    const where2 = ['is_active = 1'];
+    const params2 = [];
+    if (salesRepId > 0) {
+      where2.push('sales_rep_id = ?');
+      params2.push(salesRepId);
+    }
+    if (String(q || '').trim() !== '') {
+      where2.push(`(name_ar LIKE ? OR code LIKE ? OR IFNULL(phone,'') LIKE ?)`);
+      params2.push(like, like, like);
     }
     return db.query(
-      `SELECT id, code, name_ar, phone FROM crm_customer
-       WHERE is_active = 1 AND (name_ar LIKE ? OR code LIKE ? OR IFNULL(phone,'') LIKE ?)
-       ORDER BY name_ar LIMIT ${Math.min(50, Number(limit) || 30)}`,
-      [like, like, like]
+      `SELECT id, code, name_ar, phone
+       FROM crm_customer
+       WHERE ${where2.join(' AND ')}
+       ORDER BY name_ar
+       LIMIT ${lim}`,
+      params2
     );
   }
 }

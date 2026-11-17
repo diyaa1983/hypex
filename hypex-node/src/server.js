@@ -143,7 +143,15 @@ app.get('/api/print-brand', async (req, res) => {
 app.get('/api/lookup/customers', auth.requireAuth, async (req, res) => {
   try {
     const inv = require('./sales/invoicesService');
-    const rows = await inv.searchCustomers(String(req.query.q || ''), 50);
+    const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+    const requireRep = String(req.query.require_rep || '') === '1';
+    if (requireRep && salesRepId < 1) {
+      return res.json({ ok: true, rows: [], need_rep: true });
+    }
+    const rows = await inv.searchCustomers(String(req.query.q || ''), 80, {
+      salesRepId,
+      requireRep,
+    });
     res.json({ ok: true, rows });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message || 'خطأ' });

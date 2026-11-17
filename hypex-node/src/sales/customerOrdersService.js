@@ -370,6 +370,33 @@ async function saveOrder(payload, userId) {
   if (!(salesRepId > 0)) {
     return { ok: false, error: 'اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.' };
   }
+  // العميل يجب أن يكون مربوطاً بالمندوب المختار
+  try {
+    const linkRows = await q(
+      `SELECT 1 AS ok FROM crm_customer c
+       WHERE c.id = ?
+         AND (
+           c.sales_rep_id = ?
+           OR EXISTS (
+             SELECT 1 FROM crm_customer_sales_rep csr
+             WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+           )
+         )
+       LIMIT 1`,
+      [customerId, salesRepId, salesRepId]
+    );
+    if (!linkRows[0]) {
+      return { ok: false, error: 'العميل غير مربوط بالمندوب المختار. اختر عميلاً من عملاء هذا المندوب.' };
+    }
+  } catch {
+    const linkRows = await q(
+      `SELECT 1 AS ok FROM crm_customer WHERE id = ? AND sales_rep_id = ? LIMIT 1`,
+      [customerId, salesRepId]
+    );
+    if (!linkRows[0]) {
+      return { ok: false, error: 'العميل غير مربوط بالمندوب المختار. اختر عميلاً من عملاء هذا المندوب.' };
+    }
+  }
   const paymentType = normalizePaymentType(payload.payment_type);
   const notes = String(payload.notes || '').trim() || null;
   const deliveryRaw = String(payload.delivery_date || '').trim();

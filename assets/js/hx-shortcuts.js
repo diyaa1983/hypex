@@ -460,6 +460,11 @@
       });
   }
 
+  function currentOrderRepId() {
+    var el = document.getElementById('co_rep');
+    return el ? Number(el.value || 0) || 0 : 0;
+  }
+
   function loadList(q) {
     var list = document.getElementById('hx-lk-list');
     if (!list) return;
@@ -467,6 +472,16 @@
     var url;
     if (mode === 'customers') {
       url = baseUrl('/api/lookup/customers?q=') + encodeURIComponent(q || '');
+      // طلب الشراء: العملاء حسب المندوب المختار فقط
+      if (document.getElementById('co_customer') || document.getElementById('co-doc-bar')) {
+        var rid = currentOrderRepId();
+        if (rid < 1) {
+          list.innerHTML =
+            '<p class="hx-lk__empty hx-lk__empty--err">اختر المندوب أولاً لعرض العملاء المربوطين به.</p>';
+          return;
+        }
+        url += '&sales_rep_id=' + encodeURIComponent(String(rid)) + '&require_rep=1';
+      }
     } else if (mode === 'suppliers') {
       url = baseUrl('/api/purchases/suppliers?q=') + encodeURIComponent(q || '');
     } else {
@@ -714,6 +729,20 @@
   function openPartyList() {
     var kind = partyMode();
     if (kind === 'customers') {
+      if (document.getElementById('co_customer') || document.getElementById('co-doc-bar')) {
+        if (currentOrderRepId() < 1) {
+          toast('اختر المندوب أولاً لعرض العملاء المربوطين به');
+          var repFocus = document.getElementById('co_rep');
+          if (repFocus && !repFocus.disabled) {
+            try {
+              repFocus.focus();
+            } catch (e0) {
+              /* ignore */
+            }
+          }
+          return;
+        }
+      }
       var cust =
         document.getElementById('inv_customer') ||
         document.getElementById('ret_customer') ||
