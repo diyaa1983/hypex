@@ -301,33 +301,6 @@ WHERE d.COMP_NUM = :comp_num
     } catch (Throwable $e) {
         $debugProbe['ret_error'] = $e->getMessage();
     }
-    // تشخيص مرتجع 146 TYPE=2
-    try {
-        $p146 = oracle_query_all($conn, "
-SELECT d.TYPE AS DOC_TYPE, d.STORE, NVL(d.MAN_NUM,0) AS MAN_NUM,
-       TRIM(TO_CHAR(d.CUST_ACC)) AS CUST_ACC,
-       TRIM(TO_CHAR(d.ITEM)) AS ITEM_CODE,
-       NVL(d.QTY,0) AS QTY, NVL(d.SELL,0) AS SELL,
-       TO_CHAR(TRUNC(d.VDATE),'YYYY-MM-DD') AS SALE_DATE
-FROM {$fromQ} d
-WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
-  AND d.TYPE = 2
-", ['comp_num' => (int) $c['comp_num']]);
-        foreach ($p146 as $pr) {
-            $debugProbe['probe_146'][] = [
-                'type' => (int) oracle_statement_row_val($pr, 'DOC_TYPE'),
-                'store' => (int) oracle_statement_row_val($pr, 'STORE'),
-                'man_num' => (int) oracle_statement_row_val($pr, 'MAN_NUM'),
-                'cust_acc' => trim((string) oracle_statement_row_val($pr, 'CUST_ACC')),
-                'item' => trim((string) oracle_statement_row_val($pr, 'ITEM_CODE')),
-                'qty' => (float) oracle_statement_row_val($pr, 'QTY'),
-                'sell' => (float) oracle_statement_row_val($pr, 'SELL'),
-                'date' => trim((string) oracle_statement_row_val($pr, 'SALE_DATE')),
-            ];
-        }
-    } catch (Throwable $e) {
-        $debugProbe['probe_146_error'] = $e->getMessage();
-    }
 
     $itemCodes = [];
     $custAccs = [];
@@ -847,22 +820,35 @@ function oracle_rep_item_sales_customer_names(array $conn, array $accounts): arr
     $out = [];
     try {
         $pdo = db();
-        $rows = $pdo->query(
-            "SELECT name_ar, code, oracle_key FROM crm_customer WHERE is_active = 1"
-        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        foreach ($rows as $r) {
-            $name = trim((string) ($r['name_ar'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-            foreach (['oracle_key', 'code'] as $col) {
-                $key = preg_replace('/\D+/', '', (string) ($r[$col] ?? '')) ?? '';
-                if ($key !== '' && isset($want[$key]) && !isset($out[$key])) {
-                    $out[$key] = $name;
+        $wantList = array_keys($want);
+        foreach (array_chunk($wantList, 400) as $chunk) {
+            $ph = implode(',', array_fill(0, count($chunk), '?'));
+            // مطابقة مباشرة + أرقام فقط لتغطية oracle_key/code
+            $st = $pdo->prepare(
+                "SELECT name_ar, code, oracle_key FROM crm_customer
+                 WHERE is_active = 1
+                   AND (
+                     code IN ({$ph}) OR oracle_key IN ({$ph})
+                     OR REPLACE(REPLACE(IFNULL(code,''), ' ', ''), '-', '') IN ({$ph})
+                     OR REPLACE(REPLACE(IFNULL(oracle_key,''), ' ', ''), '-', '') IN ({$ph})
+                   )"
+            );
+            $st->execute(array_merge($chunk, $chunk, $chunk, $chunk));
+            $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+            foreach ($rows as $r) {
+                $name = trim((string) ($r['name_ar'] ?? ''));
+                if ($name === '') {
+                    continue;
                 }
-                $raw = trim((string) ($r[$col] ?? ''));
-                if ($raw !== '' && isset($want[$raw]) && !isset($out[$raw])) {
-                    $out[$raw] = $name;
+                foreach (['oracle_key', 'code'] as $col) {
+                    $key = preg_replace('/\D+/', '', (string) ($r[$col] ?? '')) ?? '';
+                    if ($key !== '' && isset($want[$key]) && !isset($out[$key])) {
+                        $out[$key] = $name;
+                    }
+                    $raw = trim((string) ($r[$col] ?? ''));
+                    if ($raw !== '' && isset($want[$raw]) && !isset($out[$raw])) {
+                        $out[$raw] = $name;
+                    }
                 }
             }
         }
@@ -1023,8 +1009,7 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         return $out;
     }
 
-    // الفئة من بطاقة المادة كما هي.
-    // إن وُجدت فئة محلية (اكسل) بنفس الاسم نفضّلها، وإلا نعرض اسم فئة البطاقة حتى لا تظهر «بدون فئة».
+    // الفئة من بطاقة المادة كما هي — بدون subquery لكل صف، ومع تقييد المواد المطلوبة فقط.
     $rows = [];
     $pdo = null;
     try {
@@ -1032,42 +1017,91 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
     } catch (Throwable $e) {
         return $out;
     }
-    $sqlAttempts = [
-        "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
-                COALESCE(
-                  (
-                    SELECT c2.name_ar
-                    FROM inv_item_category c2
-                    WHERE c.id IS NOT NULL
-                      AND LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(c.name_ar))
-                      AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
-                      AND IFNULL(c2.is_active, 1) = 1
-                    ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
-                    LIMIT 1
-                  ),
-                  NULLIF(TRIM(c.name_ar), '')
-                ) AS cat_name,
-                CASE
-                  WHEN c.id IS NOT NULL
-                       AND (c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')
-                  THEN 1 ELSE 0
-                END AS cat_is_local
-         FROM inv_item i
-         LEFT JOIN inv_item_category c ON c.id = i.category_id",
-        'SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name, 1 AS cat_is_local
-         FROM inv_item i
-         LEFT JOIN inv_item_category c ON c.id = i.category_id',
-        'SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name, 1 AS cat_is_local
-         FROM inv_item i
-         LEFT JOIN inv_item_category c ON c.id = i.category_id',
-    ];
-    foreach ($sqlAttempts as $sql) {
-        try {
-            $rows = $pdo->query($sql)->fetchAll(PDO::FETCH_ASSOC) ?: [];
-            break;
-        } catch (Throwable $e) {
-            $rows = [];
+    $searchKeys = array_keys($codes);
+    foreach (array_keys($codesNorm) as $norm) {
+        if ($norm !== '') {
+            $searchKeys[] = $norm;
         }
+    }
+    $searchKeys = array_values(array_unique($searchKeys));
+    $localCatByName = [];
+    try {
+        $localRows = $pdo->query(
+            "SELECT name_ar, code FROM inv_item_category
+             WHERE (oracle_key IS NULL OR TRIM(IFNULL(oracle_key, '')) = '')
+               AND IFNULL(is_active, 1) = 1
+             ORDER BY CASE WHEN code LIKE 'XL-%' THEN 0 ELSE 1 END, id"
+        )->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($localRows as $lr) {
+            $nm = trim((string) ($lr['name_ar'] ?? ''));
+            if ($nm === '') {
+                continue;
+            }
+            $lk = function_exists('mb_strtolower') ? mb_strtolower($nm, 'UTF-8') : strtolower($nm);
+            if (!isset($localCatByName[$lk])) {
+                $localCatByName[$lk] = $nm;
+            }
+        }
+    } catch (Throwable $e) {
+        $localCatByName = [];
+    }
+    $fetchChunk = static function (PDO $pdo, array $chunk) use ($localCatByName): array {
+        if ($chunk === []) {
+            return [];
+        }
+        $ph = implode(',', array_fill(0, count($chunk), '?'));
+        $sqlAttempts = [
+            "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar,
+                    NULLIF(TRIM(c.name_ar), '') AS cat_name,
+                    CASE
+                      WHEN c.id IS NOT NULL
+                           AND (c.oracle_key IS NULL OR TRIM(IFNULL(c.oracle_key, '')) = '')
+                      THEN 1 ELSE 0
+                    END AS cat_is_local
+             FROM inv_item i
+             LEFT JOIN inv_item_category c ON c.id = i.category_id
+             WHERE i.sku IN ({$ph}) OR i.barcode IN ({$ph}) OR IFNULL(i.oracle_key, '') IN ({$ph})
+                OR TRIM(LEADING '0' FROM i.sku) IN ({$ph})
+                OR TRIM(LEADING '0' FROM i.barcode) IN ({$ph})
+                OR TRIM(LEADING '0' FROM IFNULL(i.oracle_key, '')) IN ({$ph})",
+            "SELECT i.sku, i.barcode, i.oracle_key, i.name_ar, c.name_ar AS cat_name, 1 AS cat_is_local
+             FROM inv_item i
+             LEFT JOIN inv_item_category c ON c.id = i.category_id
+             WHERE i.sku IN ({$ph}) OR i.barcode IN ({$ph}) OR IFNULL(i.oracle_key, '') IN ({$ph})",
+            "SELECT i.sku, i.barcode, i.name_ar, c.name_ar AS cat_name, 1 AS cat_is_local
+             FROM inv_item i
+             LEFT JOIN inv_item_category c ON c.id = i.category_id
+             WHERE i.sku IN ({$ph}) OR i.barcode IN ({$ph})",
+        ];
+        $params6 = array_merge($chunk, $chunk, $chunk, $chunk, $chunk, $chunk);
+        $params3 = array_merge($chunk, $chunk, $chunk);
+        foreach ($sqlAttempts as $idx => $sql) {
+            try {
+                $st = $pdo->prepare($sql);
+                $st->execute($idx === 0 ? $params6 : ($idx === 2 ? array_merge($chunk, $chunk) : $params3));
+                $got = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                foreach ($got as &$row) {
+                    $cat = trim((string) ($row['cat_name'] ?? ''));
+                    if ($cat !== '') {
+                        $lk = function_exists('mb_strtolower') ? mb_strtolower($cat, 'UTF-8') : strtolower($cat);
+                        if (isset($localCatByName[$lk])) {
+                            $row['cat_name'] = $localCatByName[$lk];
+                            $row['cat_is_local'] = 1;
+                        }
+                    }
+                }
+                unset($row);
+
+                return $got;
+            } catch (Throwable $e) {
+                // جرّب الصيغة التالية
+            }
+        }
+
+        return [];
+    };
+    foreach (array_chunk($searchKeys, 400) as $chunk) {
+        $rows = array_merge($rows, $fetchChunk($pdo, $chunk));
     }
     if ($rows === []) {
         return $out;
@@ -1110,33 +1144,44 @@ function oracle_rep_item_sales_hypex_map(array $itemCodes): array
         }
     };
 
-    foreach ($rows as $r) {
-        $pack = [
-            'name_ar' => trim((string) ($r['name_ar'] ?? '')),
-            'cat_name' => trim((string) ($r['cat_name'] ?? '')),
-            'sku' => trim((string) ($r['sku'] ?? '')),
-            'barcode' => trim((string) ($r['barcode'] ?? '')),
-            'cat_is_local' => (int) ($r['cat_is_local'] ?? 0),
-        ];
-        foreach (['oracle_key', 'sku', 'barcode'] as $col) {
-            if (!array_key_exists($col, $r)) {
-                continue;
+    $applyRows = static function (array $src) use (&$assign, $codes, $codesNorm, $localCatByName): void {
+        foreach ($src as $r) {
+            $cat = trim((string) ($r['cat_name'] ?? ''));
+            if ($cat !== '') {
+                $lk = function_exists('mb_strtolower') ? mb_strtolower($cat, 'UTF-8') : strtolower($cat);
+                if (isset($localCatByName[$lk])) {
+                    $r['cat_name'] = $localCatByName[$lk];
+                    $r['cat_is_local'] = 1;
+                }
             }
-            $key = trim((string) ($r[$col] ?? ''));
-            if ($key === '') {
-                continue;
-            }
-            if (isset($codes[$key])) {
-                $assign($key, $pack);
-            }
-            $norm = oracle_rep_item_sales_item_norm($key);
-            if ($norm !== '' && isset($codesNorm[$norm])) {
-                foreach ($codesNorm[$norm] as $orig) {
-                    $assign($orig, $pack);
+            $pack = [
+                'name_ar' => trim((string) ($r['name_ar'] ?? '')),
+                'cat_name' => trim((string) ($r['cat_name'] ?? '')),
+                'sku' => trim((string) ($r['sku'] ?? '')),
+                'barcode' => trim((string) ($r['barcode'] ?? '')),
+                'cat_is_local' => (int) ($r['cat_is_local'] ?? 0),
+            ];
+            foreach (['oracle_key', 'sku', 'barcode'] as $col) {
+                if (!array_key_exists($col, $r)) {
+                    continue;
+                }
+                $key = trim((string) ($r[$col] ?? ''));
+                if ($key === '') {
+                    continue;
+                }
+                if (isset($codes[$key])) {
+                    $assign($key, $pack);
+                }
+                $norm = oracle_rep_item_sales_item_norm($key);
+                if ($norm !== '' && isset($codesNorm[$norm])) {
+                    foreach ($codesNorm[$norm] as $orig) {
+                        $assign($orig, $pack);
+                    }
                 }
             }
         }
-    }
+    };
+    $applyRows($rows);
 
     return $out;
 }
@@ -1180,7 +1225,39 @@ function oracle_rep_item_sales_mascard_barcodes(array $conn, array $itemCodes): 
         return $out;
     }
     $barExpr = 'TRIM(TO_CHAR(m.' . $barCols[0] . '))';
-    foreach (array_keys($codes) as $code) {
+    $codeList = array_keys($codes);
+    foreach (array_chunk($codeList, 300) as $chunk) {
+        $binds = [];
+        $ph = [];
+        foreach ($chunk as $i => $code) {
+            $name = 'itm' . $i;
+            $ph[] = ':' . $name;
+            $binds[$name] = (string) $code;
+        }
+        try {
+            $rows = oracle_query_all(
+                $conn,
+                "SELECT TRIM(TO_CHAR(m.ITEM)) AS ITEM_CODE, {$barExpr} AS BC
+                 FROM {$from} m
+                 WHERE TRIM(TO_CHAR(m.ITEM)) IN (" . implode(',', $ph) . ')',
+                $binds
+            );
+            foreach ($rows as $r) {
+                $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
+                $bc = preg_replace('/\s+/', '', trim((string) oracle_statement_row_val($r, 'BC'))) ?? '';
+                if ($item !== '' && $bc !== '' && isset($codes[$item]) && !isset($out[$item])) {
+                    $out[$item] = $bc;
+                }
+            }
+        } catch (Throwable $e) {
+            // تُعالَج المادة لاحقاً في مسار الناقص
+        }
+    }
+    // الناقص فقط: مطابقة فردية (نادراً بعد الدفعة)
+    foreach ($codeList as $code) {
+        if (isset($out[(string) $code])) {
+            continue;
+        }
         try {
             $rows = oracle_query_all(
                 $conn,
@@ -1198,8 +1275,7 @@ function oracle_rep_item_sales_mascard_barcodes(array $conn, array $itemCodes): 
                 );
             }
             if ($rows !== []) {
-                $bc = trim((string) oracle_statement_row_val($rows[0], 'BC'));
-                $bc = preg_replace('/\s+/', '', $bc) ?? '';
+                $bc = preg_replace('/\s+/', '', trim((string) oracle_statement_row_val($rows[0], 'BC'))) ?? '';
                 if ($bc !== '') {
                     $out[(string) $code] = $bc;
                 }

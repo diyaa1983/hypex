@@ -2416,38 +2416,56 @@ const oracleRepItemsHandler = async (req, res) => {
     return { ...r, rep_no: no, rep_name };
   };
 
-  /** تعزيز الفئة من بطاقة المادة في MySQL (باركود / SKU / oracle_key) */
-  const enrichRowsLocalCats = async (list) => {
-    if (!Array.isArray(list) || !list.length) return list;
+  /** تعزيز الفئة من بطاقة المادة في MySQL (باركود / SKU / oracle_key) — مرة واحدة لكل التقرير */
+  let localCatByKey = null;
+  const buildLocalCatMap = async (lists) => {
+    if (localCatByKey) return localCatByKey;
+    const codeSet = new Set();
+    for (const list of lists) {
+      for (const row of list || []) {
+        for (const raw of [row.item_code, row.item_barcode, row.item_sku]) {
+          const k = String(raw || '').trim();
+          if (k) codeSet.add(k);
+          const digits = k.replace(/\D+/g, '');
+          const norm = digits.replace(/^0+/, '') || digits;
+          if (norm) codeSet.add(norm);
+        }
+      }
+    }
+    const codes = [...codeSet];
     let items = [];
     try {
-      items = await db.query(
-        `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key,
-                COALESCE(
-                  (
-                    SELECT c2.name_ar FROM inv_item_category c2
-                    WHERE c.id IS NOT NULL
-                      AND LOWER(TRIM(c2.name_ar)) = LOWER(TRIM(c.name_ar))
-                      AND (c2.oracle_key IS NULL OR TRIM(IFNULL(c2.oracle_key, '')) = '')
-                      AND IFNULL(c2.is_active, 1) = 1
-                    ORDER BY CASE WHEN c2.code LIKE 'XL-%' THEN 0 ELSE 1 END, c2.id
-                    LIMIT 1
-                  ),
-                  NULLIF(TRIM(c.name_ar), '')
-                ) AS cat_name
-         FROM inv_item i
-         LEFT JOIN inv_item_category c ON c.id = i.category_id`
-      );
-    } catch (e) {
-      try {
+      if (codes.length && codes.length <= 6000) {
+        const chunkSize = 400;
+        for (let i = 0; i < codes.length; i += chunkSize) {
+          const chunk = codes.slice(i, i + chunkSize);
+          const ph = chunk.map(() => '?').join(',');
+          const params = [...chunk, ...chunk, ...chunk];
+          try {
+            const part = await db.query(
+              `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key,
+                      NULLIF(TRIM(c.name_ar), '') AS cat_name
+               FROM inv_item i
+               LEFT JOIN inv_item_category c ON c.id = i.category_id
+               WHERE i.sku IN (${ph}) OR i.barcode IN (${ph}) OR IFNULL(i.oracle_key, '') IN (${ph})`,
+              params
+            );
+            items = items.concat(part || []);
+          } catch (eChunk) {
+            /* جرّب التحميل الكامل لاحقاً */
+          }
+        }
+      }
+      if (!items.length) {
         items = await db.query(
           `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name
            FROM inv_item i
            LEFT JOIN inv_item_category c ON c.id = i.category_id`
         );
-      } catch (e2) {
-        return list;
       }
+    } catch (e) {
+      localCatByKey = new Map();
+      return localCatByKey;
     }
     const put = (map, key, pack) => {
       const k = String(key || '').trim();
@@ -2462,7 +2480,6 @@ const oracleRepItemsHandler = async (req, res) => {
       const barcode = String(it.barcode || '').trim();
       const sku = String(it.sku || '').trim();
       let cat = String(it.cat_name || '').trim();
-      // إن الفئة غير معتمدة من الاكسل: خذها من كشف الاكسل بالباركود/sku
       if (!excelCats.isExcelCategory(cat)) {
         const fromXl = excelCats.lookupExcelCategory(barcode, sku, it.oracle_key);
         if (fromXl) cat = fromXl;
@@ -2476,6 +2493,12 @@ const oracleRepItemsHandler = async (req, res) => {
       put(byKey, sku, pack);
       put(byKey, barcode, pack);
     }
+    localCatByKey = byKey;
+    return byKey;
+  };
+  const enrichRowsLocalCats = async (list, sharedMap) => {
+    if (!Array.isArray(list) || !list.length) return list;
+    const byKey = sharedMap || (await buildLocalCatMap([list]));
     const lookup = (row) => {
       const keys = [
         row.item_code,
@@ -2553,10 +2576,11 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       err = rawErr;
     } else {
-      rows = await enrichRowsLocalCats((Array.isArray(data.rows) ? data.rows : []).map(mapOraRow));
-      returnRows = await enrichRowsLocalCats(
-        (Array.isArray(data.return_rows) ? data.return_rows : []).map(mapOraRow)
-      );
+      const mappedSales = (Array.isArray(data.rows) ? data.rows : []).map(mapOraRow);
+      const mappedReturns = (Array.isArray(data.return_rows) ? data.return_rows : []).map(mapOraRow);
+      const sharedCatMap = await buildLocalCatMap([mappedSales, mappedReturns]);
+      rows = await enrichRowsLocalCats(mappedSales, sharedCatMap);
+      returnRows = await enrichRowsLocalCats(mappedReturns, sharedCatMap);
       invoiceDiscounts = Array.isArray(data.invoice_discounts) ? data.invoice_discounts : [];
       oraDebug = data.debug && typeof data.debug === 'object' ? data.debug : null;
       netRows = rows.concat(

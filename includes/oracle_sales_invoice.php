@@ -392,45 +392,91 @@ function oracle_sales_invoice_item_names(array $conn, array $itemCodes): array
     $cardTbl = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
     $from = oracle_stmt_q($cardOwn) . '.' . oracle_stmt_q($cardTbl);
 
-    // استعلام فردي لتجنّب مشاكل IN مع oci binds على إصدارات قديمة
-    foreach (array_keys($codes) as $code) {
+    // دُفعات بدل استعلام لكل مادة — نفس النتائج وأسرع بكثير
+    foreach (array_chunk(array_keys($codes), 300) as $chunk) {
+        $binds = [];
+        $ph = [];
+        foreach ($chunk as $i => $code) {
+            $name = 'itm' . $i;
+            $ph[] = ':' . $name;
+            $binds[$name] = (string) $code;
+        }
+        $inList = implode(',', $ph);
         try {
             $rows = oracle_query_all(
                 $conn,
-                "SELECT IDESC FROM {$from} WHERE TO_CHAR(ITEM) = :itm AND ROWNUM <= 1",
-                ['itm' => (string) $code]
+                "SELECT TRIM(TO_CHAR(ITEM)) AS ITEM_CODE, TRIM(IDESC) AS IDESC
+                 FROM {$from}
+                 WHERE TRIM(TO_CHAR(ITEM)) IN ({$inList})",
+                $binds
             );
-            if ($rows !== []) {
-                $desc = trim(oracle_statement_row_val($rows[0], 'IDESC'));
-                if ($desc !== '') {
-                    $out[(string) $code] = $desc;
+            foreach ($rows as $r) {
+                $item = trim((string) oracle_statement_row_val($r, 'ITEM_CODE'));
+                $desc = trim((string) oracle_statement_row_val($r, 'IDESC'));
+                if ($item !== '' && $desc !== '' && isset($codes[$item]) && !isset($out[$item])) {
+                    $out[$item] = $desc;
                 }
             }
         } catch (Throwable $e) {
-            // تجاهل مادة واحدة
+            // إن فشل IN الجماعي: رجوع آمن مادةً مادة لهذه الدفعة فقط
+            foreach ($chunk as $code) {
+                if (isset($out[(string) $code])) {
+                    continue;
+                }
+                try {
+                    $rows = oracle_query_all(
+                        $conn,
+                        "SELECT IDESC FROM {$from} WHERE TO_CHAR(ITEM) = :itm AND ROWNUM <= 1",
+                        ['itm' => (string) $code]
+                    );
+                    if ($rows !== []) {
+                        $desc = trim((string) oracle_statement_row_val($rows[0], 'IDESC'));
+                        if ($desc !== '') {
+                            $out[(string) $code] = $desc;
+                        }
+                    }
+                } catch (Throwable $e2) {
+                    // تجاهل مادة واحدة
+                }
+            }
         }
     }
 
-    // احتياطي من MySQL إن وُجدت المادة
-    try {
-        $pdo = db();
-        foreach (array_keys($codes) as $code) {
-            if (isset($out[(string) $code])) {
-                continue;
-            }
-            $st = $pdo->prepare(
-                "SELECT name_ar FROM inv_item
-                 WHERE sku = ? OR barcode = ? OR CAST(id AS CHAR) = ?
-                 LIMIT 1"
-            );
-            $st->execute([(string) $code, (string) $code, (string) $code]);
-            $row = $st->fetch(PDO::FETCH_ASSOC);
-            if ($row && trim((string) ($row['name_ar'] ?? '')) !== '') {
-                $out[(string) $code] = (string) $row['name_ar'];
-            }
+    // احتياطي من MySQL للمواد الناقصة فقط — دفعة واحدة
+    $missing = [];
+    foreach (array_keys($codes) as $code) {
+        if (!isset($out[(string) $code])) {
+            $missing[] = (string) $code;
         }
-    } catch (Throwable $e) {
-        // اختياري
+    }
+    if ($missing !== []) {
+        try {
+            $pdo = db();
+            foreach (array_chunk($missing, 400) as $chunk) {
+                $ph = implode(',', array_fill(0, count($chunk), '?'));
+                $st = $pdo->prepare(
+                    "SELECT name_ar, sku, barcode, CAST(id AS CHAR) AS id_txt
+                     FROM inv_item
+                     WHERE sku IN ({$ph}) OR barcode IN ({$ph}) OR CAST(id AS CHAR) IN ({$ph})"
+                );
+                $st->execute(array_merge($chunk, $chunk, $chunk));
+                $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+                foreach ($rows as $row) {
+                    $name = trim((string) ($row['name_ar'] ?? ''));
+                    if ($name === '') {
+                        continue;
+                    }
+                    foreach (['sku', 'barcode', 'id_txt'] as $col) {
+                        $key = trim((string) ($row[$col] ?? ''));
+                        if ($key !== '' && isset($codes[$key]) && !isset($out[$key])) {
+                            $out[$key] = $name;
+                        }
+                    }
+                }
+            }
+        } catch (Throwable $e) {
+            // اختياري
+        }
     }
 
     return $out;
