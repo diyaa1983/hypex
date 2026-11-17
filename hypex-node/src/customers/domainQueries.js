@@ -57,9 +57,11 @@ function customerListWhere({
     where.push(`(
       c.name_ar LIKE ? OR c.code LIKE ? OR IFNULL(c.phone,'') LIKE ?
       OR IFNULL(c.email,'') LIKE ? OR IFNULL(c.tax_number,'') LIKE ?
-      OR IFNULL(rg.name_ar,'') LIKE ? OR IFNULL(COALESCE(repn.names, CONCAT(r.name_ar, IF(IFNULL(TRIM(r.code),'') = '', '', CONCAT(' (', r.code, ')')))),'') LIKE ?
+      OR IFNULL(rg.name_ar,'') LIKE ? OR IFNULL(ra.name_ar,'') LIKE ?
+      OR IFNULL(c.address_ar,'') LIKE ?
+      OR IFNULL(COALESCE(repn.names, CONCAT(r.name_ar, IF(IFNULL(TRIM(r.code),'') = '', '', CONCAT(' (', r.code, ')')))),'') LIKE ?
     )`);
-    params.push(like, like, like, like, like, like, like);
+    params.push(like, like, like, like, like, like, like, like, like);
   }
   return { where, params };
 }
@@ -113,6 +115,7 @@ async function listCustomers({
   return safeQuery(
     `SELECT c.id, c.code, c.name_ar, c.phone, c.email, c.tax_number, c.is_active,
             c.oracle_key, c.oracle_pending, c.payment_period, c.region_id,
+            c.region_address_id, COALESCE(c.address_ar, '') AS address_ar,
             rg.name_ar AS region_name,
             ra.name_ar AS region_address_name,
             COALESCE(repn.names, CONCAT(r.name_ar, IF(IFNULL(TRIM(r.code), '') = '', '', CONCAT(' (', r.code, ')')))) AS sales_rep_name

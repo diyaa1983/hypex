@@ -293,7 +293,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
           <span style="font-size:.72rem;font-weight:700;color:#5c6578;padding-inline:.25rem">العميل</span>
           <div class="si-cust-wrap" style="position:relative;width:100%">
             <input type="hidden" name="customer_id" id="cust-list-id" value="${hasPicked ? customerId : ''}">
-            <input class="si-field" type="search" name="q" id="cust-list-q" value="${ui.esc(selectedLabel)}" placeholder="ابحث بالرمز أو الاسم أو الهاتف…" autocomplete="off" style="width:100%;min-width:12rem;min-height:2.1rem">
+            <input class="si-field" type="search" name="q" id="cust-list-q" value="${ui.esc(selectedLabel)}" placeholder="بالرمز او الاسم او الهاتف او المنطقة او العنوان…" autocomplete="off" style="width:100%;min-width:12rem;min-height:2.1rem">
             <div class="si-suggest" id="cust-list-suggest" hidden></div>
           </div>
         </label>
@@ -339,23 +339,34 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
             credit: 'ذمم',
           };
           const pay = payLabels[String(r.payment_period || '')] || '';
-          const searchBits = [r.code, r.name_ar, r.phone, r.region_name, r.sales_rep_name, pay]
+          const addrLabel =
+            String(r.region_address_name || '').trim() || String(r.address_ar || '').trim() || '';
+          const searchBits = [
+            r.code,
+            r.name_ar,
+            r.phone,
+            r.region_name,
+            addrLabel,
+            r.sales_rep_name,
+            pay,
+          ]
             .map((v) => String(v || ''))
             .join(' ');
           const statusLabel = Number(r.is_active) === 1 ? 'نشط' : 'موقوف';
-          return `<tr data-sort-row data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}" data-sort-code="${ui.esc(r.code || '')}" data-sort-name="${ui.esc(r.name_ar || '')}" data-sort-pay="${ui.esc(pay)}" data-sort-phone="${ui.esc(r.phone || '')}" data-sort-region="${ui.esc(r.region_name || '')}" data-sort-rep="${ui.esc(r.sales_rep_name || '')}" data-sort-status="${ui.esc(statusLabel)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
+          return `<tr data-sort-row data-id="${Number(r.id)}" data-code="${ui.esc(r.code || '')}" data-name="${ui.esc(r.name_ar || '')}" data-search="${ui.esc(searchBits)}" data-sort-code="${ui.esc(r.code || '')}" data-sort-name="${ui.esc(r.name_ar || '')}" data-sort-pay="${ui.esc(pay)}" data-sort-phone="${ui.esc(r.phone || '')}" data-sort-region="${ui.esc(r.region_name || '')}" data-sort-address="${ui.esc(addrLabel)}" data-sort-rep="${ui.esc(r.sales_rep_name || '')}" data-sort-status="${ui.esc(statusLabel)}"${hasPicked && Number(r.id) !== customerId ? ' hidden' : ''}>
       <td class="si-num" dir="ltr">${pending ? '<span class="si-pill si-pill--wait">بانتظار</span>' : ui.esc(r.code || '')}</td>
       <td>${ui.esc(r.name_ar || '')}</td>
       <td>${pay ? ui.esc(pay) : '—'}</td>
       <td class="si-num" dir="ltr">${dash(r.phone)}</td>
       <td>${dash(r.region_name)}</td>
+      <td>${dash(addrLabel)}</td>
       <td>${dash(r.sales_rep_name)}</td>
       <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', statusLabel)}</td>
       <td><a class="si-btn js-keep-cust-list" style="min-height:1.7rem;padding:.2rem .55rem;font-size:.75rem;border-radius:8px" href="/customers/${r.id}">${pending ? 'ربط Oracle' : 'تعديل'}</a></td>
     </tr>`;
         }
       )
-      .join('') || ui.emptyRow(8);
+      .join('') || ui.emptyRow(9);
 
   const sortTh = (label, key) => ({
     label,
@@ -375,6 +386,7 @@ router.get('/customers/list', guard('customers'), async (req, res) => {
       sortTh('فترة السداد', 'pay'),
       sortTh('الهاتف', 'phone'),
       sortTh('المنطقة', 'region'),
+      sortTh('العنوان', 'address'),
       sortTh('المندوب', 'rep'),
       sortTh('الحالة', 'status'),
       '',
@@ -1470,6 +1482,10 @@ async function customerForm(req, res, id) {
       @media (max-width:720px){.cf-chain-arrow{display:none}}
       .cf-field-note{margin:.15rem 0 0;font-size:.75rem;font-weight:600;color:#94a3b8;line-height:1.4}
       .cf-foot{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;padding:.15rem 0 .25rem}
+      .cf-foot--top{position:sticky;top:0;z-index:5;margin:0 0 .85rem;padding:.55rem .65rem;
+        border:1px solid #dbe3ef;border-radius:12px;background:rgba(248,250,252,.96);
+        backdrop-filter:blur(6px);box-shadow:0 1px 0 rgba(15,23,42,.04)}
+      .cf-foot--bottom{margin-top:.35rem;padding-top:.55rem;border-top:1px solid #e2e8f0}
       .cf-hint-line{margin:0;font-size:.8rem;color:#64748b;flex:1;min-width:10rem;line-height:1.45}
       select#cust-region-addr:disabled{opacity:.65;cursor:not-allowed;background:#f1f5f9}
       .cf-gps{display:grid;gap:.55rem;grid-column:1/-1;padding:.75rem .85rem;border-radius:12px;
@@ -1528,6 +1544,11 @@ async function customerForm(req, res, id) {
           <input type="hidden" name="id" value="${row ? row.id : 0}">
           <input type="hidden" name="return_to" class="js-return-to" value="${esc(listBack)}">
           <div class="cf-body">
+            <div class="cf-foot cf-foot--top">
+              <button class="si-btn si-btn--primary" type="submit">حفظ العميل</button>
+              <a class="si-btn js-cust-list-back" href="${esc(listBack)}">إلغاء</a>
+              <p class="cf-hint-line">التسلسل: العميل → المنطقة → العنوان → المندوب ثم الحفظ.</p>
+            </div>
 
             <div class="cf-sec">
               <div class="cf-sec-h">
@@ -1679,7 +1700,7 @@ async function customerForm(req, res, id) {
               </div>
             </div>
 
-            <div class="cf-foot">
+            <div class="cf-foot cf-foot--bottom">
               <button class="si-btn si-btn--primary" type="submit">حفظ العميل</button>
               <a class="si-btn js-cust-list-back" href="${esc(listBack)}">إلغاء</a>
               <p class="cf-hint-line">التسلسل: العميل → المنطقة → العنوان → المندوب ثم الحفظ.</p>
