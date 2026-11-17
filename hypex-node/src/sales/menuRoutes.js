@@ -4020,6 +4020,19 @@ const oracleRepItemsHandler = async (req, res) => {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
 
+  const defaultViewOpen = oraMode === 'all_oracle' ? 'all-reps' : 'summary';
+  const oraViewBtn = (id, label) =>
+    `<button type="button" class="si-btn${defaultViewOpen === id ? ' si-btn--primary' : ''}" data-ora-view="${id}">${label}</button>`;
+  const fullOraToolsHtml = `<div class="ora-tools no-print">
+        <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
+        ${oraViewBtn('summary', 'ملخص')}
+        ${oraViewBtn('detail', 'تفصيلي')}
+        ${oraViewBtn('invoice', 'فواتير تفصيلي')}
+        ${oraViewBtn('invoice-sum', 'فواتير إجمالي')}
+        ${oraViewBtn('all-reps', 'مبيعات جميع المندوبين')}
+        ${oraViewBtn('cat-totals', 'مجاميع الفئات')}
+      </div>`;
+
   let tableBlock = '';
   let stickyToolsHtml = '';
   if (err) {
@@ -4036,11 +4049,8 @@ const oracleRepItemsHandler = async (req, res) => {
   } else {
     tableBlock = `<p class="muted" style="padding:.5rem 0">حدّد الفلاتر ثم اضغط «عرض».</p>`;
   }
-  if (!stickyToolsHtml) {
-    stickyToolsHtml = `<div class="ora-tools no-print">
-        <button type="button" class="si-btn${oraMode === 'all_oracle' ? ' si-btn--primary' : ''}" data-ora-view="all-reps">مبيعات جميع المندوبين</button>
-      </div>`;
-  }
+  // دائماً كل كبسات العرض ظاهرة عند فتح التقرير (قبل وبعد التشغيل)
+  stickyToolsHtml = fullOraToolsHtml;
 
   const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
   const customersJson = JSON.stringify(
