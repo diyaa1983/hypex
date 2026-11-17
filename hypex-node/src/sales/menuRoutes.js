@@ -15,6 +15,21 @@ const excelCats = require('./excelItemCategories');
 
 const router = express.Router();
 
+/** كاش قصير لقائمة مندوبي Oracle — يقلل spawn PHP عند فتح التقرير */
+let oraRepsCache = { at: 0, rows: null };
+const ORA_REPS_CACHE_MS = 5 * 60 * 1000;
+
+async function loadOracleRepPickerRows(uid) {
+  const now = Date.now();
+  if (oraRepsCache.rows && now - oraRepsCache.at < ORA_REPS_CACHE_MS) {
+    return oraRepsCache.rows;
+  }
+  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
+  const rows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+  oraRepsCache = { at: now, rows };
+  return rows;
+}
+
 function can(user, code) {
   return auth.userCan(user, code) || user.is_admin;
 }
@@ -1890,8 +1905,7 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
   };
 
   // أسماء المناديب من Oracle EMP_INFO (كما في قائمة Forms) — ليس من هايبكس
-  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
-  const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+  const oraRows = await loadOracleRepPickerRows(uid);
   const oraNameByMan = new Map();
   const seen = new Set();
   let reps = [];
@@ -2248,8 +2262,7 @@ const oracleRepItemsHandler = async (req, res) => {
   }
   let reps = [];
   const seen = new Set();
-  const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
-  const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+  const oraRows = await loadOracleRepPickerRows(uid);
   for (const r of oraRows) {
     const manNo = Number(r.id) || parseManNo(r.code);
     if (manNo < 1 || seen.has(manNo)) continue;

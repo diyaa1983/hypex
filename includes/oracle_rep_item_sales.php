@@ -197,13 +197,24 @@ function oracle_fetch_rep_item_sales(
         $custSql = '  AND LTRIM(TRIM(TO_CHAR(d.CUST_ACC)), \'0\') IN (' . implode(',', $ph) . ")\n";
     }
     if ($ymKeys !== []) {
-        $ph = [];
+        // نطاقات تاريخ بدل TO_CHAR(VDATE) حتى يستفيد Oracle من فهرس التاريخ
+        $parts = [];
         foreach ($ymKeys as $i => $ym) {
-            $name = 'ym' . $i;
-            $ph[] = ':' . $name;
-            $bindsCommon[$name] = $ym;
+            [$yy, $mm] = array_map('intval', explode('-', $ym, 2));
+            if ($yy < 2000 || $mm < 1 || $mm > 12) {
+                continue;
+            }
+            $fromName = 'ymf' . $i;
+            $toName = 'ymt' . $i;
+            $start = sprintf('%04d-%02d-01', $yy, $mm);
+            $endEx = date('Y-m-d', strtotime($start . ' +1 month'));
+            $bindsCommon[$fromName] = $start;
+            $bindsCommon[$toName] = $endEx;
+            $parts[] = "(d.VDATE >= TO_DATE(:{$fromName}, 'YYYY-MM-DD') AND d.VDATE < TO_DATE(:{$toName}, 'YYYY-MM-DD'))";
         }
-        $ymSql = "  AND TO_CHAR(d.VDATE, 'YYYY-MM') IN (" . implode(',', $ph) . ")\n";
+        if ($parts !== []) {
+            $ymSql = '  AND (' . implode(' OR ', $parts) . ")\n";
+        }
     }
 
     // VOU_DISC/TAX ثابتان على مستوى الفاتورة — MAX مع GROUP BY المادة يمرّرهما على كل سطر
@@ -229,6 +240,25 @@ function oracle_fetch_rep_item_sales(
         ? 'd.TYPE, TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)'
         : 'd.TYPE, NVL(d.MAN_NUM, 0), TRIM(TO_CHAR(d.CUST_ACC)), TRIM(TO_CHAR(d.ITEM)), TRIM(TO_CHAR(d.CAT)), NVL(d.VYEAR, 0), NVL(d.V_NUM, 0), TRUNC(d.VDATE)';
 
+    $manSqlSale = '';
+    $manSqlRet = '';
+    $saleBinds = $bindsCommon;
+    $saleBinds['sale_type'] = $saleType;
+    $saleBinds['store_num'] = $storeNum;
+    $retBinds = $bindsCommon;
+    $retBinds['store_num'] = $storeNum;
+    if (!$byCurrentLink) {
+        if ($filterOracleRep && $repNo !== null && $repNo > 0) {
+            $manSqlSale = "  AND d.MAN_NUM = :rep_no\n";
+            $manSqlRet = "  AND d.MAN_NUM = :rep_no\n";
+            $saleBinds['rep_no'] = $repNo;
+            $retBinds['rep_no'] = $repNo;
+        } else {
+            $manSqlSale = "  AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0\n";
+            $manSqlRet = "  AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0\n";
+        }
+    }
+    // ITEM IS NOT NULL بدل TRIM(TO_CHAR(...)) ليستفيد من الفهرس
     $saleSql = "
 SELECT {$repSelectSale},{$selectCols}
 FROM {$fromQ} d
@@ -237,23 +267,10 @@ WHERE d.COMP_NUM = :comp_num
   AND d.STORE = :store_num
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-  AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
-{$custSql}{$ymSql}";
-    $saleBinds = $bindsCommon;
-    $saleBinds['sale_type'] = $saleType;
-    $saleBinds['store_num'] = $storeNum;
-    if (!$byCurrentLink) {
-        if ($filterOracleRep && $repNo !== null && $repNo > 0) {
-            $saleSql .= "  AND d.MAN_NUM = :rep_no\n";
-            $saleBinds['rep_no'] = $repNo;
-        } else {
-            $saleSql .= "  AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0\n";
-        }
-    }
-    $saleSql .= "GROUP BY {$groupSale}\n";
-
+  AND d.ITEM IS NOT NULL
+{$custSql}{$ymSql}{$manSqlSale}GROUP BY {$groupSale}
+";
     // مرتجع مبيعات = TYPE 2 — لا نشترط السعر هنا حتى لا يضيع QTY/BONUS
-    // (المبلغ يبقى 0 تلقائياً إن كان SELL و SELL_BTAX صفراً)
     $retSql = "
 SELECT {$repSelectRet},{$selectCols}
 FROM {$fromQ} d
@@ -263,20 +280,9 @@ WHERE d.COMP_NUM = :comp_num
   AND (NVL(d.QTY, 0) <> 0 OR NVL(d.BONUS, 0) <> 0)
   AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
   AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-  AND TRIM(TO_CHAR(d.ITEM)) IS NOT NULL
-{$custSql}{$ymSql}
+  AND d.ITEM IS NOT NULL
+{$custSql}{$ymSql}{$manSqlRet}GROUP BY {$groupRet}
 ";
-    $retBinds = $bindsCommon;
-    $retBinds['store_num'] = $storeNum;
-    if (!$byCurrentLink) {
-        if ($filterOracleRep && $repNo !== null && $repNo > 0) {
-            $retSql .= "  AND d.MAN_NUM = :rep_no\n";
-            $retBinds['rep_no'] = $repNo;
-        } else {
-            $retSql .= "  AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0\n";
-        }
-    }
-    $retSql .= "GROUP BY {$groupRet}\n";
 
     $raw = [];
     $debugProbe = [
@@ -284,6 +290,7 @@ WHERE d.COMP_NUM = :comp_num
         'probe_146' => [],
         'ret_query_rows' => 0,
         'sale_query_rows' => 0,
+        'fast_path' => 1,
     ];
     try {
         $saleRaw = oracle_query_all($conn, $saleSql, $saleBinds);
@@ -320,9 +327,23 @@ WHERE d.COMP_NUM = :comp_num
         }
     }
 
-    $itemNames = oracle_sales_invoice_item_names($conn, array_keys($itemCodes));
     $hypex = oracle_rep_item_sales_hypex_map(array_keys($itemCodes));
-    $masBarcodes = oracle_rep_item_sales_mascard_barcodes($conn, array_keys($itemCodes));
+    // أسماء Oracle فقط للمواد التي بلا اسم في هايبكس
+    $needNames = [];
+    $needBars = [];
+    foreach (array_keys($itemCodes) as $icode) {
+        $hx = $hypex[$icode] ?? null;
+        $nm = is_array($hx) ? trim((string) ($hx['name_ar'] ?? '')) : '';
+        $bc = is_array($hx) ? trim((string) ($hx['barcode'] ?? '')) : '';
+        if ($nm === '') {
+            $needNames[] = $icode;
+        }
+        if ($bc === '') {
+            $needBars[] = $icode;
+        }
+    }
+    $itemNames = $needNames !== [] ? oracle_sales_invoice_item_names($conn, $needNames) : [];
+    $masBarcodes = $needBars !== [] ? oracle_rep_item_sales_mascard_barcodes($conn, $needBars) : [];
     $customers = oracle_rep_item_sales_customer_names($conn, array_keys($custAccs));
     $repNames = oracle_rep_item_sales_rep_names($conn, array_keys($repNos));
     $oraCatToLocal = oracle_rep_item_sales_oracle_cat_local_names();
@@ -530,180 +551,90 @@ WHERE d.COMP_NUM = :comp_num
     $debugProbe['return_rows'] = count($returnRows);
     $debugProbe['sale_rows'] = count($rows);
 
-    // خصم/ضريبة رأس الفاتورة كما في Forms INV00078:
-    // الصافي ≈ Σ(البنود) − VOU_DISC − MAX(VOU_TAX)  (للمبيعات TYPE=9)
+    // خصم/ضريبة رأس الفاتورة من نفس بنود الاستعلام الأول (بدون مسح DAILY مرة أخرى)
+    // VOU_DISC/TAX ثابتان على الفاتورة؛ نأخذ MAX لكل فاتورة من الأسطر المجمّعة مسبقاً.
     $invoiceDiscounts = [];
     $totVouDisc = 0.0;
     $retVouDisc = 0.0;
     $totVouTax = 0.0;
     $retVouTax = 0.0;
-    try {
-        $vouBinds = $bindsCommon;
-        $vouBinds['sale_type'] = $saleType;
-        $vouBinds['store_num'] = $storeNum;
-        $saleManSql = '';
-        if (!$byCurrentLink) {
-            if ($filterOracleRep && $repNo !== null && $repNo > 0) {
-                $saleManSql = ' AND d.MAN_NUM = :rep_no';
-                $vouBinds['rep_no'] = $repNo;
-            } else {
-                $saleManSql = ' AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0';
-            }
+    $vouByInv = [];
+    foreach ($rowsAll as $row) {
+        $kind = (($row['doc_kind'] ?? 'S') === 'R') ? 'R' : 'S';
+        $manNo = (int) ($row['rep_no'] ?? 0);
+        $vYear = (int) ($row['invoice_year'] ?? 0);
+        $vNum = (int) ($row['invoice_no'] ?? 0);
+        if ($vNum < 1) {
+            continue;
         }
-        // تجميع مثل Forms/Toad: فاتورة = VYEAR + V_NUM + MAN_NUM (+ TYPE)
-        $vouSql = "
-SELECT NVL(d.MAN_NUM, 0) AS MAN_NUM,
-       TRIM(TO_CHAR(MAX(d.CUST_ACC))) AS CUST_ACC,
-       d.TYPE AS DOC_TYPE,
-       NVL(d.VYEAR, 0) AS VYEAR,
-       NVL(d.V_NUM, 0) AS V_NUM,
-       TO_CHAR(TRUNC(MIN(d.VDATE)), 'YYYY-MM-DD') AS SALE_DATE,
-       ROUND(MAX(NVL(d.VOU_DISC, 0)), 3) AS VOU_DISC,
-       ROUND(MAX(NVL(d.VOU_TAX, 0)), 3) AS VOU_TAX
-FROM {$fromQ} d
-WHERE d.COMP_NUM = :comp_num
-  AND d.STORE = :store_num
-  AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
-  AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-  AND (
-        (d.TYPE = :sale_type{$saleManSql})
-     OR (d.TYPE IN ({$retInList})
-         AND NVL(d.QTY, 0) <> 0
-         AND (NVL(d.SELL, 0) <> 0 OR NVL(d.SELL_BTAX, 0) <> 0)
-         {$saleManSql})
-  )
-{$custSql}{$ymSql}
-GROUP BY NVL(d.MAN_NUM, 0), d.TYPE, NVL(d.VYEAR, 0), NVL(d.V_NUM, 0)
-";
-        $vouRaw = oracle_query_all($conn, $vouSql, $vouBinds);
-        $vouByInv = [];
-        foreach ($vouRaw as $vr) {
-            $disc = round((float) oracle_statement_row_val($vr, 'VOU_DISC'), 3);
-            $tax = round((float) oracle_statement_row_val($vr, 'VOU_TAX'), 3);
-            if ($disc == 0.0 && $tax == 0.0) {
-                continue;
-            }
-            $docType = (int) oracle_statement_row_val($vr, 'DOC_TYPE');
-            $isRetDisc = isset($returnTypeMap[$docType]) || ($docType !== $saleType && $docType >= 8);
-            $manNo = (int) oracle_statement_row_val($vr, 'MAN_NUM');
-            $vYear = (int) oracle_statement_row_val($vr, 'VYEAR');
-            $vNum = (int) oracle_statement_row_val($vr, 'V_NUM');
-            $kind = $isRetDisc ? 'R' : 'S';
-            $invoiceDiscounts[] = [
+        $key = $kind . '|' . $manNo . '|' . $vYear . '|' . $vNum;
+        $disc = round((float) ($row['vou_disc'] ?? 0), 3);
+        $tax = round((float) ($row['vou_tax'] ?? 0), 3);
+        if (!isset($vouByInv[$key])) {
+            $vouByInv[$key] = [
                 'doc_kind' => $kind,
                 'rep_no' => $manNo,
-                'customer_acc' => trim((string) oracle_statement_row_val($vr, 'CUST_ACC')),
+                'customer_acc' => (string) ($row['customer_acc'] ?? ''),
                 'invoice_year' => $vYear,
                 'invoice_no' => $vNum,
-                'sale_date' => trim((string) oracle_statement_row_val($vr, 'SALE_DATE')),
+                'sale_date' => (string) ($row['sale_date'] ?? ''),
                 'vou_disc' => $disc,
                 'vou_tax' => $tax,
             ];
-            $vouByInv[$kind . '|' . $manNo . '|' . $vYear . '|' . $vNum] = [
-                'vou_disc' => $disc,
-                'vou_tax' => $tax,
-            ];
-            if ($isRetDisc) {
-                $retVouDisc += $disc;
-                $retVouTax += $tax;
-            } else {
-                $totVouDisc += $disc;
-                $totVouTax += $tax;
+        } else {
+            if ($disc > (float) $vouByInv[$key]['vou_disc']) {
+                $vouByInv[$key]['vou_disc'] = $disc;
+            }
+            if ($tax > (float) $vouByInv[$key]['vou_tax']) {
+                $vouByInv[$key]['vou_tax'] = $tax;
+            }
+            if ($vouByInv[$key]['customer_acc'] === '' && (string) ($row['customer_acc'] ?? '') !== '') {
+                $vouByInv[$key]['customer_acc'] = (string) $row['customer_acc'];
+            }
+            if ($vouByInv[$key]['sale_date'] === '' && (string) ($row['sale_date'] ?? '') !== '') {
+                $vouByInv[$key]['sale_date'] = (string) $row['sale_date'];
             }
         }
-        // لا نكتب فوق vou_disc القادم من استعلام المبيعات (MAX على الفاتورة).
-        // سابقاً stamp كان يضع 0 عند عدم تطابق المفتاح فيفشل خصم بعض المندوبين عند «الكل».
-        $debugProbe['vou_invoice_count'] = count($vouByInv);
-    } catch (Throwable $e) {
-        $debugProbe['vou_disc_error'] = $e->getMessage();
     }
-
-    // صافي Forms = نفس معادلة Toad الحرفية (بدون year_months — كانت تفسد المجموع)
-    $formsNet = null;
-    $formsSaleNet = null;
-    $formsRetNet = null;
-    try {
-        @oracle_execute($conn, "ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,'", []);
-    } catch (Throwable $e) {
-        // تجاهل
-    }
-    try {
-        $formsBinds = [
-            'comp_num' => (int) $c['comp_num'],
-            'store_num' => $storeNum,
-            'd_from' => $fromIso,
-            'd_to' => $toIso,
+    foreach ($vouByInv as $inv) {
+        $disc = round((float) $inv['vou_disc'], 3);
+        $tax = round((float) $inv['vou_tax'], 3);
+        if ($disc == 0.0 && $tax == 0.0) {
+            continue;
+        }
+        $invoiceDiscounts[] = [
+            'doc_kind' => $inv['doc_kind'],
+            'rep_no' => (int) $inv['rep_no'],
+            'customer_acc' => (string) $inv['customer_acc'],
+            'invoice_year' => (int) $inv['invoice_year'],
+            'invoice_no' => (int) $inv['invoice_no'],
+            'sale_date' => (string) $inv['sale_date'],
+            'vou_disc' => $disc,
+            'vou_tax' => $tax,
         ];
-        $formsManSql = ' AND d.MAN_NUM IS NOT NULL AND d.MAN_NUM > 0';
-        if (!$byCurrentLink && $filterOracleRep && $repNo !== null && $repNo > 0) {
-            $formsManSql = ' AND d.MAN_NUM = :rep_no';
-            $formsBinds['rep_no'] = $repNo;
-        } elseif ($byCurrentLink) {
-            $formsManSql = '';
+        if ($inv['doc_kind'] === 'R') {
+            $retVouDisc += $disc;
+            $retVouTax += $tax;
+        } else {
+            $totVouDisc += $disc;
+            $totVouTax += $tax;
         }
-        // فلاتر عملاء فقط عند التحديد اليدوي — لا نمرّر year_months هنا
-        $formsCustSql = $custSql;
-        foreach ($bindsCommon as $bk => $bv) {
-            if (str_starts_with((string) $bk, 'cacc') && !array_key_exists($bk, $formsBinds)) {
-                $formsBinds[$bk] = $bv;
-            }
-        }
-        $unitPrice = 'NVL(CASE WHEN NVL(d.SELL_BTAX, 0) <> 0 THEN d.SELL_BTAX ELSE d.SELL END, 0)';
-        $discExpr = "CASE
-               WHEN NVL(d.DISC, 0) = 0 THEN 0
-               WHEN NVL(d.DISC, 0) <= 1 THEN NVL(d.QTY, 0) * {$unitPrice} * NVL(d.DISC, 0)
-               WHEN NVL(d.DISC, 0) <= 100 THEN NVL(d.QTY, 0) * {$unitPrice} * NVL(d.DISC, 0) / 100
-               ELSE NVL(d.DISC, 0)
-             END";
-        $formsInvSql = static function (int $docType) use (
-            $fromQ,
-            $unitPrice,
-            $discExpr,
-            $formsManSql,
-            $formsCustSql
-        ): string {
-            return "
-SELECT ROUND(SUM(x.GROSS_DISC) - SUM(x.VOU_DISC), 3) AS NET_AMT
-FROM (
-  SELECT MAX(NVL(d.VOU_DISC, 0)) AS VOU_DISC,
-         SUM(NVL(d.QTY, 0) * {$unitPrice} - ({$discExpr})) AS GROSS_DISC
-  FROM {$fromQ} d
-  WHERE d.COMP_NUM = :comp_num
-    AND d.TYPE = {$docType}
-    AND d.STORE = :store_num
-    AND d.VDATE >= TO_DATE(:d_from, 'YYYY-MM-DD')
-    AND d.VDATE < TO_DATE(:d_to, 'YYYY-MM-DD') + 1
-    {$formsManSql}
-    {$formsCustSql}
-  GROUP BY d.VYEAR, d.V_NUM, d.MAN_NUM
-) x
-";
-        };
-        $saleFormsRaw = oracle_query_all($conn, $formsInvSql($saleType), $formsBinds);
-        $retFormsRaw = oracle_query_all($conn, $formsInvSql(2), $formsBinds);
-        $formsSaleNet = $saleFormsRaw !== []
-            ? (float) oracle_statement_row_val($saleFormsRaw[0], 'NET_AMT')
-            : 0.0;
-        $formsRetNet = $retFormsRaw !== []
-            ? (float) oracle_statement_row_val($retFormsRaw[0], 'NET_AMT')
-            : 0.0;
-        $formsNet = round($formsSaleNet - $formsRetNet, 3);
-        $debugProbe['forms_sale_net'] = $formsSaleNet;
-        $debugProbe['forms_ret_net'] = $formsRetNet;
-        $debugProbe['forms_net'] = $formsNet;
-    } catch (Throwable $e) {
-        $debugProbe['forms_net_error'] = $e->getMessage();
     }
+    $debugProbe['vou_invoice_count'] = count($vouByInv);
+    $debugProbe['vou_from_rows'] = 1;
+
+    // صافي Forms من نفس البيانات المعروضة (بدون مسحين إضافيين على DAILY)
+    $formsSaleNet = round($totAmt - $totVouDisc, 3);
+    $formsRetNet = round($retAmt - $retVouDisc, 3);
+    $formsNet = round($formsSaleNet - $formsRetNet, 3);
+    $debugProbe['forms_sale_net'] = $formsSaleNet;
+    $debugProbe['forms_ret_net'] = $formsRetNet;
+    $debugProbe['forms_net'] = $formsNet;
+    $debugProbe['forms_from_rows'] = 1;
 
     $netAmount = round($totAmt - $retAmt, 3);
-    $netVouDisc = round($totVouDisc - $retVouDisc, 3);
     $netVouTax = round($totVouTax - $retVouTax, 3);
-    // احتياط من مجاميع البنود إن فشل استعلام Forms
-    if ($formsNet === null) {
-        $formsNet = round(($totAmt - $totVouDisc) - ($retAmt - $retVouDisc), 3);
-    }
     $netAfterDisc = $formsNet;
-    // خصم ظاهر متسق مع الصافي المعروض (Forms)
     $netVouDisc = round($netAmount - $formsNet, 3);
 
     return [
@@ -1210,16 +1141,24 @@ function oracle_rep_item_sales_mascard_barcodes(array $conn, array $itemCodes): 
     $owner = strtoupper(trim((string) ($si['item_card_owner'] ?? 'MAS'))) ?: 'MAS';
     $table = strtoupper(trim((string) ($si['item_card_table'] ?? 'MASCARD'))) ?: 'MASCARD';
     $from = oracle_stmt_q($owner) . '.' . oracle_stmt_q($table);
-    $barCols = [];
-    try {
-        foreach (oracle_describe_table($conn, $owner, $table) as $c) {
-            $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
-            if (in_array($n, ['BARCODE', 'IBARCODE', 'BAR_CODE', 'BCODE', 'ITEM_BARCODE', 'IBAR'], true)) {
-                $barCols[] = $n;
+    static $barColsCache = [];
+    $cacheKey = $owner . '.' . $table;
+    $barCols = $barColsCache[$cacheKey] ?? null;
+    if ($barCols === null) {
+        $barCols = [];
+        try {
+            foreach (oracle_describe_table($conn, $owner, $table) as $c) {
+                $n = strtoupper(trim((string) ($c['column_name'] ?? '')));
+                if (in_array($n, ['BARCODE', 'IBARCODE', 'BAR_CODE', 'BCODE', 'ITEM_BARCODE', 'IBAR'], true)) {
+                    $barCols[] = $n;
+                }
             }
+        } catch (Throwable $e) {
+            $barColsCache[$cacheKey] = [];
+
+            return $out;
         }
-    } catch (Throwable $e) {
-        return $out;
+        $barColsCache[$cacheKey] = $barCols;
     }
     if ($barCols === []) {
         return $out;

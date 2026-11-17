@@ -358,6 +358,9 @@ function oracle_query_all(array $conn, string $sql, array $binds = []): array
             $err = oci_error($st);
             throw new RuntimeException('oci_execute: ' . ($err['message'] ?? 'error'));
         }
+        if (function_exists('oci_set_prefetch')) {
+            @oci_set_prefetch($st, 2000);
+        }
         $rows = [];
         while (($row = oci_fetch_assoc($st)) !== false) {
             $norm = [];
