@@ -57,7 +57,8 @@ function requireAny(req, res, next) {
     (can(u, 'report_sales_by_rep') ||
       can(u, 'report_sales_by_region') ||
       can(u, 'report_sales_rep_tours') ||
-      can(u, 'report_sales_rep_visits'));
+      can(u, 'report_sales_rep_visits') ||
+      can(u, 'report_sales_rep_customers'));
   if (!any && !reportOk) return res.status(403).send('ممنوع');
   next();
 }
@@ -174,8 +175,7 @@ async function repForm(req, res, id) {
   const isNew = !row;
   const err = String(req.query.err || '');
   const warehouses = await masters.listWarehouses();
-  const linkedCustomers = isNew ? [] : await masters.listRepLinkedCustomers(id);
-  const custCount = linkedCustomers.length;
+  const custCount = isNew ? 0 : await masters.countRepLinkedCustomers(id);
   const whOpts = warehouses
     .map(
       (w) =>
@@ -184,54 +184,6 @@ async function repForm(req, res, id) {
         )}</option>`
     )
     .join('');
-
-  const custRowsHtml = linkedCustomers
-    .map((c) => {
-      const place = [c.region_name, c.address_name].filter(Boolean).join('/');
-      const label =
-        String(c.code || '') +
-        ' ' +
-        String(c.name_ar || '') +
-        (place ? '/' + place : '') +
-        (Number(c.is_active) === 0 ? ' (موقوف)' : '');
-      return `<div class="si-rep-cust-row" data-q="${esc(
-        String(c.code || '') + ' ' + String(c.name_ar || '') + ' ' + String(c.phone || '') + ' ' + place
-      )}" title="${esc(label)}">${esc(label)}</div>`;
-    })
-    .join('');
-
-  const customersPanel = isNew
-    ? ''
-    : `<aside class="si-rep-cust-panel" aria-label="العملاء المربوطون">
-        <div class="si-rep-cust-panel__head">
-          <span>العملاء المربوطون</span>
-          <b dir="ltr">${custCount}</b>
-        </div>
-        ${
-          custCount
-            ? `<input type="search" class="si-rep-cust-panel__filter" id="si-rep-cust-filter" placeholder="بحث…" autocomplete="off">
-               <div class="si-rep-cust-panel__scroll" id="si-rep-cust-list">${custRowsHtml}</div>`
-            : `<div class="si-rep-cust-panel__empty">لا عملاء مربوطون</div>`
-        }
-      </aside>`;
-
-  const custFilterScript =
-    !isNew && custCount
-      ? `<script>
-(function(){
-  var inp=document.getElementById('si-rep-cust-filter');
-  var list=document.getElementById('si-rep-cust-list');
-  if(!inp||!list)return;
-  inp.addEventListener('input',function(){
-    var q=String(inp.value||'').trim().toLowerCase();
-    list.querySelectorAll('.si-rep-cust-row').forEach(function(row){
-      var hay=String(row.getAttribute('data-q')||'').toLowerCase();
-      row.hidden=!!q&&hay.indexOf(q)===-1;
-    });
-  });
-})();
-</script>`
-      : '';
 
   const body = `
     <div class="si-stage">
@@ -242,10 +194,20 @@ async function repForm(req, res, id) {
         subtitle: isNew
           ? 'الرمز فارغ = تلقائي (REP-####)'
           : esc(row.code || '') + (custCount ? ` · ${custCount} عميل` : ' · بلا عملاء'),
-        actions: [{ label: 'رجوع للقائمة', href: '/sales-reps/list' }],
+        actions: [
+          { label: 'رجوع للقائمة', href: '/sales-reps/list' },
+          ...(!isNew
+            ? [
+                {
+                  label: 'تقرير العملاء',
+                  href: '/sales-reps/reports/by-customers?sales_rep_id=' + id,
+                },
+              ]
+            : []),
+        ],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <section class="si-surface si-surface--master si-rep-card">
+      <section class="si-surface si-surface--master">
         <div class="si-surface-head">
           <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
           <div class="si-rep-head-meta">
@@ -257,52 +219,48 @@ async function repForm(req, res, id) {
             }
           </div>
         </div>
-        <div class="si-rep-card__body${isNew ? '' : ' si-rep-card__body--split'}">
-          <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form si-master-form--rep">
-            <input type="hidden" name="id" value="${row ? row.id : 0}">
+        <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form si-master-form--rep">
+          <input type="hidden" name="id" value="${row ? row.id : 0}">
 
-            <div class="si-master-grid si-master-grid--rep">
-              <label class="si-mf si-mf--name">
-                <span class="si-mf-label">اسم المندوب <em>*</em></span>
-                <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="الاسم الكامل">
-              </label>
+          <div class="si-master-grid si-master-grid--rep">
+            <label class="si-mf si-mf--name">
+              <span class="si-mf-label">اسم المندوب <em>*</em></span>
+              <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="الاسم الكامل">
+            </label>
 
-              <label class="si-mf si-mf--code">
-                <span class="si-mf-label">الرمز</span>
-                <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off" title="رقم البائع في أوراكل — فارغ = تلقائي (REP-####)">
-                <span class="si-mf-note">رقم البائع في أوراكل (مثل 12). فارغ = تلقائي. للترحيل إلى INV00024 استخدم رقم البائع وليس REP-0001.</span>
-              </label>
+            <label class="si-mf si-mf--code">
+              <span class="si-mf-label">الرمز</span>
+              <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off" title="رقم البائع في أوراكل — فارغ = تلقائي (REP-####)">
+              <span class="si-mf-note">رقم البائع في أوراكل (مثل 12). فارغ = تلقائي. للترحيل إلى INV00024 استخدم رقم البائع وليس REP-0001.</span>
+            </label>
 
-              <label class="si-mf">
-                <span class="si-mf-label">الهاتف</span>
-                <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" placeholder="07xxxxxxxx" autocomplete="off">
-              </label>
+            <label class="si-mf">
+              <span class="si-mf-label">الهاتف</span>
+              <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" placeholder="07xxxxxxxx" autocomplete="off">
+            </label>
 
-              <label class="si-mf">
-                <span class="si-mf-label">مستودع العهدة</span>
-                <select class="si-field" name="warehouse_id">
-                  <option value="0">— بدون —</option>
-                  ${whOpts}
-                </select>
-              </label>
+            <label class="si-mf">
+              <span class="si-mf-label">مستودع العهدة</span>
+              <select class="si-field" name="warehouse_id">
+                <option value="0">— بدون —</option>
+                ${whOpts}
+              </select>
+            </label>
 
-              <label class="si-mf si-mf--full">
-                <span class="si-mf-label">العنوان</span>
-                <textarea class="si-field" name="address_ar" rows="2" placeholder="اختياري…">${esc(
-                  row?.address_ar || ''
-                )}</textarea>
-              </label>
-            </div>
+            <label class="si-mf si-mf--full">
+              <span class="si-mf-label">العنوان</span>
+              <textarea class="si-field" name="address_ar" rows="2" placeholder="اختياري…">${esc(
+                row?.address_ar || ''
+              )}</textarea>
+            </label>
+          </div>
 
-            <div class="si-form-actions">
-              <button class="si-btn si-btn--primary" type="submit">حفظ</button>
-              <a class="si-btn" href="/sales-reps/list">إلغاء</a>
-            </div>
-          </form>
-          ${customersPanel}
-        </div>
+          <div class="si-form-actions">
+            <button class="si-btn si-btn--primary" type="submit">حفظ</button>
+            <a class="si-btn" href="/sales-reps/list">إلغاء</a>
+          </div>
+        </form>
       </section>
-      ${custFilterScript}
     </div>`;
   res.send(ui.salesPage({ user: req.session.user, title: isNew ? 'إضافة مندوب' : 'تعديل مندوب', bodyHtml: body }));
 }
@@ -1718,6 +1676,121 @@ router.post('/sales-reps/customer-gps-approve', guard('crm_customer_gps_approve'
   if (result.ok) q.set('msg', result.message || 'تم');
   else q.set('err', result.message || 'تعذّر التنفيذ');
   res.redirect('/sales-reps/customer-gps-approve?' + q.toString());
+});
+
+/* ── تقرير المندوبين حسب العملاء ── */
+router.get('/sales-reps/reports/by-customers', async (req, res) => {
+  try {
+    const adminService = require('../system/adminService');
+    if (adminService.ensureReportSalesRepCustomersScreen) {
+      await adminService.ensureReportSalesRepCustomersScreen();
+    }
+  } catch (e) {
+    console.error('ensureReportSalesRepCustomersScreen', e.message || e);
+  }
+  if (!can(req.session.user, 'report_sales_rep_customers') && !can(req.session.user, 'sales_reps')) {
+    return res.status(403).send('ممنوع');
+  }
+
+  const salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  const showInactive = String(req.query.all || '') === '1';
+  const reps = await q.listRepsSimple();
+  const selectedRep = salesRepId ? reps.find((r) => Number(r.id) === salesRepId) || (await masters.getRep(salesRepId)) : null;
+  const rows = salesRepId
+    ? await masters.listRepLinkedCustomers(salesRepId, { limit: 5000, activeOnly: !showInactive })
+    : [];
+
+  const repOpts = reps
+    .map(
+      (r) =>
+        `<option value="${r.id}" ${salesRepId === Number(r.id) ? 'selected' : ''}>${esc(
+          r.name_ar || ''
+        )}${r.code ? ' (' + esc(r.code) + ')' : ''}</option>`
+    )
+    .join('');
+
+  const activeCnt = rows.filter((c) => Number(c.is_active) !== 0).length;
+  const inactiveCnt = rows.length - activeCnt;
+
+  const rowsHtml =
+    rows
+      .map(
+        (c, i) => `<tr>
+      <td class="si-num" dir="ltr">${i + 1}</td>
+      <td class="si-num" dir="ltr"><a href="/customers/${Number(c.id)}">${esc(c.code || '—')}</a></td>
+      <td>${esc(c.name_ar || '')}</td>
+      <td class="si-num" dir="ltr">${dash(c.phone)}</td>
+      <td>${esc(c.region_name || '—')}</td>
+      <td>${esc(c.address_name || '—')}</td>
+      <td>${ui.statusPill(Number(c.is_active) === 1 ? 'ok' : 'lock', Number(c.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
+    </tr>`
+      )
+      .join('') ||
+    ui.emptyRow(
+      7,
+      salesRepId ? 'لا يوجد عملاء مربوطون بهذا المندوب' : 'اختر المندوب ثم اضغط عرض'
+    );
+
+  const body = `
+    <div class="si-stage si-report-page">
+      ${ui.hero({
+        mark: '👥',
+        kicker: KICKER,
+        title: 'تقرير المندوبين حسب العملاء',
+        subtitle: 'اختر المندوب لعرض العملاء المربوطين به',
+        actions: [
+          ui.printAction(),
+          { label: 'المندوبين', href: '/sales-reps/list' },
+          { label: 'لوحة المندوبين', href: HUB },
+        ],
+      })}
+      <section class="si-surface no-print" style="padding:0.85rem 1rem;margin-bottom:.75rem">
+        <form method="get" action="/sales-reps/reports/by-customers" class="si-meta" style="align-items:end">
+          <label>المندوب
+            <select class="si-field" name="sales_rep_id" required>
+              <option value="">— اختر المندوب —</option>
+              ${repOpts}
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:.35rem;padding-bottom:.35rem">
+            <input type="checkbox" name="all" value="1" ${showInactive ? 'checked' : ''}>
+            تضمين الموقوفين
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض</button>
+          ${ui.siPrintBtnHtml('طباعة')}
+        </form>
+        ${
+          salesRepId
+            ? `<p class="muted" style="margin:.65rem 0 0;font-size:.82rem">
+                المندوب: <b>${esc(selectedRep?.name_ar || '')}</b>
+                ${selectedRep?.code ? ` <span dir="ltr">(${esc(selectedRep.code)})</span>` : ''}
+                · الإجمالي <b dir="ltr">${rows.length}</b>
+                · نشط <b dir="ltr">${activeCnt}</b>
+                ${inactiveCnt ? ` · موقوف <b dir="ltr">${inactiveCnt}</b>` : ''}
+              </p>`
+            : ''
+        }
+      </section>
+      <div class="si-print-area">
+      ${ui.tableSurface(
+        salesRepId
+          ? `عملاء المندوب: ${esc(selectedRep?.name_ar || '')}`
+          : 'عملاء المندوب',
+        salesRepId ? `${rows.length} عميل` : '—',
+        ['#', 'الرمز', 'اسم العميل', 'الهاتف', 'المنطقة', 'العنوان', 'الحالة'],
+        rowsHtml
+      )}
+      </div>
+    </div>`;
+
+  res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'تقرير المندوبين حسب العملاء',
+      bodyHtml: body,
+      printTitle: 'تقرير المندوبين حسب العملاء',
+    })
+  );
 });
 
 /* ── تقرير الجولات ── */

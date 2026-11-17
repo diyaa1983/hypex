@@ -342,38 +342,66 @@ async function getRep(id) {
   return rows[0] || null;
 }
 
-/** عملاء مربوطون بالمندوب (عمود sales_rep_id أو جدول الربط) — للعرض فقط */
-async function listRepLinkedCustomers(repId, { limit = 800 } = {}) {
+const REP_CUSTOMER_LINK_SQL = `(
+  c.sales_rep_id = ?
+  OR EXISTS (
+    SELECT 1 FROM crm_customer_sales_rep csr
+    WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+  )
+)`;
+
+/** عدد العملاء المربوطين بالمندوب */
+async function countRepLinkedCustomers(repId) {
+  const id = Number(repId || 0);
+  if (id < 1) return 0;
+  try {
+    const rows = await safeQuery(
+      `SELECT COUNT(*) AS c FROM crm_customer c WHERE ${REP_CUSTOMER_LINK_SQL}`,
+      [id, id]
+    );
+    return Number(rows[0]?.c || 0);
+  } catch (e) {
+    console.error('countRepLinkedCustomers', e.message);
+    try {
+      const rows = await safeQuery(
+        `SELECT COUNT(*) AS c FROM crm_customer c WHERE c.sales_rep_id = ?`,
+        [id]
+      );
+      return Number(rows[0]?.c || 0);
+    } catch {
+      return 0;
+    }
+  }
+}
+
+/** عملاء مربوطون بالمندوب (عمود sales_rep_id أو جدول الربط) */
+async function listRepLinkedCustomers(repId, { limit = 2000, activeOnly = false } = {}) {
   const id = Number(repId || 0);
   if (id < 1) return [];
+  const lim = Math.min(5000, Math.max(1, Number(limit) || 2000));
+  const activeSql = activeOnly ? ' AND c.is_active = 1' : '';
   try {
     return await safeQuery(
-      `SELECT c.id, c.code, c.name_ar, c.phone, c.is_active,
+      `SELECT c.id, c.code, c.name_ar, c.phone, c.is_active, c.address_ar,
               COALESCE(rg.name_ar, '') AS region_name,
               COALESCE(ra.name_ar, '') AS address_name
        FROM crm_customer c
        LEFT JOIN crm_region rg ON rg.id = c.region_id
        LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
-       WHERE (
-         c.sales_rep_id = ?
-         OR EXISTS (
-           SELECT 1 FROM crm_customer_sales_rep csr
-           WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
-         )
-       )
+       WHERE ${REP_CUSTOMER_LINK_SQL}${activeSql}
        ORDER BY c.name_ar ASC, c.id ASC
-       LIMIT ${Math.min(1000, Math.max(1, Number(limit) || 800))}`,
+       LIMIT ${lim}`,
       [id, id]
     );
   } catch (e) {
     console.error('listRepLinkedCustomers', e.message);
     try {
       return await safeQuery(
-        `SELECT c.id, c.code, c.name_ar, c.phone, c.is_active
+        `SELECT c.id, c.code, c.name_ar, c.phone, c.is_active, c.address_ar
          FROM crm_customer c
-         WHERE c.sales_rep_id = ?
+         WHERE c.sales_rep_id = ?${activeSql}
          ORDER BY c.name_ar ASC, c.id ASC
-         LIMIT ${Math.min(1000, Math.max(1, Number(limit) || 800))}`,
+         LIMIT ${lim}`,
         [id]
       );
     } catch (e2) {
@@ -1753,6 +1781,7 @@ const listActiveCustomers = async () => listTourCustomers({ limit: 800 });
 
 module.exports = {
   getRep,
+  countRepLinkedCustomers,
   listRepLinkedCustomers,
   saveRep,
   toggleRep,

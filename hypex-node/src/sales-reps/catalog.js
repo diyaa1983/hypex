@@ -36,6 +36,13 @@ const salesRepsCatalog = [
     title: 'تقارير المندوبين',
     items: [
       {
+        r: 'report_sales_rep_customers',
+        label: 'تقرير المندوبين حسب العملاء',
+        icon: '👥',
+        path: '/sales-reps/reports/by-customers',
+        kind: 'report',
+      },
+      {
         r: 'report_sales_rep_tours',
         label: 'تقرير الجولات',
         icon: '📋',
