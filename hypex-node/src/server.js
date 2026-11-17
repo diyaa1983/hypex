@@ -527,7 +527,8 @@ async function getLoginBrand() {
 function renderLogin({ error, username, brand }) {
   const companyName = (brand && brand.companyName) || 'Hypex';
   const logoUrl = (brand && brand.logoUrl) || '';
-  const forgotUrl = config.phpBaseUrl + '/forgot_password.php';
+  // لا تستخدم 127.0.0.1 هنا — يفشل من الإنترنت/IP العام
+  const forgotUrl = basePath.ensurePrefixed('/forgot_password.php');
   const brandMark = logoUrl
     ? `<img class="login-hero__logo" src="${esc(logoUrl)}" alt="">`
     : `<span class="login-hero__mark" aria-hidden="true">ERP</span>`;

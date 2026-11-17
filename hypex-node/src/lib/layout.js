@@ -488,6 +488,19 @@ function renderApp({
     var el=!!(window.hypexDesktop&&window.hypexDesktop.isElectron)||/\\bElectron\\//i.test(navigator.userAgent||'');
     if(el){document.documentElement.classList.add('hypex-desktop-app');document.body.classList.add('app-body--standalone','app-body--electron');}
     if(window.matchMedia('(display-mode: standalone)').matches||window.matchMedia('(display-mode: fullscreen)').matches){document.body.classList.add('app-body--standalone');}
+    // إن ظهرت صفحة شبه فارغة بعد تحويل معطوب — أعد التحميل مرة واحدة
+    try{
+      var k='hypex:blank-reload:'+location.pathname;
+      setTimeout(function(){
+        var t=(document.body&&document.body.innerText||'').replace(/\\s+/g,' ').trim();
+        var shell=document.querySelector('.app-shell, .login-shell, .si-stage');
+        if(shell){try{sessionStorage.removeItem(k);}catch(e){} return;}
+        if(t.length>80){try{sessionStorage.removeItem(k);}catch(e){} return;}
+        if(sessionStorage.getItem(k)==='1')return;
+        sessionStorage.setItem(k,'1');
+        location.reload();
+      },700);
+    }catch(e){}
   })();
   </script>
   ${

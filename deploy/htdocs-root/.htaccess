@@ -2,7 +2,10 @@
 RewriteEngine On
 RewriteBase /
 
-# مسارات Hypex بدون بادئة /hypex (شاشات + رموز /n) → التطبيق
+# جذر السيرفر → Hypex
+RewriteRule ^$ /hypex/ [R=302,L]
+
+# مسارات Hypex بدون بادئة /hypex → التطبيق
 RewriteCond %{REQUEST_URI} ^/(n|sales|customers|purchases|sales-reps|accounting|inventory|hr|system|suppliers|mobile|main|hub|menu|app|embed|login|logout)(/|$)
 RewriteRule ^ /hypex%{REQUEST_URI} [R=302,L,QSA]
 </IfModule>

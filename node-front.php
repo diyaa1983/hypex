@@ -14,6 +14,7 @@ $appBase = '/hypex';
 
 /**
  * إن أعاد Node ترويسة Location بدون /hypex يصطدم الطلب بـ Apache 404 على الجذر.
+ * كما نحوّل روابط 127.0.0.1/localhost إلى مسار نسبي تحت المضيف العام.
  */
 function hypex_proxy_fix_location(string $value, string $appBase = '/hypex'): string
 {
@@ -26,20 +27,21 @@ function hypex_proxy_fix_location(string $value, string $appBase = '/hypex'): st
         if (!is_array($parts) || empty($parts['host'])) {
             return $value;
         }
+        $hostOnly = strtolower((string) $parts['host']);
+        $path = (string) ($parts['path'] ?? '/');
+        $query = isset($parts['query']) ? '?' . $parts['query'] : '';
+        $frag = isset($parts['fragment']) ? '#' . $parts['fragment'] : '';
+        // Node أحياناً يعيد Location على 127.0.0.1:3000 — لا يفتح من الإنترنت
+        if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost' || $hostOnly === '::1') {
+            return hypex_proxy_fix_location($path . $query . $frag, $appBase);
+        }
         $reqHost = (string) ($_SERVER['HTTP_HOST'] ?? '');
         $locHost = $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '');
-        if ($reqHost !== '' && strcasecmp($locHost, $reqHost) !== 0) {
-            return $value;
+        $fixedPath = hypex_proxy_fix_location($path, $appBase);
+        if ($reqHost !== '' && strcasecmp($locHost, $reqHost) === 0) {
+            return $fixedPath . $query . $frag;
         }
-        $path = (string) ($parts['path'] ?? '/');
-        $fixed = hypex_proxy_fix_location($path, $appBase);
-        $rebuilt = ($parts['scheme'] ?? 'http') . '://' . $locHost . $fixed;
-        if (!empty($parts['query'])) {
-            $rebuilt .= '?' . $parts['query'];
-        }
-        if (!empty($parts['fragment'])) {
-            $rebuilt .= '#' . $parts['fragment'];
-        }
+        $rebuilt = ($parts['scheme'] ?? 'http') . '://' . $locHost . $fixedPath . $query . $frag;
         return $rebuilt;
     }
     if ($value[0] !== '/') {
@@ -48,15 +50,29 @@ function hypex_proxy_fix_location(string $value, string $appBase = '/hypex'): st
     if ($value === $appBase || str_starts_with($value, $appBase . '/')) {
         return $value;
     }
-    // مسارات التطبيق فقط — لا تلمس أصولاً عامة خارج Hypex
     if (preg_match('#^/(n|sales|customers|purchases|sales-reps|accounting|inventory|hr|system|suppliers|mobile|main|hub|menu|app|embed|login|logout|api|assets|static|health)(/|$)#', $value)) {
         return $appBase . $value;
     }
     return $value;
 }
 
+/** Location مطلق على نفس المضيف العام — أوضح للمتصفح من المسار النسبي بعد فتح الجذر */
+function hypex_proxy_public_location(string $value, string $appBase = '/hypex'): string
+{
+    $fixed = hypex_proxy_fix_location($value, $appBase);
+    if ($fixed === '' || !str_starts_with($fixed, '/')) {
+        return $fixed;
+    }
+    $host = (string) ($_SERVER['HTTP_HOST'] ?? '');
+    if ($host === '') {
+        return $fixed;
+    }
+    $https = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+    $proto = $https ? 'https' : 'http';
+    return $proto . '://' . $host . $fixed;
+}
+
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
-// الهدف على Node بنفس المسار (APP_BASE_PATH=/hypex)
 $target = $nodeOrigin . $uri;
 
 $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -65,7 +81,6 @@ $isMultipart = $method !== 'GET'
     && $method !== 'HEAD'
     && stripos($contentType, 'multipart/form-data') !== false;
 
-// تقارير Oracle/تقارير ثقيلة تحتاج مهلة أطول من الصفحات العادية
 $isHeavyReport = (bool) preg_match(
     '#/(sales/reports/oracle-|accounting/reports/|inventory/reports/)#i',
     (string) $uri
@@ -75,10 +90,7 @@ $isHeavyReport = (bool) preg_match(
 @ignore_user_abort(true);
 
 /**
- * بناء حقول POST لـ curl من $_POST و $_FILES (متعدد الأبعاد للأسماء الشبكية).
- *
  * @param array<string,mixed> $src
- * @param string $prefix
  * @param array<string,mixed> $out
  */
 function hypex_proxy_flatten_post(array $src, string $prefix, array &$out): void
@@ -107,7 +119,6 @@ function hypex_proxy_build_body(string $method, string $contentType, bool $isMul
         hypex_proxy_flatten_post($_POST, '', $fields);
 
         foreach ($_FILES as $name => $file) {
-            // ملف واحد
             if (!is_array($file['name'])) {
                 if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK
                     && !empty($file['tmp_name'])
@@ -121,30 +132,29 @@ function hypex_proxy_build_body(string $method, string $contentType, bool $isMul
                 }
                 continue;
             }
-            // مصفوفة ملفات (نادراً)
-            foreach ((array) $file['name'] as $i => $fname) {
-                $err = (int) ($file['error'][$i] ?? UPLOAD_ERR_NO_FILE);
+            $n = count($file['name']);
+            for ($i = 0; $i < $n; $i++) {
+                if ((int) ($file['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+                    continue;
+                }
                 $tmp = (string) ($file['tmp_name'][$i] ?? '');
-                if ($err !== UPLOAD_ERR_OK || $tmp === '' || !is_uploaded_file($tmp)) {
+                if ($tmp === '' || !is_uploaded_file($tmp)) {
                     continue;
                 }
                 $fields[$name . '[' . $i . ']'] = new CURLFile(
                     $tmp,
-                    (string) ($file['type'][$i] ?? 'application/octet-stream'),
-                    (string) $fname
+                    $file['type'][$i] ?: 'application/octet-stream',
+                    $file['name'][$i] ?: 'file'
                 );
             }
         }
-
         return $fields;
     }
 
-    // application/x-www-form-urlencoded أو JSON أو غيره — من php://input
     $raw = file_get_contents('php://input');
     if ($raw !== false && $raw !== '') {
         return $raw;
     }
-    // احتياط إن فُرِّغ الإدخال وامتلأت $_POST فقط
     if (!empty($_POST)) {
         return http_build_query($_POST);
     }
@@ -161,7 +171,6 @@ foreach ($_SERVER as $k => $v) {
         if (in_array(strtolower($name), ['host', 'connection', 'content-length', 'accept-encoding'], true)) {
             continue;
         }
-        // عند إعادة بناء multipart يضبط curl الـ Content-Type + boundary
         if ($isMultipart && strtolower($name) === 'content-type') {
             continue;
         }
@@ -179,6 +188,9 @@ $headers[] = 'X-Forwarded-Prefix: /hypex';
 $respStatus = 0;
 $respHeaders = [];
 $headerDone = false;
+$bufferRedirect = false;
+$bufferedBody = '';
+$headersSent = false;
 $hopByHop = [
     'transfer-encoding' => true,
     'connection' => true,
@@ -188,7 +200,6 @@ $hopByHop = [
     'te' => true,
     'trailers' => true,
     'upgrade' => true,
-    // body قد يُفك ضغطه عبر CURLOPT_ENCODING
     'content-encoding' => true,
     'content-length' => true,
 ];
@@ -200,21 +211,30 @@ curl_setopt_array($ch, [
     CURLOPT_HEADER => false,
     CURLOPT_FOLLOWLOCATION => false,
     CURLOPT_CONNECTTIMEOUT => 15,
-    // تقارير Oracle قد تتجاوز دقيقتين (استعلام + بناء HTML)
     CURLOPT_TIMEOUT => $isHeavyReport ? 900 : 180,
     CURLOPT_HTTPHEADER => $headers,
     CURLOPT_ENCODING => '',
-    CURLOPT_HEADERFUNCTION => static function ($ch, string $headerLine) use (&$respStatus, &$respHeaders, &$headerDone, $hopByHop): int {
+    CURLOPT_HEADERFUNCTION => static function ($ch, string $headerLine) use (
+        &$respStatus,
+        &$respHeaders,
+        &$headerDone,
+        &$bufferRedirect,
+        $hopByHop
+    ): int {
         $len = strlen($headerLine);
         $trim = trim($headerLine);
         if ($trim === '') {
             $headerDone = true;
+            if ($respStatus >= 300 && $respStatus < 400) {
+                $bufferRedirect = true;
+            }
             return $len;
         }
         if (preg_match('#^HTTP/\S+\s+(\d+)#i', $trim, $m)) {
             $respStatus = (int) $m[1];
             $respHeaders = [];
             $headerDone = false;
+            $bufferRedirect = $respStatus >= 300 && $respStatus < 400;
             return $len;
         }
         $pos = strpos($trim, ':');
@@ -226,21 +246,35 @@ curl_setopt_array($ch, [
         if (isset($hopByHop[strtolower($name)])) {
             return $len;
         }
-        // منع Location بدون /hypex → Apache 404 على جذر السيرفر
         if (strtolower($name) === 'location') {
-            $value = hypex_proxy_fix_location($value);
+            $value = hypex_proxy_public_location($value);
         }
         $respHeaders[] = [$name, $value];
         return $len;
     },
-    CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (&$respStatus, &$respHeaders, &$headerDone): int {
-        static $sent = false;
-        if (!$sent) {
+    CURLOPT_WRITEFUNCTION => static function ($ch, string $chunk) use (
+        &$respStatus,
+        &$respHeaders,
+        &$headerDone,
+        &$bufferRedirect,
+        &$bufferedBody,
+        &$headersSent
+    ): int {
+        if ($bufferRedirect || ($respStatus >= 300 && $respStatus < 400)) {
+            $bufferRedirect = true;
+            $bufferedBody .= $chunk;
+            return strlen($chunk);
+        }
+        if (!$headersSent) {
             http_response_code($respStatus ?: 502);
             foreach ($respHeaders as [$name, $value]) {
+                // لا تمرّر Content-Type: text/plain من Express مع صفحات HTML
+                if (strtolower($name) === 'content-type' && $respStatus >= 200 && $respStatus < 300) {
+                    // اترك كما هو من Node
+                }
                 header($name . ': ' . $value, false);
             }
-            $sent = true;
+            $headersSent = true;
             $headerDone = true;
         }
         echo $chunk;
@@ -268,8 +302,10 @@ if ($ok === false) {
     $errno = curl_errno($ch);
     $err = curl_error($ch);
     curl_close($ch);
-    http_response_code(502);
-    header('Content-Type: text/html; charset=utf-8');
+    if (!headers_sent()) {
+        http_response_code(502);
+        header('Content-Type: text/html; charset=utf-8');
+    }
     $hint = 'الرابط <code>/hypex</code> يعتمد على تشغيل Node.';
     if ($errno === 28 || stripos($err, 'timed out') !== false) {
         $hint = 'انتهت مهلة التقرير (بيانات كثيرة). حاول تصفية مندوب/سنة/شهر، أو أعد المحاولة.';
@@ -290,3 +326,33 @@ if ($ok === false) {
 }
 
 curl_close($ch);
+
+// إعادة توجيه نظيفة — لا نعرض نص Express "Found. Redirecting…" كصفحة بيضاء
+if ($bufferRedirect && $respStatus >= 300 && $respStatus < 400) {
+    $location = '';
+    foreach ($respHeaders as [$name, $value]) {
+        if (strtolower($name) === 'location') {
+            $location = $value;
+            break;
+        }
+    }
+    if ($location === '') {
+        $location = hypex_proxy_public_location('/hypex/');
+    }
+    if (!headers_sent()) {
+        http_response_code($respStatus);
+        header('Location: ' . $location, true, $respStatus);
+        header('Content-Type: text/html; charset=utf-8');
+        header('Cache-Control: no-store');
+    }
+    $safe = htmlspecialchars($location, ENT_QUOTES, 'UTF-8');
+    $js = json_encode($location, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    echo '<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8">';
+    echo '<meta http-equiv="refresh" content="0;url=' . $safe . '">';
+    echo '<title>جاري التحويل…</title></head><body>';
+    echo '<p style="font-family:Tahoma,sans-serif;padding:1.5rem">جاري التحويل… ';
+    echo '<a href="' . $safe . '">اضغط هنا إن لم تُحوَّل تلقائياً</a></p>';
+    echo '<script>try{location.replace(' . $js . ');}catch(e){location.href=' . $js . ';}</script>';
+    echo '</body></html>';
+    exit;
+}
