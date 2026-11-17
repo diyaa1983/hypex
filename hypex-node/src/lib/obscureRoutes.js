@@ -190,16 +190,22 @@ function middleware() {
   return function obscureRoutesMiddleware(req, res, next) {
     if (!isEnabled()) return next();
 
-    const decoded = decodeRequestUrl(req.url || '/');
+    const rawUrl = req.url || '/';
+    const decoded = decodeRequestUrl(rawUrl);
     if (decoded) {
       req.url = decoded.startsWith('/') ? decoded : '/' + decoded;
       req.__hypexObscured = true;
+    } else if (pathOnly(rawUrl).startsWith(PREFIX)) {
+      // رمز /n تالف أو من جلسة قديمة — لا تترك Express 404 عارياً
+      if (req.method === 'GET' || req.method === 'HEAD') {
+        return res.redirect(302, '/app');
+      }
     } else if (
       (req.method === 'GET' || req.method === 'HEAD') &&
-      shouldObscure(req.url || '/')
+      shouldObscure(rawUrl)
     ) {
       // حوّل الرابط الواضح إلى مشفّر حتى لا يبقى اسم الشاشة في الشريط
-      const target = encode(req.url || '/');
+      const target = encode(rawUrl);
       return res.redirect(302, target);
     }
 

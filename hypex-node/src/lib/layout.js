@@ -493,8 +493,8 @@ function renderApp({
   ${
     user && !isMdiEmbedRequest()
       ? `<script>window.AppMdiConfig=${JSON.stringify({
-          baseUrl: '/app',
-          afterMinimizeUrl: '/app',
+          baseUrl: basePath.ensurePrefixed('/app'),
+          afterMinimizeUrl: basePath.ensurePrefixed('/app'),
           currentRoute: normalizeAppPath(currentRequestPath || activePath) || '/app',
           currentTitle: title || '',
           routes: {},

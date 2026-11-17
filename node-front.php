@@ -10,6 +10,50 @@ declare(strict_types=1);
 
 $nodeOrigin = getenv('HYPEX_NODE_ORIGIN') ?: 'http://127.0.0.1:3000';
 $nodeOrigin = rtrim($nodeOrigin, '/');
+$appBase = '/hypex';
+
+/**
+ * إن أعاد Node ترويسة Location بدون /hypex يصطدم الطلب بـ Apache 404 على الجذر.
+ */
+function hypex_proxy_fix_location(string $value, string $appBase = '/hypex'): string
+{
+    $value = trim($value);
+    if ($value === '' || str_starts_with($value, '//')) {
+        return $value;
+    }
+    if (preg_match('#^https?://#i', $value)) {
+        $parts = parse_url($value);
+        if (!is_array($parts) || empty($parts['host'])) {
+            return $value;
+        }
+        $reqHost = (string) ($_SERVER['HTTP_HOST'] ?? '');
+        $locHost = $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '');
+        if ($reqHost !== '' && strcasecmp($locHost, $reqHost) !== 0) {
+            return $value;
+        }
+        $path = (string) ($parts['path'] ?? '/');
+        $fixed = hypex_proxy_fix_location($path, $appBase);
+        $rebuilt = ($parts['scheme'] ?? 'http') . '://' . $locHost . $fixed;
+        if (!empty($parts['query'])) {
+            $rebuilt .= '?' . $parts['query'];
+        }
+        if (!empty($parts['fragment'])) {
+            $rebuilt .= '#' . $parts['fragment'];
+        }
+        return $rebuilt;
+    }
+    if ($value[0] !== '/') {
+        return $value;
+    }
+    if ($value === $appBase || str_starts_with($value, $appBase . '/')) {
+        return $value;
+    }
+    // مسارات التطبيق فقط — لا تلمس أصولاً عامة خارج Hypex
+    if (preg_match('#^/(n|sales|customers|purchases|sales-reps|accounting|inventory|hr|system|suppliers|mobile|main|hub|menu|app|embed|login|logout|api|assets|static|health)(/|$)#', $value)) {
+        return $appBase . $value;
+    }
+    return $value;
+}
 
 $uri = $_SERVER['REQUEST_URI'] ?? '/';
 // الهدف على Node بنفس المسار (APP_BASE_PATH=/hypex)
@@ -181,6 +225,10 @@ curl_setopt_array($ch, [
         $value = ltrim(substr($trim, $pos + 1));
         if (isset($hopByHop[strtolower($name)])) {
             return $len;
+        }
+        // منع Location بدون /hypex → Apache 404 على جذر السيرفر
+        if (strtolower($name) === 'location') {
+            $value = hypex_proxy_fix_location($value);
         }
         $respHeaders[] = [$name, $value];
         return $len;

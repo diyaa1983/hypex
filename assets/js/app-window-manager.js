@@ -55,13 +55,13 @@
   }
 
   function buildEmbedUrl(href, mdiId) {
-    var u = new URL(href, global.location.origin);
+    var u = new URL(withAppBase(href) || href, global.location.origin);
     u.searchParams.set('embed', '1');
     u.searchParams.delete('mdi_id');
     if (mdiId) {
       u.searchParams.set('mdi_id', mdiId);
     }
-    return u.pathname + u.search + u.hash;
+    return withAppBase(u.pathname) + u.search + u.hash;
   }
 
   var STORAGE_KEY = 'manager:mdi-windows-v1';
@@ -392,15 +392,51 @@
     }
   }
 
-  function stripBasePath(pathname) {
+  function appBase() {
     var base = typeof global.__HYPEX_BASE__ === 'string' ? global.__HYPEX_BASE__ : '';
     if (base && base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
+    return base;
+  }
+
+  function stripBasePath(pathname) {
+    var base = appBase();
     var path = String(pathname || '');
     if (base && (path === base || path.indexOf(base + '/') === 0)) {
       path = path.slice(base.length) || '/';
     }
     if (path.length > 1 && path.charAt(path.length - 1) === '/') path = path.slice(0, -1);
     return path || '/';
+  }
+
+  /** يضمن أن كل تنقل يبقى تحت /hypex (يتجنب Apache 404 على الجذر) */
+  function withAppBase(href) {
+    if (!href) {
+      return href;
+    }
+    var raw = String(href);
+    if (/^https?:\/\//i.test(raw) || raw.indexOf('//') === 0) {
+      try {
+        var abs = new URL(raw, global.location.origin);
+        if (abs.origin === global.location.origin) {
+          abs.pathname = withAppBase(abs.pathname) || abs.pathname;
+          return abs.pathname + abs.search + abs.hash;
+        }
+      } catch (e) {
+        /* keep absolute external */
+      }
+      return raw;
+    }
+    if (raw.charAt(0) !== '/') {
+      return raw;
+    }
+    var base = appBase();
+    if (!base) {
+      return raw;
+    }
+    if (raw === base || raw.indexOf(base + '/') === 0) {
+      return raw;
+    }
+    return base + raw;
   }
 
   function isMenuLikeLocation(url) {
@@ -428,14 +464,7 @@
 
   function defaultHubUrl() {
     var url = config.afterMinimizeUrl || (config.baseUrl || 'index.php') + '?r=dashboard';
-    if (url.charAt(0) === '/') {
-      var base = typeof global.__HYPEX_BASE__ === 'string' ? global.__HYPEX_BASE__ : '';
-      if (base && base.charAt(base.length - 1) === '/') base = base.slice(0, -1);
-      if (base && url.indexOf(base + '/') !== 0 && url !== base) {
-        url = base + url;
-      }
-    }
-    return url;
+    return withAppBase(url) || url;
   }
 
   function showHubOverlay(url) {
@@ -569,7 +598,7 @@
     document.body.classList.remove('app-mdi-page-parked');
     showBusyNav('جاري فتح الشاشة…');
     global.__managerAllowUnload = true;
-    global.location.href = stripEmbedParams(href);
+    global.location.href = withAppBase(stripEmbedParams(href));
   }
 
   function findCurrentFullPageWindow() {
@@ -618,7 +647,7 @@
     }
     removeFullPageWindowRecord(findCurrentFullPageWindow());
     global.__managerAllowUnload = true;
-    href = stripEmbedParams(href);
+    href = withAppBase(stripEmbedParams(href));
     if (global.APP_EMBED && global.parent && global.parent !== global) {
       global.parent.postMessage({ type: 'manager:mdi-parent-nav', href: href }, global.location.origin);
       return;
@@ -981,6 +1010,9 @@
   }
 
   function registerFullPageWindow(spec) {
+    if (spec && spec.href) {
+      spec.href = withAppBase(spec.href) || spec.href;
+    }
     var key = spec.key || normalizeKey(spec.href);
     var existing = findByKey(key);
     if (existing) {
@@ -989,6 +1021,10 @@
       }
       if (spec.title) {
         existing.title = spec.title;
+      }
+      if (spec.href) {
+        existing.href = spec.href;
+        existing.key = key;
       }
       return existing.id;
     }
@@ -1076,6 +1112,9 @@
       }
     }
 
+    if (spec.href) {
+      spec.href = withAppBase(spec.href) || spec.href;
+    }
     var route = spec.route || parseRouteFromHref(spec.href);
     var winTitle = spec.title || titleFromHref(spec.href);
     var frameSrc = buildEmbedUrl(spec.href, id);
@@ -1218,7 +1257,7 @@
       global.ScreenExitGuard.confirmTaskbarClose(
         function () {
           if (win && win.href) {
-            global.location.href = win.href;
+            global.location.href = withAppBase(win.href) || win.href;
           }
         },
         function () {
@@ -1231,7 +1270,7 @@
     }
     if (global.confirm('هل تريد حفظ التغييرات قبل إغلاق الشاشة؟')) {
       if (win && win.href) {
-        global.location.href = win.href;
+        global.location.href = withAppBase(win.href) || win.href;
       }
       return;
     }
@@ -1499,6 +1538,7 @@
       /* ignore */
     }
     showBusyNav('جاري فتح الشاشة…');
+    win.href = withAppBase(win.href) || win.href;
     prefetchHref(win.href);
     global.__managerAllowUnload = true;
     global.location.href = win.href;
@@ -1604,7 +1644,7 @@
       global.__managerAllowUnload = true;
       persistWindowsNow();
       syncTaskbar();
-      global.location.href = stripEmbedParams(defaultHubUrl());
+      global.location.href = withAppBase(stripEmbedParams(defaultHubUrl()));
       return;
     }
     if (activeId === id) {
@@ -1637,6 +1677,7 @@
 
   function createWindow(href, title, opts) {
     opts = opts || {};
+    href = withAppBase(href) || href;
     var key = normalizeKey(href);
     var existing = findByKey(key);
     if (existing) {
@@ -1664,7 +1705,7 @@
     if (!href) {
       return null;
     }
-    return createWindow(href, title);
+    return createWindow(withAppBase(href) || href, title);
   }
 
   function openRoute(route, params, title) {
