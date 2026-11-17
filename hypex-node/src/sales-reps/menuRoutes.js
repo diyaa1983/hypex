@@ -187,54 +187,51 @@ async function repForm(req, res, id) {
 
   const custRowsHtml = linkedCustomers
     .map((c) => {
-      const place = [c.region_name, c.address_name].filter(Boolean).join(' · ');
-      const inactive = Number(c.is_active) === 0;
-      return `<li class="si-rep-cust-item${inactive ? ' is-inactive' : ''}" data-q="${esc(
-        String(c.code || '') + ' ' + String(c.name_ar || '') + ' ' + String(c.phone || '')
-      )}">
-        <a class="si-rep-cust-link" href="/customers/${Number(c.id)}" title="عرض العميل">
-          <span class="si-rep-cust-code" dir="ltr">${esc(c.code || '—')}</span>
-          <span class="si-rep-cust-name">${esc(c.name_ar || '')}</span>
-          ${place ? `<span class="si-rep-cust-place">${esc(place)}</span>` : ''}
-          ${inactive ? '<span class="si-rep-cust-badge">موقوف</span>' : ''}
-        </a>
-      </li>`;
+      const place = [c.region_name, c.address_name].filter(Boolean).join('/');
+      const label =
+        String(c.code || '') +
+        ' ' +
+        String(c.name_ar || '') +
+        (place ? '/' + place : '') +
+        (Number(c.is_active) === 0 ? ' (موقوف)' : '');
+      return `<div class="si-rep-cust-row" data-q="${esc(
+        String(c.code || '') + ' ' + String(c.name_ar || '') + ' ' + String(c.phone || '') + ' ' + place
+      )}" title="${esc(label)}">${esc(label)}</div>`;
     })
     .join('');
 
-  const customersBox = isNew
+  const customersPanel = isNew
     ? ''
-    : `<aside class="si-rep-cust-box" aria-label="العملاء المربوطون بالمندوب">
-        <div class="si-rep-cust-box__head">
-          <strong>العملاء المربوطون</strong>
-          <span class="si-rep-cust-box__count" dir="ltr">${custCount}</span>
+    : `<aside class="si-rep-cust-panel" aria-label="العملاء المربوطون">
+        <div class="si-rep-cust-panel__head">
+          <span>العملاء المربوطون</span>
+          <b dir="ltr">${custCount}</b>
         </div>
-        <p class="si-rep-cust-box__hint">عرض وتصفح فقط — الربط من شاشة العميل</p>
         ${
           custCount
-            ? `<input type="search" class="si-field si-rep-cust-box__filter" id="si-rep-cust-filter" placeholder="بحث سريع…" autocomplete="off">
-               <ul class="si-rep-cust-box__list" id="si-rep-cust-list">${custRowsHtml}</ul>`
-            : `<p class="si-rep-cust-box__empty">لا يوجد عملاء مربوطون بهذا المندوب بعد.</p>`
+            ? `<input type="search" class="si-rep-cust-panel__filter" id="si-rep-cust-filter" placeholder="بحث…" autocomplete="off">
+               <div class="si-rep-cust-panel__scroll" id="si-rep-cust-list">${custRowsHtml}</div>`
+            : `<div class="si-rep-cust-panel__empty">لا عملاء مربوطون</div>`
         }
-      </aside>
-      ${
-        custCount
-          ? `<script>
+      </aside>`;
+
+  const custFilterScript =
+    !isNew && custCount
+      ? `<script>
 (function(){
   var inp=document.getElementById('si-rep-cust-filter');
   var list=document.getElementById('si-rep-cust-list');
   if(!inp||!list)return;
   inp.addEventListener('input',function(){
     var q=String(inp.value||'').trim().toLowerCase();
-    list.querySelectorAll('.si-rep-cust-item').forEach(function(li){
-      var hay=String(li.getAttribute('data-q')||'').toLowerCase();
-      li.hidden=!!q&&hay.indexOf(q)===-1;
+    list.querySelectorAll('.si-rep-cust-row').forEach(function(row){
+      var hay=String(row.getAttribute('data-q')||'').toLowerCase();
+      row.hidden=!!q&&hay.indexOf(q)===-1;
     });
   });
 })();
 </script>`
-          : ''
-      }`;
+      : '';
 
   const body = `
     <div class="si-stage">
@@ -248,19 +245,19 @@ async function repForm(req, res, id) {
         actions: [{ label: 'رجوع للقائمة', href: '/sales-reps/list' }],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <div class="si-rep-edit${isNew ? '' : ' si-rep-edit--with-cust'}">
-        <section class="si-surface si-surface--master">
-          <div class="si-surface-head">
-            <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
-            <div class="si-rep-head-meta">
-              ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
-              ${
-                !isNew
-                  ? `<span class="si-rep-cust-chip" title="عدد العملاء المربوطين"><b dir="ltr">${custCount}</b> عميل</span>`
-                  : ''
-              }
-            </div>
+      <section class="si-surface si-surface--master si-rep-card">
+        <div class="si-surface-head">
+          <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
+          <div class="si-rep-head-meta">
+            ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
+            ${
+              !isNew
+                ? `<span class="si-rep-cust-chip" title="عدد العملاء المربوطين"><b dir="ltr">${custCount}</b> عميل</span>`
+                : ''
+            }
           </div>
+        </div>
+        <div class="si-rep-card__body${isNew ? '' : ' si-rep-card__body--split'}">
           <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form si-master-form--rep">
             <input type="hidden" name="id" value="${row ? row.id : 0}">
 
@@ -302,9 +299,10 @@ async function repForm(req, res, id) {
               <a class="si-btn" href="/sales-reps/list">إلغاء</a>
             </div>
           </form>
-        </section>
-        ${customersBox}
-      </div>
+          ${customersPanel}
+        </div>
+      </section>
+      ${custFilterScript}
     </div>`;
   res.send(ui.salesPage({ user: req.session.user, title: isNew ? 'إضافة مندوب' : 'تعديل مندوب', bodyHtml: body }));
 }
