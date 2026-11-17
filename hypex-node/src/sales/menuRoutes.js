@@ -2586,6 +2586,18 @@ const oracleRepItemsHandler = async (req, res) => {
       rows = rows.map(applyExcelCat);
       returnRows = returnRows.map(applyExcelCat);
       netRows = netRows.map(applyExcelCat);
+      // بعد فرض فئات الاكسل: أبقي فقط الفئات المختارة في الفلتر
+      if (catNames.length) {
+        const allowExact = new Set(catNames.map((n) => String(n).trim()).filter(Boolean));
+        const allowLower = new Set([...allowExact].map((n) => n.toLowerCase()));
+        const keepCat = (r) => {
+          const cat = String(r.cat_name || '').trim() || 'بدون فئة';
+          return allowExact.has(cat) || allowLower.has(cat.toLowerCase());
+        };
+        rows = rows.filter(keepCat);
+        returnRows = returnRows.filter(keepCat);
+        netRows = netRows.filter(keepCat);
+      }
       if (oracleRepNos.length > 1) {
         const allowReps = new Set(oracleRepNos.map(Number));
         const keep = (r) => allowReps.has(Number(r.rep_no) || 0);
@@ -2934,6 +2946,10 @@ const oracleRepItemsHandler = async (req, res) => {
           cat = xlCat;
         }
         if (!cat) cat = 'بدون فئة';
+        if (catNames.length) {
+          const allowLower = new Set(catNames.map((n) => String(n).trim().toLowerCase()).filter(Boolean));
+          if (!allowLower.has(cat.toLowerCase())) return;
+        }
         if (!catSeen.has(cat)) {
           catSeen.add(cat);
           catOrder.push(cat);
@@ -5349,6 +5365,9 @@ const oracleRepItemsHandler = async (req, res) => {
             root.appendChild(input);
           });
           btn.textContent = labelOf();
+          try {
+            root.dispatchEvent(new CustomEvent('ora-multi-change', { bubbles: true }));
+          } catch (eSync) {}
         }
         function render() {
           var needle = String(q.value || '').trim().toLowerCase();
@@ -5469,6 +5488,13 @@ const oracleRepItemsHandler = async (req, res) => {
         initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
         initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
         initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
+        var catRoot = document.getElementById('ora-cat-multi');
+        if (catRoot) {
+          catRoot.addEventListener('ora-multi-change', function () {
+            applyOraCatScreenFilter();
+          });
+        }
+        setTimeout(applyOraCatScreenFilter, 0);
         function parseManNoJs(code) {
           var c = String(code || '').trim();
           if (/^[1-9]\\d*$/.test(c)) return Number(c);
@@ -5520,6 +5546,29 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         return x.toLocaleString('en-US', { maximumFractionDigits: 3 });
       }
+      function getOraSelectedCatAllow() {
+        var root = document.getElementById('ora-cat-multi');
+        if (!root) return null;
+        var ids = [];
+        root.querySelectorAll('input[data-ora-hidden][name="category_id"]').forEach(function (inp) {
+          var v = String(inp.value || '').trim();
+          if (v) ids.push(v);
+        });
+        if (!ids.length) return null;
+        var allow = {};
+        var items = [];
+        try {
+          items = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]');
+        } catch (eCat) {
+          items = [];
+        }
+        items.forEach(function (it) {
+          if (ids.indexOf(String(it.id)) < 0) return;
+          var lab = String(it.label || '').trim();
+          if (lab) allow[lab.toLowerCase()] = true;
+        });
+        return allow;
+      }
       function fillOneOraCatQtyBox(box, count, catAmts, catQtys, catBonuses, pickGross, pickDisc, pickNet) {
         if (!box) return;
         var cats = String(box.getAttribute('data-ora-all-cats') || '').split('|');
@@ -5539,6 +5588,7 @@ const oracleRepItemsHandler = async (req, res) => {
         var showGross = usePick ? Number(pickGross) || 0 : allGross;
         var showDisc = usePick ? Number(pickDisc) || 0 : allDisc;
         var showNet = usePick ? Number(pickNet) || 0 : allNet;
+        var allowCats = getOraSelectedCatAllow();
         var table = box.querySelector('table.ora-cat-qty-table');
         var thead = table && table.querySelector('thead');
         var body = box.querySelector('.ora-cat-qty-body');
@@ -5546,10 +5596,12 @@ const oracleRepItemsHandler = async (req, res) => {
         var active = [];
         var totQ = 0;
         var totB = 0;
+        var totA = 0;
         var i;
         for (i = 0; i < cats.length; i += 1) {
           var cat = String(cats[i] || '').trim();
           if (!cat) continue;
+          if (allowCats && !allowCats[cat.toLowerCase()]) continue;
           var q = Number(qtys[i] || 0) || 0;
           var b = Number(bonuses[i] || 0) || 0;
           var a = Number(amts[i] || 0) || 0;
@@ -5557,6 +5609,12 @@ const oracleRepItemsHandler = async (req, res) => {
           active.push({ cat: cat, q: q, b: b, a: a });
           totQ += q;
           totB += b;
+          totA += a;
+        }
+        if (allowCats && !usePick) {
+          showGross = totA;
+          showDisc = 0;
+          showNet = totA;
         }
         function escTxt(s) {
           return String(s || '')
@@ -5652,6 +5710,47 @@ const oracleRepItemsHandler = async (req, res) => {
           scope.classList.toggle('is-picked-scope', usePick);
         }
         box.classList.toggle('is-picked-filter', usePick);
+        var sec = box.closest('.ora-cat-totals-only, .ora-cust-block');
+        if (sec && sec.classList.contains('ora-cat-totals-only')) {
+          sec.hidden = !!(allowCats && !active.length);
+        }
+      }
+      function applyOraCatScreenFilter() {
+        var allow = getOraSelectedCatAllow();
+        document.querySelectorAll('[data-ora-cat-qty]').forEach(function (box) {
+          fillOneOraCatQtyBox(box, 0, null, null, null, 0, 0, 0);
+        });
+        document.querySelectorAll('[data-ora-cat-name]').forEach(function (el) {
+          var name = String(el.getAttribute('data-ora-cat-name') || '').trim().toLowerCase();
+          var hide = !!(allow && !allow[name]);
+          el.hidden = hide;
+          el.style.display = hide ? 'none' : '';
+        });
+        document.querySelectorAll('tr.ora-sum-row').forEach(function (tr) {
+          if (!allow) {
+            tr.hidden = false;
+            return;
+          }
+          var cats = String(tr.getAttribute('data-ora-cats') || '').split('|');
+          var has = false;
+          tr.querySelectorAll('.ora-cat-cell[data-ora-cat-name]').forEach(function (td) {
+            var name = String(td.getAttribute('data-ora-cat-name') || '').trim().toLowerCase();
+            if (!allow[name]) return;
+            var idx = Number(td.getAttribute('data-ora-cat-idx') || -1);
+            if (idx >= 0 && Number(cats[idx] || 0)) has = true;
+          });
+          tr.hidden = !has;
+        });
+        document.querySelectorAll('.ora-summary-block, .ora-lines-block').forEach(function (sec) {
+          if (!allow) {
+            sec.hidden = false;
+            return;
+          }
+          var visible = sec.querySelectorAll('tr.ora-sum-row:not([hidden])');
+          var anyRow = sec.querySelectorAll('tr.ora-sum-row');
+          if (anyRow.length) sec.hidden = visible.length < 1;
+          else sec.hidden = false;
+        });
       }
       function refreshOraCatQtyBox(block, count, catAmts, catQtys, catBonuses, pickGross, pickDisc, pickNet) {
         if (!block) return;
@@ -6195,6 +6294,7 @@ const oracleRepItemsHandler = async (req, res) => {
             if (ok) el.removeAttribute('hidden');
             else el.setAttribute('hidden', '');
           });
+          if (typeof applyOraCatScreenFilter === 'function') applyOraCatScreenFilter();
           return;
         }
         var head = ev.target.closest && ev.target.closest('[data-ora-toggle]');

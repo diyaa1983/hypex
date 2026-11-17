@@ -356,10 +356,12 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
 
     $rowsAll = [];
     $wantCats = [];
+    $wantCatsLower = [];
     foreach ($catNames as $name) {
         $name = trim((string) $name);
         if ($name !== '') {
             $wantCats[$name] = true;
+            $wantCatsLower[function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name)] = true;
         }
     }
     foreach ($raw as $r) {
@@ -431,9 +433,12 @@ WHERE d.COMP_NUM = :comp_num AND d.V_NUM = 146 AND NVL(d.VYEAR,0) = 2026
         if ($catName === '') {
             $catName = 'بدون فئة';
         }
-        // المرتجعات تُخصم دائماً من الصافي حتى لو الفئة غير محددة في الفلتر
-        if (!$isReturn && $wantCats !== [] && !isset($wantCats[$catName])) {
-            continue;
+        // عند تحديد فئات: أظهر فقط بنود الفئات المحددة (مبيعات ومرتجعات)
+        if ($wantCats !== []) {
+            $catKey = function_exists('mb_strtolower') ? mb_strtolower($catName, 'UTF-8') : strtolower($catName);
+            if (!isset($wantCats[$catName]) && !isset($wantCatsLower[$catKey])) {
+                continue;
+            }
         }
         $itemName = trim((string) ($itemNames[$item] ?? ''));
         if ($itemName === '' && is_array($hx)) {
