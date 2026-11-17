@@ -91,6 +91,9 @@ echo "SET FOREIGN_KEY_CHECKS = 0;\n\n";
 echo "-- 1) فك الربط ثم حذف المناطق/العناوين\n";
 echo "UPDATE crm_customer SET region_address_id = NULL, region_id = NULL\n";
 echo " WHERE region_id IS NOT NULL OR region_address_id IS NOT NULL;\n";
+echo "-- مهم: مسح ربط المندوب بالكامل قبل إعادة الربط من Excel (وإلا يبقى العدد قديماً أكبر من الملف)\n";
+echo "UPDATE crm_customer SET sales_rep_id = NULL WHERE sales_rep_id IS NOT NULL;\n";
+echo "DELETE FROM crm_customer_sales_rep;\n";
 echo "DELETE FROM crm_sales_rep_region_address;\n";
 echo "DELETE FROM crm_sales_rep_region;\n";
 echo "DELETE FROM crm_region_address;\n";
@@ -151,6 +154,10 @@ foreach ($customerLinks as $c) {
     $rep = sql_str($c['rep']);
     $codeLit = $c['code'];
 
+    // مطابقة دقيقة فقط — لا LIKE '%رمز' لأنه يوسّع الربط لعملاء آخرين
+    $whereCust =
+        "(c.code = {$code} OR c.oracle_key = {$code} OR c.oracle_key LIKE " . sql_str('%/' . $codeLit) . ')';
+
     echo "UPDATE crm_customer c\n"
         . "INNER JOIN crm_region r ON r.name_ar = {$region}\n"
         . "LEFT JOIN crm_region_address a ON a.region_id = r.id AND a.name_ar = {$address}\n"
@@ -158,22 +165,16 @@ foreach ($customerLinks as $c) {
         . "SET\n"
         . "  c.region_id = r.id,\n"
         . "  c.region_address_id = a.id,\n"
-        . "  c.sales_rep_id = COALESCE(sr.id, c.sales_rep_id),\n"
+        . "  c.sales_rep_id = sr.id,\n"
         . "  c.address_ar = COALESCE(NULLIF(TRIM(c.address_ar), ''), {$address})\n"
-        . "WHERE c.code = {$code}\n"
-        . "   OR c.oracle_key = {$code}\n"
-        . "   OR c.oracle_key LIKE " . sql_str('%/' . $codeLit) . "\n"
-        . "   OR c.oracle_key LIKE " . sql_str('%' . $codeLit) . ";\n";
+        . "WHERE {$whereCust};\n";
 
     if ($c['rep'] !== '') {
         echo "INSERT IGNORE INTO crm_customer_sales_rep (customer_id, sales_rep_id, sort_order)\n"
             . "SELECT c.id, sr.id, 0\n"
             . "FROM crm_customer c\n"
             . "INNER JOIN crm_sales_rep sr ON sr.name_ar = {$rep}\n"
-            . "WHERE c.code = {$code}\n"
-            . "   OR c.oracle_key = {$code}\n"
-            . "   OR c.oracle_key LIKE " . sql_str('%/' . $codeLit) . "\n"
-            . "   OR c.oracle_key LIKE " . sql_str('%' . $codeLit) . ";\n";
+            . "WHERE {$whereCust};\n";
     }
 }
 
@@ -184,6 +185,12 @@ echo "SELECT COUNT(*) AS addresses FROM crm_region_address;\n";
 echo "SELECT COUNT(*) AS rep_addr FROM crm_sales_rep_region_address;\n";
 echo "SELECT COUNT(*) AS customers_with_region FROM crm_customer WHERE region_id IS NOT NULL AND region_id > 0;\n";
 echo "SELECT COUNT(*) AS customers_with_address FROM crm_customer WHERE region_address_id IS NOT NULL AND region_address_id > 0;\n";
+echo "SELECT COUNT(*) AS customers_with_rep FROM crm_customer WHERE sales_rep_id IS NOT NULL AND sales_rep_id > 0;\n";
+echo "SELECT sr.name_ar AS rep, COUNT(c.id) AS customers\n"
+    . "FROM crm_sales_rep sr\n"
+    . "LEFT JOIN crm_customer c ON c.sales_rep_id = sr.id\n"
+    . "GROUP BY sr.id, sr.name_ar\n"
+    . "ORDER BY customers DESC, sr.name_ar;\n";
 
 $sql = (string) ob_get_clean();
 // أزل أي BOM/مسافات قبل أول تعليق SQL

@@ -36,7 +36,14 @@ async function listReps({ q = '', activeOnly = true } = {}) {
   const rows = await safeQuery(
     `SELECT r.id, r.code, r.name_ar, r.phone, r.address_ar, r.is_active, r.warehouse_id,
             w.name_ar AS warehouse_name,
-            (SELECT COUNT(*) FROM crm_customer c WHERE c.sales_rep_id = r.id) AS customer_count
+            (
+              SELECT COUNT(*) FROM crm_customer c
+              WHERE c.sales_rep_id = r.id
+                 OR EXISTS (
+                   SELECT 1 FROM crm_customer_sales_rep csr
+                   WHERE csr.customer_id = c.id AND csr.sales_rep_id = r.id
+                 )
+            ) AS customer_count
      FROM crm_sales_rep r
      LEFT JOIN inv_warehouse w ON w.id = r.warehouse_id
      WHERE ${where.join(' AND ')}
@@ -44,20 +51,6 @@ async function listReps({ q = '', activeOnly = true } = {}) {
      LIMIT 300`,
     params
   );
-  // enrich with m2m links if table exists
-  try {
-    for (const r of rows) {
-      const extra = await safeQuery(
-        `SELECT COUNT(*) AS c FROM crm_customer_sales_rep WHERE sales_rep_id = ?`,
-        [r.id]
-      );
-      const base = Number(r.customer_count || 0);
-      const m2m = Number(extra[0]?.c || 0);
-      r.customer_count = Math.max(base, m2m);
-    }
-  } catch {
-    /* optional */
-  }
   return rows;
 }
 

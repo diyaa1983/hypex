@@ -445,6 +445,20 @@ function crm_region_excel_import(PDO $pdo, ?string $path = null, bool $replaceCu
         //
     }
 
+    // استبدال كامل: امسح روابط المندوب القديمة حتى يطابق العدد Excel
+    if ($replaceCustomerReps) {
+        try {
+            $pdo->exec('UPDATE crm_customer SET sales_rep_id = NULL WHERE sales_rep_id IS NOT NULL');
+        } catch (Throwable $e) {
+            //
+        }
+        try {
+            $pdo->exec('DELETE FROM crm_customer_sales_rep');
+        } catch (Throwable $e) {
+            //
+        }
+    }
+
     $pdo->beginTransaction();
     try {
         foreach ($rows as $ri => $row) {
@@ -636,6 +650,18 @@ function crm_region_wipe_all(PDO $pdo): array
             $stats['customers_cleared'] = (int) $pdo->exec(
                 'UPDATE crm_customer SET region_id = NULL WHERE region_id IS NOT NULL'
             );
+        }
+
+        // عند إعادة بناء الربط من Excel يجب ألا تبقى روابط مندوب قديمة
+        try {
+            $pdo->exec('UPDATE crm_customer SET sales_rep_id = NULL WHERE sales_rep_id IS NOT NULL');
+        } catch (Throwable $e) {
+            //
+        }
+        try {
+            $pdo->exec('DELETE FROM crm_customer_sales_rep');
+        } catch (Throwable $e) {
+            //
         }
 
         try {
