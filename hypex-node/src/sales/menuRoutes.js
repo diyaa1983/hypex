@@ -4103,7 +4103,7 @@ const oracleRepItemsHandler = async (req, res) => {
     };
     const heavyNote =
       netRows.length > 12000
-        ? `<p class="si-pill si-pill--wait no-print" style="display:inline-block;margin:.35rem 0">البيانات كبيرة (${netRows.length.toLocaleString('en-US')} سطر). يُعرض الآن العرض المطلوب فقط — باقي الكبسات تُحمَّل عند الضغط عليها. للسرعة اختر مندوباً أو شهراً.</p>`
+        ? `<p class="ora-heavy-note no-print">البيانات كبيرة (${netRows.length.toLocaleString('en-US')} سطر). يُعرض الآن العرض المطلوب فقط — باقي الكبسات تُحمَّل عند الضغط عليها. للسرعة اختر مندوباً أو شهراً.</p>`
         : '';
     const netV = netRows.length
       ? buildOraViews(netRows, viewOptsFor(requestedView))
@@ -4412,6 +4412,28 @@ const oracleRepItemsHandler = async (req, res) => {
           margin: 0 0 .3rem;
           font-size: .78rem;
           line-height: 1.35;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-heavy-note {
+          display: block;
+          box-sizing: border-box;
+          width: 100%;
+          max-width: 100%;
+          margin: .45rem 0 .55rem;
+          padding: .55rem .75rem;
+          border: 1px solid #c9a227;
+          border-radius: 0;
+          background: #fff3cd;
+          color: #5c4500;
+          font-size: .84rem;
+          font-weight: 700;
+          line-height: 1.55;
+          white-space: normal;
+          overflow: visible;
+          word-wrap: break-word;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-heavy-note::before {
+          content: none;
+          display: none;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-report-sticky-chrome .si-hero {
           margin-bottom: .35rem;
