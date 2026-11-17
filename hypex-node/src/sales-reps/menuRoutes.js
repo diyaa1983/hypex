@@ -174,6 +174,8 @@ async function repForm(req, res, id) {
   const isNew = !row;
   const err = String(req.query.err || '');
   const warehouses = await masters.listWarehouses();
+  const linkedCustomers = isNew ? [] : await masters.listRepLinkedCustomers(id);
+  const custCount = linkedCustomers.length;
   const whOpts = warehouses
     .map(
       (w) =>
@@ -183,63 +185,126 @@ async function repForm(req, res, id) {
     )
     .join('');
 
+  const custRowsHtml = linkedCustomers
+    .map((c) => {
+      const place = [c.region_name, c.address_name].filter(Boolean).join(' · ');
+      const inactive = Number(c.is_active) === 0;
+      return `<li class="si-rep-cust-item${inactive ? ' is-inactive' : ''}" data-q="${esc(
+        String(c.code || '') + ' ' + String(c.name_ar || '') + ' ' + String(c.phone || '')
+      )}">
+        <a class="si-rep-cust-link" href="/customers/${Number(c.id)}" title="عرض العميل">
+          <span class="si-rep-cust-code" dir="ltr">${esc(c.code || '—')}</span>
+          <span class="si-rep-cust-name">${esc(c.name_ar || '')}</span>
+          ${place ? `<span class="si-rep-cust-place">${esc(place)}</span>` : ''}
+          ${inactive ? '<span class="si-rep-cust-badge">موقوف</span>' : ''}
+        </a>
+      </li>`;
+    })
+    .join('');
+
+  const customersBox = isNew
+    ? ''
+    : `<aside class="si-rep-cust-box" aria-label="العملاء المربوطون بالمندوب">
+        <div class="si-rep-cust-box__head">
+          <strong>العملاء المربوطون</strong>
+          <span class="si-rep-cust-box__count" dir="ltr">${custCount}</span>
+        </div>
+        <p class="si-rep-cust-box__hint">عرض وتصفح فقط — الربط من شاشة العميل</p>
+        ${
+          custCount
+            ? `<input type="search" class="si-field si-rep-cust-box__filter" id="si-rep-cust-filter" placeholder="بحث سريع…" autocomplete="off">
+               <ul class="si-rep-cust-box__list" id="si-rep-cust-list">${custRowsHtml}</ul>`
+            : `<p class="si-rep-cust-box__empty">لا يوجد عملاء مربوطون بهذا المندوب بعد.</p>`
+        }
+      </aside>
+      ${
+        custCount
+          ? `<script>
+(function(){
+  var inp=document.getElementById('si-rep-cust-filter');
+  var list=document.getElementById('si-rep-cust-list');
+  if(!inp||!list)return;
+  inp.addEventListener('input',function(){
+    var q=String(inp.value||'').trim().toLowerCase();
+    list.querySelectorAll('.si-rep-cust-item').forEach(function(li){
+      var hay=String(li.getAttribute('data-q')||'').toLowerCase();
+      li.hidden=!!q&&hay.indexOf(q)===-1;
+    });
+  });
+})();
+</script>`
+          : ''
+      }`;
+
   const body = `
     <div class="si-stage">
       ${ui.hero({
         mark: 'Rp',
         kicker: KICKER,
         title: isNew ? 'إضافة مندوب' : 'تعديل مندوب',
-        subtitle: isNew ? 'الرمز فارغ = تلقائي (REP-####)' : esc(row.code || ''),
+        subtitle: isNew
+          ? 'الرمز فارغ = تلقائي (REP-####)'
+          : esc(row.code || '') + (custCount ? ` · ${custCount} عميل` : ' · بلا عملاء'),
         actions: [{ label: 'رجوع للقائمة', href: '/sales-reps/list' }],
       })}
       ${err ? `<p class="si-pill si-pill--lock" style="display:inline-block">${esc(err)}</p>` : ''}
-      <section class="si-surface si-surface--master">
-        <div class="si-surface-head">
-          <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
-          ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
-        </div>
-        <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form si-master-form--rep">
-          <input type="hidden" name="id" value="${row ? row.id : 0}">
-
-          <div class="si-master-grid si-master-grid--rep">
-            <label class="si-mf si-mf--name">
-              <span class="si-mf-label">اسم المندوب <em>*</em></span>
-              <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="الاسم الكامل">
-            </label>
-
-            <label class="si-mf si-mf--code">
-              <span class="si-mf-label">الرمز</span>
-              <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off" title="رقم البائع في أوراكل — فارغ = تلقائي (REP-####)">
-              <span class="si-mf-note">رقم البائع في أوراكل (مثل 12). فارغ = تلقائي. للترحيل إلى INV00024 استخدم رقم البائع وليس REP-0001.</span>
-            </label>
-
-            <label class="si-mf">
-              <span class="si-mf-label">الهاتف</span>
-              <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" placeholder="07xxxxxxxx" autocomplete="off">
-            </label>
-
-            <label class="si-mf">
-              <span class="si-mf-label">مستودع العهدة</span>
-              <select class="si-field" name="warehouse_id">
-                <option value="0">— بدون —</option>
-                ${whOpts}
-              </select>
-            </label>
-
-            <label class="si-mf si-mf--full">
-              <span class="si-mf-label">العنوان</span>
-              <textarea class="si-field" name="address_ar" rows="2" placeholder="اختياري…">${esc(
-                row?.address_ar || ''
-              )}</textarea>
-            </label>
+      <div class="si-rep-edit${isNew ? '' : ' si-rep-edit--with-cust'}">
+        <section class="si-surface si-surface--master">
+          <div class="si-surface-head">
+            <h2>${isNew ? 'مندوب جديد' : esc(row.name_ar || '')}</h2>
+            <div class="si-rep-head-meta">
+              ${!isNew && row?.code ? `<span class="si-count" dir="ltr">${esc(row.code)}</span>` : ''}
+              ${
+                !isNew
+                  ? `<span class="si-rep-cust-chip" title="عدد العملاء المربوطين"><b dir="ltr">${custCount}</b> عميل</span>`
+                  : ''
+              }
+            </div>
           </div>
+          <form method="post" action="${isNew ? '/sales-reps/new' : '/sales-reps/' + id}" class="si-master-form si-master-form--rep">
+            <input type="hidden" name="id" value="${row ? row.id : 0}">
 
-          <div class="si-form-actions">
-            <button class="si-btn si-btn--primary" type="submit">حفظ</button>
-            <a class="si-btn" href="/sales-reps/list">إلغاء</a>
-          </div>
-        </form>
-      </section>
+            <div class="si-master-grid si-master-grid--rep">
+              <label class="si-mf si-mf--name">
+                <span class="si-mf-label">اسم المندوب <em>*</em></span>
+                <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" autocomplete="off" placeholder="الاسم الكامل">
+              </label>
+
+              <label class="si-mf si-mf--code">
+                <span class="si-mf-label">الرمز</span>
+                <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="12" autocomplete="off" title="رقم البائع في أوراكل — فارغ = تلقائي (REP-####)">
+                <span class="si-mf-note">رقم البائع في أوراكل (مثل 12). فارغ = تلقائي. للترحيل إلى INV00024 استخدم رقم البائع وليس REP-0001.</span>
+              </label>
+
+              <label class="si-mf">
+                <span class="si-mf-label">الهاتف</span>
+                <input class="si-field" name="phone" value="${esc(row?.phone || '')}" dir="ltr" placeholder="07xxxxxxxx" autocomplete="off">
+              </label>
+
+              <label class="si-mf">
+                <span class="si-mf-label">مستودع العهدة</span>
+                <select class="si-field" name="warehouse_id">
+                  <option value="0">— بدون —</option>
+                  ${whOpts}
+                </select>
+              </label>
+
+              <label class="si-mf si-mf--full">
+                <span class="si-mf-label">العنوان</span>
+                <textarea class="si-field" name="address_ar" rows="2" placeholder="اختياري…">${esc(
+                  row?.address_ar || ''
+                )}</textarea>
+              </label>
+            </div>
+
+            <div class="si-form-actions">
+              <button class="si-btn si-btn--primary" type="submit">حفظ</button>
+              <a class="si-btn" href="/sales-reps/list">إلغاء</a>
+            </div>
+          </form>
+        </section>
+        ${customersBox}
+      </div>
     </div>`;
   res.send(ui.salesPage({ user: req.session.user, title: isNew ? 'إضافة مندوب' : 'تعديل مندوب', bodyHtml: body }));
 }

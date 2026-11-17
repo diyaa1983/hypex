@@ -1836,6 +1836,181 @@ label .si-field-key {
   padding: 1rem 1.1rem 1.15rem;
 }
 
+/* تعديل مندوب: النموذج + صندوق تصفح العملاء */
+.si-rep-edit {
+  display: block;
+}
+
+.si-rep-edit--with-cust {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(14rem, 0.85fr);
+  gap: 0.85rem 1rem;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .si-rep-edit--with-cust {
+    grid-template-columns: 1fr;
+  }
+}
+
+.si-rep-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.55rem;
+}
+
+.si-rep-cust-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1e3a5f;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.si-rep-cust-chip b {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0b3d91;
+}
+
+.si-rep-cust-box {
+  background: #fff;
+  border: 1px solid #d7dee8;
+  border-radius: 10px;
+  padding: 0.7rem 0.75rem 0.65rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  min-width: 0;
+}
+
+.si-rep-cust-box__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.si-rep-cust-box__head strong {
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.si-rep-cust-box__count {
+  min-width: 1.6rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: #0b3d91;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-align: center;
+  line-height: 1.35;
+}
+
+.si-rep-cust-box__hint {
+  margin: 0 0 0.55rem;
+  font-size: 0.7rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.si-rep-cust-box__filter {
+  margin-bottom: 0.45rem;
+  min-height: 2.1rem !important;
+  font-size: 0.82rem;
+}
+
+.si-rep-cust-box__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid #e8edf4;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.si-rep-cust-item {
+  border-bottom: 1px solid #e8edf4;
+}
+
+.si-rep-cust-item:last-child {
+  border-bottom: 0;
+}
+
+.si-rep-cust-item.is-inactive .si-rep-cust-name {
+  opacity: 0.65;
+}
+
+.si-rep-cust-link {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'code name badge'
+    'code place badge';
+  gap: 0.05rem 0.55rem;
+  align-items: center;
+  padding: 0.45rem 0.55rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.si-rep-cust-link:hover {
+  background: #eef4ff;
+}
+
+.si-rep-cust-code {
+  grid-area: code;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #475569;
+  min-width: 2.4rem;
+}
+
+.si-rep-cust-name {
+  grid-area: name;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+.si-rep-cust-place {
+  grid-area: place;
+  font-size: 0.68rem;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.si-rep-cust-badge {
+  grid-area: badge;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #9a3412;
+  background: #ffedd5;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+}
+
+.si-rep-cust-box__empty {
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.75rem 0.55rem;
+  font-size: 0.8rem;
+  color: #64748b;
+  text-align: center;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px dashed #d7dee8;
+}
+
 .si-master-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

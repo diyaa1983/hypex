@@ -342,6 +342,47 @@ async function getRep(id) {
   return rows[0] || null;
 }
 
+/** عملاء مربوطون بالمندوب (عمود sales_rep_id أو جدول الربط) — للعرض فقط */
+async function listRepLinkedCustomers(repId, { limit = 800 } = {}) {
+  const id = Number(repId || 0);
+  if (id < 1) return [];
+  try {
+    return await safeQuery(
+      `SELECT c.id, c.code, c.name_ar, c.phone, c.is_active,
+              COALESCE(rg.name_ar, '') AS region_name,
+              COALESCE(ra.name_ar, '') AS address_name
+       FROM crm_customer c
+       LEFT JOIN crm_region rg ON rg.id = c.region_id
+       LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id
+       WHERE (
+         c.sales_rep_id = ?
+         OR EXISTS (
+           SELECT 1 FROM crm_customer_sales_rep csr
+           WHERE csr.customer_id = c.id AND csr.sales_rep_id = ?
+         )
+       )
+       ORDER BY c.name_ar ASC, c.id ASC
+       LIMIT ${Math.min(1000, Math.max(1, Number(limit) || 800))}`,
+      [id, id]
+    );
+  } catch (e) {
+    console.error('listRepLinkedCustomers', e.message);
+    try {
+      return await safeQuery(
+        `SELECT c.id, c.code, c.name_ar, c.phone, c.is_active
+         FROM crm_customer c
+         WHERE c.sales_rep_id = ?
+         ORDER BY c.name_ar ASC, c.id ASC
+         LIMIT ${Math.min(1000, Math.max(1, Number(limit) || 800))}`,
+        [id]
+      );
+    } catch (e2) {
+      console.error('listRepLinkedCustomers fallback', e2.message);
+      return [];
+    }
+  }
+}
+
 async function nextRepCode() {
   const m = await safeQuery(`SELECT IFNULL(MAX(id), 0) AS m FROM crm_sales_rep`);
   return 'REP-' + String(Number(m[0]?.m || 0) + 1).padStart(4, '0');
@@ -1712,6 +1753,7 @@ const listActiveCustomers = async () => listTourCustomers({ limit: 800 });
 
 module.exports = {
   getRep,
+  listRepLinkedCustomers,
   saveRep,
   toggleRep,
   nextRepCode,
