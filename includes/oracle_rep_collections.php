@@ -9,7 +9,8 @@ declare(strict_types=1);
  * - تاريخ حق الشيك للعرض فقط (قد يكون بعد الفترة)
  * - بلا صف في GLCHEQF ← قبض نقدي (حتى لو VOD_FLAG=11)
  * - وجود شيك ← قبض شيك بمبلغ CHQ_AMOUNT
- * - المندوب: CUS_SALESMAN (لا MAN_NUM على GLVODMF غالباً)
+ * - «مبيعات فواتير نقدية» (حساب GL / غالباً FLAG=14) تُدرج كقبض نقدي
+ * - المندوب: CUS_SALESMAN أو عبر عميل على نفس رقم السند
  */
 
 require_once app_path('includes/oracle_pdo.php');
@@ -296,7 +297,8 @@ function oracle_fetch_rep_collections(
 
     // LEFT JOIN عميل + دليل أسماء — يظهر أيضاً حسابات مثل «مبيعات فواتير نقدية»
     $fromVod = oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['table']) . ' v';
-    $fromCus = oracle_stmt_q($cfg['cust_owner']) . '.' . oracle_stmt_q($cfg['cust_table']) . ' c';
+    $fromCusTable = oracle_stmt_q($cfg['cust_owner']) . '.' . oracle_stmt_q($cfg['cust_table']);
+    $fromCus = $fromCusTable . ' c';
     $joinCus = ' LEFT JOIN ' . $fromCus
         . ' ON TRIM(TO_CHAR(c.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
     $glJoin = ' LEFT JOIN ' . oracle_stmt_q($cfg['gl_owner']) . '.' . oracle_stmt_q($cfg['gl_table']) . ' g
@@ -323,17 +325,27 @@ function oracle_fetch_rep_collections(
         $baseWhere[] = 'v.' . oracle_stmt_q($numCol) . ' >= :min_vod';
         $binds['min_vod'] = $minVod;
     }
-    if ($rf !== null) {
-        $baseWhere[] = $repExpr . ' >= :rep_from';
-        $baseWhere[] = $repExpr . ' <= :rep_to';
-        $binds['rep_from'] = $rf;
-        $binds['rep_to'] = $rt ?? $rf;
-    } else {
-        $baseWhere[] = $repExpr . ' > 0';
-    }
     if ($compCol !== null && $useComp > 0) {
         $baseWhere[] = 'NVL(v.' . oracle_stmt_q($compCol) . ', 0) IN (0, :comp_num)';
         $binds['comp_num'] = $useComp;
+    }
+
+    // حساب «مبيعات فواتير نقدية» في الدليل
+    $cashInvAccSql = 'INSTR(NVL(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'فواتير نقدية') > 0";
+
+    // مندوب عبر بطاقة العميل على نفس السند (لحسابات GL بلا CUS_SALESMAN)
+    $repViaSameVoucher = '';
+    if ($cusManCol !== null) {
+        $repViaSameVoucher = 'EXISTS (
+            SELECT 1
+              FROM ' . oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['table']) . ' vx
+              JOIN ' . $fromCusTable . ' cx
+                ON TRIM(TO_CHAR(cx.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(vx.' . oracle_stmt_q($accCol) . '))
+             WHERE vx.' . oracle_stmt_q($numCol) . ' = v.' . oracle_stmt_q($numCol) . '
+               AND NVL(cx.' . oracle_stmt_q($cusManCol) . ', 0) > 0
+               AND NVL(cx.' . oracle_stmt_q($cusManCol) . ', 0) >= :rep_from_x
+               AND NVL(cx.' . oracle_stmt_q($cusManCol) . ', 0) <= :rep_to_x
+        )';
     }
 
     $raw = [];
@@ -350,8 +362,7 @@ function oracle_fetch_rep_collections(
         )';
     }
 
-    // ─── قبض نقدي: بلا صف في GLCHEQF (حتى لو VOD_FLAG=11 — Forms يعرضه نقدي) ───
-    // لا نستبعد check_flags هنا؛ التمييز نقدي/شيك بوجود الشيك فقط
+    // ─── قبض نقدي: بلا شيك + يشمل «مبيعات فواتير نقدية» ───
     $whereCash = $baseWhere;
     $cashFlagMode = 'no_cheque';
     if ($flagCol !== null && $cfg['cash_flags'] !== []) {
@@ -359,15 +370,44 @@ function oracle_fetch_rep_collections(
         $binds = array_merge($binds, $cfBinds);
         $whereCash[] = 'v.' . oracle_stmt_q($flagCol) . ' IN (' . implode(',', $cfList) . ')';
         $cashFlagMode = 'include_list';
-    } elseif ($flagCol !== null && $cfg['exclude_flags'] !== []) {
-        [$exList, $exBinds] = oracle_rep_collections_flag_binds($cfg['exclude_flags'], 'xf');
-        $binds = array_merge($binds, $exBinds);
-        $whereCash[] = '(v.' . oracle_stmt_q($flagCol) . ' IS NULL OR v.' . oracle_stmt_q($flagCol)
-            . ' NOT IN (' . implode(',', $exList) . '))';
-        $cashFlagMode = 'exclude_sales_only';
+    } elseif ($flagCol !== null) {
+        // استبعاد قيد عام/مرتجع؛ السماح بـ 14 فقط لحساب فواتير نقدية
+        $whereCash[] = '(
+            v.' . oracle_stmt_q($flagCol) . ' IS NULL
+            OR v.' . oracle_stmt_q($flagCol) . ' NOT IN (12, 13, 14)
+            OR (v.' . oracle_stmt_q($flagCol) . ' = 14 AND ' . $cashInvAccSql . ')
+        )';
+        $cashFlagMode = 'exclude_with_cash_inv';
     }
     if ($chqExistsSql !== '') {
         $whereCash[] = $chqExistsSql;
+    }
+
+    // مندوب: عميل السطر أو (فواتير نقدية + مندوب عميل على نفس السند)
+    if ($rf !== null) {
+        $binds['rep_from'] = $rf;
+        $binds['rep_to'] = $rt ?? $rf;
+        if ($repViaSameVoucher !== '') {
+            $binds['rep_from_x'] = $rf;
+            $binds['rep_to_x'] = $rt ?? $rf;
+            $whereCash[] = '(
+                (' . $repExpr . ' >= :rep_from AND ' . $repExpr . ' <= :rep_to)
+                OR (' . $cashInvAccSql . ' AND ' . $repViaSameVoucher . ')
+            )';
+        } else {
+            $whereCash[] = $repExpr . ' >= :rep_from';
+            $whereCash[] = $repExpr . ' <= :rep_to';
+        }
+    } else {
+        if ($repViaSameVoucher !== '') {
+            // بدون فلتر مندوب: أي مندوب > 0 أو فواتير نقدية
+            $whereCash[] = '(
+                ' . $repExpr . ' > 0
+                OR ' . $cashInvAccSql . '
+            )';
+        } else {
+            $whereCash[] = $repExpr . ' > 0';
+        }
     }
 
     $sqlCash = 'SELECT ' . $repExpr . ' AS REP_NO,
