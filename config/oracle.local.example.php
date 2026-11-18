@@ -93,9 +93,11 @@ return [
         'comp_num' => 1,
         // مندوب Forms في كشف التحصيلات عادةً من بطاقة العميل
         'rep_key' => 'cus_salesman', // cus_salesman | vod_man | both
-        // أعلام VOD_FLAG الضيقة — إن نقصت صفوف نقدية أضف رقم العلم من Forms
-        'cash_flags' => [1, 15, 16],
+        // أعلام VOD_FLAG — بدون 1 (سلسلة 9xx) · الشيك 10/11
+        'cash_flags' => [2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18],
         'check_flags' => [10, 11],
+        // سندات القبض Forms ~24xxx — استبعاد 9xx
+        'min_voucher_no' => 10000,
     ],
 
     /**

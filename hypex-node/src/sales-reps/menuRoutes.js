@@ -2971,8 +2971,8 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
           .map(
             (r) => `<tr>
           <td class="si-num" dir="ltr">${esc(r.rcv_no || '')}</td>
-          <td>${esc(r.rcv_type || '')}</td>
-          <td>${esc(r.customer_name || '')}</td>
+          <td style="white-space:nowrap">${esc(r.rcv_type || '')}</td>
+          <td class="ora-coll-cust" title="${esc(r.customer_acc || '')}">${esc(r.customer_name || r.customer_acc || '')}</td>
           <td class="si-num" dir="ltr">${esc(dmy(r.rcv_date))}</td>
           <td class="si-num" dir="ltr">${esc(r.chq_no || '')}</td>
           <td class="si-num" dir="ltr">${esc(r.chq_due ? dmy(r.chq_due) : '')}</td>
@@ -2984,14 +2984,17 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
           <td colspan="6" style="font-weight:800">مجموع المندوب</td>
           <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(block.amount))}</td>
         </tr>`;
+        const repTitle = block.rep_name
+          ? `المندوب ${esc(block.rep_no)} — ${esc(block.rep_name)}`
+          : `المندوب ${esc(block.rep_no)}`;
         return `<section style="margin:0 0 1rem">
           <h3 style="margin:0 0 .4rem;font-size:.95rem">
             رقم المندوب: <span dir="ltr">${esc(block.rep_no)}</span>
-            · ${esc(block.rep_name)}
-            · شركة: <span dir="ltr">${esc(block.comp_num)}</span>
+            ${block.rep_name ? ` · ${esc(block.rep_name)}` : ''}
+            · رقم الشركة: <span dir="ltr">${esc(block.comp_num)}</span>
           </h3>
           ${ui.tableSurface(
-            `تحصيلات المندوب #${block.rep_no}`,
+            repTitle,
             `${block.rows.length} حركة`,
             ['رقم القبض', 'نوع القبض', 'العميل', 'تاريخ القبض', 'رقم الشيك', 'تاريخ حق الشيك', 'القيمة'],
             body + foot
@@ -3000,6 +3003,17 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
       })
       .join('');
     tableBlock =
+      `<style>
+        .si-report-page[data-report-route="report_oracle_rep_collections"] td.ora-coll-cust {
+          white-space: normal !important;
+          overflow: visible !important;
+          text-overflow: clip !important;
+          min-width: 12rem;
+          max-width: 22rem;
+          line-height: 1.45;
+          font-weight: 600;
+        }
+      </style>` +
       blocks +
       `<p style="margin:.5rem 0 0;font-weight:800">الإجمالي (${esc(totals.count || rows.length)} حركة): <span dir="ltr">${esc(
         fmtAmt(totals.amount || 0)

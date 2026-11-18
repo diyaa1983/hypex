@@ -2,13 +2,8 @@
 declare(strict_types=1);
 
 /**
- * كشف تحصيلات المندوب خلال فترة — من Oracle (قراءة فقط)
- * مثل Forms: صفوف قبض نقدي + صفوف قبض شيك، مجموع المندوب = مجموع القيم الظاهرة.
- *
- * مهم:
- * - النقدي من GLVODMF (دائن عميل) بدون مضاعفة من الشيكات
- * - الشيك من GLCHEQF بمبلغ CHQ_AMOUNT (وليس تكرار VOD_AMOUNT لكل شيك)
- * - المندوب افتراضياً من CUSTOMER.CUS_SALESMAN (نطاق المندوب في Forms)
+ * كشف تحصيلات المندوب خلال فترة — Oracle (قراءة فقط)
+ * Forms: صف نقدي + صف شيك، الاسم من GLACTMF.ACC_DESC، المندوب من CUS_SALESMAN.
  */
 
 require_once app_path('includes/oracle_pdo.php');
@@ -19,7 +14,8 @@ require_once app_path('includes/oracle_rep_net_sales.php');
  * @return array{
  *   owner:string, table:string, cheque_table:string, cust_owner:string, cust_table:string,
  *   credit_side:int, comp_num:int, cash_flags:list<int>, check_flags:list<int>,
- *   rep_key:string
+ *   rep_key:string, min_voucher_no:int,
+ *   gl_owner:string, gl_table:string, gl_acc_num:string, gl_acc_desc:string
  * }
  */
 function oracle_rep_collections_cfg(): array
@@ -28,13 +24,14 @@ function oracle_rep_collections_cfg(): array
     $s = is_array($cfg['rep_collections'] ?? null) ? $cfg['rep_collections'] : [];
     $st = is_array($cfg['statement'] ?? null) ? $cfg['statement'] : [];
     $cu = is_array($cfg['customers'] ?? null) ? $cfg['customers'] : [];
+    $gl = is_array($cu['name_from_gl'] ?? null) ? $cu['name_from_gl'] : [];
     $owner = strtoupper(trim((string) ($s['owner'] ?? ($st['owner'] ?? 'ACCINV')))) ?: 'ACCINV';
 
-    // أعلام ضيقة: نقدي شائع 1/15/16 — شيك 10/11 (كما في كشف الحساب)
-    $cash = $s['cash_flags'] ?? [1, 15, 16];
+    // بدون العلم 1: غالباً سندات سلسلة 9xx وليست قبض Forms (24xxx)
+    $cash = $s['cash_flags'] ?? [2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18];
     $check = $s['check_flags'] ?? [10, 11];
     if (!is_array($cash)) {
-        $cash = [1, 15, 16];
+        $cash = [2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18];
     }
     if (!is_array($check)) {
         $check = [10, 11];
@@ -56,6 +53,12 @@ function oracle_rep_collections_cfg(): array
         'cash_flags' => array_values(array_filter(array_map('intval', $cash), static fn ($n) => $n > 0)),
         'check_flags' => array_values(array_filter(array_map('intval', $check), static fn ($n) => $n > 0)),
         'rep_key' => $repKey,
+        // سندات القبض في Forms عندكم ~24xxx — استبعاد سلسلة 9xx
+        'min_voucher_no' => (int) ($s['min_voucher_no'] ?? 10000),
+        'gl_owner' => strtoupper(trim((string) ($s['gl_owner'] ?? ($gl['owner'] ?? 'ACCINV')))) ?: 'ACCINV',
+        'gl_table' => strtoupper(trim((string) ($s['gl_table'] ?? ($gl['table'] ?? 'GLACTMF')))) ?: 'GLACTMF',
+        'gl_acc_num' => strtoupper(trim((string) ($s['gl_acc_num'] ?? ($gl['acc_num'] ?? 'ACC_NUM')))) ?: 'ACC_NUM',
+        'gl_acc_desc' => strtoupper(trim((string) ($s['gl_acc_desc'] ?? ($gl['acc_desc'] ?? 'ACC_DESC')))) ?: 'ACC_DESC',
     ];
 }
 
@@ -83,6 +86,61 @@ function oracle_rep_collections_flag_binds(array $flags, string $prefix): array
     }
 
     return [$list, $binds];
+}
+
+/**
+ * أسماء الحسابات من GLACTMF.ACC_DESC (كما في مزامنة العملاء / Forms).
+ *
+ * @param list<string> $accs
+ * @return array<string,string>
+ */
+function oracle_rep_collections_gl_names(array $conn, array $cfg, array $accs): array
+{
+    $want = [];
+    foreach ($accs as $a) {
+        $a = trim((string) $a);
+        if ($a !== '') {
+            $want[$a] = true;
+            $digits = preg_replace('/\D+/', '', $a) ?? '';
+            if ($digits !== '') {
+                $want[$digits] = true;
+            }
+        }
+    }
+    if ($want === []) {
+        return [];
+    }
+
+    $glOwn = $cfg['gl_owner'];
+    $glTbl = $cfg['gl_table'];
+    $glNum = $cfg['gl_acc_num'];
+    $glDesc = $cfg['gl_acc_desc'];
+    $out = [];
+    $chunks = array_chunk(array_keys($want), 400);
+    foreach ($chunks as $chunk) {
+        $quoted = [];
+        foreach ($chunk as $a) {
+            $quoted[] = "'" . str_replace("'", "''", $a) . "'";
+        }
+        $list = implode(',', $quoted);
+        $sql = 'SELECT TRIM(TO_CHAR(' . oracle_stmt_q($glNum) . ')) AS ACC,
+                       TRIM(' . oracle_stmt_q($glDesc) . ') AS N
+                FROM ' . oracle_stmt_q($glOwn) . '.' . oracle_stmt_q($glTbl) . '
+                WHERE TRIM(TO_CHAR(' . oracle_stmt_q($glNum) . ')) IN (' . $list . ')';
+        try {
+            foreach (oracle_query_all($conn, $sql, []) as $r) {
+                $acc = trim((string) oracle_statement_row_val($r, 'ACC'));
+                $name = trim((string) oracle_statement_row_val($r, 'N'));
+                if ($acc !== '' && $name !== '') {
+                    $out[$acc] = $name;
+                }
+            }
+        } catch (Throwable $e) {
+            // يبقى الاسم من CUSTOMER
+        }
+    }
+
+    return $out;
 }
 
 /**
@@ -150,8 +208,9 @@ function oracle_fetch_rep_collections(
     ]);
 
     $cusNumCol = oracle_rep_collections_pick_col($cusCols, ['CUS_NUM', 'ACC_NUM', 'CUSTOMER_NO']) ?: 'CUS_NUM';
+    // العنوان العربي الكامل أولاً — ليس CUS_ANAME المختصر
     $cusNameCol = oracle_rep_collections_pick_col($cusCols, [
-        'CUS_ANAME', 'CUS_A_NAME', 'CUS_TITLE', 'CUS_NAME', 'NAME_AR', 'ACC_DESC',
+        'CUS_TITLE', 'CUS_NAME', 'CUS_ANAME', 'CUS_A_NAME', 'NAME_AR',
     ]) ?: 'CUS_TITLE';
     $cusManCol = oracle_rep_collections_pick_col($cusCols, ['CUS_SALESMAN', 'SALESMAN', 'MAN_NUM', 'SAL_MAN', 'EMP_NO']);
 
@@ -177,19 +236,15 @@ function oracle_fetch_rep_collections(
     $chqDateCol = $chqRecvCol ?: oracle_rep_collections_pick_col($chqCols, ['CHQ_VDATE', 'CHQ_GDATE', 'CHQ_IDATE', 'CHQ_DATE']);
     $hasCheque = $chqCols !== [] && $chqNumCol !== null && $chqAmtCol !== null && $chqVNumCol !== null;
 
-    // تعبير المندوب
-    $repExprCash = '0';
-    $repExprChq = '0';
     if ($cfg['rep_key'] === 'vod_man' && $vodManCol !== null) {
         $repExprCash = 'NVL(v.' . oracle_stmt_q($vodManCol) . ', 0)';
-        $repExprChq = $vodManCol !== null
-            ? 'NVL(v.' . oracle_stmt_q($vodManCol) . ', NVL(c.' . oracle_stmt_q((string) $cusManCol) . ', 0))'
-            : 'NVL(c.' . oracle_stmt_q((string) $cusManCol) . ', 0)';
+        $repExprChq = $cusManCol
+            ? 'NVL(v.' . oracle_stmt_q($vodManCol) . ', NVL(c.' . oracle_stmt_q($cusManCol) . ', 0))'
+            : $repExprCash;
     } elseif ($cfg['rep_key'] === 'both' && $vodManCol !== null && $cusManCol !== null) {
         $repExprCash = 'NVL(NULLIF(v.' . oracle_stmt_q($vodManCol) . ', 0), NVL(c.' . oracle_stmt_q($cusManCol) . ', 0))';
         $repExprChq = $repExprCash;
     } else {
-        // افتراضي Forms: مندوب بطاقة العميل
         $repExprCash = 'NVL(c.' . oracle_stmt_q((string) $cusManCol) . ', 0)';
         $repExprChq = $repExprCash;
     }
@@ -197,6 +252,13 @@ function oracle_fetch_rep_collections(
     $compExpr = $compCol !== null
         ? 'NVL(v.' . oracle_stmt_q($compCol) . ', 0)'
         : (string) max(1, (int) ($compNum ?? $cfg['comp_num']));
+
+    // اسم العميل: GLACTMF.ACC_DESC ثم CUS_TITLE ثم رقم الحساب
+    $glJoin = ' LEFT JOIN ' . oracle_stmt_q($cfg['gl_owner']) . '.' . oracle_stmt_q($cfg['gl_table']) . ' g
+                ON TRIM(TO_CHAR(g.' . oracle_stmt_q($cfg['gl_acc_num']) . ')) = TRIM(TO_CHAR(c.' . oracle_stmt_q($cusNumCol) . '))';
+    $nameExpr = 'NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
+        . ' NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+        . ' TRIM(TO_CHAR(c.' . oracle_stmt_q($cusNumCol) . '))))';
 
     $fromVod = oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['table']) . ' v';
     $fromCus = oracle_stmt_q($cfg['cust_owner']) . '.' . oracle_stmt_q($cfg['cust_table']) . ' c';
@@ -206,19 +268,18 @@ function oracle_fetch_rep_collections(
     $rf = $repFrom !== null && $repFrom > 0 ? $repFrom : null;
     $rt = $repTo !== null && $repTo > 0 ? $repTo : $rf;
     $useComp = (int) ($compNum ?? $cfg['comp_num']);
+    $minVod = max(0, (int) $cfg['min_voucher_no']);
 
-    $cashFlags = $cfg['cash_flags'];
-    $checkFlags = $cfg['check_flags'];
-    // لا تتداخل: النقدي لا يشمل أعلام الشيك
-    $cashFlags = array_values(array_diff($cashFlags, $checkFlags));
+    $cashFlags = array_values(array_diff($cfg['cash_flags'], $cfg['check_flags']));
     if ($cashFlags === []) {
-        $cashFlags = [1];
+        $cashFlags = [9, 15, 16];
     }
+    $checkFlags = $cfg['check_flags'];
 
     $raw = [];
     $usedMode = [];
 
-    // ─── 1) قبض نقدي: سطر واحد لكل سند+عميل (مجموع البنود) ───
+    // ─── 1) قبض نقدي ───
     if ($flagCol !== null && $cashFlags !== []) {
         [$flagList, $flagBinds] = oracle_rep_collections_flag_binds($cashFlags, 'cf');
         $binds = array_merge(['df' => $dateFrom, 'dt' => $dateTo], $flagBinds);
@@ -227,6 +288,10 @@ function oracle_fetch_rep_collections(
             'v.' . oracle_stmt_q($dateCol) . " < TO_DATE(:dt, 'YYYY-MM-DD') + 1",
             'v.' . oracle_stmt_q($flagCol) . ' IN (' . implode(',', $flagList) . ')',
         ];
+        if ($minVod > 0) {
+            $where[] = 'v.' . oracle_stmt_q($numCol) . ' >= :min_vod';
+            $binds['min_vod'] = $minVod;
+        }
         if ($sideCol !== null) {
             $where[] = 'v.' . oracle_stmt_q($sideCol) . ' = :cs';
             $binds['cs'] = (int) $cfg['credit_side'];
@@ -248,41 +313,56 @@ function oracle_fetch_rep_collections(
                            ' . $compExpr . ' AS COMP_NUM,
                            v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
                            \'قبض نقدي\' AS RCV_TYPE,
-                           NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), TRIM(TO_CHAR(v." . oracle_stmt_q($accCol) . '))) AS CUSTOMER_NAME,
+                           ' . $nameExpr . ' AS CUSTOMER_NAME,
                            TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
                            TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
                            NULL AS CHQ_NUM,
                            NULL AS CHQ_DUE,
                            ROUND(SUM(ABS(v.' . oracle_stmt_q($amtCol) . ')), 3) AS AMOUNT
-                    FROM ' . $fromVod . $joinCus . '
+                    FROM ' . $fromVod . $joinCus . $glJoin . '
                     WHERE ' . implode("\n                      AND ", $where) . '
                     GROUP BY ' . $repExprCash . ',
                              ' . $compExpr . ',
                              v.' . oracle_stmt_q($numCol) . ',
-                             NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), TRIM(TO_CHAR(v." . oracle_stmt_q($accCol) . '))),
+                             ' . $nameExpr . ',
                              TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
         try {
             $raw = array_merge($raw, oracle_query_all($conn, $sqlCash, $binds));
-            $usedMode[] = 'cash_flags=' . implode(',', $cashFlags);
+            $usedMode[] = 'cash';
         } catch (Throwable $e) {
-            $empty['message'] = 'فشل استعلام القبض النقدي: ' . $e->getMessage();
+            // بدون GLACTMF إن فشل الـ JOIN
+            try {
+                $sqlCash2 = str_replace($glJoin, '', $sqlCash);
+                $sqlCash2 = str_replace(
+                    $nameExpr,
+                    'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), TRIM(TO_CHAR(v." . oracle_stmt_q($accCol) . ')))',
+                    $sqlCash2
+                );
+                $raw = array_merge($raw, oracle_query_all($conn, $sqlCash2, $binds));
+                $usedMode[] = 'cash_no_gl';
+            } catch (Throwable $e2) {
+                $empty['message'] = 'فشل استعلام القبض النقدي: ' . $e2->getMessage();
 
-            return $empty;
+                return $empty;
+            }
         }
     }
 
-    // ─── 2) قبض شيك: صف لكل شيك بمبلغ الشيك ───
+    // ─── 2) قبض شيك بمبلغ الشيك ───
     if ($hasCheque) {
         $fromChq = oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['cheque_table']) . ' ch';
         $joinChqCus = ' INNER JOIN ' . $fromCus
             . ' ON TRIM(TO_CHAR(c.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(ch.' . oracle_stmt_q($chqCusCol) . '))';
-        // ربط اختياري بسند الحركة للتاريخ/العلم/المندوب على السند
         $joinChqVod = ' LEFT JOIN ' . $fromVod
             . ' ON v.' . oracle_stmt_q($numCol) . ' = ch.' . oracle_stmt_q((string) $chqVNumCol)
             . ' AND TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) = TRIM(TO_CHAR(ch.' . oracle_stmt_q($chqCusCol) . '))';
         if ($sideCol !== null) {
             $joinChqVod .= ' AND v.' . oracle_stmt_q($sideCol) . ' = ' . (int) $cfg['credit_side'];
         }
+
+        $nameExprChq = 'NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
+            . ' NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+            . ' TRIM(TO_CHAR(ch.' . oracle_stmt_q($chqCusCol) . '))))';
 
         $rcvDateExpr = $chqDateCol !== null
             ? 'NVL(TRUNC(ch.' . oracle_stmt_q($chqDateCol) . '), TRUNC(v.' . oracle_stmt_q($dateCol) . '))'
@@ -296,15 +376,16 @@ function oracle_fetch_rep_collections(
             'ch.' . oracle_stmt_q((string) $chqNumCol) . ' IS NOT NULL',
             'ABS(ch.' . oracle_stmt_q((string) $chqAmtCol) . ') > 0',
         ];
-
-        // إن وُجد علم على السند: اقبل شيك العلم أو سنداً فارغاً مرتبطاً بشيك
+        if ($minVod > 0) {
+            $where[] = 'NVL(v.' . oracle_stmt_q($numCol) . ', ch.' . oracle_stmt_q((string) $chqVNumCol) . ') >= :min_vod';
+            $binds['min_vod'] = $minVod;
+        }
         if ($flagCol !== null && $checkFlags !== []) {
             [$flagList, $flagBinds] = oracle_rep_collections_flag_binds($checkFlags, 'kf');
             $binds = array_merge($binds, $flagBinds);
             $where[] = '(v.' . oracle_stmt_q($flagCol) . ' IS NULL OR v.' . oracle_stmt_q($flagCol)
                 . ' IN (' . implode(',', $flagList) . '))';
         }
-
         if ($rf !== null) {
             $where[] = $repExprChq . ' >= :rep_from';
             $where[] = $repExprChq . ' <= :rep_to';
@@ -322,25 +403,45 @@ function oracle_fetch_rep_collections(
                           NVL(' . $compExpr . ', ' . (int) max(1, $useComp) . ') AS COMP_NUM,
                           NVL(v.' . oracle_stmt_q($numCol) . ', ch.' . oracle_stmt_q((string) $chqVNumCol) . ') AS RCV_NO,
                           \'قبض شيك\' AS RCV_TYPE,
-                          NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), TRIM(TO_CHAR(ch." . oracle_stmt_q($chqCusCol) . '))) AS CUSTOMER_NAME,
+                          ' . $nameExprChq . ' AS CUSTOMER_NAME,
                           TRIM(TO_CHAR(ch.' . oracle_stmt_q($chqCusCol) . ')) AS CUSTOMER_ACC,
                           ' . $rcvDateExpr . ' AS RCV_DATE,
                           TO_CHAR(ch.' . oracle_stmt_q((string) $chqNumCol) . ') AS CHQ_NUM,
                           ' . $dueExpr . ' AS CHQ_DUE,
                           ROUND(ABS(ch.' . oracle_stmt_q((string) $chqAmtCol) . '), 3) AS AMOUNT
-                   FROM ' . $fromChq . $joinChqCus . $joinChqVod . '
+                   FROM ' . $fromChq . $joinChqCus . $joinChqVod . $glJoin . '
                    WHERE ' . implode("\n                     AND ", $where);
 
         try {
             $raw = array_merge($raw, oracle_query_all($conn, $sqlChq, $binds));
-            $usedMode[] = 'cheque_amount';
+            $usedMode[] = 'cheque';
         } catch (Throwable $e) {
-            // إن فشل مسار الشيكات نُكمل بالنقدي فقط
-            $usedMode[] = 'cheque_fail:' . $e->getMessage();
+            try {
+                $sqlChq2 = str_replace($glJoin, '', $sqlChq);
+                $sqlChq2 = str_replace(
+                    $nameExprChq,
+                    'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), TRIM(TO_CHAR(ch." . oracle_stmt_q($chqCusCol) . ')))',
+                    $sqlChq2
+                );
+                $raw = array_merge($raw, oracle_query_all($conn, $sqlChq2, $binds));
+                $usedMode[] = 'cheque_no_gl';
+            } catch (Throwable $e2) {
+                $usedMode[] = 'cheque_fail';
+            }
         }
     }
 
-    // أسماء المندوبين
+    // إكمال الأسماء من GLACTMF إن بقي رقم حساب
+    $needNames = [];
+    foreach ($raw as $r) {
+        $nm = trim((string) oracle_statement_row_val($r, 'CUSTOMER_NAME'));
+        $acc = trim((string) oracle_statement_row_val($r, 'CUSTOMER_ACC'));
+        if ($acc !== '' && ($nm === '' || $nm === $acc || preg_match('/^\d+$/', $nm) || $nm === 'شركة')) {
+            $needNames[] = $acc;
+        }
+    }
+    $glNames = $needNames !== [] ? oracle_rep_collections_gl_names($conn, $cfg, $needNames) : [];
+
     $repNos = [];
     foreach ($raw as $r) {
         $n = (int) (float) oracle_statement_row_val($r, 'REP_NO');
@@ -361,7 +462,6 @@ function oracle_fetch_rep_collections(
         }
     }
 
-    // تجميع نهائي لتفادي تكرار صف نقدي/شيك بنفس المفتاح
     $seen = [];
     $rows = [];
     $totalAmt = 0.0;
@@ -375,6 +475,22 @@ function oracle_fetch_rep_collections(
         if ($amt == 0.0) {
             continue;
         }
+        if ($minVod > 0 && $rcvNo > 0 && $rcvNo < $minVod) {
+            continue;
+        }
+        $custName = trim((string) oracle_statement_row_val($r, 'CUSTOMER_NAME'));
+        if ($acc !== '' && isset($glNames[$acc]) && $glNames[$acc] !== '') {
+            $custName = $glNames[$acc];
+        } elseif ($acc !== '' && ($custName === '' || $custName === $acc || preg_match('/^\d+$/', $custName))) {
+            $digits = preg_replace('/\D+/', '', $acc) ?? '';
+            if ($digits !== '' && isset($glNames[$digits])) {
+                $custName = $glNames[$digits];
+            }
+        }
+        if ($custName === '') {
+            $custName = $acc;
+        }
+
         $key = $repNo . '|' . $rcvNo . '|' . $acc . '|' . $rcvType . '|' . $chqNo;
         if (isset($seen[$key])) {
             continue;
@@ -387,7 +503,7 @@ function oracle_fetch_rep_collections(
             'comp_num' => (int) (float) oracle_statement_row_val($r, 'COMP_NUM') ?: max(1, $useComp),
             'rcv_no' => $rcvNo,
             'rcv_type' => $rcvType,
-            'customer_name' => trim((string) oracle_statement_row_val($r, 'CUSTOMER_NAME')),
+            'customer_name' => $custName,
             'customer_acc' => $acc,
             'rcv_date' => oracle_statement_normalize_date(oracle_statement_row_val($r, 'RCV_DATE')),
             'chq_no' => $chqNo,
@@ -430,9 +546,8 @@ function oracle_fetch_rep_collections(
             'rep_key' => $cfg['rep_key'],
             'cash_flags' => $cashFlags,
             'check_flags' => $checkFlags,
+            'min_voucher_no' => $minVod,
             'mode' => $usedMode,
-            'vod_man_col' => $vodManCol,
-            'cus_man_col' => $cusManCol,
             'cus_name_col' => $cusNameCol,
         ],
     ];
