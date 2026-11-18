@@ -91,8 +91,10 @@ return [
         'cust_table' => 'CUSTOMER',
         'credit_side' => 2,
         'comp_num' => 1,
-        // أعلام VOD_FLAG: قبض نقدي / قبض شيك (عدّل حسب Forms عندكم)
-        'cash_flags' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 20],
+        // مندوب Forms في كشف التحصيلات عادةً من بطاقة العميل
+        'rep_key' => 'cus_salesman', // cus_salesman | vod_man | both
+        // أعلام VOD_FLAG الضيقة — إن نقصت صفوف نقدية أضف رقم العلم من Forms
+        'cash_flags' => [1, 15, 16],
         'check_flags' => [10, 11],
     ],
 
