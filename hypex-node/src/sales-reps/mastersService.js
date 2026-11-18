@@ -632,37 +632,138 @@ async function getTour(id) {
     );
     if (!rows[0]) return null;
     const hasWd = await ensureWeekdayColumn();
-    const lines = await safeQuery(
-      hasWd
-        ? `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
-                  l.weekday,
-                  c.code AS customer_code, c.name_ar AS customer_name,
-                  COALESCE(rg.name_ar, '') AS region_name,
-                  COALESCE(ra.name_ar, '') AS address_name
-           FROM sal_rep_tour_line l
-           INNER JOIN crm_customer c ON c.id = l.customer_id
-           LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
-           LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
-           WHERE l.tour_id = ?
-           ORDER BY l.weekday, l.sort_order, l.id`
-        : `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
-                  0 AS weekday,
-                  c.code AS customer_code, c.name_ar AS customer_name,
-                  COALESCE(rg.name_ar, '') AS region_name,
-                  COALESCE(ra.name_ar, '') AS address_name
-           FROM sal_rep_tour_line l
-           INNER JOIN crm_customer c ON c.id = l.customer_id
-           LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
-           LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
-           WHERE l.tour_id = ?
-           ORDER BY l.sort_order, l.id`,
-      [tourId]
-    );
+    let lines = [];
+    try {
+      lines = await safeQuery(
+        hasWd
+          ? `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
+                    l.weekday,
+                    c.code AS customer_code, c.name_ar AS customer_name,
+                    c.latitude, c.longitude,
+                    COALESCE(rg.name_ar, '') AS region_name,
+                    COALESCE(ra.name_ar, '') AS address_name
+             FROM sal_rep_tour_line l
+             INNER JOIN crm_customer c ON c.id = l.customer_id
+             LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+             LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+             WHERE l.tour_id = ?
+             ORDER BY l.weekday, l.sort_order, l.id`
+          : `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
+                    0 AS weekday,
+                    c.code AS customer_code, c.name_ar AS customer_name,
+                    c.latitude, c.longitude,
+                    COALESCE(rg.name_ar, '') AS region_name,
+                    COALESCE(ra.name_ar, '') AS address_name
+             FROM sal_rep_tour_line l
+             INNER JOIN crm_customer c ON c.id = l.customer_id
+             LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+             LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+             WHERE l.tour_id = ?
+             ORDER BY l.sort_order, l.id`,
+        [tourId]
+      );
+    } catch (eGps) {
+      lines = await safeQuery(
+        hasWd
+          ? `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
+                    l.weekday,
+                    c.code AS customer_code, c.name_ar AS customer_name,
+                    NULL AS latitude, NULL AS longitude,
+                    COALESCE(rg.name_ar, '') AS region_name,
+                    COALESCE(ra.name_ar, '') AS address_name
+             FROM sal_rep_tour_line l
+             INNER JOIN crm_customer c ON c.id = l.customer_id
+             LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+             LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+             WHERE l.tour_id = ?
+             ORDER BY l.weekday, l.sort_order, l.id`
+          : `SELECT l.id, l.customer_id, l.date_from, l.date_to, l.region_id, l.region_address_id, l.sort_order,
+                    0 AS weekday,
+                    c.code AS customer_code, c.name_ar AS customer_name,
+                    NULL AS latitude, NULL AS longitude,
+                    COALESCE(rg.name_ar, '') AS region_name,
+                    COALESCE(ra.name_ar, '') AS address_name
+             FROM sal_rep_tour_line l
+             INNER JOIN crm_customer c ON c.id = l.customer_id
+             LEFT JOIN crm_region rg ON rg.id = COALESCE(l.region_id, c.region_id)
+             LEFT JOIN crm_region_address ra ON ra.id = COALESCE(l.region_address_id, c.region_address_id)
+             WHERE l.tour_id = ?
+             ORDER BY l.sort_order, l.id`,
+        [tourId]
+      );
+    }
     return { ...rows[0], lines };
   } catch (e) {
     console.error('getTour', e.message);
     return null;
   }
+}
+
+/** نقاط خريطة جولة: عملاء الجولة مع إحداثياتهم المدخلة (إن وُجدت). */
+async function getTourMapData(tourId) {
+  const tour = await getTour(tourId);
+  if (!tour) return null;
+  const byCust = new Map();
+  for (const ln of tour.lines || []) {
+    const cid = Number(ln.customer_id || 0);
+    if (cid < 1) continue;
+    let row = byCust.get(cid);
+    if (!row) {
+      const lat = Number(ln.latitude);
+      const lng = Number(ln.longitude);
+      const hasGps =
+        Number.isFinite(lat) &&
+        Number.isFinite(lng) &&
+        !(Math.abs(lat) < 0.00001 && Math.abs(lng) < 0.00001) &&
+        lat >= -90 &&
+        lat <= 90 &&
+        lng >= -180 &&
+        lng <= 180;
+      row = {
+        customer_id: cid,
+        code: String(ln.customer_code || ''),
+        name: String(ln.customer_name || ''),
+        region_name: String(ln.region_name || ''),
+        address_name: String(ln.address_name || ''),
+        lat: hasGps ? Math.round(lat * 1e7) / 1e7 : null,
+        lng: hasGps ? Math.round(lng * 1e7) / 1e7 : null,
+        has_gps: hasGps,
+        weekdays: [],
+      };
+      byCust.set(cid, row);
+    }
+    const wd = Number(ln.weekday);
+    if (Number.isFinite(wd) && wd >= 0 && wd <= 6 && !row.weekdays.includes(wd)) {
+      row.weekdays.push(wd);
+    }
+  }
+  const points = [...byCust.values()].map((p) => ({
+    ...p,
+    weekdays: p.weekdays.sort((a, b) => a - b),
+    weekday_labels: p.weekdays
+      .sort((a, b) => a - b)
+      .map((w) => WEEKDAY_LABELS[w] || '')
+      .filter(Boolean),
+  }));
+  points.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+  const withGps = points.filter((p) => p.has_gps);
+  return {
+    tour: {
+      id: Number(tour.id),
+      sales_rep_id: Number(tour.sales_rep_id),
+      sales_rep_name: String(tour.sales_rep_name || ''),
+      date_from: String(tour.date_from || '').slice(0, 10),
+      date_to: String(tour.date_to || '').slice(0, 10),
+      status: String(tour.status || ''),
+      notes: String(tour.notes || ''),
+    },
+    points,
+    totals: {
+      customers: points.length,
+      with_gps: withGps.length,
+      without_gps: points.length - withGps.length,
+    },
+  };
 }
 
 function parseTourLines(payload, tourFrom, tourTo) {
@@ -1792,6 +1893,7 @@ module.exports = {
   listTourCustomers,
   listTours,
   getTour,
+  getTourMapData,
   saveTour,
   postTour,
   unpostTour,

@@ -324,6 +324,40 @@ async function ensureOracleRepCollectionsScreen() {
   return true;
 }
 
+async function ensureSalesRepTourMapScreen() {
+  const code = 'sales_rep_tour_map';
+  const nameAr = 'خريطة جولة المندوب';
+  let rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+  let screenId = Number(rows[0]?.id || 0);
+  if (!screenId) {
+    const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+    const nextOrder = Math.max(Number(maxRows[0]?.m || 0) + 10, 236);
+    await q(
+      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'list', ?)`,
+      [code, nameAr, nextOrder]
+    );
+    rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    screenId = Number(rows[0]?.id || 0);
+  } else {
+    await q(`UPDATE sys_screen SET name_ar = ? WHERE id = ?`, [nameAr, screenId]);
+  }
+  if (!screenId) return false;
+  await q(
+    `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+     SELECT gp.group_id, ?, 1
+     FROM sys_screen s_old
+     INNER JOIN sys_group_permission gp ON gp.screen_id = s_old.id AND gp.allowed = 1
+     WHERE s_old.code IN ('sales_rep_route', 'report_sales_rep_tours', 'sales_reps')`,
+    [screenId]
+  );
+  await q(
+    `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+     SELECT g.id, ?, 1 FROM sys_group g WHERE g.code IN ('ADMINS', 'administrators', 'admin')`,
+    [screenId]
+  );
+  return true;
+}
+
 async function ensureReportSalesRepCustomersScreen() {
   const code = 'report_sales_rep_customers';
   const nameAr = 'تقرير المندوبين حسب العملاء';
@@ -429,6 +463,11 @@ async function listPermissionsMatrix(groupId = 0, opts = {}) {
     await ensureOracleRepCollectionsScreen();
   } catch (e) {
     console.error('ensureOracleRepCollectionsScreen', e.message || e);
+  }
+  try {
+    await ensureSalesRepTourMapScreen();
+  } catch (e) {
+    console.error('ensureSalesRepTourMapScreen', e.message || e);
   }
   try {
     await ensureMobileManagerApprovalScreens();
@@ -2150,6 +2189,7 @@ module.exports = {
   listPermissionsMatrix,
   ensureReportSalesRepCustomersScreen,
   ensureOracleRepCollectionsScreen,
+  ensureSalesRepTourMapScreen,
   savePermissions,
   backfillInheritActionsForAllGroups,
   listActiveSessions,

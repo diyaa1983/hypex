@@ -114,6 +114,326 @@ router.get('/sales-reps/gps-tracker', (req, res) => {
   res.redirect(302, '/system/gps-tracker');
 });
 
+/* ── خريطة جولة المندوب: اختيار مندوب + جولة → مواقع العملاء على الخريطة ── */
+router.get('/sales-reps/tour-map', async (req, res) => {
+  try {
+    const adminService = require('../system/adminService');
+    if (adminService.ensureSalesRepTourMapScreen) {
+      await adminService.ensureSalesRepTourMapScreen();
+    }
+  } catch (e) {
+    console.error('ensureSalesRepTourMapScreen', e.message || e);
+  }
+  if (
+    !can(req.session.user, 'sales_rep_tour_map') &&
+    !can(req.session.user, 'sales_rep_route') &&
+    !can(req.session.user, 'sales_reps')
+  ) {
+    return forbid(res);
+  }
+
+  await masters.ensureTourSchema();
+  const reps = await q.listRepsSimple();
+  let salesRepId = Number(req.query.sales_rep_id || 0) || 0;
+  let tourId = Number(req.query.tour_id || 0) || 0;
+
+  let mapData = null;
+  if (tourId > 0) {
+    mapData = await masters.getTourMapData(tourId);
+    if (mapData && !salesRepId) {
+      salesRepId = Number(mapData.tour.sales_rep_id) || 0;
+    }
+  }
+
+  const tours = salesRepId > 0 ? await masters.listTours({ salesRepId, limit: 120 }) : [];
+  if (tourId > 0 && salesRepId > 0 && !tours.some((t) => Number(t.id) === tourId) && mapData) {
+    tours.unshift({
+      id: mapData.tour.id,
+      date_from: mapData.tour.date_from,
+      date_to: mapData.tour.date_to,
+      customer_count: mapData.totals.customers,
+      status: mapData.tour.status,
+      sales_rep_name: mapData.tour.sales_rep_name,
+    });
+  }
+
+  let gpsCfg = { map_provider: 'esri', map_engine: 'leaflet', google_maps_api_key: '' };
+  try {
+    const gpsService = require('../system/gpsService');
+    gpsCfg = await gpsService.getGpsSettings();
+  } catch (e) {
+    console.error('tour-map gps settings', e.message || e);
+  }
+  let mapProvider = String(gpsCfg.map_provider || 'esri').toLowerCase();
+  if (mapProvider === 'carto') mapProvider = 'osm';
+  const tileUrl =
+    mapProvider === 'osm'
+      ? 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+      : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}';
+  const attribution = mapProvider === 'osm' ? '© OpenStreetMap' : '© Esri — OpenStreetMap contributors';
+  const assetV = String(Date.now());
+
+  const repOptions =
+    (reps || [])
+      .map((r) => {
+        const id = Number(r.id) || 0;
+        const sel = id === salesRepId ? ' selected' : '';
+        return `<option value="${id}"${sel}>${esc(r.name_ar || '')}${r.code ? ' (' + esc(r.code) + ')' : ''}</option>`;
+      })
+      .join('') || '<option value="">— لا مندوبين —</option>';
+
+  const tourOptions =
+    tours.length < 1
+      ? '<option value="">— اختر المندوب أولاً —</option>'
+      : `<option value="">— اختر الجولة —</option>` +
+        tours
+          .map((t) => {
+            const id = Number(t.id) || 0;
+            const sel = id === tourId ? ' selected' : '';
+            const label = `#${id} · ${isoToDmy(String(t.date_from || '').slice(0, 10))} → ${isoToDmy(
+              String(t.date_to || '').slice(0, 10)
+            )} · ${Number(t.customer_count || 0)} عميل`;
+            return `<option value="${id}"${sel}>${esc(label)}</option>`;
+          })
+          .join('');
+
+  const pointsJson = JSON.stringify(mapData?.points || []).replace(/</g, '\\u003c');
+  const totals = mapData?.totals || { customers: 0, with_gps: 0, without_gps: 0 };
+  const tourTitle = mapData
+    ? `${mapData.tour.sales_rep_name || 'مندوب'} · ${isoToDmy(mapData.tour.date_from)} → ${isoToDmy(mapData.tour.date_to)}`
+    : '';
+
+  const missingList =
+    mapData && totals.without_gps > 0
+      ? (mapData.points || [])
+          .filter((p) => !p.has_gps)
+          .slice(0, 40)
+          .map((p) => `<li>${esc(p.name || p.code || '#' + p.customer_id)}</li>`)
+          .join('')
+      : '';
+
+  const body = `
+    <div class="si-stage si-report-page" data-report-route="sales_rep_tour_map">
+      <style>
+        .stm-filters{display:flex;flex-wrap:wrap;gap:.55rem .75rem;align-items:flex-end;margin:0}
+        .stm-filters label{display:flex;flex-direction:column;gap:.2rem;font-size:.8rem;font-weight:700;color:#5c6578;margin:0}
+        .stm-filters .si-field,.stm-filters select.si-field{min-width:14rem}
+        .stm-map-wrap{position:relative;height:min(68vh,640px);min-height:420px;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e8eef6}
+        .stm-map-wrap .leaflet-container{height:100%;width:100%;font-family:inherit}
+        .stm-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:.75rem;align-items:stretch}
+        @media (max-width:900px){.stm-side{grid-template-columns:1fr}}
+        .stm-list{max-height:min(68vh,640px);overflow:auto;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:.4rem}
+        .stm-list h3{margin:.25rem .4rem .5rem;font-size:.88rem}
+        .stm-item{display:flex;gap:.45rem;align-items:flex-start;padding:.45rem .5rem;border-radius:8px;cursor:pointer;border:1px solid transparent}
+        .stm-item:hover,.stm-item.is-active{background:#f1f5f9;border-color:#cbd5e1}
+        .stm-item__n{flex:0 0 1.5rem;width:1.5rem;height:1.5rem;border-radius:999px;background:#0f766e;color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+        .stm-item.is-miss .stm-item__n{background:#94a3b8}
+        .stm-item__t{min-width:0;flex:1}
+        .stm-item__t strong{display:block;font-size:.82rem;line-height:1.35}
+        .stm-item__t small{display:block;color:#64748b;font-size:.72rem;margin-top:.1rem}
+        .stm-pin-label{background:#0f766e;color:#fff;border:none;border-radius:999px;padding:2px 8px;font-weight:700;font-size:11px;box-shadow:0 1px 4px rgba(15,23,42,.25);white-space:nowrap}
+        .stm-stats{display:flex;flex-wrap:wrap;gap:.4rem;margin:.35rem 0 .75rem}
+        .stm-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:999px;background:#f1f5f9;font-size:.78rem;font-weight:700;color:#334155}
+      </style>
+      ${ui.hero({
+        mark: '🧭',
+        kicker: KICKER,
+        title: 'خريطة جولة المندوب',
+        subtitle: 'اختر المندوب ثم الجولة لعرض مواقع العملاء المدخلة وأسمائهم على الخريطة',
+        actions: [
+          { label: 'الجولات', href: '/sales-reps/route' },
+          { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
+          { label: 'لوحة المندوبين', href: HUB },
+        ],
+      })}
+      <div class="si-surface no-print" style="margin:0 0 1rem;padding:.85rem 1rem">
+        <form method="get" action="/sales-reps/tour-map" class="stm-filters" data-app-busy-msg="جاري فتح الخريطة…">
+          <label>المندوب
+            <select class="si-field" name="sales_rep_id" id="stm-rep" required>
+              <option value="">— اختر المندوب —</option>
+              ${repOptions}
+            </select>
+          </label>
+          <label>الجولة
+            <select class="si-field" name="tour_id" id="stm-tour" ${salesRepId < 1 ? 'disabled' : ''}>
+              ${tourOptions}
+            </select>
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض الخريطة</button>
+        </form>
+      </div>
+      ${
+        mapData
+          ? `<div class="si-surface" style="padding:.85rem 1rem 1rem">
+        <div class="si-surface-head" style="margin-bottom:.35rem">
+          <h2 style="margin:0;font-size:1rem">${esc(tourTitle)}</h2>
+          <span class="si-count">جولة #${esc(mapData.tour.id)}</span>
+        </div>
+        <div class="stm-stats">
+          <span class="stm-chip">عملاء الجولة: <b>${esc(totals.customers)}</b></span>
+          <span class="stm-chip">على الخريطة: <b>${esc(totals.with_gps)}</b></span>
+          <span class="stm-chip">بلا موقع: <b>${esc(totals.without_gps)}</b></span>
+        </div>
+        ${
+          totals.with_gps < 1
+            ? `<p class="muted" style="margin:0 0 .75rem">لا توجد إحداثيات GPS لعملاء هذه الجولة. أدخل مواقع العملاء من بطاقة العميل أو اعتماد موقع العميل.</p>`
+            : ''
+        }
+        <div class="stm-side">
+          <div class="stm-map-wrap" id="stm-map-host"
+               data-tile-url="${esc(tileUrl)}"
+               data-attribution="${esc(attribution)}"
+               data-map-provider="${esc(mapProvider)}"
+               data-google-key="${esc(gpsCfg.google_maps_api_key || '')}">
+            <div id="stm-map" role="application" aria-label="خريطة جولة المندوب" style="height:100%;width:100%"></div>
+          </div>
+          <aside class="stm-list" id="stm-list">
+            <h3>عملاء الجولة</h3>
+            <div id="stm-list-body"></div>
+            ${
+              missingList
+                ? `<div style="margin-top:.75rem;padding-top:.5rem;border-top:1px solid #e2e8f0">
+              <h3 style="color:#64748b">بلا موقع GPS</h3>
+              <ul style="margin:.25rem .5rem 0;padding-inline-start:1.1rem;font-size:.8rem;color:#64748b">${missingList}</ul>
+            </div>`
+                : ''
+            }
+          </aside>
+        </div>
+        <script type="application/json" id="stm-points-json">${pointsJson}</script>
+      </div>`
+          : `<p class="muted" style="padding:.5rem 1rem">اختر المندوب والجولة ثم اضغط «عرض الخريطة».</p>`
+      }
+      <script>
+        window.AppOsmConfig = {
+          tileUrl: ${JSON.stringify(tileUrl)},
+          attribution: ${JSON.stringify(attribution)},
+          mapProvider: ${JSON.stringify(mapProvider)},
+          mapEngine: ${JSON.stringify(gpsCfg.map_engine || 'leaflet')},
+          googleMapsKey: ${JSON.stringify(gpsCfg.google_maps_api_key || '')}
+        };
+        (function(){
+          var rep = document.getElementById('stm-rep');
+          if (rep) {
+            rep.addEventListener('change', function(){
+              var id = Number(rep.value || 0) || 0;
+              if (id < 1) { window.location.href = '/sales-reps/tour-map'; return; }
+              window.location.href = '/sales-reps/tour-map?sales_rep_id=' + id;
+            });
+          }
+          function whenLeaflet(cb){
+            if (window.L) { cb(); return; }
+            var n = 0;
+            var t = setInterval(function(){
+              n++;
+              if (window.L || n > 80) {
+                clearInterval(t);
+                if (window.L) cb();
+              }
+            }, 50);
+          }
+          whenLeaflet(function(){
+            var host = document.getElementById('stm-map-host');
+            var jsonEl = document.getElementById('stm-points-json');
+            if (!host || !jsonEl) return;
+            var points = [];
+            try { points = JSON.parse(jsonEl.textContent || '[]'); } catch (e) { points = []; }
+            if (!Array.isArray(points)) points = [];
+            var withGps = points.filter(function(p){ return p && p.has_gps && p.lat != null && p.lng != null; });
+            var map = L.map('stm-map', { zoomControl: true, scrollWheelZoom: true });
+            var provider = host.getAttribute('data-map-provider') || 'esri';
+            var tileUrl = host.getAttribute('data-tile-url') || '';
+            var attrib = host.getAttribute('data-attribution') || '';
+            function addTiles(){
+              if (window.LeafletMapLayers && typeof window.LeafletMapLayers.attach === 'function') {
+                return window.LeafletMapLayers.attach(map, {
+                  tileUrl: tileUrl,
+                  attribution: attrib,
+                  mapProvider: provider,
+                  googleKey: host.getAttribute('data-google-key') || ''
+                });
+              }
+              L.tileLayer(tileUrl || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: attrib || '© OpenStreetMap',
+                maxZoom: 19
+              }).addTo(map);
+              return Promise.resolve('osm');
+            }
+            var listBody = document.getElementById('stm-list-body');
+            var markers = [];
+            var bounds = [];
+            function focusIdx(i){
+              Array.prototype.forEach.call(document.querySelectorAll('.stm-item'), function(el){
+                el.classList.toggle('is-active', Number(el.getAttribute('data-idx')) === i);
+              });
+              var m = markers[i];
+              if (m) {
+                map.setView(m.getLatLng(), Math.max(map.getZoom(), 15));
+                m.openPopup();
+              }
+            }
+            addTiles().then(function(){
+              withGps.forEach(function(p, i){
+                var n = i + 1;
+                var icon = L.divIcon({
+                  className: '',
+                  html: '<div class="stm-pin-label">' + n + '</div>',
+                  iconSize: [28, 22],
+                  iconAnchor: [14, 11]
+                });
+                var days = (p.weekday_labels || []).join(' · ');
+                var html = '<strong>' + String(p.name || '').replace(/</g,'&lt;') + '</strong>'
+                  + (p.code ? '<br><span dir="ltr">' + String(p.code).replace(/</g,'&lt;') + '</span>' : '')
+                  + (days ? '<br><small>' + String(days).replace(/</g,'&lt;') + '</small>' : '')
+                  + ((p.region_name || p.address_name)
+                      ? '<br><small>' + String([p.region_name, p.address_name].filter(Boolean).join(' / ')).replace(/</g,'&lt;') + '</small>'
+                      : '');
+                var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
+                m.bindPopup(html);
+                m.bindTooltip(String(p.name || ('عميل ' + n)), {
+                  permanent: true,
+                  direction: 'top',
+                  offset: [0, -12],
+                  opacity: 0.95,
+                  className: 'stm-name-tip'
+                });
+                markers.push(m);
+                bounds.push([p.lat, p.lng]);
+                if (listBody) {
+                  var item = document.createElement('div');
+                  item.className = 'stm-item';
+                  item.setAttribute('data-idx', String(i));
+                  item.innerHTML = '<span class="stm-item__n">' + n + '</span><div class="stm-item__t"><strong></strong><small></small></div>';
+                  item.querySelector('strong').textContent = p.name || ('#' + p.customer_id);
+                  item.querySelector('small').textContent = [p.code, days].filter(Boolean).join(' · ');
+                  item.addEventListener('click', function(){ focusIdx(i); });
+                  listBody.appendChild(item);
+                }
+              });
+              if (bounds.length === 1) map.setView(bounds[0], 15);
+              else if (bounds.length > 1) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
+              else map.setView([31.95, 35.91], 8);
+              setTimeout(function(){ map.invalidateSize(); }, 80);
+            });
+          });
+        })();
+      </script>
+    </div>`;
+
+  return res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'خريطة جولة المندوب',
+      bodyHtml: body,
+      css: [`/hypex/assets/vendor/leaflet/leaflet.css?v=${assetV}`],
+      js: [
+        `/hypex/assets/vendor/leaflet/leaflet.js?v=${assetV}`,
+        `/hypex/assets/js/leaflet-map-layers.js?v=${assetV}`,
+      ],
+    })
+  );
+});
+
 /* ═══════════ List ═══════════ */
 router.get('/sales-reps/list', guard('sales_reps'), async (req, res) => {
   const qv = String(req.query.q || '');
@@ -329,6 +649,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
       <td>${dash(r.notes)}</td>
       <td class="srr-table-actions">
         <a class="si-btn" href="/sales-reps/route?id=${r.id}">فتح</a>
+        <a class="si-btn" href="/sales-reps/tour-map?tour_id=${r.id}&sales_rep_id=${Number(r.sales_rep_id) || 0}">خريطة</a>
         <a class="si-btn" href="/sales-reps/route/${r.id}/print">طباعة</a>
         ${
           String(r.status) === 'posted'
@@ -362,6 +683,7 @@ router.get('/sales-reps/route', guard('sales_rep_route'), async (req, res) => {
         subtitle: 'جولة شهرية كاملة لكل مندوب · يُفتح الشهر الجديد تلقائياً من الشهر السابق',
         actions: [
           { label: '＋ جولة جديدة', href: '/sales-reps/route?new=1', primary: true },
+          { label: 'خريطة الجولة', href: '/sales-reps/tour-map' },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
           { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
           { label: 'المندوبين', href: '/sales-reps/list' },
