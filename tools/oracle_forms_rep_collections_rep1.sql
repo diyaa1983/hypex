@@ -1,36 +1,19 @@
--- التحقق من «مبيعات فواتير نقدية» لمندوب واحد
--- غيّر رقم المندوب والتواريخ عند الحاجة
-
+-- سند 24985 = مبيعات فواتير نقدية / 92.561 / مندوب 3
 ALTER SESSION SET NLS_NUMERIC_CHARACTERS = '.,';
 
--- 1) كل حركات حساب فواتير نقدية في الفترة (بدون فلتر مندوب)
-SELECT v.VOD_NUM,
-       v.VOD_FLAG,
-       TRUNC(v.VOD_DATE) VOD_DATE,
-       TRIM(TO_CHAR(v.VOD_ACC)) VOD_ACC,
+-- نفّذ هذا أولاً وأرسل النتيجة
+SELECT v.VOD_NUM, v.VOD_FLAG, v.VOD_SIDE, v.VOD_DATE, v.VOD_ACC, v.VOD_AMOUNT,
        g.ACC_DESC,
-       ROUND(ABS(v.VOD_AMOUNT), 3) AMT,
-       (SELECT MAX(d.MAN_NUM) FROM MAS.DAILY d WHERE d.V_NUM = v.VOD_NUM AND NVL(d.MAN_NUM,0) > 0) DAILY_MAN
+       c.CUS_SALESMAN,
+       c.CUS_TITLE
   FROM ACCINV.GLVODMF v
-  JOIN ACCINV.GLACTMF g
-    ON TRIM(TO_CHAR(g.ACC_NUM)) = TRIM(TO_CHAR(v.VOD_ACC))
- WHERE v.VOD_DATE >= DATE '2026-11-01'
-   AND v.VOD_DATE <  DATE '2027-01-01'
-   AND v.VOD_SIDE = 2
-   AND v.VOD_NUM >= 10000
-   AND (INSTR(NVL(TRIM(g.ACC_DESC), ''), 'فواتير نقدية') > 0
-        OR INSTR(NVL(TRIM(g.ACC_DESC), ''), 'مبيعات فواتير') > 0)
- ORDER BY v.VOD_DATE, v.VOD_NUM;
+  LEFT JOIN ACCINV.GLACTMF g ON TRIM(TO_CHAR(g.ACC_NUM)) = TRIM(TO_CHAR(v.VOD_ACC))
+  LEFT JOIN ACCINV.CUSTOMER c ON TRIM(TO_CHAR(c.CUS_NUM)) = TRIM(TO_CHAR(v.VOD_ACC))
+ WHERE v.VOD_NUM = 24985;
 
--- 2) مجموعها (يجب أن تظهر في التقرير كقبض نقدي)
-SELECT COUNT(*) CNT,
-       ROUND(SUM(ABS(v.VOD_AMOUNT)), 3) AMT
-  FROM ACCINV.GLVODMF v
-  JOIN ACCINV.GLACTMF g
-    ON TRIM(TO_CHAR(g.ACC_NUM)) = TRIM(TO_CHAR(v.VOD_ACC))
- WHERE v.VOD_DATE >= DATE '2026-11-01'
-   AND v.VOD_DATE <  DATE '2027-01-01'
-   AND v.VOD_SIDE = 2
-   AND v.VOD_NUM >= 10000
-   AND (INSTR(NVL(TRIM(g.ACC_DESC), ''), 'فواتير نقدية') > 0
-        OR INSTR(NVL(TRIM(g.ACC_DESC), ''), 'مبيعات فواتير') > 0);
+-- أعمدة البيان إن وُجدت
+SELECT COLUMN_NAME
+  FROM ALL_TAB_COLUMNS
+ WHERE OWNER = 'ACCINV' AND TABLE_NAME = 'GLVODMF'
+   AND REGEXP_LIKE(COLUMN_NAME, 'REMARK|DESC|NOTE|EXPLAIN|NARR', 'i')
+ ORDER BY 1;
