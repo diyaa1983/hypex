@@ -91,12 +91,12 @@ return [
         'cust_table' => 'CUSTOMER',
         'credit_side' => 2,
         'comp_num' => 1,
-        // مندوب Forms في كشف التحصيلات عادةً من بطاقة العميل
-        'rep_key' => 'cus_salesman', // cus_salesman | vod_man | both
-        // أعلام VOD_FLAG — بدون 1 (سلسلة 9xx) · الشيك 10/11
-        'cash_flags' => [2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18],
+        // Forms: MAN على السند ثم مندوب العميل — الفترة على تاريخ القبض فقط
+        // (تاريخ حق/تحصيل الشيك للعرض ولو بعد الفترة)
+        'rep_key' => 'both', // both | vod_man | cus_salesman
+        'cash_flags' => [], // فارغ = نقدي = بلا شيك وليس مبيعات/مرتجع/شيك
         'check_flags' => [10, 11],
-        // سندات القبض Forms ~24xxx — استبعاد 9xx
+        'exclude_flags' => [12, 13, 14],
         'min_voucher_no' => 10000,
     ],
 

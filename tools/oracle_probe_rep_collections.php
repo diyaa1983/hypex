@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * تشخيص تحصيلات المندوب 1 ومقارنة مع Forms (44944.244).
+ * تشخيص تحصيلات المندوب 3 ومقارنة مع Forms (43660.696).
  * تشغيل: C:\xampp\php\php.exe tools/oracle_probe_rep_collections.php
  */
 
@@ -34,67 +34,62 @@ $chqCols = oracle_statement_table_columns($conn, 'ACCINV', 'GLCHEQF');
 $cusCols = oracle_statement_table_columns($conn, 'ACCINV', 'CUSTOMER');
 $out('GLVODMF cols: ' . implode(', ', $vodCols));
 $out('GLCHEQF cols: ' . implode(', ', $chqCols));
+$manLike = array_values(array_filter($vodCols, static fn ($c) => (bool) preg_match('/MAN|SAL|EMP|REP/', $c)));
+$out('GLVODMF man-like: ' . implode(', ', $manLike));
 $out('CUSTOMER man-like: ' . implode(', ', array_values(array_filter($cusCols, static fn ($c) => (bool) preg_match('/MAN|SAL|REP|EMP|TITLE|NUM/', $c)))));
 
+$rep = 3;
+$formsTarget = 43660.696;
 $out('');
-$out('=== FLAG/TYPE totals credit side Nov 2026 (joined CUSTOMER, CUS_SALESMAN=1) ===');
-try {
-    $rows = oracle_query_all(
-        $conn,
-        "SELECT v.VOD_FLAG, v.VOD_TYPE, COUNT(*) CNT, ROUND(SUM(ABS(v.VOD_AMOUNT)),3) AMT
-         FROM ACCINV.GLVODMF v
-         INNER JOIN ACCINV.CUSTOMER c ON TRIM(TO_CHAR(c.CUS_NUM)) = TRIM(TO_CHAR(v.VOD_ACC))
-         WHERE v.VOD_DATE >= TO_DATE('2026-11-01','YYYY-MM-DD')
-           AND v.VOD_DATE < TO_DATE('2026-11-19','YYYY-MM-DD')
-           AND v.VOD_SIDE = 2
-           AND NVL(c.CUS_SALESMAN,0) = 1
-         GROUP BY v.VOD_FLAG, v.VOD_TYPE
-         ORDER BY AMT DESC"
-    );
-    foreach ($rows as $r) {
-        $out(json_encode($r, JSON_UNESCAPED_UNICODE));
-    }
-} catch (Throwable $e) {
-    $out('err1: ' . $e->getMessage());
-}
-
-$out('');
-$out('=== current fetch rep=1 ===');
-$res = oracle_fetch_rep_collections('2026-11-01', '2026-11-18', 1, 1, 1);
+$out("=== current fetch rep={$rep} (cfg) ===");
+$res = oracle_fetch_rep_collections('2026-11-01', '2026-11-18', $rep, $rep, 1);
 $out('ok=' . (!empty($res['ok']) ? '1' : '0') . ' msg=' . ($res['message'] ?? ''));
 $out('count=' . (int) ($res['totals']['count'] ?? 0) . ' amount=' . (string) ($res['totals']['amount'] ?? 0));
+$out('delta_vs_forms=' . round((float) ($res['totals']['amount'] ?? 0) - $formsTarget, 3));
 $out('filters=' . json_encode($res['filters'] ?? [], JSON_UNESCAPED_UNICODE));
-$out('FORMS target amount=44944.244');
+$out("FORMS target amount={$formsTarget}");
+
+$cashN = 0;
+$chqN = 0;
+foreach ($res['rows'] ?? [] as $r) {
+    if (($r['rcv_type'] ?? '') === 'قبض شيك') {
+        $chqN++;
+    } else {
+        $cashN++;
+    }
+}
+$out("rows cash={$cashN} cheque={$chqN}");
 
 $out('');
-$out('=== sample rows (first 15) ===');
-foreach (array_slice($res['rows'] ?? [], 0, 15) as $r) {
+$out('=== sample rows (first 20) ===');
+foreach (array_slice($res['rows'] ?? [], 0, 20) as $r) {
     $out(json_encode($r, JSON_UNESCAPED_UNICODE));
 }
 
-$out('');
-$out('=== try MAN_NUM on voucher only (if col exists) ===');
-$manCols = array_values(array_filter($vodCols, static fn ($c) => (bool) preg_match('/MAN|SAL|EMP|REP/', $c)));
-$out('vod man cols: ' . implode(', ', $manCols));
-
-foreach ([1, 2, 9, 10, 11, 15, 16] as $flag) {
+$manCol = $manLike[0] ?? null;
+if ($manCol !== null) {
+    $out('');
+    $out("=== FLAG totals credit Nov1-18 MAN={$rep} via {$manCol} ===");
     try {
         $rows = oracle_query_all(
             $conn,
-            "SELECT COUNT(*) CNT, ROUND(SUM(ABS(v.VOD_AMOUNT)),3) AMT
+            "SELECT v.VOD_FLAG, COUNT(*) CNT, ROUND(SUM(ABS(v.VOD_AMOUNT)),3) AMT,
+                    MIN(v.VOD_NUM) MIN_NO, MAX(v.VOD_NUM) MAX_NO
              FROM ACCINV.GLVODMF v
-             INNER JOIN ACCINV.CUSTOMER c ON TRIM(TO_CHAR(c.CUS_NUM)) = TRIM(TO_CHAR(v.VOD_ACC))
              WHERE v.VOD_DATE >= TO_DATE('2026-11-01','YYYY-MM-DD')
                AND v.VOD_DATE < TO_DATE('2026-11-19','YYYY-MM-DD')
                AND v.VOD_SIDE = 2
-               AND v.VOD_FLAG = :f
-               AND NVL(c.CUS_SALESMAN,0) = 1",
-            ['f' => $flag]
+               AND NVL(v.{$manCol},0) = :r
+               AND v.VOD_NUM >= 10000
+             GROUP BY v.VOD_FLAG
+             ORDER BY AMT DESC",
+            ['r' => $rep]
         );
-        $out("flag={$flag} " . json_encode($rows[0] ?? [], JSON_UNESCAPED_UNICODE));
+        foreach ($rows as $r) {
+            $out(json_encode($r, JSON_UNESCAPED_UNICODE));
+        }
     } catch (Throwable $e) {
-        $out("flag={$flag} err " . $e->getMessage());
-        break;
+        $out('err man flags: ' . $e->getMessage());
     }
 }
 

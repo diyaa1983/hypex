@@ -2970,47 +2970,63 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
         const body = block.rows
           .map(
             (r) => `<tr>
-          <td class="si-num" dir="ltr">${esc(r.rcv_no || '')}</td>
-          <td style="white-space:nowrap">${esc(r.rcv_type || '')}</td>
-          <td class="ora-coll-cust" title="${esc(r.customer_acc || '')}">${esc(r.customer_name || r.customer_acc || '')}</td>
-          <td class="si-num" dir="ltr">${esc(dmy(r.rcv_date))}</td>
-          <td class="si-num" dir="ltr">${esc(r.chq_no || '')}</td>
-          <td class="si-num" dir="ltr">${esc(r.chq_due ? dmy(r.chq_due) : '')}</td>
-          <td class="si-num" dir="ltr">${esc(fmtAmt(r.amount))}</td>
+          <td class="si-num ora-coll-no" dir="ltr">${esc(r.rcv_no || '')}</td>
+          <td class="ora-coll-type">${esc(r.rcv_type || '')}</td>
+          <td class="ora-coll-cust">${esc(r.customer_name || r.customer_acc || '—')}</td>
+          <td class="si-num ora-coll-date" dir="ltr">${esc(dmy(r.rcv_date))}</td>
+          <td class="si-num ora-coll-chq" dir="ltr">${esc(r.chq_no || '')}</td>
+          <td class="si-num ora-coll-due" dir="ltr">${esc(r.chq_due ? dmy(r.chq_due) : '')}</td>
+          <td class="si-num ora-coll-amt" dir="ltr">${esc(fmtAmt(r.amount))}</td>
         </tr>`
           )
           .join('');
-        const foot = `<tr>
+        const foot = `<tr class="ora-coll-foot">
           <td colspan="6" style="font-weight:800">مجموع المندوب</td>
-          <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(block.amount))}</td>
+          <td class="si-num ora-coll-amt" dir="ltr" style="font-weight:800">${esc(fmtAmt(block.amount))}</td>
         </tr>`;
-        const repTitle = block.rep_name
-          ? `المندوب ${esc(block.rep_no)} — ${esc(block.rep_name)}`
-          : `المندوب ${esc(block.rep_no)}`;
-        return `<section style="margin:0 0 1rem">
+        return `<section class="ora-coll-block" style="margin:0 0 1rem">
           <h3 style="margin:0 0 .4rem;font-size:.95rem">
             رقم المندوب: <span dir="ltr">${esc(block.rep_no)}</span>
             ${block.rep_name ? ` · ${esc(block.rep_name)}` : ''}
             · رقم الشركة: <span dir="ltr">${esc(block.comp_num)}</span>
           </h3>
-          ${ui.tableSurface(
-            repTitle,
-            `${block.rows.length} حركة`,
-            ['رقم القبض', 'نوع القبض', 'العميل', 'تاريخ القبض', 'رقم الشيك', 'تاريخ حق الشيك', 'القيمة'],
-            body + foot
-          )}
+          <div class="si-table-wrap">
+            <table class="si-table ora-coll-table">
+              <thead><tr>
+                <th>رقم القبض</th>
+                <th>نوع القبض</th>
+                <th>العميل</th>
+                <th>تاريخ القبض</th>
+                <th>رقم الشيك</th>
+                <th>تاريخ حق الشيك</th>
+                <th>القيمة</th>
+              </tr></thead>
+              <tbody>${body}${foot}</tbody>
+            </table>
+          </div>
         </section>`;
       })
       .join('');
     tableBlock =
       `<style>
-        .si-report-page[data-report-route="report_oracle_rep_collections"] td.ora-coll-cust {
-          white-space: normal !important;
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .ora-coll-table {
+          table-layout: auto;
+          width: 100%;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .ora-coll-table th,
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .ora-coll-table td {
           overflow: visible !important;
           text-overflow: clip !important;
-          min-width: 12rem;
-          max-width: 22rem;
+          vertical-align: top;
           line-height: 1.45;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .ora-coll-type {
+          white-space: nowrap;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .ora-coll-cust {
+          white-space: normal !important;
+          min-width: 14rem;
+          max-width: 26rem;
           font-weight: 600;
         }
       </style>` +
