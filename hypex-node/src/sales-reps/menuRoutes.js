@@ -313,12 +313,20 @@ router.get('/sales-reps/tour-map', async (req, res) => {
           googleMapsKey: ${JSON.stringify(gpsCfg.google_maps_api_key || '')}
         };
         (function(){
+          function hxPath(p){
+            var b = typeof window.__HYPEX_BASE__ === 'string' ? window.__HYPEX_BASE__ : '';
+            b = String(b || '').replace(/\\/+$/, '');
+            p = String(p || '');
+            if (!p.startsWith('/')) p = '/' + p;
+            if (b && (p === b || p.indexOf(b + '/') === 0)) return p;
+            return b + p;
+          }
           var rep = document.getElementById('stm-rep');
           if (rep) {
             rep.addEventListener('change', function(){
               var id = Number(rep.value || 0) || 0;
-              if (id < 1) { window.location.href = '/sales-reps/tour-map'; return; }
-              window.location.href = '/sales-reps/tour-map?sales_rep_id=' + id;
+              if (id < 1) { window.location.href = hxPath('/sales-reps/tour-map'); return; }
+              window.location.href = hxPath('/sales-reps/tour-map') + '?sales_rep_id=' + id;
             });
           }
           function whenLeaflet(cb){
@@ -425,10 +433,10 @@ router.get('/sales-reps/tour-map', async (req, res) => {
       user: req.session.user,
       title: 'خريطة جولة المندوب',
       bodyHtml: body,
-      css: [`/hypex/assets/vendor/leaflet/leaflet.css?v=${assetV}`],
+      css: [`/assets/vendor/leaflet/leaflet.css?v=${assetV}`],
       js: [
-        `/hypex/assets/vendor/leaflet/leaflet.js?v=${assetV}`,
-        `/hypex/assets/js/leaflet-map-layers.js?v=${assetV}`,
+        `/assets/vendor/leaflet/leaflet.js?v=${assetV}`,
+        `/assets/js/leaflet-map-layers.js?v=${assetV}`,
       ],
     })
   );
