@@ -3128,17 +3128,6 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
           max-width: 26rem;
           font-weight: 600;
         }
-        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-visits-filters {
-          display: flex;
-          flex-wrap: wrap;
-          gap: .65rem 1rem;
-          align-items: flex-end;
-        }
-        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-visits-f--rep,
-        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-visits-f--customer {
-          flex: 1 1 16rem;
-          min-width: 14rem;
-        }
       </style>` +
       blocks +
       `<p style="margin:.5rem 0 0;font-weight:800">الإجمالي (${esc(totals.count || rows.length)} حركة): <span dir="ltr">${esc(
@@ -3150,6 +3139,38 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
 
   const body = `
     <div class="si-stage si-report-page report-sales-page si-report-visits" data-report-route="report_oracle_rep_collections">
+      <style>
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters {
+          display: flex !important;
+          flex-wrap: nowrap;
+          align-items: flex-end;
+          gap: 0.5rem 0.65rem;
+          width: 100%;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters > .hx-visits-f,
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters > .hx-visits-f-actions {
+          margin: 0;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters .hx-visits-f--rep,
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters .hx-visits-f--customer {
+          flex: 1 1 0;
+          min-width: 11rem;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters .hx-visits-f--from,
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters .hx-visits-f--to {
+          flex: 0 0 9.5rem;
+          width: 9.5rem;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters .hx-visits-f-actions {
+          flex: 0 0 auto;
+          padding-bottom: 1px;
+        }
+        @media (max-width: 900px) {
+          .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-coll-filters {
+            flex-wrap: wrap;
+          }
+        }
+      </style>
       ${ui.hero({
         mark: '💵',
         kicker: KICKER,
@@ -3163,18 +3184,8 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
       })}
       <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">البيانات من Oracle · مثل تقرير Forms «كشف تحصيلات المندوبين».</p>
       <div class="si-surface no-print" style="margin:0 1rem 1rem;padding:.85rem 1rem;overflow:visible">
-        <form method="get" action="${esc(BASE)}" class="hx-visits-filters" data-app-busy-msg="جاري تحميل التحصيلات…">
+        <form method="get" action="${esc(BASE)}" class="hx-visits-filters hx-coll-filters" data-app-busy-msg="جاري تحميل التحصيلات…">
           <input type="hidden" name="run" value="1" />
-          <label class="hx-visits-f hx-visits-f--from">
-            <span class="hx-visits-f-label">من تاريخ</span>
-            <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(fromIso))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
-          </label>
-          <label class="hx-visits-f hx-visits-f--to">
-            <span class="hx-visits-f-label">إلى تاريخ</span>
-            <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(toIso))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
-          </label>
           <div class="hx-visits-f hx-visits-f--rep">
             <span class="hx-visits-f-label">المندوب</span>
             <div class="hx-smart-cust" id="hx-coll-smart-rep">
@@ -3237,6 +3248,16 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
               <script type="application/json" id="hx-coll-customers-json">${customersJson}</script>
             </div>
           </div>
+          <label class="hx-visits-f hx-visits-f--from">
+            <span class="hx-visits-f-label">من تاريخ</span>
+            <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(fromIso))}"
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
+          </label>
+          <label class="hx-visits-f hx-visits-f--to">
+            <span class="hx-visits-f-label">إلى تاريخ</span>
+            <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(toIso))}"
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
+          </label>
           <div class="hx-visits-f-actions">
             <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
           </div>
