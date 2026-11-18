@@ -467,22 +467,19 @@ function oracle_fetch_rep_collections(
     }
 
     $dailyQ = oracle_stmt_q($dailyOwner) . '.' . oracle_stmt_q($dailyTable);
-    // عند اختيار مندوب واحد: انسب الصف له مباشرة (Forms يظهر 24985 تحت المندوب 3)
-    if ($repDisp > 0 && $rf === ($rt ?? $rf)) {
-        $repInvExpr = (string) $repDisp;
+    // المندوب الحقيقي فقط: بطاقة العميل على السطر، أو MAN_NUM من MAS.DAILY لنفس رقم السند
+    // (لا ننسب كل فواتير نقدية الشركة للمندوب المختار)
+    $repInvExpr = 'NVL(NULLIF(' . $repExpr . ', 0), NVL((
+        SELECT MAX(d.MAN_NUM) FROM ' . $dailyQ . ' d
+         WHERE d.V_NUM = v.' . oracle_stmt_q($numCol) . '
+           AND NVL(d.MAN_NUM, 0) > 0
+    ), 0))';
+    if ($rf !== null) {
+        $bindsInv['rep_from'] = $rf;
+        $bindsInv['rep_to'] = $rt ?? $rf;
+        $whereInv[] = '(' . $repInvExpr . ' >= :rep_from AND ' . $repInvExpr . ' <= :rep_to)';
     } else {
-        $repInvExpr = 'NVL(NULLIF(' . $repExpr . ', 0), NVL((
-            SELECT MAX(d.MAN_NUM) FROM ' . $dailyQ . ' d
-             WHERE d.V_NUM = v.' . oracle_stmt_q($numCol) . '
-               AND NVL(d.MAN_NUM, 0) > 0
-        ), 0))';
-        if ($rf !== null) {
-            $bindsInv['rep_from'] = $rf;
-            $bindsInv['rep_to'] = $rt ?? $rf;
-            $whereInv[] = '(' . $repInvExpr . ' >= :rep_from AND ' . $repInvExpr . ' <= :rep_to)';
-        } else {
-            $whereInv[] = $repInvExpr . ' > 0';
-        }
+        $whereInv[] = $repInvExpr . ' > 0';
     }
 
     $nameInv = "NVL(NULLIF(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), "
@@ -512,38 +509,7 @@ function oracle_fetch_rep_collections(
         $raw = array_merge($raw, oracle_query_all($conn, $sqlCashInv, $bindsInv));
         $usedMode[] = 'cash_invoice_sales';
     } catch (Throwable $e) {
-        try {
-            if ($repDisp > 0) {
-                $sqlCashInv2 = 'SELECT ' . $repDisp . ' AS REP_NO,
-                                       ' . $compExpr . ' AS COMP_NUM,
-                                       v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
-                                       \'قبض نقدي\' AS RCV_TYPE,
-                                       ' . $nameInv . ' AS CUSTOMER_NAME,
-                                       TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
-                                       TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
-                                       NULL AS CHQ_NUM,
-                                       NULL AS CHQ_DUE,
-                                       ROUND(SUM(ABS(v.' . oracle_stmt_q($amtCol) . ')), 3) AS AMOUNT
-                                FROM ' . $fromVod . $glJoin . '
-                                WHERE ' . implode(' AND ', [
-                                    'v.' . oracle_stmt_q($dateCol) . " >= TO_DATE(:df, 'YYYY-MM-DD')",
-                                    'v.' . oracle_stmt_q($dateCol) . " < TO_DATE(:dt, 'YYYY-MM-DD') + 1",
-                                    $cashInvMatchSql,
-                                    $sideCol !== null ? 'v.' . oracle_stmt_q($sideCol) . ' = :cs' : '1=1',
-                                    $minVod > 0 ? 'v.' . oracle_stmt_q($numCol) . ' >= :min_vod' : '1=1',
-                                ]) . '
-                                GROUP BY ' . $compExpr . ',
-                                         v.' . oracle_stmt_q($numCol) . ',
-                                         ' . $nameInv . ',
-                                         TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
-                $raw = array_merge($raw, oracle_query_all($conn, $sqlCashInv2, $bindsInv));
-                $usedMode[] = 'cash_invoice_simple:' . $e->getMessage();
-            } else {
-                $usedMode[] = 'cash_invoice_fail:' . $e->getMessage();
-            }
-        } catch (Throwable $e2) {
-            $usedMode[] = 'cash_invoice_fail:' . $e2->getMessage();
-        }
+        $usedMode[] = 'cash_invoice_fail:' . $e->getMessage();
     }
 
     // ─── قبض شيك: وجود صف في GLCHEQF = قبض شيك (تاريخ القبض في الفترة؛ الحق للعرض فقط) ───
