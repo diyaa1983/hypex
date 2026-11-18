@@ -1241,7 +1241,7 @@ async function reportCombinedDetailed(filters = {}) {
 
 async function listCustomersSimple() {
   return safeQuery(
-    `SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 800`
+    `SELECT id, code, name_ar, oracle_key FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 800`
   );
 }
 
@@ -1250,13 +1250,13 @@ async function listCustomersForReps(repIds) {
   const ids = idList(repIds);
   if (!ids.length) {
     return safeQuery(
-      `SELECT id, code, name_ar FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 3000`
+      `SELECT id, code, name_ar, oracle_key FROM crm_customer WHERE is_active = 1 ORDER BY name_ar LIMIT 3000`
     );
   }
   const ph = ids.map(() => '?').join(',');
   try {
     const rows = await db.query(
-      `SELECT DISTINCT c.id, c.code, c.name_ar
+      `SELECT DISTINCT c.id, c.code, c.name_ar, c.oracle_key
        FROM crm_customer c
        WHERE c.is_active = 1
          AND (
@@ -1273,7 +1273,7 @@ async function listCustomersForReps(repIds) {
     return rows || [];
   } catch (e) {
     return safeQuery(
-      `SELECT id, code, name_ar FROM crm_customer
+      `SELECT id, code, name_ar, oracle_key FROM crm_customer
        WHERE is_active = 1 AND sales_rep_id IN (${ph})
        ORDER BY name_ar
        LIMIT 3000`,

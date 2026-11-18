@@ -548,8 +548,30 @@ try {
         $compNum = isset($payload['comp_num']) && $payload['comp_num'] !== '' && $payload['comp_num'] !== null
             ? (int) $payload['comp_num']
             : null;
+        $repIds = null;
+        if (!empty($payload['rep_ids']) && is_array($payload['rep_ids'])) {
+            $repIds = [];
+            foreach ($payload['rep_ids'] as $rid) {
+                $n = (int) $rid;
+                if ($n > 0) {
+                    $repIds[] = $n;
+                }
+            }
+            $repIds = array_values(array_unique($repIds));
+        }
+        $customerAccs = null;
+        if (!empty($payload['customer_accs']) && is_array($payload['customer_accs'])) {
+            $customerAccs = [];
+            foreach ($payload['customer_accs'] as $ca) {
+                $s = trim((string) $ca);
+                if ($s !== '') {
+                    $customerAccs[] = $s;
+                }
+            }
+            $customerAccs = array_values(array_unique($customerAccs));
+        }
         try {
-            $result = oracle_fetch_rep_collections($from, $to, $repFrom, $repTo, $compNum);
+            $result = oracle_fetch_rep_collections($from, $to, $repFrom, $repTo, $compNum, $repIds, $customerAccs);
             cli_out(is_array($result) ? $result : ['ok' => false, 'error' => 'استجابة غير صالحة']);
         } catch (Throwable $e) {
             cli_out(['ok' => false, 'error' => $e->getMessage() ?: 'تعذر الاتصال بـ Oracle.'], 1);

@@ -11,6 +11,7 @@ const { salesRepsCatalog } = require('./catalog');
 const { esc, todayIso, parseDateToIso, isoToDmy, fmtAmt } = require('../lib/html');
 const { renderStandalonePrintPage } = require('../lib/printBrand');
 const accNative = require('../accounting/nativeService');
+const salesQ = require('../sales/domainQueries');
 
 const router = express.Router();
 const HUB = '/sales-reps';
@@ -2890,8 +2891,14 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
     })();
   const toIso = parseDateToIso(toQ) || (/^\d{4}-\d{2}-\d{2}$/.test(toQ) ? toQ : todayIso());
-  const oracleRepNo = Number(req.query.sales_rep_id || 0) || 0;
-  const run = String(req.query.run || '') === '1' || oracleRepNo > 0 || fromQ !== '' || toQ !== '';
+  const salesRepIds = parseSalesRepIdsQuery(req.query);
+  const customerIds = parseCustomerIdsQuery(req.query);
+  const run =
+    String(req.query.run || '') === '1' ||
+    salesRepIds.length > 0 ||
+    customerIds.length > 0 ||
+    fromQ !== '' ||
+    toQ !== '';
   const uid = Number(req.session.user?.id || 0) || 0;
 
   let reps = [];
@@ -2913,26 +2920,80 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
     console.error('oracle collections reps', e.message || e);
   }
 
+  let customers = [];
+  try {
+    /* قائمة كل العملاء النشطين (فلتر المندوب يتم في Oracle عبر رقم المندوب) */
+    customers = await salesQ.listCustomersForReps([]);
+  } catch (e) {
+    console.error('oracle collections customers', e.message || e);
+    customers = [];
+  }
+
+  const selectedRepSet = new Set(salesRepIds);
+  const selectedRepCount = salesRepIds.length;
+  const repToggleLabel =
+    selectedRepCount < 1
+      ? '— الكل —'
+      : selectedRepCount === 1
+        ? oraNameByMan.get(salesRepIds[0]) || `مندوب ${salesRepIds[0]}`
+        : `${selectedRepCount} مندوبون محددون`;
+  const selectedCustSet = new Set(customerIds);
+  const selectedCustCount = customerIds.length;
+  const customerToggleLabel =
+    selectedCustCount < 1
+      ? '— كل العملاء —'
+      : selectedCustCount === 1
+        ? (() => {
+            const c = (customers || []).find((x) => Number(x.id) === customerIds[0]);
+            return c ? String(c.name_ar || c.code || `#${customerIds[0]}`) : 'عميل واحد';
+          })()
+        : `${selectedCustCount} عملاء محددون`;
+
+  const customerAccs = [];
+  if (selectedCustCount > 0) {
+    for (const c of customers || []) {
+      const id = Number(c.id) || 0;
+      if (!selectedCustSet.has(id)) continue;
+      const acc = String(c.oracle_key || c.code || '').trim();
+      if (acc) customerAccs.push(acc);
+    }
+  }
+
   let err = '';
   let rows = [];
   let totals = { count: 0, amount: 0 };
-  let repName = oracleRepNo > 0 ? oraNameByMan.get(oracleRepNo) || `مندوب ${oracleRepNo}` : '';
+  let printTitle = 'كشف تحصيلات المندوب خلال فترة';
+  if (selectedRepCount === 1) {
+    printTitle = `كشف تحصيلات المندوب — ${oraNameByMan.get(salesRepIds[0]) || salesRepIds[0]}`;
+  } else if (selectedRepCount > 1) {
+    printTitle = `كشف تحصيلات المندوبين (${selectedRepCount})`;
+  }
 
   if (run) {
-    const data = await accNative.run('oracle_rep_collections', uid, {
-      from: fromIso,
-      to: toIso,
-      rep_from: oracleRepNo > 0 ? oracleRepNo : null,
-      rep_to: oracleRepNo > 0 ? oracleRepNo : null,
-      comp_num: 1,
-    });
-    if (!data || data.ok === false) {
-      err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+    if (selectedCustCount > 0 && customerAccs.length < 1) {
+      err = 'العملاء المحددون بلا رمز/مفتاح Oracle — لا يمكن تصفية التحصيلات.';
     } else {
-      rows = Array.isArray(data.rows) ? data.rows : [];
-      totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
-      if (!rows.length && data.message) err = String(data.message);
-      if (oracleRepNo > 0 && oraNameByMan.get(oracleRepNo)) repName = oraNameByMan.get(oracleRepNo);
+      const payload = {
+        from: fromIso,
+        to: toIso,
+        comp_num: 1,
+      };
+      if (salesRepIds.length === 1) {
+        payload.rep_from = salesRepIds[0];
+        payload.rep_to = salesRepIds[0];
+      } else if (salesRepIds.length > 1) {
+        payload.rep_ids = salesRepIds;
+      }
+      if (customerAccs.length) payload.customer_accs = customerAccs;
+
+      const data = await accNative.run('oracle_rep_collections', uid, payload);
+      if (!data || data.ok === false) {
+        err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+      } else {
+        rows = Array.isArray(data.rows) ? data.rows : [];
+        totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
+        if (!rows.length && data.message) err = String(data.message);
+      }
     }
   }
 
@@ -2958,6 +3019,44 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
     if (/^\d{4}-\d{2}-\d{2}/.test(s)) return isoToDmy(s.slice(0, 10));
     return s;
   };
+
+  const repsJson = JSON.stringify(
+    (reps || []).map((r) => ({
+      id: Number(r.id) || 0,
+      name: String(r.name_ar || ''),
+      code: String(r.code || ''),
+    }))
+  ).replace(/</g, '\\u003c');
+  const customersJson = JSON.stringify(
+    (customers || []).map((c) => ({
+      id: Number(c.id) || 0,
+      name: String(c.name_ar || ''),
+      code: String(c.code || c.oracle_key || ''),
+    }))
+  ).replace(/</g, '\\u003c');
+  const repCheckHtml = (reps || [])
+    .map((r) => {
+      const id = Number(r.id) || 0;
+      const label = String(r.name_ar || `#${id}`);
+      const checked = selectedRepSet.has(id) ? ' checked' : '';
+      return `<label class="hx-cust-check-item">
+        <input type="checkbox" class="hx-rep-one" value="${id}"${checked}>
+        <span>${esc(label)} <span dir="ltr" class="muted">#${id}</span></span>
+      </label>`;
+    })
+    .join('');
+  const custCheckHtml = (customers || [])
+    .map((c) => {
+      const id = Number(c.id) || 0;
+      const label = String(c.name_ar || c.code || `#${id}`);
+      const code = String(c.code || c.oracle_key || '');
+      const checked = selectedCustSet.has(id) ? ' checked' : '';
+      return `<label class="hx-cust-check-item">
+        <input type="checkbox" class="hx-cust-one" value="${id}"${checked}>
+        <span>${esc(label)}${code ? ` <span dir="ltr" class="muted">${esc(code)}</span>` : ''}</span>
+      </label>`;
+    })
+    .join('');
 
   let tableBlock = '';
   if (err) {
@@ -3029,6 +3128,17 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
           max-width: 26rem;
           font-weight: 600;
         }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-visits-filters {
+          display: flex;
+          flex-wrap: wrap;
+          gap: .65rem 1rem;
+          align-items: flex-end;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-visits-f--rep,
+        .si-report-page[data-report-route="report_oracle_rep_collections"] .hx-visits-f--customer {
+          flex: 1 1 16rem;
+          min-width: 14rem;
+        }
       </style>` +
       blocks +
       `<p style="margin:.5rem 0 0;font-weight:800">الإجمالي (${esc(totals.count || rows.length)} حركة): <span dir="ltr">${esc(
@@ -3038,9 +3148,8 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
     tableBlock = `<p class="muted" style="padding:.5rem 0">حدّد الفترة ثم اضغط «عرض التقرير».</p>`;
   }
 
-  const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
   const body = `
-    <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_collections">
+    <div class="si-stage si-report-page report-sales-page si-report-visits" data-report-route="report_oracle_rep_collections">
       ${ui.hero({
         mark: '💵',
         kicker: KICKER,
@@ -3053,45 +3162,226 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
         ],
       })}
       <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">البيانات من Oracle · مثل تقرير Forms «كشف تحصيلات المندوبين».</p>
-      <div class="si-rail no-print">
-        <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" data-app-busy-msg="جاري تحميل التحصيلات…" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
+      <div class="si-surface no-print" style="margin:0 1rem 1rem;padding:.85rem 1rem;overflow:visible">
+        <form method="get" action="${esc(BASE)}" class="hx-visits-filters" data-app-busy-msg="جاري تحميل التحصيلات…">
           <input type="hidden" name="run" value="1" />
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب (Oracle)
-            <div class="report-cust-pick" id="report-sales-rep-pick" style="margin-top:.25rem">
-              <input type="hidden" name="sales_rep_id" data-rep-id value="${oracleRepNo > 0 ? oracleRepNo : ''}">
-              <input type="text" class="si-field report-cust-pick-inp" data-rep-search
-                     placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
-                     aria-label="بحث عن مندوب" style="min-width:100%;width:100%">
-              <div class="report-cust-pick-list" data-rep-list hidden></div>
-            </div>
-          </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
+          <label class="hx-visits-f hx-visits-f--from">
+            <span class="hx-visits-f-label">من تاريخ</span>
             <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(fromIso))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
-                   style="margin-top:.25rem;min-width:9.5rem">
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
           </label>
-          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
+          <label class="hx-visits-f hx-visits-f--to">
+            <span class="hx-visits-f-label">إلى تاريخ</span>
             <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(toIso))}"
-                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
-                   style="margin-top:.25rem;min-width:9.5rem">
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required>
           </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+          <div class="hx-visits-f hx-visits-f--rep">
+            <span class="hx-visits-f-label">المندوب</span>
+            <div class="hx-smart-cust" id="hx-coll-smart-rep">
+              <div id="hx-coll-rep-hidden">
+                ${
+                  selectedRepCount
+                    ? salesRepIds
+                        .map((id) => `<input type="hidden" name="sales_rep_id" value="${id}">`)
+                        .join('')
+                    : ''
+                }
+              </div>
+              <button type="button" class="si-field hx-smart-cust-toggle" id="hx-coll-rep-toggle"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-coll-rep-panel">
+                <span class="hx-smart-cust-toggle-text" id="hx-coll-rep-label">${esc(repToggleLabel)}</span>
+                <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+              </button>
+              <div class="hx-smart-cust-panel" id="hx-coll-rep-panel" hidden>
+                <input class="si-field hx-smart-cust-search" type="search" id="hx-coll-rep-q"
+                  placeholder="ابحث عن مندوب…" autocomplete="off">
+                <label class="hx-cust-check-item hx-cust-check-item--all">
+                  <input type="checkbox" id="hx-coll-rep-all" ${selectedRepCount < 1 ? 'checked' : ''}>
+                  <span>كل المندوبين</span>
+                </label>
+                <div class="hx-smart-cust-list" id="hx-coll-rep-list" role="group">
+                  ${repCheckHtml || '<div class="hx-smart-cust-empty">لا يوجد مندوبون.</div>'}
+                </div>
+              </div>
+              <script type="application/json" id="hx-coll-reps-json">${repsJson}</script>
+            </div>
+          </div>
+          <div class="hx-visits-f hx-visits-f--customer">
+            <span class="hx-visits-f-label">العميل</span>
+            <div class="hx-smart-cust" id="hx-coll-smart-cust">
+              <div id="hx-coll-customer-hidden">
+                ${
+                  selectedCustCount
+                    ? customerIds
+                        .map((id) => `<input type="hidden" name="customer_id" value="${id}">`)
+                        .join('')
+                    : ''
+                }
+              </div>
+              <button type="button" class="si-field hx-smart-cust-toggle" id="hx-coll-customer-toggle"
+                aria-haspopup="listbox" aria-expanded="false" aria-controls="hx-coll-cust-panel">
+                <span class="hx-smart-cust-toggle-text" id="hx-coll-customer-label">${esc(customerToggleLabel)}</span>
+                <span class="hx-smart-cust-caret" aria-hidden="true"></span>
+              </button>
+              <div class="hx-smart-cust-panel" id="hx-coll-cust-panel" hidden>
+                <input class="si-field hx-smart-cust-search" type="search" id="hx-coll-customer-q"
+                  placeholder="ابحث بالاسم أو الرمز…" autocomplete="off">
+                <label class="hx-cust-check-item hx-cust-check-item--all">
+                  <input type="checkbox" id="hx-coll-cust-all" ${selectedCustCount < 1 ? 'checked' : ''}>
+                  <span>كل العملاء</span>
+                </label>
+                <div class="hx-smart-cust-list" id="hx-coll-cust-list" role="group">
+                  ${custCheckHtml || '<div class="hx-smart-cust-empty">لا يوجد عملاء.</div>'}
+                </div>
+              </div>
+              <script type="application/json" id="hx-coll-customers-json">${customersJson}</script>
+            </div>
+          </div>
+          <div class="hx-visits-f-actions">
+            <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+          </div>
         </form>
+        <script>
+        (function(){
+          function filterCheckItems(list, q, cls){
+            if (!list) return;
+            q = String(q||'').trim().toLowerCase();
+            Array.prototype.forEach.call(list.querySelectorAll('.' + cls), function(el){
+              var lab = el.closest('.hx-cust-check-item');
+              if (!lab) return;
+              var txt = (lab.textContent || '').toLowerCase();
+              if (!q || txt.indexOf(q) !== -1) lab.classList.remove('is-hidden');
+              else lab.classList.add('is-hidden');
+            });
+          }
+          function wireMulti(opts){
+            var toggle = document.getElementById(opts.toggleId);
+            var labelEl = document.getElementById(opts.labelId);
+            var panel = document.getElementById(opts.panelId);
+            var list = document.getElementById(opts.listId);
+            var allCb = document.getElementById(opts.allId);
+            var hidden = document.getElementById(opts.hiddenId);
+            var search = document.getElementById(opts.searchId);
+            var oneCls = opts.oneCls;
+            var fieldName = opts.fieldName;
+            var allLabel = opts.allLabel || '— الكل —';
+            var oneLabel = opts.oneLabel || 'واحد';
+            var manyLabel = opts.manyLabel || 'محددون';
+            var jsonId = opts.jsonId;
+            var all = [];
+            try {
+              var raw = document.getElementById(jsonId);
+              all = raw ? JSON.parse(raw.textContent || '[]') : [];
+            } catch (e) { all = []; }
+            if (!Array.isArray(all)) all = [];
+            function nameById(id){
+              for (var i = 0; i < all.length; i++){
+                if (Number(all[i].id) === Number(id)) return all[i].name || ('#' + id);
+              }
+              return oneLabel;
+            }
+            function selected(){
+              if (!list) return [];
+              return Array.prototype.slice.call(list.querySelectorAll('.' + oneCls + ':checked'))
+                .map(function(el){ return Number(el.value)||0; })
+                .filter(function(id){ return id > 0; });
+            }
+            function sync(){
+              var ids = selected();
+              if (allCb && ids.length < 1) allCb.checked = true;
+              if (allCb && ids.length > 0) allCb.checked = false;
+              var allOn = !!(allCb && allCb.checked);
+              if (hidden){
+                hidden.innerHTML = '';
+                if (!allOn){
+                  ids.forEach(function(id){
+                    var inp = document.createElement('input');
+                    inp.type = 'hidden';
+                    inp.name = fieldName;
+                    inp.value = String(id);
+                    hidden.appendChild(inp);
+                  });
+                }
+              }
+              if (labelEl){
+                if (allOn || ids.length < 1) labelEl.textContent = allLabel;
+                else if (ids.length === 1) labelEl.textContent = nameById(ids[0]);
+                else labelEl.textContent = ids.length + ' ' + manyLabel;
+              }
+            }
+            function close(){
+              if (!panel) return;
+              panel.hidden = true;
+              panel.setAttribute('hidden','');
+              if (toggle) toggle.setAttribute('aria-expanded','false');
+              if (search) search.value = '';
+              filterCheckItems(list, '', oneCls);
+            }
+            function open(){
+              if (!panel) return;
+              document.querySelectorAll('.hx-smart-cust-panel').forEach(function(p){
+                if (p !== panel){ p.hidden = true; p.setAttribute('hidden',''); }
+              });
+              panel.hidden = false;
+              panel.removeAttribute('hidden');
+              if (toggle) toggle.setAttribute('aria-expanded','true');
+              if (search) setTimeout(function(){ search.focus(); search.select(); }, 0);
+            }
+            if (toggle && panel){
+              toggle.addEventListener('click', function(e){
+                e.preventDefault();
+                if (panel.hidden) open(); else close();
+              });
+            }
+            if (allCb){
+              allCb.addEventListener('change', function(){
+                if (allCb.checked && list){
+                  Array.prototype.forEach.call(list.querySelectorAll('.' + oneCls), function(el){ el.checked = false; });
+                }
+                sync();
+              });
+            }
+            if (list){
+              list.addEventListener('change', function(e){
+                if (!e.target || !e.target.classList || !e.target.classList.contains(oneCls)) return;
+                if (e.target.checked && allCb) allCb.checked = false;
+                sync();
+              });
+            }
+            if (search){
+              var t = null;
+              search.addEventListener('input', function(){
+                clearTimeout(t);
+                var v = search.value;
+                t = setTimeout(function(){ filterCheckItems(list, v, oneCls); }, 120);
+              });
+              search.addEventListener('keydown', function(e){
+                if (e.key === 'Escape'){ e.preventDefault(); close(); if (toggle) toggle.focus(); }
+              });
+            }
+            document.addEventListener('click', function(e){
+              if (!panel || panel.hidden) return;
+              var root = toggle && toggle.closest('.hx-smart-cust');
+              if (root && !root.contains(e.target)) close();
+            });
+            sync();
+          }
+          wireMulti({
+            toggleId:'hx-coll-rep-toggle', labelId:'hx-coll-rep-label', panelId:'hx-coll-rep-panel',
+            listId:'hx-coll-rep-list', allId:'hx-coll-rep-all', hiddenId:'hx-coll-rep-hidden',
+            searchId:'hx-coll-rep-q', oneCls:'hx-rep-one', fieldName:'sales_rep_id',
+            allLabel:'— الكل —', oneLabel:'مندوب', manyLabel:'مندوبون محددون', jsonId:'hx-coll-reps-json'
+          });
+          wireMulti({
+            toggleId:'hx-coll-customer-toggle', labelId:'hx-coll-customer-label', panelId:'hx-coll-cust-panel',
+            listId:'hx-coll-cust-list', allId:'hx-coll-cust-all', hiddenId:'hx-coll-customer-hidden',
+            searchId:'hx-coll-customer-q', oneCls:'hx-cust-one', fieldName:'customer_id',
+            allLabel:'— كل العملاء —', oneLabel:'عميل', manyLabel:'عملاء محددون', jsonId:'hx-coll-customers-json'
+          });
+        })();
+        </script>
       </div>
       <div class="si-print-area report-sales-result">${tableBlock}</div>
-      <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
-      <script>
-      document.addEventListener('DOMContentLoaded', function () {
-        var el = document.getElementById('report-sales-reps-json');
-        var root = document.getElementById('report-sales-rep-pick');
-        if (!el || !root || !window.ReportRepPicker) return;
-        var reps = [];
-        try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
-        var hidden = root.querySelector('[data-rep-id]');
-        var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
-        window.ReportRepPicker.init(root, reps, { initialId: initialId });
-      });
-      </script>
     </div>`;
 
   return res.send(
@@ -3099,11 +3389,9 @@ router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
       user: req.session.user,
       title: 'كشف تحصيلات المندوب خلال فترة Oracle',
       bodyHtml: body,
-      css: ['/assets/css/report-sales.css'],
-      js: ['/assets/js/report-rep-picker.js', '/assets/js/sales-print.js'],
-      printTitle: repName
-        ? `كشف تحصيلات المندوب — ${repName}`
-        : 'كشف تحصيلات المندوب خلال فترة',
+      css: ['/assets/css/report-sales.css', '/assets/css/report-rep-reports.css'],
+      js: ['/assets/js/sales-print.js'],
+      printTitle,
     })
   );
 });

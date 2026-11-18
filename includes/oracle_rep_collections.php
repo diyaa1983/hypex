@@ -98,6 +98,55 @@ function oracle_rep_collections_flag_binds(array $flags, string $prefix): array
 }
 
 /**
+ * @param list<int|string> $vals
+ * @return array{0:list<string>,1:array<string,int|string>}
+ */
+function oracle_rep_collections_in_binds(array $vals, string $prefix): array
+{
+    $list = [];
+    $binds = [];
+    foreach (array_values($vals) as $i => $v) {
+        $k = $prefix . $i;
+        $list[] = ':' . $k;
+        $binds[$k] = $v;
+    }
+
+    return [$list, $binds];
+}
+
+/**
+ * @param list<int> $repIds
+ * @param list<string> $where
+ * @param array<string,mixed> $binds
+ */
+function oracle_rep_collections_apply_rep_filter(
+    string $expr,
+    array &$where,
+    array &$binds,
+    array $repIds,
+    ?int $rf,
+    ?int $rt,
+    string $prefix
+): void {
+    if ($repIds !== []) {
+        [$ph, $rb] = oracle_rep_collections_in_binds($repIds, $prefix);
+        $binds = array_merge($binds, $rb);
+        $where[] = $expr . ' IN (' . implode(',', $ph) . ')';
+
+        return;
+    }
+    if ($rf !== null) {
+        $binds['rep_from'] = $rf;
+        $binds['rep_to'] = $rt ?? $rf;
+        $where[] = $expr . ' >= :rep_from';
+        $where[] = $expr . ' <= :rep_to';
+
+        return;
+    }
+    $where[] = $expr . ' > 0';
+}
+
+/**
  * @param list<string> $accs
  * @return array<string,string>
  */
@@ -198,12 +247,18 @@ function oracle_rep_collections_rep_expr(
 /**
  * @return array{ok:bool,message:string,rows:list<array<string,mixed>>,totals:array{count:int,amount:float},filters?:array<string,mixed>}
  */
+/**
+ * @param list<int>|null $repIds أرقام مناديب محددة (checkbox) — إن وُجدت تُفضَّل على النطاق
+ * @param list<string>|null $customerAccs أرقام حسابات العملاء في Oracle (أو الكل إن فارغ)
+ */
 function oracle_fetch_rep_collections(
     string $dateFrom,
     string $dateTo,
     ?int $repFrom = null,
     ?int $repTo = null,
-    ?int $compNum = null
+    ?int $compNum = null,
+    ?array $repIds = null,
+    ?array $customerAccs = null
 ): array {
     $empty = [
         'ok' => false,
@@ -313,12 +368,37 @@ function oracle_fetch_rep_collections(
         . ' ON TRIM(TO_CHAR(c.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
     $glJoin = ' LEFT JOIN ' . oracle_stmt_q($cfg['gl_owner']) . '.' . oracle_stmt_q($cfg['gl_table']) . ' g
                 ON TRIM(TO_CHAR(g.' . oracle_stmt_q($cfg['gl_acc_num']) . ')) = TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
-    $nameExpr = 'NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
-        . ' NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+    // اسم العميل أولاً — لا تُظهر حساب الشركة/المبيعات النقدية مكان العميل
+    $nameExpr = 'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+        . ' NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
         . ' TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))))';
 
     $rf = $repFrom !== null && $repFrom > 0 ? $repFrom : null;
     $rt = $repTo !== null && $repTo > 0 ? $repTo : $rf;
+    $repIdList = [];
+    if (is_array($repIds)) {
+        foreach ($repIds as $rid) {
+            $n = (int) $rid;
+            if ($n > 0) {
+                $repIdList[$n] = true;
+            }
+        }
+    }
+    $repIdList = array_keys($repIdList);
+    if ($repIdList !== []) {
+        $rf = null;
+        $rt = null;
+    }
+    $custAccList = [];
+    if (is_array($customerAccs)) {
+        foreach ($customerAccs as $ca) {
+            $s = trim((string) $ca);
+            if ($s !== '') {
+                $custAccList[$s] = true;
+            }
+        }
+    }
+    $custAccList = array_keys($custAccList);
     $useComp = (int) ($compNum ?? $cfg['comp_num']);
     $minVod = max(0, (int) $cfg['min_voucher_no']);
 
@@ -373,22 +453,18 @@ function oracle_fetch_rep_collections(
     if ($chqExistsSql !== '') {
         $whereCash[] = $chqExistsSql;
     }
-    if ($rf !== null) {
-        $binds['rep_from'] = $rf;
-        $binds['rep_to'] = $rt ?? $rf;
-        $whereCash[] = $repExpr . ' >= :rep_from';
-        $whereCash[] = $repExpr . ' <= :rep_to';
-    } else {
-        $whereCash[] = $repExpr . ' > 0';
+    oracle_rep_collections_apply_rep_filter($repExpr, $whereCash, $binds, $repIdList, $rf, $rt, 'cr');
+    // قبض نقدي عادي = على حساب عميل فقط؛ مبيعات فواتير نقدية (حساب الشركة/المبيعات) عبر المسار التالي
+    $whereCash[] = 'c.' . oracle_stmt_q($cusNumCol) . ' IS NOT NULL';
+    if ($custAccList !== []) {
+        [$cPh, $cB] = oracle_rep_collections_in_binds($custAccList, 'cca');
+        $binds = array_merge($binds, $cB);
+        $whereCash[] = 'TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) IN (' . implode(',', $cPh) . ')';
     }
 
-    // إن كان الوصف «مبيعات فواتير نقدية» نعرضه كما في Forms
-    $cashNameExpr = 'CASE
-        WHEN INSTR(NVL(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'فواتير نقدية') > 0
-          OR INSTR(NVL(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'مبيعات فواتير') > 0
-        THEN NVL(NULLIF(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'مبيعات فواتير نقدية')
-        ELSE " . $nameExpr . '
-      END';
+    $cashNameExpr = 'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+        . ' NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
+        . ' TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))))';
 
     $sqlCash = 'SELECT ' . $repExpr . ' AS REP_NO,
                        ' . $compExpr . ' AS COMP_NUM,
@@ -471,21 +547,27 @@ function oracle_fetch_rep_collections(
     $repFromDaily = 'NVL((SELECT MAX(d.MAN_NUM) FROM ' . $dailyQ . ' d'
         . ' WHERE d.V_NUM = v.' . oracle_stmt_q($numCol) . ' AND NVL(d.MAN_NUM,0) > 0), 0)';
 
-    // إن كان رقم الحساب نفسه = رقم المندوب/العميل (مثل حساب 3) نقبله
-    $repFromAccNum = '0';
-    if ($rf !== null) {
-        $repFromAccNum = '(CASE WHEN TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) = TRIM(TO_CHAR(:rep_acc))'
-            . ' THEN :rep_acc ELSE 0 END)';
-    }
-
     $repInvExpr = 'NVL(NULLIF(' . $repExpr . ',0),'
         . 'NVL(NULLIF(' . $repFromVodCus . ',0),'
         . 'NVL(NULLIF(' . $repFromSameVod . ',0),'
-        . 'NVL(NULLIF(' . $repFromDaily . ',0),'
-        . ($repFromAccNum !== '0' ? 'NULLIF(' . $repFromAccNum . ',0)' : '0')
-        . '))))';
+        . 'NULLIF(' . $repFromDaily . ',0))))';
 
-    $nameInv = "NVL(NULLIF(TRIM({$glDesc}), ''), 'مبيعات فواتير نقدية')";
+    // حساب العرض: عميل السند أو عميل على نفس رقم القبض، وإلا حساب المبيعات النقدية/الشركة
+    $cusAccFromSameVod = '(SELECT MAX(TRIM(TO_CHAR(vx.' . oracle_stmt_q($accCol) . ')))'
+        . ' FROM ' . oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['table']) . ' vx'
+        . ' INNER JOIN ' . $fromCusTable . ' cx ON TRIM(TO_CHAR(cx.' . oracle_stmt_q($cusNumCol)
+        . ')) = TRIM(TO_CHAR(vx.' . oracle_stmt_q($accCol) . '))'
+        . ' WHERE vx.' . oracle_stmt_q($numCol) . ' = v.' . oracle_stmt_q($numCol) . ')';
+    if ($vodCusCol !== null) {
+        $dispAccInv = 'NVL(NULLIF(TRIM(TO_CHAR(v.' . oracle_stmt_q($vodCusCol) . ")), ''),"
+            . ' NVL(' . $cusAccFromSameVod . ', TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))))';
+    } else {
+        $dispAccInv = 'NVL(' . $cusAccFromSameVod . ', TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')))';
+    }
+    $nameInv = 'NVL((SELECT MAX(NULLIF(TRIM(cy.' . oracle_stmt_q($cusNameCol) . "), ''))"
+        . ' FROM ' . $fromCusTable . ' cy'
+        . ' WHERE TRIM(TO_CHAR(cy.' . oracle_stmt_q($cusNumCol) . ')) = ' . $dispAccInv . '),'
+        . " NVL(NULLIF(TRIM({$glDesc}), ''), 'مبيعات فواتير نقدية'))";
 
     $bindsInv = ['df' => $dateFrom, 'dt' => $dateTo];
     $whereInv = [
@@ -503,13 +585,11 @@ function oracle_fetch_rep_collections(
         $bindsInv['comp_num'] = $useComp;
     }
     // لا نفرض VOD_SIDE هنا أولاً — سند 24985 قد يكون على جهة مختلفة
-    if ($rf !== null) {
-        $bindsInv['rep_from'] = $rf;
-        $bindsInv['rep_to'] = $rt ?? $rf;
-        $bindsInv['rep_acc'] = $rf;
-        $whereInv[] = '(' . $repInvExpr . ' >= :rep_from AND ' . $repInvExpr . ' <= :rep_to)';
-    } else {
-        $whereInv[] = 'NVL(' . $repInvExpr . ',0) > 0';
+    oracle_rep_collections_apply_rep_filter($repInvExpr, $whereInv, $bindsInv, $repIdList, $rf, $rt, 'ir');
+    if ($custAccList !== []) {
+        [$iPh, $iB] = oracle_rep_collections_in_binds($custAccList, 'ica');
+        $bindsInv = array_merge($bindsInv, $iB);
+        $whereInv[] = '(' . $dispAccInv . ' IN (' . implode(',', $iPh) . '))';
     }
 
     $sqlCashInv = 'SELECT ' . $repInvExpr . ' AS REP_NO,
@@ -517,7 +597,7 @@ function oracle_fetch_rep_collections(
                           v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
                           \'قبض نقدي\' AS RCV_TYPE,
                           ' . $nameInv . ' AS CUSTOMER_NAME,
-                          TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
+                          ' . $dispAccInv . ' AS CUSTOMER_ACC,
                           TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
                           CAST(NULL AS VARCHAR2(40)) AS CHQ_NUM,
                           CAST(NULL AS DATE) AS CHQ_DUE,
@@ -528,10 +608,10 @@ function oracle_fetch_rep_collections(
                             ' . $compExpr . ',
                             v.' . oracle_stmt_q($numCol) . ',
                             ' . $nameInv . ',
-                            TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
+                            ' . $dispAccInv;
     try {
         $raw = array_merge($raw, oracle_query_all($conn, $sqlCashInv, $bindsInv));
-        $usedMode[] = 'cash_invoice_24985_style';
+        $usedMode[] = 'cash_invoice_customer_aware';
     } catch (Throwable $e) {
         // مع جهة دائنة فقط
         try {
@@ -549,38 +629,6 @@ function oracle_fetch_rep_collections(
             $usedMode[] = 'cash_invoice_side2:' . $e->getMessage();
         } catch (Throwable $e2) {
             $usedMode[] = 'cash_invoice_fail:' . $e2->getMessage();
-        }
-    }
-
-    // احتياطي مباشر للسندات النقدية المسجّلة على رقم الحساب = رقم المندوب (حساب 3…)
-    if ($rf !== null && $rf === ($rt ?? $rf)) {
-        $bindsAcc = ['df' => $dateFrom, 'dt' => $dateTo, 'acc' => (string) $rf, 'rep' => $rf];
-        if ($minVod > 0) {
-            $bindsAcc['min_vod'] = $minVod;
-        }
-        $sqlAcc = 'SELECT :rep AS REP_NO,
-                          ' . $compExpr . ' AS COMP_NUM,
-                          v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
-                          \'قبض نقدي\' AS RCV_TYPE,
-                          ' . $nameInv . ' AS CUSTOMER_NAME,
-                          TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
-                          TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
-                          NULL AS CHQ_NUM,
-                          NULL AS CHQ_DUE,
-                          ROUND(SUM(ABS(v.' . oracle_stmt_q($amtCol) . ')), 3) AS AMOUNT
-                   FROM ' . $fromVod . $glJoin . '
-                   WHERE v.' . oracle_stmt_q($dateCol) . " >= TO_DATE(:df, 'YYYY-MM-DD')
-                     AND v." . oracle_stmt_q($dateCol) . " < TO_DATE(:dt, 'YYYY-MM-DD') + 1
-                     AND TRIM(TO_CHAR(v." . oracle_stmt_q($accCol) . ')) = TRIM(:acc)
-                     AND ABS(v.' . oracle_stmt_q($amtCol) . ') > 0'
-            . ($minVod > 0 ? ' AND v.' . oracle_stmt_q($numCol) . ' >= :min_vod' : '')
-            . ' GROUP BY ' . $compExpr . ', v.' . oracle_stmt_q($numCol) . ', ' . $nameInv
-            . ', TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
-        try {
-            $raw = array_merge($raw, oracle_query_all($conn, $sqlAcc, $bindsAcc));
-            $usedMode[] = 'cash_invoice_acc_eq_rep';
-        } catch (Throwable $e) {
-            $usedMode[] = 'cash_invoice_acc_fail:' . $e->getMessage();
         }
     }
 
@@ -632,8 +680,8 @@ function oracle_fetch_rep_collections(
             $chqManCol
         );
 
-        $nameExprChq = 'NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
-            . ' NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+        $nameExprChq = 'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''),"
+            . ' NVL(NULLIF(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''),"
             . ' v.VOD_ACC))';
 
         // عرض فقط — Forms يُظهر شيك مقبوض 11-2026 ولو تاريخ الحق 11-2027
@@ -665,13 +713,13 @@ function oracle_fetch_rep_collections(
             $whereChq[] = 'v.VOD_NUM >= :min_vod';
             $bindsChq['min_vod'] = $minVod;
         }
-        if ($rf !== null) {
-            $whereChq[] = $repExprChq . ' >= :rep_from';
-            $whereChq[] = $repExprChq . ' <= :rep_to';
-            $bindsChq['rep_from'] = $rf;
-            $bindsChq['rep_to'] = $rt ?? $rf;
-        } else {
-            $whereChq[] = $repExprChq . ' > 0';
+        oracle_rep_collections_apply_rep_filter($repExprChq, $whereChq, $bindsChq, $repIdList, $rf, $rt, 'hr');
+        if ($custAccList !== []) {
+            [$hPh, $hB] = oracle_rep_collections_in_binds($custAccList, 'hca');
+            [$hPh2, $hB2] = oracle_rep_collections_in_binds($custAccList, 'hcb');
+            $bindsChq = array_merge($bindsChq, $hB, $hB2);
+            $whereChq[] = '(TRIM(TO_CHAR(ch.' . oracle_stmt_q($chqCusCol) . ')) IN (' . implode(',', $hPh)
+                . ') OR v.VOD_ACC IN (' . implode(',', $hPh2) . '))';
         }
         if ($compCol !== null && $useComp > 0) {
             $whereChq[] = 'NVL(v.VOD_COMP, 0) IN (0, :comp_num)';
@@ -760,9 +808,11 @@ function oracle_fetch_rep_collections(
         }
 
         $custName = trim((string) oracle_statement_row_val($r, 'CUSTOMER_NAME'));
-        if ($acc !== '' && !empty($glNames[$acc])) {
+        // لا تستبدل اسم عميل حقيقي باسم دليل الحسابات (مثل الشركة 1)
+        $nameIsWeak = ($custName === '' || $custName === $acc || preg_match('/^\d+$/', $custName) === 1);
+        if ($nameIsWeak && $acc !== '' && !empty($glNames[$acc])) {
             $custName = $glNames[$acc];
-        } elseif ($acc !== '' && ($custName === '' || $custName === $acc || preg_match('/^\d+$/', $custName))) {
+        } elseif ($nameIsWeak && $acc !== '') {
             $digits = preg_replace('/\D+/', '', $acc) ?? '';
             if ($digits !== '' && !empty($glNames[$digits])) {
                 $custName = $glNames[$digits];
@@ -823,6 +873,8 @@ function oracle_fetch_rep_collections(
             'to' => $dateTo,
             'rep_from' => $rf,
             'rep_to' => $rt,
+            'rep_ids' => $repIdList,
+            'customer_accs' => $custAccList,
             'comp_num' => $useComp,
             'rep_key' => $cfg['rep_key'],
             'effective_rep_key' => $effectiveRepKey,
