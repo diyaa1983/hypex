@@ -5,11 +5,11 @@ declare(strict_types=1);
  * كشف تحصيلات المندوب خلال فترة — Oracle (قراءة فقط)
  *
  * منطق Forms «كشف تحصيلات المندوبين - فترة معينة»:
- * - الفترة على تاريخ القبض فقط (VOD_DATE / تاريخ استلام الشيك)
- * - تاريخ حق/تحصيل الشيك للعرض فقط — يُدرج الشيك ولو كان التحصيل بعد نهاية الفترة
- * - قبض شيك + قبض نقدي معاً
- * - المندوب: MAN على السند ثم CUS_SALESMAN
- * - الاسم: GLACTMF.ACC_DESC ثم عنوان العميل
+ * - الفترة على تاريخ القبض فقط (VOD_DATE)
+ * - تاريخ حق الشيك للعرض فقط (قد يكون بعد الفترة)
+ * - بلا صف في GLCHEQF ← قبض نقدي (حتى لو VOD_FLAG=11)
+ * - وجود شيك ← قبض شيك بمبلغ CHQ_AMOUNT
+ * - المندوب: CUS_SALESMAN (لا MAN_NUM على GLVODMF غالباً)
  */
 
 require_once app_path('includes/oracle_pdo.php');
@@ -44,10 +44,10 @@ function oracle_rep_collections_cfg(): array
         $checkFlags = [10, 11];
     }
 
-    // Forms: MAN على السند ثم مندوب العميل (النقدي غالباً بلا MAN)
-    $repKey = strtolower(trim((string) ($s['rep_key'] ?? 'both')));
+    // GLVODMF بلا MAN_NUM عندكم — المندوب من بطاقة العميل
+    $repKey = strtolower(trim((string) ($s['rep_key'] ?? 'cus_salesman')));
     if (!in_array($repKey, ['cus_salesman', 'vod_man', 'both'], true)) {
-        $repKey = 'both';
+        $repKey = 'cus_salesman';
     }
 
     return [
@@ -350,22 +350,21 @@ function oracle_fetch_rep_collections(
         )';
     }
 
-    // ─── قبض نقدي: حركة دائنة في الفترة بلا شيك مرتبط (مثل Forms) ───
+    // ─── قبض نقدي: بلا صف في GLCHEQF (حتى لو VOD_FLAG=11 — Forms يعرضه نقدي) ───
+    // لا نستبعد check_flags هنا؛ التمييز نقدي/شيك بوجود الشيك فقط
     $whereCash = $baseWhere;
-    $cashFlagMode = 'exclude';
+    $cashFlagMode = 'no_cheque';
     if ($flagCol !== null && $cfg['cash_flags'] !== []) {
         [$cfList, $cfBinds] = oracle_rep_collections_flag_binds($cfg['cash_flags'], 'cf');
         $binds = array_merge($binds, $cfBinds);
         $whereCash[] = 'v.' . oracle_stmt_q($flagCol) . ' IN (' . implode(',', $cfList) . ')';
         $cashFlagMode = 'include_list';
-    } elseif ($flagCol !== null) {
-        $deny = array_values(array_unique(array_merge($cfg['exclude_flags'], $cfg['check_flags'])));
-        if ($deny !== []) {
-            [$exList, $exBinds] = oracle_rep_collections_flag_binds($deny, 'xf');
-            $binds = array_merge($binds, $exBinds);
-            $whereCash[] = '(v.' . oracle_stmt_q($flagCol) . ' IS NULL OR v.' . oracle_stmt_q($flagCol)
-                . ' NOT IN (' . implode(',', $exList) . '))';
-        }
+    } elseif ($flagCol !== null && $cfg['exclude_flags'] !== []) {
+        [$exList, $exBinds] = oracle_rep_collections_flag_binds($cfg['exclude_flags'], 'xf');
+        $binds = array_merge($binds, $exBinds);
+        $whereCash[] = '(v.' . oracle_stmt_q($flagCol) . ' IS NULL OR v.' . oracle_stmt_q($flagCol)
+            . ' NOT IN (' . implode(',', $exList) . '))';
+        $cashFlagMode = 'exclude_sales_only';
     }
     if ($chqExistsSql !== '') {
         $whereCash[] = $chqExistsSql;

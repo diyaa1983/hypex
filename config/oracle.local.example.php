@@ -91,10 +91,10 @@ return [
         'cust_table' => 'CUSTOMER',
         'credit_side' => 2,
         'comp_num' => 1,
-        // Forms: MAN على السند ثم مندوب العميل — الفترة على تاريخ القبض فقط
-        // (تاريخ حق/تحصيل الشيك للعرض ولو بعد الفترة)
-        'rep_key' => 'both', // both | vod_man | cus_salesman
-        'cash_flags' => [], // فارغ = نقدي = بلا شيك وليس مبيعات/مرتجع/شيك
+        // المندوب من بطاقة العميل (لا MAN على GLVODMF غالباً)
+        // النقدي = بلا صف في GLCHEQF حتى لو FLAG=11 | الشيك = وجود شيك
+        'rep_key' => 'cus_salesman', // cus_salesman | both | vod_man
+        'cash_flags' => [],
         'check_flags' => [10, 11],
         'exclude_flags' => [12, 13, 14],
         'min_voucher_no' => 10000,
