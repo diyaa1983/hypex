@@ -8,8 +8,9 @@ const q = require('./domainQueries');
 const masters = require('./mastersService');
 const ui = require('../lib/salesUi');
 const { salesRepsCatalog } = require('./catalog');
-const { esc, todayIso, parseDateToIso } = require('../lib/html');
+const { esc, todayIso, parseDateToIso, isoToDmy, fmtAmt } = require('../lib/html');
 const { renderStandalonePrintPage } = require('../lib/printBrand');
+const accNative = require('../accounting/nativeService');
 
 const router = express.Router();
 const HUB = '/sales-reps';
@@ -58,7 +59,8 @@ function requireAny(req, res, next) {
       can(u, 'report_sales_by_region') ||
       can(u, 'report_sales_rep_tours') ||
       can(u, 'report_sales_rep_visits') ||
-      can(u, 'report_sales_rep_customers'));
+      can(u, 'report_sales_rep_customers') ||
+      can(u, 'report_oracle_rep_collections'));
   if (!any && !reportOk) return res.status(403).send('ممنوع');
   next();
 }
@@ -2859,6 +2861,219 @@ router.get('/sales-reps/reports/visits', async (req, res) => {
       bodyHtml: body,
       css: REP_REPORT_CSS,
       printTitle: 'تقرير زيارات العملاء',
+    })
+  );
+});
+
+/* ── كشف تحصيلات المندوب خلال فترة (Oracle) ── */
+router.get('/sales-reps/reports/oracle-collections', async (req, res) => {
+  try {
+    const adminService = require('../system/adminService');
+    if (adminService.ensureOracleRepCollectionsScreen) {
+      await adminService.ensureOracleRepCollectionsScreen();
+    }
+  } catch (e) {
+    console.error('ensureOracleRepCollectionsScreen', e.message || e);
+  }
+  if (!can(req.session.user, 'report_oracle_rep_collections') && !can(req.session.user, 'sales_reps')) {
+    return res.status(403).send('ممنوع');
+  }
+
+  const BASE = '/sales-reps/reports/oracle-collections';
+  const fromQ = String(req.query.from || '').trim();
+  const toQ = String(req.query.to || '').trim();
+  const fromIso =
+    parseDateToIso(fromQ) ||
+    (/^\d{4}-\d{2}-\d{2}$/.test(fromQ) ? fromQ : '') ||
+    (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+    })();
+  const toIso = parseDateToIso(toQ) || (/^\d{4}-\d{2}-\d{2}$/.test(toQ) ? toQ : todayIso());
+  const oracleRepNo = Number(req.query.sales_rep_id || 0) || 0;
+  const run = String(req.query.run || '') === '1' || oracleRepNo > 0 || fromQ !== '' || toQ !== '';
+  const uid = Number(req.session.user?.id || 0) || 0;
+
+  let reps = [];
+  let oraNameByMan = new Map();
+  try {
+    const repsPayload = await accNative.run('oracle_list_rep_net_sales_reps', uid, {});
+    const oraRows = Array.isArray(repsPayload?.rows) ? repsPayload.rows : [];
+    const seen = new Set();
+    for (const r of oraRows) {
+      const manNo = Number(r.id) || 0;
+      if (manNo < 1 || seen.has(manNo)) continue;
+      seen.add(manNo);
+      const nm = String(r.name_ar || '').trim() || `مندوب ${manNo}`;
+      oraNameByMan.set(manNo, nm);
+      reps.push({ id: manNo, code: String(manNo), name_ar: nm });
+    }
+    reps.sort((a, b) => String(a.name_ar).localeCompare(String(b.name_ar), 'ar'));
+  } catch (e) {
+    console.error('oracle collections reps', e.message || e);
+  }
+
+  let err = '';
+  let rows = [];
+  let totals = { count: 0, amount: 0 };
+  let repName = oracleRepNo > 0 ? oraNameByMan.get(oracleRepNo) || `مندوب ${oracleRepNo}` : '';
+
+  if (run) {
+    const data = await accNative.run('oracle_rep_collections', uid, {
+      from: fromIso,
+      to: toIso,
+      rep_from: oracleRepNo > 0 ? oracleRepNo : null,
+      rep_to: oracleRepNo > 0 ? oracleRepNo : null,
+      comp_num: 1,
+    });
+    if (!data || data.ok === false) {
+      err = String(data?.error || data?.message || 'تعذر الاتصال بـ Oracle.');
+    } else {
+      rows = Array.isArray(data.rows) ? data.rows : [];
+      totals = data.totals && typeof data.totals === 'object' ? data.totals : totals;
+      if (!rows.length && data.message) err = String(data.message);
+      if (oracleRepNo > 0 && oraNameByMan.get(oracleRepNo)) repName = oraNameByMan.get(oracleRepNo);
+    }
+  }
+
+  const byRep = new Map();
+  for (const r of rows) {
+    const k = Number(r.rep_no) || 0;
+    if (!byRep.has(k)) {
+      byRep.set(k, {
+        rep_no: k,
+        rep_name: String(r.rep_name || oraNameByMan.get(k) || `مندوب ${k}`),
+        comp_num: Number(r.comp_num) || 1,
+        rows: [],
+        amount: 0,
+      });
+    }
+    const block = byRep.get(k);
+    block.rows.push(r);
+    block.amount += Number(r.amount) || 0;
+  }
+
+  const dmy = (iso) => {
+    const s = String(iso || '');
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return isoToDmy(s.slice(0, 10));
+    return s;
+  };
+
+  let tableBlock = '';
+  if (err) {
+    tableBlock = `<p class="si-pill si-pill--lock" style="display:inline-block;max-width:100%;white-space:normal;line-height:1.45">${esc(err)}</p>`;
+  } else if (run && !rows.length) {
+    tableBlock = `<p class="muted" style="padding:.75rem 0">لا توجد تحصيلات في الفترة المحددة.</p>`;
+  } else if (run) {
+    const blocks = [...byRep.values()]
+      .map((block) => {
+        const body = block.rows
+          .map(
+            (r) => `<tr>
+          <td class="si-num" dir="ltr">${esc(r.rcv_no || '')}</td>
+          <td>${esc(r.rcv_type || '')}</td>
+          <td>${esc(r.customer_name || '')}</td>
+          <td class="si-num" dir="ltr">${esc(dmy(r.rcv_date))}</td>
+          <td class="si-num" dir="ltr">${esc(r.chq_no || '')}</td>
+          <td class="si-num" dir="ltr">${esc(r.chq_due ? dmy(r.chq_due) : '')}</td>
+          <td class="si-num" dir="ltr">${esc(fmtAmt(r.amount))}</td>
+        </tr>`
+          )
+          .join('');
+        const foot = `<tr>
+          <td colspan="6" style="font-weight:800">مجموع المندوب</td>
+          <td class="si-num" dir="ltr" style="font-weight:800">${esc(fmtAmt(block.amount))}</td>
+        </tr>`;
+        return `<section style="margin:0 0 1rem">
+          <h3 style="margin:0 0 .4rem;font-size:.95rem">
+            رقم المندوب: <span dir="ltr">${esc(block.rep_no)}</span>
+            · ${esc(block.rep_name)}
+            · شركة: <span dir="ltr">${esc(block.comp_num)}</span>
+          </h3>
+          ${ui.tableSurface(
+            `تحصيلات المندوب #${block.rep_no}`,
+            `${block.rows.length} حركة`,
+            ['رقم القبض', 'نوع القبض', 'العميل', 'تاريخ القبض', 'رقم الشيك', 'تاريخ حق الشيك', 'القيمة'],
+            body + foot
+          )}
+        </section>`;
+      })
+      .join('');
+    tableBlock =
+      blocks +
+      `<p style="margin:.5rem 0 0;font-weight:800">الإجمالي (${esc(totals.count || rows.length)} حركة): <span dir="ltr">${esc(
+        fmtAmt(totals.amount || 0)
+      )}</span></p>`;
+  } else {
+    tableBlock = `<p class="muted" style="padding:.5rem 0">حدّد الفترة ثم اضغط «عرض التقرير».</p>`;
+  }
+
+  const repsJson = JSON.stringify(reps).replace(/</g, '\\u003c');
+  const body = `
+    <div class="si-stage si-report-page report-sales-page" data-report-route="report_oracle_rep_collections">
+      ${ui.hero({
+        mark: '💵',
+        kicker: KICKER,
+        title: 'كشف تحصيلات المندوب خلال فترة (Oracle)',
+        subtitle: 'سندات القبض النقدي والشيكات من نظام المحاسبة والذمم',
+        actions: [
+          ui.printAction(),
+          { label: 'لوحة المندوبين', href: HUB },
+          { label: 'تقرير الزيارات', href: '/sales-reps/reports/visits' },
+        ],
+      })}
+      <p class="muted no-print" style="margin:0 1rem .35rem;font-size:.8rem">البيانات من Oracle · مثل تقرير Forms «كشف تحصيلات المندوبين».</p>
+      <div class="si-rail no-print">
+        <form method="get" action="${esc(BASE)}" class="si-search report-sales-filters" data-app-busy-msg="جاري تحميل التحصيلات…" style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-end;max-width:100%;margin:0">
+          <input type="hidden" name="run" value="1" />
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578;flex:1 1 16rem;min-width:14rem">المندوب (Oracle)
+            <div class="report-cust-pick" id="report-sales-rep-pick" style="margin-top:.25rem">
+              <input type="hidden" name="sales_rep_id" data-rep-id value="${oracleRepNo > 0 ? oracleRepNo : ''}">
+              <input type="text" class="si-field report-cust-pick-inp" data-rep-search
+                     placeholder="ابحث بالاسم أو رقم المندوب… (فارغ = الكل)" autocomplete="off" spellcheck="false"
+                     aria-label="بحث عن مندوب" style="min-width:100%;width:100%">
+              <div class="report-cust-pick-list" data-rep-list hidden></div>
+            </div>
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">من تاريخ
+            <input class="si-field js-date-dmy" type="text" name="from" value="${esc(isoToDmy(fromIso))}"
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
+                   style="margin-top:.25rem;min-width:9.5rem">
+          </label>
+          <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى تاريخ
+            <input class="si-field js-date-dmy" type="text" name="to" value="${esc(isoToDmy(toIso))}"
+                   placeholder="يوم-شهر-سنة" dir="ltr" autocomplete="off" inputmode="numeric" required
+                   style="margin-top:.25rem;min-width:9.5rem">
+          </label>
+          <button class="si-btn si-btn--primary" type="submit">عرض التقرير</button>
+        </form>
+      </div>
+      <div class="si-print-area report-sales-result">${tableBlock}</div>
+      <script type="application/json" id="report-sales-reps-json">${repsJson}</script>
+      <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        var el = document.getElementById('report-sales-reps-json');
+        var root = document.getElementById('report-sales-rep-pick');
+        if (!el || !root || !window.ReportRepPicker) return;
+        var reps = [];
+        try { reps = JSON.parse(el.textContent || '[]'); } catch (e) {}
+        var hidden = root.querySelector('[data-rep-id]');
+        var initialId = hidden && hidden.value ? parseInt(hidden.value, 10) : 0;
+        window.ReportRepPicker.init(root, reps, { initialId: initialId });
+      });
+      </script>
+    </div>`;
+
+  return res.send(
+    ui.salesPage({
+      user: req.session.user,
+      title: 'كشف تحصيلات المندوب خلال فترة Oracle',
+      bodyHtml: body,
+      css: ['/assets/css/report-sales.css'],
+      js: ['/assets/js/report-rep-picker.js', '/assets/js/sales-print.js'],
+      printTitle: repName
+        ? `كشف تحصيلات المندوب — ${repName}`
+        : 'كشف تحصيلات المندوب خلال فترة',
     })
   );
 });

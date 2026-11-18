@@ -56,6 +56,13 @@ const salesRepsCatalog = [
         path: '/sales-reps/reports/visits',
         kind: 'report',
       },
+      {
+        r: 'report_oracle_rep_collections',
+        label: 'كشف تحصيلات المندوب خلال فترة Oracle',
+        icon: '💵',
+        path: '/sales-reps/reports/oracle-collections',
+        kind: 'report',
+      },
     ],
   },
 ];

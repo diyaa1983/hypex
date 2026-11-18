@@ -203,6 +203,7 @@ return [
                     'items' => [
                         ['r' => 'report_sales_rep_tours', 'label' => 'تقرير الجولات', 'icon' => '📋'],
                         ['r' => 'report_sales_rep_visits', 'label' => 'تقرير زيارات العملاء', 'icon' => '📍'],
+                        ['r' => 'report_oracle_rep_collections', 'label' => 'كشف تحصيلات المندوب خلال فترة Oracle', 'icon' => '💵'],
                     ],
                 ],
             ],

@@ -80,6 +80,23 @@ return [
     ],
 
     /**
+     * كشف تحصيلات المندوب خلال فترة — GLVODMF + GLCHEQF
+     * المندوب: عمود المندوب في الحركة إن وُجد، وإلا CUSTOMER.CUS_SALESMAN
+     */
+    'rep_collections' => [
+        'owner' => 'ACCINV',
+        'table' => 'GLVODMF',
+        'cheque_table' => 'GLCHEQF',
+        'cust_owner' => 'ACCINV',
+        'cust_table' => 'CUSTOMER',
+        'credit_side' => 2,
+        'comp_num' => 1,
+        // أعلام VOD_FLAG: قبض نقدي / قبض شيك (عدّل حسب Forms عندكم)
+        'cash_flags' => [1, 2, 3, 4, 5, 6, 7, 8, 9, 15, 16, 17, 18, 19, 20],
+        'check_flags' => [10, 11],
+    ],
+
+    /**
      * صافي فواتير مبيعات المندوب (INVREP050) — ملخص من MAS.DAILY
      * المندوب من DAILY.MAN_NUM (مندوب الفاتورة، مثل Forms) — أو cus_salesman لمندوب بطاقة العميل
      * الصافي: Σ(QTY×SELL×(1−DISC)) − VOU_DISC مرة/فاتورة — الاسم من EMP_INFO

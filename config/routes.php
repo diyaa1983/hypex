@@ -253,6 +253,11 @@ return [
         'permission' => 'report_oracle_rep_item_sales',
         'title' => 'مبيعات المندوب حسب المادة والفئة Oracle',
     ],
+    'report_oracle_rep_collections' => [
+        'file' => 'modules/reports/oracle_rep_collections.php',
+        'permission' => 'report_oracle_rep_collections',
+        'title' => 'كشف تحصيلات المندوب خلال فترة Oracle',
+    ],
     'sales_reps' => [
         'file' => 'modules/sales/sales_reps.php',
         'permission' => 'sales_reps',
