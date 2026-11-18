@@ -429,163 +429,159 @@ function oracle_fetch_rep_collections(
         }
     }
 
-    // ─── مبيعات فواتير نقدية — سند مثل 24985 (وصف/دليل أو VOD_REMARK) ───
+    // ─── مبيعات فواتير نقدية (مثال Forms: سند 24985 / 92.561 / مندوب 3) ───
+    // بلا شرط شيك، وبلا استبعاد FLAG=14 — المندوب من العميل أو DAILY فقط
     $remarkCol = oracle_rep_collections_pick_col($vodCols, [
         'VOD_REMARK', 'VOD_DESC', 'VOD_NOTE', 'REMARK', 'DESCRIPTION', 'VOD_EXPLAIN',
     ]);
     $si = is_array(oracle_config()['sales_invoice'] ?? null) ? oracle_config()['sales_invoice'] : [];
     $dailyOwner = strtoupper(trim((string) ($si['owner'] ?? 'MAS'))) ?: 'MAS';
     $dailyTable = strtoupper(trim((string) ($si['table'] ?? 'DAILY'))) ?: 'DAILY';
-    $glAccTable = oracle_stmt_q($cfg['gl_owner']) . '.' . oracle_stmt_q($cfg['gl_table']);
-    $glDescCol = 'gx.' . oracle_stmt_q($cfg['gl_acc_desc']);
+    $dailyQ = oracle_stmt_q($dailyOwner) . '.' . oracle_stmt_q($dailyTable);
+    $glDesc = 'g.' . oracle_stmt_q($cfg['gl_acc_desc']);
 
-    $cashInvMatchParts = [
-        'TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) IN ('
-        . 'SELECT TRIM(TO_CHAR(gx.' . oracle_stmt_q($cfg['gl_acc_num']) . ')) FROM ' . $glAccTable . ' gx'
-        . " WHERE INSTR(NVL(TRIM({$glDescCol}), ' '), 'فواتير نقدية') > 0"
-        . " OR INSTR(NVL(TRIM({$glDescCol}), ' '), 'مبيعات فواتير') > 0)",
-        "INSTR(NVL(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ' '), 'فواتير نقدية') > 0",
-        "INSTR(NVL(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ' '), 'مبيعات فواتير') > 0",
-    ];
+    $isCashInvSql = '('
+        . "INSTR(NVL(TRIM({$glDesc}), ' '), 'فواتير نقدية') > 0"
+        . " OR INSTR(NVL(TRIM({$glDesc}), ' '), 'مبيعات فواتير') > 0"
+        . " OR (INSTR(NVL(TRIM({$glDesc}), ' '), 'مبيعات') > 0 AND INSTR(NVL(TRIM({$glDesc}), ' '), 'نقد') > 0)";
     if ($remarkCol !== null) {
-        $cashInvMatchParts[] = "INSTR(NVL(TRIM(v." . oracle_stmt_q($remarkCol) . "), ' '), 'فواتير نقدية') > 0";
-        $cashInvMatchParts[] = "INSTR(NVL(TRIM(v." . oracle_stmt_q($remarkCol) . "), ' '), 'مبيعات فواتير') > 0";
-        $cashInvMatchParts[] = "INSTR(NVL(TRIM(v." . oracle_stmt_q($remarkCol) . "), ' '), 'مبيعات فواتير نقدية') > 0";
+        $rm = 'v.' . oracle_stmt_q($remarkCol);
+        $isCashInvSql .= " OR INSTR(NVL(TRIM({$rm}), ' '), 'فواتير نقدية') > 0"
+            . " OR INSTR(NVL(TRIM({$rm}), ' '), 'مبيعات فواتير') > 0";
     }
-    $cashInvMatchSql = '(' . implode(' OR ', $cashInvMatchParts) . ')';
+    $isCashInvSql .= ')';
 
-    $repDisp = $rf !== null ? (int) $rf : 0;
+    $repFromSameVod = '0';
+    if ($cusManCol !== null) {
+        $repFromSameVod = 'NVL((SELECT MAX(NVL(cx.' . oracle_stmt_q($cusManCol) . ',0))'
+            . ' FROM ' . oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['table']) . ' vx'
+            . ' JOIN ' . $fromCusTable . ' cx ON TRIM(TO_CHAR(cx.' . oracle_stmt_q($cusNumCol)
+            . ')) = TRIM(TO_CHAR(vx.' . oracle_stmt_q($accCol) . '))'
+            . ' WHERE vx.' . oracle_stmt_q($numCol) . ' = v.' . oracle_stmt_q($numCol)
+            . ' AND NVL(cx.' . oracle_stmt_q($cusManCol) . ',0) > 0), 0)';
+    }
+    $repFromVodCus = '0';
+    if ($vodCusCol !== null && $cusManCol !== null) {
+        $repFromVodCus = 'NVL((SELECT MAX(NVL(cy.' . oracle_stmt_q($cusManCol) . ',0))'
+            . ' FROM ' . $fromCusTable . ' cy'
+            . ' WHERE TRIM(TO_CHAR(cy.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(v.'
+            . oracle_stmt_q($vodCusCol) . '))'
+            . ' AND NVL(cy.' . oracle_stmt_q($cusManCol) . ',0) > 0), 0)';
+    }
+    $repFromDaily = 'NVL((SELECT MAX(d.MAN_NUM) FROM ' . $dailyQ . ' d'
+        . ' WHERE d.V_NUM = v.' . oracle_stmt_q($numCol) . ' AND NVL(d.MAN_NUM,0) > 0), 0)';
+
+    // إن كان رقم الحساب نفسه = رقم المندوب/العميل (مثل حساب 3) نقبله
+    $repFromAccNum = '0';
+    if ($rf !== null) {
+        $repFromAccNum = '(CASE WHEN TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) = TRIM(TO_CHAR(:rep_acc))'
+            . ' THEN :rep_acc ELSE 0 END)';
+    }
+
+    $repInvExpr = 'NVL(NULLIF(' . $repExpr . ',0),'
+        . 'NVL(NULLIF(' . $repFromVodCus . ',0),'
+        . 'NVL(NULLIF(' . $repFromSameVod . ',0),'
+        . 'NVL(NULLIF(' . $repFromDaily . ',0),'
+        . ($repFromAccNum !== '0' ? 'NULLIF(' . $repFromAccNum . ',0)' : '0')
+        . '))))';
+
+    $nameInv = "NVL(NULLIF(TRIM({$glDesc}), ''), 'مبيعات فواتير نقدية')";
+
     $bindsInv = ['df' => $dateFrom, 'dt' => $dateTo];
-    if ($sideCol !== null) {
-        $bindsInv['cs'] = (int) $cfg['credit_side'];
-    }
-    if ($minVod > 0) {
-        $bindsInv['min_vod'] = $minVod;
-    }
-    if ($compCol !== null && $useComp > 0) {
-        $bindsInv['comp_num'] = $useComp;
-    }
-
     $whereInv = [
         'v.' . oracle_stmt_q($dateCol) . " >= TO_DATE(:df, 'YYYY-MM-DD')",
         'v.' . oracle_stmt_q($dateCol) . " < TO_DATE(:dt, 'YYYY-MM-DD') + 1",
-        $cashInvMatchSql,
+        $isCashInvSql,
+        'ABS(v.' . oracle_stmt_q($amtCol) . ') > 0',
     ];
-    if ($sideCol !== null) {
-        $whereInv[] = 'v.' . oracle_stmt_q($sideCol) . ' = :cs';
-    }
     if ($minVod > 0) {
         $whereInv[] = 'v.' . oracle_stmt_q($numCol) . ' >= :min_vod';
+        $bindsInv['min_vod'] = $minVod;
     }
     if ($compCol !== null && $useComp > 0) {
         $whereInv[] = 'NVL(v.' . oracle_stmt_q($compCol) . ', 0) IN (0, :comp_num)';
+        $bindsInv['comp_num'] = $useComp;
     }
-    // لا نستبعد بعلم 14 هنا — هذه هي فواتير نقدية
-    if ($chqExistsSql !== '') {
-        $whereInv[] = $chqExistsSql;
+    // لا نفرض VOD_SIDE هنا أولاً — سند 24985 قد يكون على جهة مختلفة
+    if ($rf !== null) {
+        $bindsInv['rep_from'] = $rf;
+        $bindsInv['rep_to'] = $rt ?? $rf;
+        $bindsInv['rep_acc'] = $rf;
+        $whereInv[] = '(' . $repInvExpr . ' >= :rep_from AND ' . $repInvExpr . ' <= :rep_to)';
+    } else {
+        $whereInv[] = 'NVL(' . $repInvExpr . ',0) > 0';
     }
 
-    $dailyQ = oracle_stmt_q($dailyOwner) . '.' . oracle_stmt_q($dailyTable);
-    $headerTable = strtoupper(trim((string) ($si['header_table'] ?? 'MASTER_D'))) ?: 'MASTER_D';
-    $masterQ = oracle_stmt_q($dailyOwner) . '.' . oracle_stmt_q($headerTable);
-
-    // مندوب الفاتورة النقدية فقط (ليس كل فواتير الشركة):
-    // 1) مندوب عميل السطر (VOD_ACC)
-    // 2) مندوب عميل السند (VOD_CUS إن وُجد)
-    // 3) مندوب أي عميل على نفس رقم السند
-    // 4) MAS.DAILY / MASTER_D
-    $repFromVodCus = '0';
-    if ($vodCusCol !== null && $cusManCol !== null) {
-        $repFromVodCus = 'NVL((
-            SELECT MAX(NVL(cy.' . oracle_stmt_q($cusManCol) . ', 0))
-              FROM ' . $fromCusTable . ' cy
-             WHERE TRIM(TO_CHAR(cy.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(v.' . oracle_stmt_q($vodCusCol) . '))
-               AND NVL(cy.' . oracle_stmt_q($cusManCol) . ', 0) > 0
-        ), 0)';
-    }
-    $repFromSameVod = '0';
-    if ($cusManCol !== null) {
-        $repFromSameVod = 'NVL((
-            SELECT MAX(NVL(cx.' . oracle_stmt_q($cusManCol) . ', 0))
-              FROM ' . oracle_stmt_q($owner) . '.' . oracle_stmt_q($cfg['table']) . ' vx
-              JOIN ' . $fromCusTable . ' cx
-                ON TRIM(TO_CHAR(cx.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(vx.' . oracle_stmt_q($accCol) . '))
-             WHERE vx.' . oracle_stmt_q($numCol) . ' = v.' . oracle_stmt_q($numCol) . '
-               AND NVL(cx.' . oracle_stmt_q($cusManCol) . ', 0) > 0
-        ), 0)';
-    }
-    $repFromDaily = 'NVL((
-        SELECT MAX(d.MAN_NUM) FROM ' . $dailyQ . ' d
-         WHERE d.V_NUM = v.' . oracle_stmt_q($numCol) . '
-           AND NVL(d.MAN_NUM, 0) > 0
-    ), 0)';
-    $repFromMaster = 'NVL((
-        SELECT MAX(m.MAN_NUM) FROM ' . $masterQ . ' m
-         WHERE m.V_NUM = v.' . oracle_stmt_q($numCol) . '
-           AND NVL(m.MAN_NUM, 0) > 0
-    ), 0)';
-
-    $buildRepInv = static function (string $extraRepSql) use ($repExpr, $repFromVodCus, $repFromSameVod, $repFromDaily): string {
-        $inner = 'NVL(NULLIF(' . $repExpr . ', 0),'
-            . ' NVL(NULLIF(' . $repFromVodCus . ', 0),'
-            . ' NVL(NULLIF(' . $repFromSameVod . ', 0),'
-            . ' NULLIF(' . $repFromDaily . ', 0))))';
-        if ($extraRepSql !== '') {
-            return 'NVL(NULLIF(' . $inner . ', 0), NULLIF(' . $extraRepSql . ', 0))';
-        }
-
-        return $inner;
-    };
-
-    $nameInv = "NVL(NULLIF(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), "
-        . ($remarkCol !== null
-            ? "NVL(NULLIF(TRIM(v." . oracle_stmt_q($remarkCol) . "), ''), 'مبيعات فواتير نقدية')"
-            : "'مبيعات فواتير نقدية'")
-        . ')';
-
-    $repInvAttempts = [
-        $buildRepInv($repFromMaster),
-        $buildRepInv(''),
-    ];
-    $invOk = false;
-    foreach ($repInvAttempts as $attemptIdx => $repInvExpr) {
-        $whereTry = $whereInv;
-        $bindsTry = $bindsInv;
-        if ($rf !== null) {
-            $bindsTry['rep_from'] = $rf;
-            $bindsTry['rep_to'] = $rt ?? $rf;
-            $whereTry[] = '(' . $repInvExpr . ' >= :rep_from AND ' . $repInvExpr . ' <= :rep_to)';
-        } else {
-            $whereTry[] = 'NVL(' . $repInvExpr . ', 0) > 0';
-        }
-        $sqlCashInv = 'SELECT ' . $repInvExpr . ' AS REP_NO,
-                              ' . $compExpr . ' AS COMP_NUM,
-                              v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
-                              \'قبض نقدي\' AS RCV_TYPE,
-                              ' . $nameInv . ' AS CUSTOMER_NAME,
-                              TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
-                              TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
-                              CAST(NULL AS VARCHAR2(40)) AS CHQ_NUM,
-                              CAST(NULL AS DATE) AS CHQ_DUE,
-                              ROUND(SUM(ABS(v.' . oracle_stmt_q($amtCol) . ')), 3) AS AMOUNT
-                       FROM ' . $fromVod . $joinCus . $glJoin . '
-                       WHERE ' . implode("\n                         AND ", $whereTry) . '
-                       GROUP BY ' . $repInvExpr . ',
-                                ' . $compExpr . ',
-                                v.' . oracle_stmt_q($numCol) . ',
-                                ' . $nameInv . ',
-                                TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
+    $sqlCashInv = 'SELECT ' . $repInvExpr . ' AS REP_NO,
+                          ' . $compExpr . ' AS COMP_NUM,
+                          v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
+                          \'قبض نقدي\' AS RCV_TYPE,
+                          ' . $nameInv . ' AS CUSTOMER_NAME,
+                          TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
+                          TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
+                          CAST(NULL AS VARCHAR2(40)) AS CHQ_NUM,
+                          CAST(NULL AS DATE) AS CHQ_DUE,
+                          ROUND(SUM(ABS(v.' . oracle_stmt_q($amtCol) . ')), 3) AS AMOUNT
+                   FROM ' . $fromVod . $joinCus . $glJoin . '
+                   WHERE ' . implode("\n                     AND ", $whereInv) . '
+                   GROUP BY ' . $repInvExpr . ',
+                            ' . $compExpr . ',
+                            v.' . oracle_stmt_q($numCol) . ',
+                            ' . $nameInv . ',
+                            TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
+    try {
+        $raw = array_merge($raw, oracle_query_all($conn, $sqlCashInv, $bindsInv));
+        $usedMode[] = 'cash_invoice_24985_style';
+    } catch (Throwable $e) {
+        // مع جهة دائنة فقط
         try {
-            $raw = array_merge($raw, oracle_query_all($conn, $sqlCashInv, $bindsTry));
-            $usedMode[] = 'cash_invoice_sales_' . $attemptIdx;
-            $invOk = true;
-            break;
-        } catch (Throwable $e) {
-            $usedMode[] = 'cash_invoice_try' . $attemptIdx . ':' . $e->getMessage();
+            $sqlCashInv2 = $sqlCashInv;
+            if ($sideCol !== null) {
+                $sqlCashInv2 = str_replace(
+                    'WHERE ',
+                    'WHERE v.' . oracle_stmt_q($sideCol) . ' = ' . (int) $cfg['credit_side'] . "\n                   AND ",
+                    $sqlCashInv2
+                );
+            }
+            $sqlCashInv2 = str_replace('CAST(NULL AS VARCHAR2(40))', 'NULL', $sqlCashInv2);
+            $sqlCashInv2 = str_replace('CAST(NULL AS DATE)', 'NULL', $sqlCashInv2);
+            $raw = array_merge($raw, oracle_query_all($conn, $sqlCashInv2, $bindsInv));
+            $usedMode[] = 'cash_invoice_side2:' . $e->getMessage();
+        } catch (Throwable $e2) {
+            $usedMode[] = 'cash_invoice_fail:' . $e2->getMessage();
         }
     }
-    if (!$invOk) {
-        $usedMode[] = 'cash_invoice_fail';
+
+    // احتياطي مباشر للسندات النقدية المسجّلة على رقم الحساب = رقم المندوب (حساب 3…)
+    if ($rf !== null && $rf === ($rt ?? $rf)) {
+        $bindsAcc = ['df' => $dateFrom, 'dt' => $dateTo, 'acc' => (string) $rf, 'rep' => $rf];
+        if ($minVod > 0) {
+            $bindsAcc['min_vod'] = $minVod;
+        }
+        $sqlAcc = 'SELECT :rep AS REP_NO,
+                          ' . $compExpr . ' AS COMP_NUM,
+                          v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
+                          \'قبض نقدي\' AS RCV_TYPE,
+                          ' . $nameInv . ' AS CUSTOMER_NAME,
+                          TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
+                          TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
+                          NULL AS CHQ_NUM,
+                          NULL AS CHQ_DUE,
+                          ROUND(SUM(ABS(v.' . oracle_stmt_q($amtCol) . ')), 3) AS AMOUNT
+                   FROM ' . $fromVod . $glJoin . '
+                   WHERE v.' . oracle_stmt_q($dateCol) . " >= TO_DATE(:df, 'YYYY-MM-DD')
+                     AND v." . oracle_stmt_q($dateCol) . " < TO_DATE(:dt, 'YYYY-MM-DD') + 1
+                     AND TRIM(TO_CHAR(v." . oracle_stmt_q($accCol) . ')) = TRIM(:acc)
+                     AND ABS(v.' . oracle_stmt_q($amtCol) . ') > 0'
+            . ($minVod > 0 ? ' AND v.' . oracle_stmt_q($numCol) . ' >= :min_vod' : '')
+            . ' GROUP BY ' . $compExpr . ', v.' . oracle_stmt_q($numCol) . ', ' . $nameInv
+            . ', TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
+        try {
+            $raw = array_merge($raw, oracle_query_all($conn, $sqlAcc, $bindsAcc));
+            $usedMode[] = 'cash_invoice_acc_eq_rep';
+        } catch (Throwable $e) {
+            $usedMode[] = 'cash_invoice_acc_fail:' . $e->getMessage();
+        }
     }
 
     // ─── قبض شيك: وجود صف في GLCHEQF = قبض شيك (تاريخ القبض في الفترة؛ الحق للعرض فقط) ───
