@@ -252,6 +252,16 @@ function oracle_fetch_rep_collections(
     $sideCol = oracle_rep_collections_pick_col($vodCols, ['VOD_SIDE', 'SIDE']);
     $flagCol = oracle_rep_collections_pick_col($vodCols, ['VOD_FLAG', 'DOC_FLAG', 'FLAG']);
     $compCol = oracle_rep_collections_pick_col($vodCols, ['VOD_COMP', 'COMP_NUM', 'COMPANY', 'VOD_COMPANY']);
+    // عميل مرتبط بالسند (حتى لو VOD_ACC = حساب مبيعات فواتير نقدية)
+    $vodCusCol = oracle_rep_collections_pick_col($vodCols, [
+        'VOD_CUS', 'VOD_CUS_NUM', 'CUS_NUM', 'VOD_CUSTOMER', 'CUST_ACC', 'VOD_CUST', 'BILL_CUS',
+    ]);
+    // لا تأخذ CUS_NUM إن كان هو نفس عمود الحساب
+    if ($vodCusCol !== null && strtoupper($vodCusCol) === strtoupper($accCol)) {
+        $vodCusCol = oracle_rep_collections_pick_col($vodCols, [
+            'VOD_CUS', 'VOD_CUS_NUM', 'VOD_CUSTOMER', 'CUST_ACC', 'VOD_CUST', 'BILL_CUS',
+        ]);
+    }
     $vodManCol = oracle_rep_collections_pick_col($vodCols, [
         'MAN_NUM', 'VOD_MAN', 'VOD_MAN_NUM', 'SAL_MAN', 'SALESMAN', 'EMP_NO', 'VOD_EMP', 'REP_NO',
     ]);
@@ -352,12 +362,13 @@ function oracle_fetch_rep_collections(
         $binds = array_merge($binds, $cfBinds);
         $whereCash[] = 'v.' . oracle_stmt_q($flagCol) . ' IN (' . implode(',', $cfList) . ')';
         $cashFlagMode = 'include_list';
-    } elseif ($flagCol !== null && $cfg['exclude_flags'] !== []) {
-        [$exList, $exBinds] = oracle_rep_collections_flag_binds($cfg['exclude_flags'], 'xf');
-        $binds = array_merge($binds, $exBinds);
-        $whereCash[] = '(v.' . oracle_stmt_q($flagCol) . ' IS NULL OR v.' . oracle_stmt_q($flagCol)
-            . ' NOT IN (' . implode(',', $exList) . '))';
-        $cashFlagMode = 'exclude_sales';
+    } elseif ($flagCol !== null) {
+        // استبعاد قيد عام/مرتجع فقط — العلم 14 يُسمح به إن وُجد عميل للمندوب (مبيعات نقدية)
+        $whereCash[] = '(
+            v.' . oracle_stmt_q($flagCol) . ' IS NULL
+            OR v.' . oracle_stmt_q($flagCol) . ' NOT IN (12, 13)
+        )';
+        $cashFlagMode = 'exclude_12_13_allow_14';
     }
     if ($chqExistsSql !== '') {
         $whereCash[] = $chqExistsSql;
@@ -371,11 +382,19 @@ function oracle_fetch_rep_collections(
         $whereCash[] = $repExpr . ' > 0';
     }
 
+    // إن كان الوصف «مبيعات فواتير نقدية» نعرضه كما في Forms
+    $cashNameExpr = 'CASE
+        WHEN INSTR(NVL(TRIM(g.' . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'فواتير نقدية') > 0
+          OR INSTR(NVL(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'مبيعات فواتير') > 0
+        THEN NVL(NULLIF(TRIM(g." . oracle_stmt_q($cfg['gl_acc_desc']) . "), ''), 'مبيعات فواتير نقدية')
+        ELSE " . $nameExpr . '
+      END';
+
     $sqlCash = 'SELECT ' . $repExpr . ' AS REP_NO,
                        ' . $compExpr . ' AS COMP_NUM,
                        v.' . oracle_stmt_q($numCol) . ' AS RCV_NO,
                        \'قبض نقدي\' AS RCV_TYPE,
-                       ' . $nameExpr . ' AS CUSTOMER_NAME,
+                       ' . $cashNameExpr . ' AS CUSTOMER_NAME,
                        TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . ')) AS CUSTOMER_ACC,
                        TRUNC(MIN(v.' . oracle_stmt_q($dateCol) . ')) AS RCV_DATE,
                        CAST(NULL AS VARCHAR2(40)) AS CHQ_NUM,
@@ -386,7 +405,7 @@ function oracle_fetch_rep_collections(
                 GROUP BY ' . $repExpr . ',
                          ' . $compExpr . ',
                          v.' . oracle_stmt_q($numCol) . ',
-                         ' . $nameExpr . ',
+                         ' . $cashNameExpr . ',
                          TRIM(TO_CHAR(v.' . oracle_stmt_q($accCol) . '))';
     try {
         $raw = array_merge($raw, oracle_query_all($conn, $sqlCash, $binds));
@@ -471,10 +490,19 @@ function oracle_fetch_rep_collections(
     $masterQ = oracle_stmt_q($dailyOwner) . '.' . oracle_stmt_q($headerTable);
 
     // مندوب الفاتورة النقدية فقط (ليس كل فواتير الشركة):
-    // 1) مندوب عميل السطر
-    // 2) مندوب أي عميل على نفس رقم السند
-    // 3) MAS.DAILY.MAN_NUM لنفس V_NUM
-    // 4) MAS.MASTER_D.MAN_NUM لنفس V_NUM
+    // 1) مندوب عميل السطر (VOD_ACC)
+    // 2) مندوب عميل السند (VOD_CUS إن وُجد)
+    // 3) مندوب أي عميل على نفس رقم السند
+    // 4) MAS.DAILY / MASTER_D
+    $repFromVodCus = '0';
+    if ($vodCusCol !== null && $cusManCol !== null) {
+        $repFromVodCus = 'NVL((
+            SELECT MAX(NVL(cy.' . oracle_stmt_q($cusManCol) . ', 0))
+              FROM ' . $fromCusTable . ' cy
+             WHERE TRIM(TO_CHAR(cy.' . oracle_stmt_q($cusNumCol) . ')) = TRIM(TO_CHAR(v.' . oracle_stmt_q($vodCusCol) . '))
+               AND NVL(cy.' . oracle_stmt_q($cusManCol) . ', 0) > 0
+        ), 0)';
+    }
     $repFromSameVod = '0';
     if ($cusManCol !== null) {
         $repFromSameVod = 'NVL((
@@ -497,8 +525,11 @@ function oracle_fetch_rep_collections(
            AND NVL(m.MAN_NUM, 0) > 0
     ), 0)';
 
-    $buildRepInv = static function (string $extraRepSql) use ($repExpr, $repFromSameVod, $repFromDaily): string {
-        $inner = 'NVL(NULLIF(' . $repExpr . ', 0), NVL(NULLIF(' . $repFromSameVod . ', 0), NULLIF(' . $repFromDaily . ', 0)))';
+    $buildRepInv = static function (string $extraRepSql) use ($repExpr, $repFromVodCus, $repFromSameVod, $repFromDaily): string {
+        $inner = 'NVL(NULLIF(' . $repExpr . ', 0),'
+            . ' NVL(NULLIF(' . $repFromVodCus . ', 0),'
+            . ' NVL(NULLIF(' . $repFromSameVod . ', 0),'
+            . ' NULLIF(' . $repFromDaily . ', 0))))';
         if ($extraRepSql !== '') {
             return 'NVL(NULLIF(' . $inner . ', 0), NULLIF(' . $extraRepSql . ', 0))';
         }
