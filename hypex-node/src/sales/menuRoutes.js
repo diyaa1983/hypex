@@ -3736,10 +3736,10 @@ const oracleRepItemsHandler = async (req, res) => {
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
-      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block is-collapsed" data-ora-rep-key="${esc(repKey)}">
+      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
           <div class="ora-rep-line">
-            <button type="button" class="ora-rep-toggle no-print" aria-expanded="false" title="فتح أو إغلاق عملاء المندوب">
+            <button type="button" class="ora-rep-toggle no-print" aria-expanded="true" title="فتح أو إغلاق عملاء المندوب">
               <span class="ora-rep-arrow" aria-hidden="true"></span>
             </button>
             <label class="ora-rep-pick-lab no-print" title="تحديد كل عملاء هذا المندوب">
@@ -6388,6 +6388,20 @@ const oracleRepItemsHandler = async (req, res) => {
             var open = blockTog.classList.contains('is-collapsed');
             blockTog.classList.toggle('is-collapsed', !open);
             togBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            var hint = blockTog.querySelector('.ora-rep-cust-hint');
+            if (hint) {
+              if (blockTog.classList.contains('ora-lines-block')) {
+                hint.textContent = open
+                  ? 'تفصيلي ظاهر — اضغط السهم للإغلاق'
+                  : (hint.textContent.indexOf('فواتير') >= 0
+                      ? 'فواتير مطوية — اضغط السهم للفتح'
+                      : 'تفصيلي مطوي — اضغط السهم للفتح');
+              } else {
+                hint.textContent = open
+                  ? 'عملاء ظاهرون — اضغط السهم للإغلاق'
+                  : 'عملاء مطويون — اضغط السهم للفتح';
+              }
+            }
           }
           return;
         }
