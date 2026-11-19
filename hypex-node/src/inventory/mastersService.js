@@ -110,6 +110,7 @@ async function ensureItemCardColumns() {
     ['tax_rate_id', 'INT UNSIGNED NULL DEFAULT NULL'],
     ['expiry_date', 'DATE NULL DEFAULT NULL'],
     ['notify_on_expiry', 'TINYINT(1) NOT NULL DEFAULT 0'],
+    ['size_id', 'INT UNSIGNED NULL DEFAULT NULL'],
   ];
   for (const [col, def] of alters) {
     if (!(await tableHasColumn('inv_item', col))) {
@@ -119,6 +120,78 @@ async function ensureItemCardColumns() {
         console.error('ensureItemCardColumns', col, e.message);
       }
     }
+  }
+  await ensureItemSizeSchema();
+}
+
+/** جدول أحجام المادة التعريفية + شاشة الصلاحيات */
+async function ensureItemSizeSchema() {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS inv_item_size (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+        code VARCHAR(40) NULL DEFAULT NULL,
+        name_ar VARCHAR(120) NOT NULL,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        sort_order INT NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_inv_item_size_code (code),
+        KEY idx_inv_item_size_active (is_active, sort_order, name_ar)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+  } catch (e) {
+    console.error('ensureItemSizeSchema', e.message || e);
+  }
+  if (!(await tableHasColumn('inv_item', 'size_id'))) {
+    try {
+      await db.query(
+        `ALTER TABLE inv_item ADD COLUMN size_id INT UNSIGNED NULL DEFAULT NULL, ADD KEY idx_inv_item_size (size_id)`
+      );
+    } catch (e) {
+      console.error('ensureItemSizeSchema size_id', e.message || e);
+    }
+  }
+  try {
+    const code = 'item_sizes';
+    const nameAr = 'حجم المادة';
+    let rows = await safeQuery(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+    let screenId = Number(rows[0]?.id || 0);
+    if (!screenId) {
+      const maxRows = await safeQuery(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
+      const nextOrder = Math.max(Number(maxRows[0]?.m || 0) + 1, 146);
+      await safeQuery(
+        `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'screen', ?)`,
+        [code, nameAr, nextOrder]
+      );
+      rows = await safeQuery(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
+      screenId = Number(rows[0]?.id || 0);
+    } else {
+      await safeQuery(`UPDATE sys_screen SET name_ar = ? WHERE id = ?`, [nameAr, screenId]);
+    }
+    if (screenId) {
+      await safeQuery(
+        `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+         SELECT gp.group_id, ?, 1
+         FROM sys_screen s_old
+         INNER JOIN sys_group_permission gp ON gp.screen_id = s_old.id AND gp.allowed = 1
+         WHERE s_old.code IN ('items', 'item_categories', 'item_units')`,
+        [screenId]
+      );
+      await safeQuery(
+        `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+         SELECT g.id, ?, 1 FROM sys_group g WHERE g.code IN ('ADMINS', 'administrators', 'admin')`,
+        [screenId]
+      );
+      await safeQuery(
+        `INSERT IGNORE INTO sys_group_permission (group_id, screen_id, allowed)
+         SELECT 1, ?, 1 FROM DUAL`,
+        [screenId]
+      );
+    }
+  } catch (e) {
+    console.error('ensureItemSizeSchema screen', e.message || e);
   }
 }
 
@@ -322,7 +395,16 @@ async function itemLookups() {
   } catch {
     taxRates = [];
   }
-  return { categories, units, warehouses, taxRates };
+  let sizes = [];
+  try {
+    await ensureItemSizeSchema();
+    sizes = await safeQuery(
+      `SELECT id, code, name_ar FROM inv_item_size WHERE is_active = 1 ORDER BY sort_order, name_ar LIMIT 300`
+    );
+  } catch {
+    sizes = [];
+  }
+  return { categories, units, warehouses, taxRates, sizes };
 }
 
 async function nextBarcode() {
@@ -486,6 +568,7 @@ async function saveItem(payload) {
   const name = String(payload.name_ar || '').trim();
   const nameEn = String(payload.name_en || '').trim();
   const categoryId = Number(payload.category_id || 0) || null;
+  const sizeId = Number(payload.size_id || 0) || null;
   let unitId = Number(payload.unit_id || 0) || null;
   const warehouseId = Number(payload.default_warehouse_id || 0) || null;
   const taxRateId = Number(payload.tax_rate_id || 0) || null;
@@ -521,6 +604,7 @@ async function saveItem(payload) {
 
   const hasBarcode = await tableHasColumn('inv_item', 'barcode');
   const hasCategory = await tableHasColumn('inv_item', 'category_id');
+  const hasSize = await tableHasColumn('inv_item', 'size_id');
   const hasUnitId = await tableHasColumn('inv_item', 'unit_id');
   const hasWh = await tableHasColumn('inv_item', 'default_warehouse_id');
   const hasNameEn = await tableHasColumn('inv_item', 'name_en');
@@ -623,6 +707,10 @@ async function saveItem(payload) {
       sets.push('category_id=?');
       params.push(categoryId);
     }
+    if (hasSize) {
+      sets.push('size_id=?');
+      params.push(sizeId);
+    }
     if (hasUnitId && !unitsLocked) {
       sets.push('unit_id=?');
       params.push(unitId);
@@ -669,6 +757,10 @@ async function saveItem(payload) {
   if (hasCategory) {
     cols.push('category_id');
     vals.push(categoryId);
+  }
+  if (hasSize) {
+    cols.push('size_id');
+    vals.push(sizeId);
   }
   if (hasUnitId) {
     cols.push('unit_id');
@@ -938,6 +1030,96 @@ async function deleteCategory(id) {
   return { ok: true, message: 'تم حذف الفئة.' };
 }
 
+
+/* ── Item sizes (تعريفية — ليست وحدة) ── */
+async function nextSizeCode() {
+  const codes = await safeQuery(`SELECT code FROM inv_item_size`);
+  let max = 0;
+  for (const row of codes) {
+    const c = String(row.code || '').trim();
+    if (/^\d+$/.test(c)) max = Math.max(max, Number(c));
+  }
+  const m = await safeQuery(`SELECT IFNULL(MAX(id), 0) AS m FROM inv_item_size`);
+  return String(Math.max(max, Number(m[0]?.m || 0)) + 1);
+}
+
+async function listSizes({ q = '' } = {}) {
+  await ensureItemSizeSchema();
+  const params = [];
+  let where = '1=1';
+  if (q) {
+    where += ` AND (s.name_ar LIKE ? OR IFNULL(s.code,'') LIKE ?)`;
+    params.push(`%${q}%`, `%${q}%`);
+  }
+  return safeQuery(
+    `SELECT s.id, s.code, s.name_ar, s.is_active, s.sort_order,
+            (SELECT COUNT(*) FROM inv_item i WHERE i.size_id = s.id) AS item_count
+     FROM inv_item_size s
+     WHERE ${where}
+     ORDER BY s.sort_order, s.name_ar LIMIT 300`,
+    params
+  );
+}
+
+async function getSize(id) {
+  await ensureItemSizeSchema();
+  const rows = await safeQuery(`SELECT * FROM inv_item_size WHERE id = ? LIMIT 1`, [Number(id)]);
+  return rows[0] || null;
+}
+
+async function saveSize(payload) {
+  await ensureItemSizeSchema();
+  const id = Number(payload.id || 0);
+  let code = String(payload.code || '').trim();
+  const name = String(payload.name_ar || '').trim();
+  const sortOrder = Number(payload.sort_order || 0) || 0;
+  if (!name) return { ok: false, error: 'اسم الحجم مطلوب.' };
+
+  if (id > 0) {
+    if (code) {
+      const dup = await safeQuery(`SELECT id FROM inv_item_size WHERE code = ? AND id <> ? LIMIT 1`, [code, id]);
+      if (dup[0]) return { ok: false, error: 'رمز الحجم مستخدم مسبقاً.' };
+      await safeQuery(
+        `UPDATE inv_item_size SET code = ?, name_ar = ?, sort_order = ? WHERE id = ?`,
+        [code, name, sortOrder, id]
+      );
+    } else {
+      await safeQuery(`UPDATE inv_item_size SET name_ar = ?, sort_order = ? WHERE id = ?`, [name, sortOrder, id]);
+    }
+    return { ok: true, id, message: 'تم تحديث الحجم.' };
+  }
+
+  if (!code) code = await nextSizeCode();
+  const dup = await safeQuery(`SELECT id FROM inv_item_size WHERE code = ? LIMIT 1`, [code]);
+  if (dup[0]) code = await nextSizeCode();
+  const [result] = await db.getPool().execute(
+    `INSERT INTO inv_item_size (code, name_ar, is_active, sort_order) VALUES (?,?,1,?)`,
+    [code, name, sortOrder]
+  );
+  return { ok: true, id: Number(result.insertId), message: `تم إضافة الحجم. الرمز: ${code}` };
+}
+
+async function toggleSize(id) {
+  const sizeId = Number(id);
+  if (!sizeId) return { ok: false, error: 'معرّف غير صالح.' };
+  await safeQuery(`UPDATE inv_item_size SET is_active = 1 - is_active WHERE id = ?`, [sizeId]);
+  return { ok: true, message: 'تم تحديث حالة الحجم.' };
+}
+
+async function deleteSize(id) {
+  const sizeId = Number(id);
+  if (!sizeId) return { ok: false, error: 'معرّف غير صالح.' };
+  const row = await getSize(sizeId);
+  if (!row) return { ok: false, error: 'الحجم غير موجود.' };
+  try {
+    await safeQuery(`UPDATE inv_item SET size_id = NULL WHERE size_id = ?`, [sizeId]);
+  } catch {
+    /* */
+  }
+  await safeQuery(`DELETE FROM inv_item_size WHERE id = ?`, [sizeId]);
+  return { ok: true, message: 'تم حذف الحجم.' };
+}
+
 /* ── Movement types ── */
 function checkboxOn(v) {
   return v === true || v === 1 || v === '1' || v === 'on';
@@ -1058,6 +1240,13 @@ module.exports = {
   toggleCategory,
   deleteCategory,
   nextCategoryCode,
+  ensureItemSizeSchema,
+  listSizes,
+  getSize,
+  saveSize,
+  toggleSize,
+  deleteSize,
+  nextSizeCode,
   listMovementTypes,
   getMovementType,
   saveMovementType,

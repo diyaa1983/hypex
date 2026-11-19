@@ -17,7 +17,7 @@ module.exports = createDomainRouter({
   hubSubtitle: 'المواد والمستودعات والحركات والجرد بتصميم 2027 — إدارة أصلية على Node.',
   catalog: inventoryCatalog,
   listHandlers: {
-    // warehouses + items + categories + units + movement-types: mastersRoutes
+    // warehouses + items + categories + sizes + units + movement-types: mastersRoutes
     '/inventory/moves': async (req, { ui }) => {
       const qv = String(req.query.q || '');
       const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));

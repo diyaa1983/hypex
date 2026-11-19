@@ -44,6 +44,9 @@ function canMoveTypes(user) {
 function canCategories(user) {
   return user.is_admin || auth.userCan(user, 'item_categories') || auth.userCan(user, 'items');
 }
+function canSizes(user) {
+  return user.is_admin || auth.userCan(user, 'item_sizes') || auth.userCan(user, 'items');
+}
 
 router.use((req, res, next) => {
   const p = req.path || '';
@@ -52,6 +55,7 @@ router.use((req, res, next) => {
     !p.startsWith('/inventory/items') &&
     !p.startsWith('/inventory/units') &&
     !p.startsWith('/inventory/categories') &&
+    !p.startsWith('/inventory/sizes') &&
     !p.startsWith('/inventory/movement-types') &&
     !p.startsWith('/api/inventory/')
   ) {
@@ -291,6 +295,7 @@ router.get('/inventory/items', async (req, res) => {
             { label: 'بطاقة المادة', href: '/inventory/items', primary: true },
             { label: '＋ مادة جديدة', href: '/inventory/items/new' },
             { label: 'الفئات', href: '/inventory/categories' },
+            { label: 'أحجام المادة', href: '/inventory/sizes' },
             { label: 'الوحدات', href: '/inventory/units' },
             { label: 'لوحة المستودعات', href: HUB },
           ],
@@ -380,6 +385,15 @@ async function itemForm(req, res, id) {
       .map(
         (c) =>
           `<option value="${c.id}"${Number(item?.category_id) === Number(c.id) ? ' selected' : ''}>${esc(c.name_ar)}</option>`
+      )
+      .join('');
+
+  const sizeOpts =
+    `<option value="">— بدون حجم —</option>` +
+    (lookups.sizes || [])
+      .map(
+        (s) =>
+          `<option value="${s.id}"${Number(item?.size_id) === Number(s.id) ? ' selected' : ''}>${esc(s.name_ar)}</option>`
       )
       .join('');
 
@@ -510,6 +524,7 @@ async function itemForm(req, res, id) {
         </div>
         <div class="si-tb-group">
           <a class="si-tb" href="/inventory/categories"><span class="si-tb-lbl">الفئات</span></a>
+          <a class="si-tb" href="/inventory/sizes"><span class="si-tb-lbl">الأحجام</span></a>
           <a class="si-tb" href="/inventory/units"><span class="si-tb-lbl">الوحدات</span></a>
           <a class="si-tb si-tb--ghost" href="/inventory/items?view=list"><span class="si-tb-lbl">القائمة</span></a>
           <form method="post" action="/inventory/items/${item ? item.id : 0}/delete" style="display:inline"
@@ -568,6 +583,10 @@ async function itemForm(req, res, id) {
               <div class="ic-row">
                 <span class="ic-lab">الاسم الرئيسي *</span>
                 <input class="si-field" name="name_ar" required value="${esc(item?.name_ar || '')}" autocomplete="off">
+              </div>
+              <div class="ic-row">
+                <span class="ic-lab">حجم المادة</span>
+                <select class="si-field" name="size_id">${sizeOpts}</select>
               </div>
               <div class="ic-row">
                 <span class="ic-lab">الاسم الثانوي</span>
@@ -1130,6 +1149,142 @@ router.post('/inventory/categories/:id/delete', async (req, res) => {
   const result = await svc.deleteCategory(req.params.id);
   const key = result.ok ? 'msg' : 'err';
   res.redirect('/inventory/categories?' + key + '=' + encodeURIComponent(result.message || result.error || ''));
+});
+
+
+/* ═══════════ Item sizes ═══════════ */
+router.get('/inventory/sizes', async (req, res) => {
+  try {
+    if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
+    await svc.ensureItemSizeSchema();
+    const qv = String(req.query.q || '');
+    const flash = String(req.query.msg || '');
+    const err = String(req.query.err || '');
+    const rows = await svc.listSizes({ q: qv });
+    const rowsHtml =
+      rows
+        .map(
+          (r) => `<tr>
+        <td class="si-num" dir="ltr">${esc(r.code || '')}</td>
+        <td>${esc(r.name_ar || '')}</td>
+        <td class="si-num" dir="ltr">${Number(r.item_count || 0)}</td>
+        <td>${ui.statusPill(Number(r.is_active) === 1 ? 'ok' : 'lock', Number(r.is_active) === 1 ? 'نشط' : 'موقوف')}</td>
+        <td>
+          <div class="si-act">
+            <a class="si-btn" href="/inventory/sizes/${r.id}">تعديل</a>
+            <form method="post" action="/inventory/sizes/${r.id}/toggle" style="display:inline">
+              <button type="submit" class="si-btn">${Number(r.is_active) === 1 ? 'إيقاف' : 'تفعيل'}</button>
+            </form>
+            <form method="post" action="/inventory/sizes/${r.id}/delete" style="display:inline" onsubmit="return confirm('حذف هذا الحجم؟');">
+              <button type="submit" class="si-btn" style="color:#b42318">حذف</button>
+            </form>
+          </div>
+        </td>
+      </tr>`
+        )
+        .join('') || ui.emptyRow(5);
+
+    const body = `
+      <div class="si-stage">
+        ${ui.hero({
+          mark: 'Sz',
+          kicker: KICKER,
+          title: 'حجم المادة',
+          subtitle: 'قائمة تعريفية لأحجام المواد — تظهر في بطاقة المادة تحت الاسم (ليست وحدة قياس)',
+          actions: [
+            { label: '＋ حجم جديد', href: '/inventory/sizes/new', primary: true },
+            { label: 'المواد', href: '/inventory/items' },
+            { label: 'لوحة المستودعات', href: HUB },
+          ],
+        })}
+        ${flash ? alertHtml('ok', flash) : ''}
+        ${err ? alertHtml('err', err) : ''}
+        ${ui.railSearch('/inventory/sizes', qv)}
+        ${ui.tableSurface('أحجام المواد', `${rows.length} صف`, ['الرمز', 'الاسم', 'مواد', 'الحالة', 'إجراءات'], rowsHtml)}
+      </div>`;
+    res.send(page(req.session.user, 'حجم المادة', body));
+  } catch (e) {
+    console.error(e);
+    res.status(500).send(String(e.message || e));
+  }
+});
+
+async function sizeForm(req, res, id) {
+  if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
+  await svc.ensureItemSizeSchema();
+  const row = id ? await svc.getSize(id) : null;
+  if (id && !row) return res.status(404).send('غير موجود');
+  const isNew = !row;
+  const err = String(req.query.err || '');
+  const nextCode = isNew ? await svc.nextSizeCode() : '';
+
+  const body = `
+    <div class="si-stage">
+      ${ui.hero({
+        mark: 'Sz',
+        kicker: KICKER,
+        title: isNew ? 'إضافة حجم مادة' : 'تعديل حجم مادة',
+        subtitle: isNew ? `الرمز التالي المقترح: ${esc(nextCode)}` : 'تعديل اسم ورمز الحجم',
+        actions: [{ label: 'رجوع للقائمة', href: '/inventory/sizes' }],
+      })}
+      ${err ? alertHtml('err', err) : ''}
+      <section class="si-surface">
+        <div class="si-surface-head"><h2>${isNew ? 'حجم جديد' : 'تعديل'}</h2></div>
+        <form method="post" action="${isNew ? '/inventory/sizes/new' : '/inventory/sizes/' + id}" class="si-meta" style="padding:1rem 1.1rem 1.25rem">
+          <input type="hidden" name="id" value="${row ? row.id : 0}">
+          <label>الرمز <span style="font-weight:500;color:#5c6578">${isNew ? '(فارغ = تلقائي)' : ''}</span>
+            <input class="si-field si-field--mono" name="code" value="${esc(row?.code || '')}" dir="ltr" placeholder="${esc(nextCode || '')}" autocomplete="off">
+          </label>
+          <label class="si-span-2">اسم الحجم *
+            <input class="si-field" name="name_ar" required value="${esc(row?.name_ar || '')}" placeholder="مثال: كبير / وسط / صغير" autocomplete="off">
+          </label>
+          <label>الترتيب
+            <input class="si-field si-field--mono" name="sort_order" type="number" step="1" value="${esc(String(row?.sort_order ?? 0))}" dir="ltr">
+          </label>
+          <div class="si-span-2" style="display:flex;gap:.5rem;margin-top:.35rem">
+            <button class="si-btn si-btn--primary" type="submit">حفظ</button>
+            <a class="si-btn" href="/inventory/sizes">إلغاء</a>
+          </div>
+        </form>
+      </section>
+    </div>`;
+  res.send(page(req.session.user, isNew ? 'إضافة حجم' : 'تعديل حجم', body));
+}
+
+router.get('/inventory/sizes/new', (req, res) => sizeForm(req, res, 0));
+router.get('/inventory/sizes/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.redirect('/inventory/sizes');
+  return sizeForm(req, res, id);
+});
+
+router.post('/inventory/sizes/new', async (req, res) => {
+  if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
+  const result = await svc.saveSize(req.body || {});
+  if (!result.ok) return res.redirect('/inventory/sizes/new?err=' + encodeURIComponent(result.error));
+  res.redirect('/inventory/sizes?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
+});
+
+router.post('/inventory/sizes/:id', async (req, res) => {
+  if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
+  const id = Number(req.params.id);
+  if (!id) return res.redirect('/inventory/sizes');
+  const result = await svc.saveSize({ ...(req.body || {}), id });
+  if (!result.ok) return res.redirect('/inventory/sizes/' + id + '?err=' + encodeURIComponent(result.error));
+  res.redirect('/inventory/sizes?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
+});
+
+router.post('/inventory/sizes/:id/toggle', async (req, res) => {
+  if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
+  const result = await svc.toggleSize(req.params.id);
+  res.redirect('/inventory/sizes?msg=' + encodeURIComponent(result.message || result.error || ''));
+});
+
+router.post('/inventory/sizes/:id/delete', async (req, res) => {
+  if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
+  const result = await svc.deleteSize(req.params.id);
+  const key = result.ok ? 'msg' : 'err';
+  res.redirect('/inventory/sizes?' + key + '=' + encodeURIComponent(result.message || result.error || ''));
 });
 
 /* ═══════════ Movement types ═══════════ */
