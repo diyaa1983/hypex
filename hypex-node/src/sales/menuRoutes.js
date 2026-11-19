@@ -2209,6 +2209,7 @@ const oracleRepItemsHandler = async (req, res) => {
   const oracleRepNos = asList(params.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
   const customerIds = asList(params.customer_id).map((id) => Number(id)).filter((id) => id > 0);
   const categoryIds = asList(params.category_id);
+  const sizeIds = asList(params.size_id);
   const reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
   const reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
   const oraMode = String(params.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex';
@@ -2220,6 +2221,7 @@ const oracleRepItemsHandler = async (req, res) => {
     oracleRepNos.length > 0 ||
     customerIds.length > 0 ||
     categoryIds.length > 0 ||
+    sizeIds.length > 0 ||
     reportYears.length > 0 ||
     reportMonths.length > 0;
   const uid = Number(req.session.user?.id || 0) || 0;
@@ -2333,6 +2335,22 @@ const oracleRepItemsHandler = async (req, res) => {
       }
     }
   }
+  let sizes = [];
+  try {
+    try {
+      const mastersSvc = require('../inventory/mastersService');
+      if (mastersSvc.ensureItemSizeSchema) await mastersSvc.ensureItemSizeSchema();
+    } catch (eSz0) { /* optional */ }
+    sizes = await db.query(
+      `SELECT id, name_ar FROM inv_item_size WHERE is_active = 1 ORDER BY sort_order, name_ar`
+    );
+  } catch (eSz) {
+    try {
+      sizes = await db.query(`SELECT id, name_ar FROM inv_item_size ORDER BY name_ar`);
+    } catch (eSz2) {
+      sizes = [];
+    }
+  }
   const custAccOf = (picked) => {
     const raw = String(picked?.oracle_key || '').trim() || String(picked?.code || '').trim();
     return String(raw).replace(/\D+/g, '').replace(/^0+/, '');
@@ -2365,6 +2383,16 @@ const oracleRepItemsHandler = async (req, res) => {
     const row = (categories || []).find((c) => String(c.id) === id);
     const name = String(row?.name_ar || '').trim();
     if (name) catNames.push(name);
+  });
+  const sizeNames = [];
+  sizeIds.forEach((id) => {
+    if (id === 'none') {
+      sizeNames.push('بدون حجم');
+      return;
+    }
+    const row = (sizes || []).find((s) => String(s.id) === id);
+    const name = String(row?.name_ar || '').trim();
+    if (name) sizeNames.push(name);
   });
 
   const period = (() => {
@@ -2455,14 +2483,28 @@ const oracleRepItemsHandler = async (req, res) => {
           const ph = chunk.map(() => '?').join(',');
           const params = [...chunk, ...chunk, ...chunk];
           try {
-            const part = await db.query(
-              `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key,
-                      NULLIF(TRIM(c.name_ar), '') AS cat_name
-               FROM inv_item i
-               LEFT JOIN inv_item_category c ON c.id = i.category_id
-               WHERE i.sku IN (${ph}) OR i.barcode IN (${ph}) OR IFNULL(i.oracle_key, '') IN (${ph})`,
-              params
-            );
+            let part = [];
+            try {
+              part = await db.query(
+                `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key,
+                        NULLIF(TRIM(c.name_ar), '') AS cat_name,
+                        NULLIF(TRIM(sz.name_ar), '') AS size_name
+                 FROM inv_item i
+                 LEFT JOIN inv_item_category c ON c.id = i.category_id
+                 LEFT JOIN inv_item_size sz ON sz.id = i.size_id
+                 WHERE i.sku IN (${ph}) OR i.barcode IN (${ph}) OR IFNULL(i.oracle_key, '') IN (${ph})`,
+                params
+              );
+            } catch (eSzJoin) {
+              part = await db.query(
+                `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key,
+                        NULLIF(TRIM(c.name_ar), '') AS cat_name
+                 FROM inv_item i
+                 LEFT JOIN inv_item_category c ON c.id = i.category_id
+                 WHERE i.sku IN (${ph}) OR i.barcode IN (${ph}) OR IFNULL(i.oracle_key, '') IN (${ph})`,
+                params
+              );
+            }
             items = items.concat(part || []);
           } catch (eChunk) {
             /* جرّب التحميل الكامل لاحقاً */
@@ -2470,11 +2512,21 @@ const oracleRepItemsHandler = async (req, res) => {
         }
       }
       if (!items.length) {
-        items = await db.query(
-          `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name
-           FROM inv_item i
-           LEFT JOIN inv_item_category c ON c.id = i.category_id`
-        );
+        try {
+          items = await db.query(
+            `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name,
+                    NULLIF(TRIM(sz.name_ar), '') AS size_name
+             FROM inv_item i
+             LEFT JOIN inv_item_category c ON c.id = i.category_id
+             LEFT JOIN inv_item_size sz ON sz.id = i.size_id`
+          );
+        } catch (eSzFull) {
+          items = await db.query(
+            `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name
+             FROM inv_item i
+             LEFT JOIN inv_item_category c ON c.id = i.category_id`
+          );
+        }
       }
     } catch (e) {
       localCatByKey = new Map();
@@ -2482,26 +2534,47 @@ const oracleRepItemsHandler = async (req, res) => {
     }
     const put = (map, key, pack) => {
       const k = String(key || '').trim();
-      if (!k || !pack || !pack.cat) return;
-      if (!map.has(k)) map.set(k, pack);
+      if (!k || !pack || (!pack.cat && !pack.size)) return;
+      const prev = map.get(k);
+      if (!prev) map.set(k, pack);
+      else {
+        map.set(k, {
+          cat: prev.cat || pack.cat,
+          size: prev.size || pack.size,
+          barcode: prev.barcode || pack.barcode,
+          sku: prev.sku || pack.sku,
+        });
+      }
       const digits = k.replace(/\D+/g, '');
       const norm = digits.replace(/^0+/, '') || digits;
-      if (norm && !map.has(norm)) map.set(norm, pack);
+      if (norm && norm !== k) {
+        const prevN = map.get(norm);
+        if (!prevN) map.set(norm, pack);
+        else {
+          map.set(norm, {
+            cat: prevN.cat || pack.cat,
+            size: prevN.size || pack.size,
+            barcode: prevN.barcode || pack.barcode,
+            sku: prevN.sku || pack.sku,
+          });
+        }
+      }
     };
     const byKey = new Map();
     for (const it of items || []) {
       const barcode = String(it.barcode || '').trim();
       const sku = String(it.sku || '').trim();
       let cat = String(it.cat_name || '').trim();
+      const size = String(it.size_name || '').trim();
       if (!excelCats.isExcelCategory(cat)) {
         const fromXl = excelCats.lookupExcelCategory(barcode, sku, it.oracle_key);
         if (fromXl) cat = fromXl;
       }
       if (!cat) {
-        cat = excelCats.lookupExcelCategory(barcode, sku, it.oracle_key);
+        cat = excelCats.lookupExcelCategory(barcode, sku, it.oracle_key) || '';
       }
-      if (!cat) continue;
-      const pack = { cat, barcode, sku };
+      if (!cat && !size) continue;
+      const pack = { cat, size, barcode, sku };
       put(byKey, it.oracle_key, pack);
       put(byKey, sku, pack);
       put(byKey, barcode, pack);
@@ -2545,7 +2618,8 @@ const oracleRepItemsHandler = async (req, res) => {
         !cur || cur === 'بدون فئة' || (excelCats.isExcelCategory(hit.cat) && !excelCats.isExcelCategory(cur));
       return {
         ...row,
-        cat_name: needCat ? hit.cat : cur,
+        cat_name: needCat ? hit.cat || cur : cur,
+        size_name: String(row.size_name || '').trim() || hit.size || '',
         item_barcode: String(row.item_barcode || '').trim() || hit.barcode || (/^\d{8,}$/.test(code) ? code : ''),
         item_sku: String(row.item_sku || '').trim() || hit.sku || '',
       };
@@ -2634,6 +2708,17 @@ const oracleRepItemsHandler = async (req, res) => {
         rows = rows.filter(keepCat);
         returnRows = returnRows.filter(keepCat);
         netRows = netRows.filter(keepCat);
+      }
+      if (sizeNames.length) {
+        const allowExactSz = new Set(sizeNames.map((n) => String(n).trim()).filter(Boolean));
+        const allowLowerSz = new Set([...allowExactSz].map((n) => n.toLowerCase()));
+        const keepSize = (r) => {
+          const sz = String(r.size_name || '').trim() || 'بدون حجم';
+          return allowExactSz.has(sz) || allowLowerSz.has(sz.toLowerCase());
+        };
+        rows = rows.filter(keepSize);
+        returnRows = returnRows.filter(keepSize);
+        netRows = netRows.filter(keepSize);
       }
       if (oracleRepNos.length > 1) {
         const allowReps = new Set(oracleRepNos.map(Number));
@@ -4110,6 +4195,15 @@ const oracleRepItemsHandler = async (req, res) => {
       }))
     )
   ).replace(/</g, '\\u003c');
+  const sizesJson = JSON.stringify(
+    [{ id: 'none', label: 'بدون حجم', code: '' }].concat(
+      (sizes || []).map((s) => ({
+        id: String(Number(s.id) || 0),
+        label: String(s.name_ar || ''),
+        code: '',
+      }))
+    )
+  ).replace(/</g, '\\u003c');
   const monthLabels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو', 'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر'];
   const yearsJson = JSON.stringify(
     Array.from({ length: 9 }, (_, i) => {
@@ -4124,6 +4218,7 @@ const oracleRepItemsHandler = async (req, res) => {
     reps: oracleRepNos.map(String),
     customers: customerIds.map(String),
     categories: categoryIds,
+    sizes: sizeIds,
     years: reportYears.map(String),
     months: reportMonths.map(String),
   }).replace(/</g, '\\u003c');
@@ -4185,6 +4280,19 @@ const oracleRepItemsHandler = async (req, res) => {
                 <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الفئات</button>
                 <div class="ora-multi-panel" data-ora-multi-panel hidden>
                   <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن فئة…" autocomplete="off">
+                  <div class="ora-multi-list" data-ora-multi-list></div>
+                </div>
+              </div>
+            </label>
+            <label>الحجم
+              <div class="ora-multi" id="ora-size-multi" data-ora-name="size_id" data-ora-empty="كل الأحجام">
+                <button type="button" class="si-field ora-multi-btn" data-ora-multi-btn>كل الأحجام</button>
+                <div class="ora-multi-panel" data-ora-multi-panel hidden>
+                  <div class="ora-multi-actions">
+                    <button type="button" data-ora-all>تحديد الكل</button>
+                    <button type="button" data-ora-none>كل الأحجام</button>
+                  </div>
+                  <input type="text" class="si-field ora-multi-q" data-ora-multi-q placeholder="بحث عن حجم…" autocomplete="off">
                   <div class="ora-multi-list" data-ora-multi-list></div>
                 </div>
               </div>
@@ -4334,8 +4442,8 @@ const oracleRepItemsHandler = async (req, res) => {
           min-width: 0;
         }
         #ora-rep-filter .ora-filter-cluster--who {
-          flex: 1 1 28rem;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          flex: 1 1 36rem;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
         }
         #ora-rep-filter .ora-filter-cluster--when {
           flex: 0 1 22rem;
@@ -5360,6 +5468,7 @@ const oracleRepItemsHandler = async (req, res) => {
       <script type="application/json" id="report-sales-reps-json">${repsPickerJson}</script>
       <script type="application/json" id="report-sales-customers-json">${customersJson}</script>
       <script type="application/json" id="report-sales-categories-json">${categoriesJson}</script>
+      <script type="application/json" id="report-sales-sizes-json">${sizesJson}</script>
       <script type="application/json" id="report-sales-years-json">${yearsJson}</script>
       <script type="application/json" id="report-sales-months-json">${monthsJson}</script>
       <script type="application/json" id="ora-filter-selected">${selectedJson}</script>
@@ -5517,22 +5626,25 @@ const oracleRepItemsHandler = async (req, res) => {
         return { setVisible: setVisible, selectedIds: selectedNow, allItems: function () { return allItems; } };
       }
       document.addEventListener('DOMContentLoaded', function () {
-        var selected = { reps: [], customers: [], categories: [], years: [], months: [] };
+        var selected = { reps: [], customers: [], categories: [], sizes: [], years: [], months: [] };
         var selEl = document.getElementById('ora-filter-selected');
         try { selected = JSON.parse(selEl && selEl.textContent || '{}'); } catch (e3) {}
         var repItems = [];
         var custItems = [];
         var catItems = [];
+        var sizeItems = [];
         var yearItems = [];
         var monthItems = [];
         try { repItems = JSON.parse(document.getElementById('report-sales-reps-json').textContent || '[]'); } catch (eR) {}
         try { custItems = JSON.parse(document.getElementById('report-sales-customers-json').textContent || '[]'); } catch (e4) {}
         try { catItems = JSON.parse(document.getElementById('report-sales-categories-json').textContent || '[]'); } catch (e5) {}
+        try { sizeItems = JSON.parse(document.getElementById('report-sales-sizes-json').textContent || '[]'); } catch (eSz) {}
         try { yearItems = JSON.parse(document.getElementById('report-sales-years-json').textContent || '[]'); } catch (e6) {}
         try { monthItems = JSON.parse(document.getElementById('report-sales-months-json').textContent || '[]'); } catch (e7) {}
         var repMulti = initOraMulti(document.getElementById('ora-rep-multi'), repItems, selected.reps || []);
         var custMulti = initOraMulti(document.getElementById('ora-cust-multi'), custItems, selected.customers || []);
         initOraMulti(document.getElementById('ora-cat-multi'), catItems, selected.categories || []);
+        initOraMulti(document.getElementById('ora-size-multi'), sizeItems, selected.sizes || []);
         initOraMulti(document.getElementById('ora-year-multi'), yearItems, selected.years || []);
         initOraMulti(document.getElementById('ora-month-multi'), monthItems, selected.months || []);
         var catRoot = document.getElementById('ora-cat-multi');
