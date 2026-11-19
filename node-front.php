@@ -341,6 +341,14 @@ if ($bufferRedirect && $respStatus >= 300 && $respStatus < 400) {
     }
     if (!headers_sent()) {
         http_response_code($respStatus);
+        // مهم: تمرير Set-Cookie عند نجاح تسجيل الدخول — وإلا تُفقد الجلسة ويُعاد /login بلا خطأ
+        foreach ($respHeaders as [$name, $value]) {
+            $ln = strtolower($name);
+            if ($ln === 'location' || $ln === 'content-type' || $ln === 'content-length') {
+                continue;
+            }
+            header($name . ': ' . $value, false);
+        }
         header('Location: ' . $location, true, $respStatus);
         header('Content-Type: text/html; charset=utf-8');
         header('Cache-Control: no-store');
