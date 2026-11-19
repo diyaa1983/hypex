@@ -2197,15 +2197,41 @@ router.get('/sales/reports/oracle-rep-net-sales', guard('report_oracle_rep_net_s
 const oracleRepItemsHandler = async (req, res) => {
   const BASE = '/sales/reports/oracle-rep-items';
   try {
-  // POST لتجنب 414 عند اختيار كثير من العملاء/المندوبين؛ GET لفتح الصفحة فقط
-  const params = req.method === 'POST'
-    ? { ...(req.query || {}), ...(req.body || {}) }
-    : (req.query || {});
-  const store = Number(params.store || 4) || 4;
   const asList = (value) => {
     const raw = Array.isArray(value) ? value : value != null && String(value) !== '' ? [value] : [];
     return [...new Set(raw.map((v) => String(v).trim()).filter(Boolean))];
   };
+  const packOraRepItemsFilter = (src) => ({
+    store: Number(src.store || 4) || 4,
+    sales_rep_id: asList(src.sales_rep_id),
+    customer_id: asList(src.customer_id),
+    category_id: asList(src.category_id),
+    size_id: asList(src.size_id),
+    report_year: asList(src.report_year),
+    report_month: asList(src.report_month),
+    ora_mode: String(src.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex',
+    run: '1',
+  });
+  // Post/Redirect/Get: بعد POST نخزّن الفلاتر ونحوّل إلى GET حتى لا يظهر Confirm Form Resubmission عند الرجوع من الفاتورة
+  if (req.method === 'POST') {
+    const bodyParams = { ...(req.query || {}), ...(req.body || {}) };
+    if (req.session) {
+      req.session.oraRepItemsFilter = packOraRepItemsFilter(bodyParams);
+      await new Promise((resolve, reject) => {
+        req.session.save((err) => (err ? reject(err) : resolve()));
+      });
+    }
+    const q = new URLSearchParams();
+    q.set('run', '1');
+    if (String(bodyParams.ora_mode || '').trim() === 'all_oracle') q.set('ora_mode', 'all_oracle');
+    return res.redirect(303, `${BASE}?${q.toString()}`);
+  }
+  // GET: استرجاع فلاتر آخر تشغيل من الجلسة عند run=1
+  let params = { ...(req.query || {}) };
+  if (String(params.run || '') === '1' && req.session && req.session.oraRepItemsFilter) {
+    params = { ...req.session.oraRepItemsFilter, ...params };
+  }
+  const store = Number(params.store || 4) || 4;
   const oracleRepNos = asList(params.sales_rep_id).map((id) => Number(id)).filter((id) => id > 0);
   const customerIds = asList(params.customer_id).map((id) => Number(id)).filter((id) => id > 0);
   const categoryIds = asList(params.category_id);
@@ -2213,9 +2239,8 @@ const oracleRepItemsHandler = async (req, res) => {
   const reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
   const reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
   const oraMode = String(params.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex';
-  // أي POST من النموذج = تشغيل؛ وrun=1 للتوافق مع GET
+  // GET مع run=1 (بعد التحويل من POST أو رابط مباشر)
   const run =
-    req.method === 'POST' ||
     String(params.run || '') === '1' ||
     oraMode === 'all_oracle' ||
     oracleRepNos.length > 0 ||
@@ -3561,7 +3586,7 @@ const oracleRepItemsHandler = async (req, res) => {
               : 'بدون رقم فاتورة';
         const invHref =
           inv.invNo > 0
-            ? `${invBase}?run=1&invoice_no=${inv.invNo}&year=${inv.invYear || 0}`
+            ? `${invBase}?run=1&invoice_no=${inv.invNo}&year=${inv.invYear || 0}&from=ora-rep-items`
             : '';
         const invTitle = invHref
           ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
@@ -6728,6 +6753,7 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
   const BASE = '/sales/reports/oracle-sales-invoice';
   let invoiceNo = Number(req.query.invoice_no || req.query.v_num || 0) || 0;
   let year = Number(req.query.year || req.query.vyear || 0) || 0;
+  const fromRepItems = String(req.query.from || '').trim() === 'ora-rep-items';
   const navAct = String(req.query.nav || '').toLowerCase().trim();
   const hasNav = ['first', 'last', 'prev', 'next'].includes(navAct);
   const uid = Number(req.session.user?.id || 0) || 0;
@@ -6757,12 +6783,13 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
     invoiceNo || 0
   }`;
 
+  const fromQs = fromRepItems ? '&from=ora-rep-items' : '';
   const hrefKey = (k) =>
     k && k.v_num
-      ? `${BASE}?run=1&invoice_no=${Number(k.v_num)}&year=${Number(k.vyear || 0)}`
+      ? `${BASE}?run=1&invoice_no=${Number(k.v_num)}&year=${Number(k.vyear || 0)}${fromQs}`
       : '';
   const hrefNav = (act) =>
-    `${BASE}?run=1&nav=${act}&invoice_no=${invoiceNo || 0}&year=${year || 0}`;
+    `${BASE}?run=1&nav=${act}&invoice_no=${invoiceNo || 0}&year=${year || 0}${fromQs}`;
   const btn = (href, label, title, disabled) =>
     disabled || !href
       ? `<span class="si-btn si-docno-btn" style="opacity:.35;pointer-events:none" title="${esc(
@@ -7028,7 +7055,9 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
       var noEl=document.getElementById('ora_inv_no');
       var yearEl=document.getElementById('ora_inv_year');
       if(!form||!noEl) return;
-      var base=${JSON.stringify(basePath.ensurePrefixed(BASE) + '?run=1')};
+      var base=${JSON.stringify(
+        basePath.ensurePrefixed(BASE) + '?run=1' + (fromRepItems ? '&from=ora-rep-items' : '')
+      )};
       var curNo=${invoiceNo || 0};
       var curYear=${year || 0};
       var yearTouched=false;
@@ -7085,6 +7114,11 @@ router.get('/sales/reports/oracle-sales-invoice', guard('report_oracle_sales_inv
             </div>
             <div class="si-hero-actions">
               ${ui.siPrintBtnHtml('طباعة')}
+              ${
+                fromRepItems
+                  ? '<a class="si-btn si-btn--primary no-print" href="/sales/reports/oracle-rep-items?run=1">رجوع للتقرير</a>'
+                  : ''
+              }
               <a class="si-btn no-print" href="/sales/invoices/new">فاتورة مبيعات</a>
               <a class="si-btn no-print" href="/sales">لوحة المبيعات</a>
             </div>
