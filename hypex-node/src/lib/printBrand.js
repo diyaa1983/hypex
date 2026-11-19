@@ -295,7 +295,7 @@ async function renderStandalonePrintPage({
       border:1px solid #4a5568;padding:4px 2px;text-align:center;white-space:nowrap
     }
     .inv-v1-table tbody td{border:1px solid #94a3b8;padding:3px 2px;vertical-align:middle;background:#fff}
-    .inv-v1-table .c-idx,.inv-v1-table .c-code,.inv-v1-table .c-num{text-align:center;font-variant-numeric:tabular-nums}
+    .inv-v1-table .c-idx,.inv-v1-table .c-code,.inv-v1-table .c-barcode,.inv-v1-table .c-num{text-align:center;font-variant-numeric:tabular-nums}
     .inv-v1-table .c-name{text-align:right;font-weight:600}
     .inv-v1-table .c-unit{text-align:center}
     .inv-v1-table .c-disc{color:#b45309;font-weight:700}
@@ -313,7 +313,7 @@ async function renderStandalonePrintPage({
     .inv-v1-table--lines col.c-col-disc{width:8%}
     .inv-v1-table--lines col.c-col-tax{width:9%}
     .inv-v1-table--lines col.c-col-total{width:12%}
-    .inv-v1-table--lines .c-code,.inv-v1-table--lines .c-barcode{font-size:6.5pt;font-weight:700;white-space:nowrap;padding:2px 2px}
+    .inv-v1-table--lines .c-code,.inv-v1-table--lines .c-barcode{font-size:6.5pt;font-weight:700;white-space:nowrap;padding:2px 2px;text-align:center;vertical-align:middle}
     .inv-v1-table--lines thead th.c-name-h{
       white-space:normal;font-size:7.5pt;line-height:1.2;padding:5px 4px
     }
@@ -339,7 +339,7 @@ async function renderStandalonePrintPage({
     .inv-v1-table--order col.c-col-disc{width:5%}
     .inv-v1-table--order col.c-col-tax{width:6%}
     .inv-v1-table--order col.c-col-total{width:7%}
-    .inv-v1-table--order .c-code,.inv-v1-table--order .c-barcode{font-size:6.5pt;font-weight:700;white-space:nowrap}
+    .inv-v1-table--order .c-code,.inv-v1-table--order .c-barcode{font-size:6.5pt;font-weight:700;white-space:nowrap;text-align:center;vertical-align:middle}
     .inv-v1-table--order thead th.c-h{white-space:normal}
     .inv-v1-table--order .c-name{width:auto;max-width:none;overflow:visible}
     .inv-v1-table--order td{overflow:visible;vertical-align:middle}

@@ -248,7 +248,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         <div class="inv-v1-foot">
           ${sumsBlock}
           <div class="inv-v1-sign">
-            <div class="inv-v1-sign-label">توقيع المستلم</div>
+            <div class="inv-v1-sign-label">توقيع مدير المبيعات</div>
             <div class="inv-v1-sign-line"></div>
           </div>
         </div>
