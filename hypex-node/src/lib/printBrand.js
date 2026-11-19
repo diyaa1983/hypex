@@ -303,16 +303,17 @@ async function renderStandalonePrintPage({
     .inv-v1-table .empty{text-align:center;color:#64748b;padding:12px}
     /* بنود الفاتورة: اسم ضيّق مع التفاف · العناوين الأخرى أفقية */
     .inv-v1-table--lines{table-layout:fixed}
-    .inv-v1-table--lines col.c-col-code{width:11%}
-    .inv-v1-table--lines col.c-col-name{width:22%}
+    .inv-v1-table--lines col.c-col-code{width:8%}
+    .inv-v1-table--lines col.c-col-barcode{width:11%}
+    .inv-v1-table--lines col.c-col-name{width:18%}
     .inv-v1-table--lines col.c-col-unit{width:6%}
-    .inv-v1-table--lines col.c-col-qty{width:8%}
+    .inv-v1-table--lines col.c-col-qty{width:7%}
     .inv-v1-table--lines col.c-col-extra{width:6%}
-    .inv-v1-table--lines col.c-col-price{width:11%}
-    .inv-v1-table--lines col.c-col-disc{width:9%}
-    .inv-v1-table--lines col.c-col-tax{width:10%}
-    .inv-v1-table--lines col.c-col-total{width:14%}
-    .inv-v1-table--lines .c-code{font-size:6.5pt;font-weight:700;white-space:nowrap;padding:2px 2px}
+    .inv-v1-table--lines col.c-col-price{width:10%}
+    .inv-v1-table--lines col.c-col-disc{width:8%}
+    .inv-v1-table--lines col.c-col-tax{width:9%}
+    .inv-v1-table--lines col.c-col-total{width:12%}
+    .inv-v1-table--lines .c-code,.inv-v1-table--lines .c-barcode{font-size:6.5pt;font-weight:700;white-space:nowrap;padding:2px 2px}
     .inv-v1-table--lines thead th.c-name-h{
       white-space:normal;font-size:7.5pt;line-height:1.2;padding:5px 4px
     }
@@ -329,21 +330,26 @@ async function renderStandalonePrintPage({
       white-space:normal;word-break:break-word;line-height:1.15;font-size:6.5pt;padding:2px 1px
     }
     .inv-v1-table--lines .c-num{font-size:7pt;white-space:nowrap;padding:2px 1px}
-    .inv-v1-table--order col.c-col-code{width:10%}
-    .inv-v1-table--order col.c-col-name{width:22%}
-    .inv-v1-table--order col.c-col-qty{width:13%}
-    .inv-v1-table--order col.c-col-extra{width:13%}
-    .inv-v1-table--order col.c-col-price{width:20%}
-    .inv-v1-table--order col.c-col-disc{width:6%}
+    .inv-v1-table--order col.c-col-code{width:7%}
+    .inv-v1-table--order col.c-col-barcode{width:11%}
+    .inv-v1-table--order col.c-col-name{width:18%}
+    .inv-v1-table--order col.c-col-qty{width:10%}
+    .inv-v1-table--order col.c-col-extra{width:10%}
+    .inv-v1-table--order col.c-col-price{width:26%}
+    .inv-v1-table--order col.c-col-disc{width:5%}
     .inv-v1-table--order col.c-col-tax{width:6%}
-    .inv-v1-table--order col.c-col-total{width:8%}
-    .inv-v1-table--order .c-code{font-size:6.5pt;font-weight:700;white-space:nowrap}
+    .inv-v1-table--order col.c-col-total{width:7%}
+    .inv-v1-table--order .c-code,.inv-v1-table--order .c-barcode{font-size:6.5pt;font-weight:700;white-space:nowrap}
     .inv-v1-table--order thead th.c-h{white-space:normal}
-    .inv-v1-table--order .c-name{width:auto;max-width:none}
-    .inv-v1-table--order td{overflow:hidden;vertical-align:middle}
-    .inv-v1-table--order .c-num{white-space:normal;padding:3px 2px}
-    .inv-v1-table--order .c-num{padding:2px 1px!important}
+    .inv-v1-table--order .c-name{width:auto;max-width:none;overflow:visible}
+    .inv-v1-table--order td{overflow:visible;vertical-align:middle}
+    .inv-v1-table--order .c-num{white-space:normal;padding:2px 1px!important}
     .inv-v1-table--order td.c-num{border-color:#c5d0de}
+    .inv-v1-table--order td.c-price{overflow:visible;min-width:0}
+    body[data-hx-page="landscape"] .inv-v1-table--order col.c-col-price{width:28%}
+    body[data-hx-page="landscape"] .inv-v1-table--order .co-print-grid--price th,
+    body[data-hx-page="landscape"] .inv-v1-table--order .co-print-grid--price td{padding:2px 3px}
+    body[data-hx-page="landscape"] .inv-v1-table--order .co-print-cell b{font-size:8pt}
     .co-print-grid{
       width:100%;border-collapse:collapse;table-layout:fixed;margin:0;background:transparent
     }
@@ -552,8 +558,10 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
       const taxCell = formatPrintTaxCell(ln, fmt);
       const name = ln.name_ar || ln.item_name || ln.line_desc || '';
       const code = String(ln.item_sku || ln.sku || '').trim();
+      const barcode = String(ln.item_barcode || ln.barcode || '').trim();
       return `<tr>
             <td class="c-code" dir="ltr">${hx(code || '—')}</td>
+            <td class="c-barcode" dir="ltr">${hx(barcode || '—')}</td>
             <td class="c-name">${hx(name)}</td>
             <td class="c-unit">${hx(ln.unit_name || 'قطعة')}</td>
             <td class="c-num" dir="ltr">${hx(fmt(qty))}</td>
@@ -565,10 +573,11 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
           </tr>`;
     })
     .join('');
-  const body = rows || '<tr><td colspan="9" class="empty">لا بنود</td></tr>';
+  const body = rows || '<tr><td colspan="10" class="empty">لا بنود</td></tr>';
   return `<table class="inv-v1-table inv-v1-table--lines">
           <colgroup>
             <col class="c-col-code">
+            <col class="c-col-barcode">
             <col class="c-col-name">
             <col class="c-col-unit">
             <col class="c-col-qty">
@@ -581,6 +590,7 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
           <thead>
             <tr>
               <th class="c-h">رقم المادة</th>
+              <th class="c-h">الباركود</th>
               <th class="c-name-h">اسم المادة</th>
               <th class="c-h">وحدة</th>
               <th class="c-h">الكمية</th>

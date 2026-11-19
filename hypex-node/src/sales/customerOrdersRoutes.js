@@ -244,6 +244,7 @@ function groupOrderPrintLines(lines) {
         item_id: id,
         name: ln.name_ar || ln.item_name || ln.line_desc || '',
         code: String(ln.item_sku || ln.sku || '').trim(),
+        barcode: String(ln.item_barcode || ln.barcode || '').trim(),
         cartonQty: 0,
         pieceQty: 0,
         cartonExtra: 0,
@@ -340,22 +341,25 @@ function orderLinesPrintTableHtml(lines) {
       const taxCell =
         Number.isFinite(taxPct) && taxPct > 0.000001 ? `${fmtAmt(taxPct)}%` : fmtAmt(ln.tax_amount);
       const code = String(ln.code || '').trim();
+      const barcode = String(ln.barcode || '').trim();
       return `<tr>
         <td class="c-code" dir="ltr">${esc(code || '—')}</td>
+        <td class="c-barcode" dir="ltr">${esc(barcode || '—')}</td>
         <td class="c-name">${esc(ln.name)}</td>
         <td class="c-num">${printPair(ln.cartonQty, ln.pieceQty)}</td>
         <td class="c-num">${printPair(ln.cartonExtra, ln.pieceExtra)}</td>
-        <td class="c-num">${printPricePair(ln.cartonPrice, ln.piecePrice, ln.tax_rate_percent)}</td>
+        <td class="c-num c-price">${printPricePair(ln.cartonPrice, ln.piecePrice, ln.tax_rate_percent)}</td>
         <td class="c-num c-disc" dir="ltr">${esc(discCell)}</td>
         <td class="c-num c-tax" dir="ltr">${esc(taxCell)}</td>
         <td class="c-num c-gross" dir="ltr">${esc(fmtAmt(ln.line_gross))}</td>
       </tr>`;
     })
     .join('');
-  const body = rows || '<tr><td colspan="8" class="empty">لا بنود</td></tr>';
+  const body = rows || '<tr><td colspan="9" class="empty">لا بنود</td></tr>';
   return `<table class="inv-v1-table inv-v1-table--lines inv-v1-table--order">
     <colgroup>
       <col class="c-col-code">
+      <col class="c-col-barcode">
       <col class="c-col-name">
       <col class="c-col-qty">
       <col class="c-col-extra">
@@ -367,6 +371,7 @@ function orderLinesPrintTableHtml(lines) {
     <thead>
       <tr>
         <th class="c-h">رقم المادة</th>
+        <th class="c-h">الباركود</th>
         <th class="c-name-h">اسم المادة</th>
         <th class="c-h">الكمية</th>
         <th class="c-h">مجاني</th>
@@ -481,7 +486,7 @@ async function renderOrderPrint(req, res, orderId) {
       autoPrint: false,
       printMode: 'sheet',
       theme: 'invoice-v1',
-      pageSize: 'portrait',
+      pageSize: 'landscape',
     })
   );
 }

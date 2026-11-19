@@ -2356,24 +2356,60 @@ const oracleRepItemsHandler = async (req, res) => {
     return String(raw).replace(/\D+/g, '').replace(/^0+/, '');
   };
   let scopeCustomerIds = customerIds.slice();
-  // القائمة من Oracle → الفلتر دائماً حسب MAN_NUM في الفاتورة
+  // عند اختيار مندوب: حسب ربط العميل بالمندوب في هايبكس (كل مبيعات العميل الحالية والسابقة)
+  // بدون مندوب محدد: حسب MAN_NUM في فاتورة Oracle
   let filterOracleRep = true;
   const selectedRepCodes = new Set(oracleRepNos.map(String));
   const accToRep = new Map();
   const custAccs = [];
   const seenAcc = new Set();
-  const pushAcc = (picked) => {
+  const pushAcc = (picked, linkedRepNo = 0) => {
     const acc = custAccOf(picked);
-    if (!acc || seenAcc.has(acc)) return;
+    if (!acc) return;
+    if (linkedRepNo > 0) {
+      const prev = Number(accToRep.get(acc) || 0) || 0;
+      if (!prev) accToRep.set(acc, linkedRepNo);
+    }
+    if (seenAcc.has(acc)) return;
     seenAcc.add(acc);
     custAccs.push(acc);
   };
-  // حسابات العملاء فقط عند تحديد عملاء يدوياً (المندوب يُفلتر عبر MAN_NUM)
-  customerIds.forEach((id) => {
-    const picked = (customers || []).find((c) => Number(c.id) === id);
-    if (picked) pushAcc(picked);
-  });
-  scopeCustomerIds = customerIds.slice();
+  const customerIdFilter = customerIds.length
+    ? new Set(customerIds.map((id) => Number(id)).filter((id) => id > 0))
+    : null;
+  if (oracleRepNos.length > 0) {
+    filterOracleRep = false;
+    const wantReps = new Set(oracleRepNos.map((n) => String(n)));
+    for (const c of customers || []) {
+      const cid = Number(c.id) || 0;
+      if (!cid) continue;
+      if (customerIdFilter && !customerIdFilter.has(cid)) continue;
+      const codes = custRepCodes.get(String(cid)) || new Set();
+      let linkedMan = 0;
+      for (const code of codes) {
+        const man = parseManNo(code);
+        if (man > 0 && wantReps.has(String(man))) {
+          linkedMan = man;
+          break;
+        }
+      }
+      if (!linkedMan) continue;
+      pushAcc(c, linkedMan);
+    }
+    scopeCustomerIds = (customers || [])
+      .filter((c) => {
+        const acc = custAccOf(c);
+        return acc && accToRep.has(acc);
+      })
+      .map((c) => Number(c.id) || 0)
+      .filter((id) => id > 0);
+  } else {
+    customerIds.forEach((id) => {
+      const picked = (customers || []).find((c) => Number(c.id) === id);
+      if (picked) pushAcc(picked, 0);
+    });
+    scopeCustomerIds = customerIds.slice();
+  }
   const catNames = [];
   categoryIds.forEach((id) => {
     if (id === 'none') {
@@ -2636,7 +2672,9 @@ const oracleRepItemsHandler = async (req, res) => {
     } else if (oraMode === 'all_oracle') {
       repName = 'جميع مندوبي Oracle';
     }
-    if (customerIds.length && !custAccs.length) {
+    if (oracleRepNos.length && !custAccs.length) {
+      err = 'لا يوجد عملاء مربوطون بالمندوب المحدد في هايبكس، أو حساباتهم غير مربوطة بـ Oracle.';
+    } else if (customerIds.length && !custAccs.length) {
       err = 'العملاء المحددون غير مربوطين بحساب في Oracle.';
     } else if (custAccs.length > 1500) {
       err = 'عدد العملاء المحددين كبير جداً. اختر مندوباً أو قلّل العملاء، أو اترك «كل العملاء».';
@@ -2645,7 +2683,7 @@ const oracleRepItemsHandler = async (req, res) => {
       from: range.from,
       to: range.to,
       store,
-      rep_no: oracleRepNos.length === 1 ? oracleRepNos[0] : null,
+      rep_no: filterOracleRep && oracleRepNos.length === 1 ? oracleRepNos[0] : null,
       cust_accs: custAccs,
       cat_names: catNames,
       year_months: period.yearMonths,
@@ -2720,7 +2758,13 @@ const oracleRepItemsHandler = async (req, res) => {
         returnRows = returnRows.filter(keepSize);
         netRows = netRows.filter(keepSize);
       }
-      if (oracleRepNos.length > 1) {
+      if (oracleRepNos.length > 0 && !filterOracleRep) {
+        const allowReps = new Set(oracleRepNos.map(Number));
+        const keep = (r) => allowReps.has(Number(r.rep_no) || 0);
+        rows = rows.filter(keep);
+        returnRows = returnRows.filter(keep);
+        netRows = netRows.filter(keep);
+      } else if (oracleRepNos.length > 1) {
         const allowReps = new Set(oracleRepNos.map(Number));
         const keep = (r) => allowReps.has(Number(r.rep_no) || 0);
         rows = rows.filter(keep);
@@ -4236,14 +4280,14 @@ const oracleRepItemsHandler = async (req, res) => {
         mark: '📦',
         kicker: 'تقارير المبيعات',
         title: 'مبيعات المندوب حسب المادة والفئة (Oracle)',
-        subtitle: 'كل مندوب، العميل، المواد التي باعها، وفئة كل مادة',
+        subtitle: 'مبيعات عملاء المندوب المربوطين به — بما فيها المبيعات السابقة تحت مندوب آخر',
         actions: [
           ui.printAction(),
           { label: 'عرض التقرير', submit: true, form: 'ora-rep-filter', primary: true },
           { label: 'لوحة المبيعات', href: '/sales' },
         ],
       })}
-      <p class="muted no-print ora-report-sticky-note">قائمة المندوب من Oracle (كما في Forms — رقم MAN_NUM). المبيعات حسب مندوب الفاتورة في Oracle.</p>
+      <p class="muted no-print ora-report-sticky-note">عند اختيار مندوب: المبيعات حسب ربط العميل به في هايبكس — وتشمل مبيعات العميل السابقة حتى لو سُجّلت تحت مندوب آخر في Oracle.</p>
       <div class="si-rail no-print">
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />

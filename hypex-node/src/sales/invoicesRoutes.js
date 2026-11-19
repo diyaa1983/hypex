@@ -265,6 +265,7 @@ router.get('/sales/invoices/:id/print', async (req, res) => {
         autoPrint,
         printMode: 'sheet',
         theme: 'invoice-v1',
+        pageSize: 'landscape',
       })
     );
   } catch (e) {
