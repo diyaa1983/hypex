@@ -243,6 +243,7 @@ function groupOrderPrintLines(lines) {
       g = {
         item_id: id,
         name: ln.name_ar || ln.item_name || ln.line_desc || '',
+        code: String(ln.item_barcode || ln.item_code || ln.item_sku || '').trim(),
         cartonQty: 0,
         pieceQty: 0,
         cartonExtra: 0,
@@ -338,7 +339,9 @@ function orderLinesPrintTableHtml(lines) {
       const taxPct = Number(ln.tax_rate_percent);
       const taxCell =
         Number.isFinite(taxPct) && taxPct > 0.000001 ? `${fmtAmt(taxPct)}%` : fmtAmt(ln.tax_amount);
+      const code = String(ln.code || '').trim();
       return `<tr>
+        <td class="c-code" dir="ltr">${esc(code || '—')}</td>
         <td class="c-name">${esc(ln.name)}</td>
         <td class="c-num">${printPair(ln.cartonQty, ln.pieceQty)}</td>
         <td class="c-num">${printPair(ln.cartonExtra, ln.pieceExtra)}</td>
@@ -349,9 +352,10 @@ function orderLinesPrintTableHtml(lines) {
       </tr>`;
     })
     .join('');
-  const body = rows || '<tr><td colspan="7" class="empty">لا بنود</td></tr>';
+  const body = rows || '<tr><td colspan="8" class="empty">لا بنود</td></tr>';
   return `<table class="inv-v1-table inv-v1-table--lines inv-v1-table--order">
     <colgroup>
+      <col class="c-col-code">
       <col class="c-col-name">
       <col class="c-col-qty">
       <col class="c-col-extra">
@@ -362,6 +366,7 @@ function orderLinesPrintTableHtml(lines) {
     </colgroup>
     <thead>
       <tr>
+        <th class="c-h">رقم المادة</th>
         <th class="c-name-h">اسم المادة</th>
         <th class="c-h">الكمية</th>
         <th class="c-h">مجاني</th>
