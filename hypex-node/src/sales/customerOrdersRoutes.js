@@ -243,7 +243,7 @@ function groupOrderPrintLines(lines) {
       g = {
         item_id: id,
         name: ln.name_ar || ln.item_name || ln.line_desc || '',
-        code: String(ln.item_barcode || ln.item_code || ln.item_sku || '').trim(),
+        code: String(ln.item_sku || ln.sku || '').trim(),
         cartonQty: 0,
         pieceQty: 0,
         cartonExtra: 0,

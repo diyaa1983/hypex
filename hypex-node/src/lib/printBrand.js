@@ -551,7 +551,7 @@ function invoiceV1LinesTableHtml(lines, fmtAmtFn, escFn) {
       const discCell = discPct > 0.000001 ? `${fmt(discPct)}%` : fmt(discAmt);
       const taxCell = formatPrintTaxCell(ln, fmt);
       const name = ln.name_ar || ln.item_name || ln.line_desc || '';
-      const code = String(ln.item_barcode || ln.item_code || ln.item_sku || ln.barcode || ln.sku || '').trim();
+      const code = String(ln.item_sku || ln.sku || '').trim();
       return `<tr>
             <td class="c-code" dir="ltr">${hx(code || '—')}</td>
             <td class="c-name">${hx(name)}</td>
