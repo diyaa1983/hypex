@@ -4163,6 +4163,9 @@ const oracleRepItemsHandler = async (req, res) => {
         ${viewBtn('invoice-sum', 'فواتير إجمالي')}
         ${viewBtn('all-reps', 'مبيعات جميع المندوبين')}
         ${viewBtn('cat-totals', 'مجاميع الفئات')}
+        <label class="ora-cust-quick no-print" title="فلتر إضافي على اسم العميل في العرض الحالي">
+          <input type="search" id="ora-cust-quick-q" class="si-field" placeholder="بحث عميل…" autocomplete="off">
+        </label>
       </div>`;
     const panel = (id, html) =>
       `<div class="ora-view" id="ora-view-net-${id}" data-ora-mode-panel="net" data-ora-view-panel="${id}"${
@@ -4197,6 +4200,9 @@ const oracleRepItemsHandler = async (req, res) => {
         ${oraViewBtn('invoice-sum', 'فواتير إجمالي')}
         ${oraViewBtn('all-reps', 'مبيعات جميع المندوبين')}
         ${oraViewBtn('cat-totals', 'مجاميع الفئات')}
+        <label class="ora-cust-quick no-print" title="فلتر إضافي على اسم العميل في العرض الحالي">
+          <input type="search" id="ora-cust-quick-q" class="si-field" placeholder="بحث عميل…" autocomplete="off">
+        </label>
       </div>`;
 
   let tableBlock = '';
@@ -4456,6 +4462,20 @@ const oracleRepItemsHandler = async (req, res) => {
           min-height: 2rem;
           padding: .25rem .7rem;
           font-size: .82rem;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-cust-quick {
+          display: inline-flex;
+          align-items: center;
+          margin: 0;
+          min-width: 11rem;
+          flex: 0 1 14rem;
+        }
+        .si-report-page[data-report-route="report_oracle_rep_item_sales"] .ora-cust-quick .si-field {
+          min-height: 2rem;
+          height: 2rem;
+          padding: .2rem .55rem;
+          font-size: .82rem;
+          width: 100%;
         }
         .si-report-page[data-report-route="report_oracle_rep_item_sales"] .si-rail {
           display: block;
@@ -6410,7 +6430,146 @@ const oracleRepItemsHandler = async (req, res) => {
         var block = t.closest('.ora-summary-block');
         refreshOraCustPick(block);
       });
-      (function bindOraModeSubmit() {
+
+      var ORA_UI_STATE_KEY = 'hypex:ora-rep-items-ui';
+      function oraScrollEl() {
+        return document.querySelector('.si-print-area.report-sales-result');
+      }
+      function saveOraUiState() {
+        try {
+          var btn = document.querySelector('[data-ora-view].si-btn--primary');
+          var qEl = document.getElementById('ora-cust-quick-q');
+          var sc = oraScrollEl();
+          var payload = {
+            view: btn ? (btn.getAttribute('data-ora-view') || 'summary') : 'summary',
+            q: qEl ? String(qEl.value || '') : '',
+            scroll: sc ? sc.scrollTop : 0,
+            ts: Date.now()
+          };
+          sessionStorage.setItem(ORA_UI_STATE_KEY, JSON.stringify(payload));
+        } catch (eSave) {}
+      }
+      function readOraUiState() {
+        try {
+          var raw = sessionStorage.getItem(ORA_UI_STATE_KEY);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (eRead) {
+          return null;
+        }
+      }
+      function applyOraCustQuickFilter() {
+        var qEl = document.getElementById('ora-cust-quick-q');
+        var needle = String(qEl && qEl.value || '').trim().toLowerCase();
+        var view = document.querySelector('.ora-view:not([hidden])');
+        if (!view) return;
+        view.querySelectorAll('tr.ora-sum-row').forEach(function (tr) {
+          var lab = tr.querySelector('.ora-cust-label');
+          var text = String((lab && lab.textContent) || tr.getAttribute('data-sort-customer') || '').toLowerCase();
+          var show = !needle || text.indexOf(needle) >= 0;
+          tr.style.display = show ? '' : 'none';
+        });
+        view.querySelectorAll('.ora-summary-block').forEach(function (block) {
+          if (block.classList.contains('ora-lines-block')) return;
+          if (block.classList.contains('ora-cat-totals-only')) return;
+          if (block.getAttribute('data-ora-grand-final')) return;
+          var rows = block.querySelectorAll('tr.ora-sum-row');
+          if (!rows.length) return;
+          var any = false;
+          rows.forEach(function (tr) {
+            if (tr.style.display !== 'none') any = true;
+          });
+          block.style.display = (!needle || any) ? '' : 'none';
+        });
+        view.querySelectorAll('tr.ora-cust-band[data-ora-group="1"]').forEach(function (band) {
+          var text = String(band.textContent || '').toLowerCase();
+          var show = !needle || text.indexOf(needle) >= 0;
+          band.style.display = show ? '' : 'none';
+          var el = band.nextElementSibling;
+          while (el) {
+            if (el.getAttribute && el.getAttribute('data-ora-group') === '1') break;
+            el.style.display = show ? '' : 'none';
+            if (el.getAttribute && el.getAttribute('data-ora-group-end') === '1') break;
+            el = el.nextElementSibling;
+          }
+        });
+        // صفوف فواتير إجمالي التي تحمل اسم عميل
+        view.querySelectorAll('tbody tr').forEach(function (tr) {
+          if (tr.classList.contains('ora-sum-row') || tr.classList.contains('ora-cust-band') || tr.classList.contains('ora-cust-final')) return;
+          if (tr.getAttribute('data-ora-group') || tr.getAttribute('data-ora-group-end')) return;
+          var custCell = tr.querySelector('td.ora-cust-name');
+          if (!custCell) return;
+          var text = String(custCell.textContent || '').toLowerCase();
+          var show = !needle || text.indexOf(needle) >= 0;
+          tr.style.display = show ? '' : 'none';
+        });
+      }
+      function switchOraView(which) {
+        if (!which) which = 'summary';
+        if (which === 'invoice-net') which = 'invoice-sum';
+        document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
+          if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
+          else btn.classList.remove('si-btn--primary');
+        });
+        document.querySelectorAll('.ora-view[data-ora-view-panel]').forEach(function (el) {
+          var ok = el.getAttribute('data-ora-view-panel') === which;
+          if (ok) el.removeAttribute('hidden');
+          else el.setAttribute('hidden', '');
+        });
+        if (typeof applyOraCatScreenFilter === 'function') applyOraCatScreenFilter();
+        applyOraCustQuickFilter();
+        saveOraUiState();
+      }
+      function restoreOraUiState() {
+        var st = readOraUiState();
+        if (!st) {
+          applyOraCustQuickFilter();
+          return;
+        }
+        var qEl = document.getElementById('ora-cust-quick-q');
+        if (qEl && st.q != null) qEl.value = String(st.q || '');
+        if (st.view) switchOraView(String(st.view));
+        else applyOraCustQuickFilter();
+        var sc = oraScrollEl();
+        var top = Number(st.scroll) || 0;
+        if (sc && top > 0) {
+          requestAnimationFrame(function () {
+            sc.scrollTop = top;
+            setTimeout(function () { sc.scrollTop = top; }, 50);
+            setTimeout(function () { sc.scrollTop = top; }, 250);
+          });
+        }
+      }
+      (function bindOraCustQuickAndState() {
+        var qEl = document.getElementById('ora-cust-quick-q');
+        if (qEl) {
+          qEl.addEventListener('input', function () {
+            applyOraCustQuickFilter();
+            saveOraUiState();
+          });
+          qEl.addEventListener('keydown', function (ev) {
+            if (ev.key === 'Enter') ev.preventDefault();
+          });
+        }
+        var sc = oraScrollEl();
+        if (sc) {
+          var tmr = null;
+          sc.addEventListener('scroll', function () {
+            if (tmr) clearTimeout(tmr);
+            tmr = setTimeout(saveOraUiState, 120);
+          }, { passive: true });
+        }
+        var form = document.getElementById('ora-rep-filter');
+        if (form) {
+          form.addEventListener('submit', function () {
+            saveOraUiState();
+          });
+        }
+        window.addEventListener('beforeunload', saveOraUiState);
+        setTimeout(restoreOraUiState, 0);
+        setTimeout(restoreOraUiState, 200);
+      })();
+            (function bindOraModeSubmit() {
         var form = document.getElementById('ora-rep-filter');
         var modeEl = document.getElementById('ora-mode');
         if (!form || !modeEl) return;
@@ -6498,20 +6657,20 @@ const oracleRepItemsHandler = async (req, res) => {
             form.querySelectorAll('input[name="sales_rep_id"][data-ora-hidden]').forEach(function (n) {
               n.remove();
             });
+            try {
+              var qElSave = document.getElementById('ora-cust-quick-q');
+              sessionStorage.setItem(ORA_UI_STATE_KEY, JSON.stringify({
+                view: 'all-reps',
+                q: qElSave ? String(qElSave.value || '') : '',
+                scroll: (oraScrollEl() && oraScrollEl().scrollTop) || 0,
+                ts: Date.now()
+              }));
+            } catch (eAll) {}
             if (typeof form.requestSubmit === 'function') form.requestSubmit();
             else form.submit();
             return;
           }
-          document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
-            if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
-            else btn.classList.remove('si-btn--primary');
-          });
-          document.querySelectorAll('.ora-view[data-ora-view-panel]').forEach(function (el) {
-            var ok = el.getAttribute('data-ora-view-panel') === which;
-            if (ok) el.removeAttribute('hidden');
-            else el.setAttribute('hidden', '');
-          });
-          if (typeof applyOraCatScreenFilter === 'function') applyOraCatScreenFilter();
+          switchOraView(which);
           return;
         }
         var head = ev.target.closest && ev.target.closest('[data-ora-toggle]');
