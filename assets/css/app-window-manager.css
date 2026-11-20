@@ -110,6 +110,58 @@ body.app-mdi-taskbar-open {
   --app-mdi-bottom: 2.15rem;
 }
 
+/* أثناء التصغير: شريط النوافذ المفتوحة يبقى أعلى الشاشة (تحت القائمة) لا أسفلها */
+body.app-mdi-page-parked.app-mdi-taskbar-open {
+  --app-mdi-bottom: 0;
+  --app-mdi-parked-taskbar: 2.35rem;
+}
+
+body.app-mdi-page-parked > .app-mdi-taskbar {
+  top: 0;
+  bottom: auto;
+  min-height: 2.15rem;
+  padding: 4px 10px 6px;
+  background: #111827;
+  border-top: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: none;
+}
+
+body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-item {
+  max-width: min(280px, 46vw);
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #1f2937;
+}
+
+body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-btn {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-inline-end-color: rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  min-height: 28px;
+}
+
+body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-item.is-minimized .app-mdi-task-btn {
+  background: #1e3a5f;
+  color: #e0f2fe;
+}
+
+body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-btn:hover {
+  background: #334155;
+  color: #fff;
+}
+
+body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-close,
+body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-minimize {
+  background: #1f2937;
+  color: #e5e7eb;
+  border-inline-end-color: rgba(255, 255, 255, 0.1);
+}
+
+body.app-mdi-page-parked .app-mdi-hub-overlay {
+  top: var(--app-mdi-parked-taskbar, 2.35rem);
+}
+
 .app-mdi-layer--active {
   pointer-events: none;
 }

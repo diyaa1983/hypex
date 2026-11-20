@@ -390,13 +390,15 @@
     if (!taskbarEl) {
       return;
     }
-    // أثناء التصغير: الشريط يجب أن يبقى ظاهراً خارج app-shell المخفي
+    // أثناء التصغير: خارج app-shell المخفي، ويُثبَّت أعلى الشاشة عبر CSS
     if (document.body.classList.contains('app-mdi-page-parked')) {
       if (taskbarEl.parentNode !== document.body) {
         document.body.appendChild(taskbarEl);
       }
+      taskbarEl.classList.add('is-parked-top');
       return;
     }
+    taskbarEl.classList.remove('is-parked-top');
     var nav = document.querySelector('.hx-topnav');
     if (nav && taskbarEl.parentNode !== nav) {
       nav.appendChild(taskbarEl);
