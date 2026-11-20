@@ -5853,8 +5853,10 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         if (allowCats && !usePick) {
           showGross = totA;
-          showDisc = 0;
-          showNet = totA;
+          // خصم نسبي حسب مبالغ الفئات الظاهرة من إجمالي كل الفئات
+          showDisc =
+            allGross > 0 ? Math.round(((allDisc * totA) / allGross) * 1000) / 1000 : 0;
+          showNet = Math.round((showGross - showDisc) * 1000) / 1000;
         }
         function escTxt(s) {
           return String(s || '')
@@ -5957,9 +5959,6 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       function applyOraCatScreenFilter() {
         var allow = getOraSelectedCatAllow();
-        document.querySelectorAll('[data-ora-cat-qty]').forEach(function (box) {
-          fillOneOraCatQtyBox(box, 0, null, null, null, 0, 0, 0);
-        });
         document.querySelectorAll('[data-ora-cat-name]').forEach(function (el) {
           var name = String(el.getAttribute('data-ora-cat-name') || '').trim().toLowerCase();
           var hide = !!(allow && !allow[name]);
@@ -5967,29 +5966,93 @@ const oracleRepItemsHandler = async (req, res) => {
           el.style.display = hide ? 'none' : '';
         });
         document.querySelectorAll('tr.ora-sum-row').forEach(function (tr) {
-          if (!allow) {
-            tr.hidden = false;
-            return;
+          if (!tr.hasAttribute('data-ora-disc-base')) {
+            tr.setAttribute('data-ora-disc-base', String(tr.getAttribute('data-ora-disc') || 0));
+            tr.setAttribute('data-ora-gross-base', String(tr.getAttribute('data-ora-gross') || 0));
+            tr.setAttribute('data-ora-total-base', String(tr.getAttribute('data-ora-total') || 0));
           }
           var cats = String(tr.getAttribute('data-ora-cats') || '').split('|');
+          var baseGross = Number(tr.getAttribute('data-ora-gross-base') || 0) || 0;
+          var baseDisc = Number(tr.getAttribute('data-ora-disc-base') || 0) || 0;
+          var visGross = 0;
           var has = false;
-          tr.querySelectorAll('.ora-cat-cell[data-ora-cat-name]').forEach(function (td) {
-            var name = String(td.getAttribute('data-ora-cat-name') || '').trim().toLowerCase();
-            if (!allow[name]) return;
-            var idx = Number(td.getAttribute('data-ora-cat-idx') || -1);
-            if (idx >= 0 && Number(cats[idx] || 0)) has = true;
-          });
-          tr.hidden = !has;
+          var i;
+          for (i = 0; i < cats.length; i += 1) {
+            var amt = Number(cats[i] || 0) || 0;
+            var td = tr.querySelector('.ora-cat-cell[data-ora-cat-idx="' + i + '"]');
+            var name = td
+              ? String(td.getAttribute('data-ora-cat-name') || '')
+                  .trim()
+                  .toLowerCase()
+              : '';
+            var catOk = !allow || (name && allow[name]);
+            if (catOk && amt) {
+              visGross += amt;
+              has = true;
+            }
+          }
+          if (!allow) {
+            tr.hidden = false;
+            visGross = baseGross;
+          } else {
+            tr.hidden = !has;
+          }
+          var showGross = allow ? visGross : baseGross;
+          var showDisc =
+            !allow || baseGross <= 0
+              ? baseDisc
+              : Math.round(((baseDisc * visGross) / baseGross) * 1000) / 1000;
+          var showNet = Math.round((showGross - showDisc) * 1000) / 1000;
+          tr.setAttribute('data-ora-gross', String(showGross));
+          tr.setAttribute('data-ora-disc', String(showDisc));
+          tr.setAttribute('data-ora-total', String(showNet));
+          tr.setAttribute('data-sort-gross', String(showGross));
+          tr.setAttribute('data-sort-disc', String(showDisc));
+          tr.setAttribute('data-sort-total', String(showNet));
+          var gCell = tr.querySelector('.ora-gross-cell');
+          var dCell = tr.querySelector('.ora-disc-cell');
+          var nCell = tr.querySelector('.ora-net-cell');
+          if (gCell && !gCell.classList.contains('ora-total-years')) {
+            gCell.textContent = showGross ? fmtOraPickAmt(showGross) : '';
+          }
+          if (dCell && !dCell.classList.contains('ora-total-years')) {
+            dCell.textContent = showDisc ? fmtOraPickAmt(showDisc) : '';
+          }
+          if (nCell && !nCell.classList.contains('ora-total-years')) {
+            nCell.textContent = showNet || showNet === 0 ? fmtOraPickAmt(showNet) : '';
+          }
         });
         document.querySelectorAll('.ora-summary-block, .ora-lines-block').forEach(function (sec) {
           if (!allow) {
             sec.hidden = false;
-            return;
+          } else {
+            var visible = sec.querySelectorAll('tr.ora-sum-row:not([hidden])');
+            var anyRow = sec.querySelectorAll('tr.ora-sum-row');
+            if (anyRow.length) sec.hidden = visible.length < 1;
+            else sec.hidden = false;
           }
-          var visible = sec.querySelectorAll('tr.ora-sum-row:not([hidden])');
-          var anyRow = sec.querySelectorAll('tr.ora-sum-row');
-          if (anyRow.length) sec.hidden = visible.length < 1;
-          else sec.hidden = false;
+          var foot = sec.querySelector('tr.ora-sum-all');
+          if (!foot) return;
+          var sumG = 0;
+          var sumD = 0;
+          var sumN = 0;
+          sec.querySelectorAll('tr.ora-sum-row:not([hidden])').forEach(function (tr) {
+            sumG += Number(tr.getAttribute('data-ora-gross') || 0) || 0;
+            sumD += Number(tr.getAttribute('data-ora-disc') || 0) || 0;
+            sumN += Number(tr.getAttribute('data-ora-total') || 0) || 0;
+          });
+          var fg = foot.querySelector('.ora-gross-cell');
+          var fd = foot.querySelector('.ora-disc-cell');
+          var fn = foot.querySelector('.ora-net-cell');
+          if (fg && !fg.classList.contains('ora-total-years')) fg.textContent = sumG ? fmtOraPickAmt(sumG) : '';
+          if (fd && !fd.classList.contains('ora-total-years')) fd.textContent = sumD ? fmtOraPickAmt(sumD) : '';
+          if (fn && !fn.classList.contains('ora-total-years')) fn.textContent = fmtOraPickAmt(sumN);
+        });
+        document.querySelectorAll('[data-ora-cat-qty]').forEach(function (box) {
+          fillOneOraCatQtyBox(box, 0, null, null, null, 0, 0, 0);
+        });
+        document.querySelectorAll('.ora-cust-block').forEach(function (block) {
+          if (typeof refreshOraCustPick === 'function') refreshOraCustPick(block);
         });
       }
       function refreshOraCatQtyBox(block, count, catAmts, catQtys, catBonuses, pickGross, pickDisc, pickNet) {
