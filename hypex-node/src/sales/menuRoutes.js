@@ -2210,6 +2210,7 @@ const oracleRepItemsHandler = async (req, res) => {
     report_year: asList(src.report_year),
     report_month: asList(src.report_month),
     ora_mode: String(src.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex',
+    ora_view: String(src.ora_view || 'summary').trim() || 'summary',
     run: '1',
   });
   // Post/Redirect/Get: بعد POST نخزّن الفلاتر ونحوّل إلى GET حتى لا يظهر Confirm Form Resubmission عند الرجوع من الفاتورة
@@ -2236,9 +2237,13 @@ const oracleRepItemsHandler = async (req, res) => {
   const customerIds = asList(params.customer_id).map((id) => Number(id)).filter((id) => id > 0);
   const categoryIds = asList(params.category_id);
   const sizeIds = asList(params.size_id);
-  const reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
-  const reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
+  let reportYears = asList(params.report_year).map((y) => Number(y)).filter((y) => y >= 2000 && y <= 2100);
+  let reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
   const oraMode = String(params.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex';
+  const oraViewRaw = String(params.ora_view || 'summary').trim().toLowerCase();
+  const oraView = ['summary', 'detail', 'invoice', 'invoice-sum', 'cat-totals', 'all-reps'].includes(oraViewRaw)
+    ? oraViewRaw
+    : 'summary';
   // GET مع run=1 (بعد التحويل من POST أو رابط مباشر)
   const run =
     String(params.run || '') === '1' ||
@@ -2251,12 +2256,18 @@ const oracleRepItemsHandler = async (req, res) => {
     reportMonths.length > 0;
   const uid = Number(req.session.user?.id || 0) || 0;
   const yearNow = new Date().getFullYear();
+  const monthNow = new Date().getMonth() + 1;
   const todayIso = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
+  // افتراض الشهر الحالي عند عدم تحديد سنة/شهر — يقلّل حجم Oracle بشكل كبير
+  if (run && !reportYears.length && !reportMonths.length) {
+    reportYears = [yearNow];
+    reportMonths = [monthNow];
+  }
   const range = {
-    from: `${yearNow}-01-01`,
+    from: `${yearNow}-${String(monthNow).padStart(2, '0')}-01`,
     to: todayIso(),
   };
 
@@ -2573,21 +2584,9 @@ const oracleRepItemsHandler = async (req, res) => {
         }
       }
       if (!items.length) {
-        try {
-          items = await db.query(
-            `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name,
-                    NULLIF(TRIM(sz.name_ar), '') AS size_name
-             FROM inv_item i
-             LEFT JOIN inv_item_category c ON c.id = i.category_id
-             LEFT JOIN inv_item_size sz ON sz.id = i.size_id`
-          );
-        } catch (eSzFull) {
-          items = await db.query(
-            `SELECT i.sku, i.barcode, IFNULL(i.oracle_key, '') AS oracle_key, c.name_ar AS cat_name
-             FROM inv_item i
-             LEFT JOIN inv_item_category c ON c.id = i.category_id`
-          );
-        }
+        // لا تحمّل جدول المخزون كاملاً — يجمّد التقرير على البيانات الكبيرة
+        localCatByKey = new Map();
+        return localCatByKey;
       }
     } catch (e) {
       localCatByKey = new Map();
@@ -3038,7 +3037,9 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       return { sum, found };
     };
-    const buildOraViews = (sourceRows) => {
+    const buildOraViews = (sourceRows, viewOpts = {}) => {
+    const needDetail = !!viewOpts.needDetail;
+    const needInvoice = !!viewOpts.needInvoice;
     let summaryHtml = '';
     let detailHtml = '';
     let invoiceHtml = '';
@@ -3238,17 +3239,19 @@ const oracleRepItemsHandler = async (req, res) => {
             ye.sale += amount;
           }
         }
-        {
-          const found = bag.items.find(
-            (it) => it.code === code && it.name === name && it.saleDate === saleDate && it.invNo === invNo && it.invYear === invYear
-          );
+        if (needDetail) {
+          if (!bag.itemIndex) bag.itemIndex = new Map();
+          const itemKey = code + '\0' + name + '\0' + saleDate + '\0' + invNo + '\0' + invYear;
+          let found = bag.itemIndex.get(itemKey);
           if (found) {
             found.amount += amount;
             found.qty += qty;
             found.bonus += bonus;
             if (!found.barcode && barcode) found.barcode = barcode;
           } else {
-            bag.items.push({ name, code, barcode, saleDate, qty, bonus, amount, invNo, invYear });
+            found = { name, code, barcode, saleDate, qty, bonus, amount, invNo, invYear };
+            bag.itemIndex.set(itemKey, found);
+            bag.items.push(found);
           }
         }
       });
@@ -3485,6 +3488,7 @@ const oracleRepItemsHandler = async (req, res) => {
           ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(rowByYearNet, true)}</td>`
           : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td>`;
         summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-sale="${rowSale}" data-ora-ret-amt="${rowRetAmt}" data-ora-ret-qty="${rowRetQty}" data-ora-tax="${rowTax}" data-ora-qty="${rowQty}" data-ora-bonus="${rowBonus}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
+        if (!needDetail) return;
         let custQty = 0;
         let custBonus = 0;
         let lines = '';
@@ -3602,7 +3606,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const discPctLabel = discPct
           ? `${discPct.toLocaleString('en-US', { maximumFractionDigits: 2 })}%`
           : '';
-        {
+        if (needInvoice) {
           const sortedLines = visibleLines.slice().sort((a, b) => {
             const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
             if (c) return c;
@@ -4188,12 +4192,21 @@ const oracleRepItemsHandler = async (req, res) => {
     }
     return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
     };
-    // كل العروض بعد خصم المرتجعات
+    // عروض خفيفة دائماً؛ التفصيلي/فواتير البنود عند الطلب فقط
+    const needDetail = oraView === 'detail';
+    const needInvoice = oraView === 'invoice';
     const netV = netRows.length
-      ? buildOraViews(netRows)
+      ? buildOraViews(netRows, { needDetail, needInvoice })
       : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '', catTotalsHtml: '' };
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
-    const defaultView = oraMode === 'all_oracle' ? 'all-reps' : 'summary';
+    const lazyHint = (label) =>
+      `<p class="muted no-print ora-view-lazy">العرض «${label}» يُحمَّل عند الطلب لتسريع التقرير — اضغط الزر مرة أخرى.</p>`;
+    const defaultView =
+      oraMode === 'all_oracle'
+        ? 'all-reps'
+        : ['detail', 'invoice', 'invoice-sum', 'cat-totals', 'all-reps', 'summary'].includes(oraView)
+          ? oraView
+          : 'summary';
     const viewBtn = (id, label) =>
       `<button type="button" class="si-btn${defaultView === id ? ' si-btn--primary' : ''}" data-ora-view="${id}">${label}</button>`;
     const toolsHtml = `<div class="ora-tools no-print">
@@ -4208,14 +4221,15 @@ const oracleRepItemsHandler = async (req, res) => {
           <input type="search" id="ora-cust-quick-q" class="si-field" placeholder="بحث عميل…" autocomplete="off">
         </label>
       </div>`;
-    const panel = (id, html) =>
+    const panel = (id, html, lazy) =>
       `<div class="ora-view" id="ora-view-net-${id}" data-ora-mode-panel="net" data-ora-view-panel="${id}"${
-        defaultView === id ? '' : ' hidden'
-      }>${html || emptyNet}</div>`;
+        lazy ? ' data-ora-lazy="1"' : ''
+      }${defaultView === id ? '' : ' hidden'}>${html || emptyNet}</div>`;
+    const sumHtml = netV.summaryHtml || '';
     rowsHtml = `${toolsHtml}
-      ${panel('summary', netV.summaryHtml)}
-      ${panel('detail', netV.detailHtml)}
-      ${panel('invoice', netV.invoiceHtml)}
+      ${panel('summary', sumHtml)}
+      ${panel('detail', netV.detailHtml || lazyHint('تفصيلي'), !netV.detailHtml)}
+      ${panel('invoice', netV.invoiceHtml || lazyHint('فواتير تفصيلي'), !netV.invoiceHtml)}
       ${panel('invoice-sum', netV.invoiceSumHtml)}
       ${panel(
         'all-reps',
@@ -4223,14 +4237,19 @@ const oracleRepItemsHandler = async (req, res) => {
           oraMode === 'all_oracle'
             ? 'عرض مجاميع مبيعات كل المندوبين حسب رقم المندوب في Oracle (MAN_NUM). القائمة أعلاه من نظام Oracle.'
             : 'اضغط «مبيعات جميع المندوبين» لتحميل مجاميع كل مندوبي Oracle لهذه الفترة.'
-        }</div>${netV.summaryHtml || ''}`
+        }</div>${defaultView === 'all-reps' ? sumHtml : ''}`
       )}
       ${panel('cat-totals', netV.catTotalsHtml)}`;
   } else if (run && !err) {
     rowsHtml = '<p class="muted">لا توجد مبيعات في الفترة المحددة.</p>';
   }
 
-  const defaultViewOpen = oraMode === 'all_oracle' ? 'all-reps' : 'summary';
+  const defaultViewOpen =
+    oraMode === 'all_oracle'
+      ? 'all-reps'
+      : ['detail', 'invoice', 'invoice-sum', 'cat-totals', 'all-reps', 'summary'].includes(oraView)
+        ? oraView
+        : 'summary';
   const oraViewBtn = (id, label) =>
     `<button type="button" class="si-btn${defaultViewOpen === id ? ' si-btn--primary' : ''}" data-ora-view="${id}">${label}</button>`;
   const fullOraToolsHtml = `<div class="ora-tools no-print">
@@ -4339,6 +4358,7 @@ const oracleRepItemsHandler = async (req, res) => {
         <form id="ora-rep-filter" method="post" action="${esc(BASE)}" class="si-search report-sales-filters ora-filter-row" data-app-busy-msg="جاري تحميل التقرير…">
           <input type="hidden" name="run" value="1" />
           <input type="hidden" name="ora_mode" id="ora-mode" value="${esc(oraMode)}" />
+          <input type="hidden" name="ora_view" id="ora-view" value="${esc(defaultViewOpen)}" />
           <div class="ora-filter-cluster ora-filter-cluster--who">
             <label>المندوب
               <div class="ora-multi" id="ora-rep-multi" data-ora-name="sales_rep_id" data-ora-empty="كل مندوبي Oracle">
@@ -6752,6 +6772,8 @@ const oracleRepItemsHandler = async (req, res) => {
           var modeEl = document.getElementById('ora-mode');
           var form = document.getElementById('ora-rep-filter');
           var curMode = modeEl ? String(modeEl.value || '') : '';
+          var viewEl = document.getElementById('ora-view');
+          if (viewEl) viewEl.value = which;
           if (which === 'all-reps' && curMode !== 'all_oracle' && form) {
             if (modeEl) {
               modeEl.value = 'all_oracle';
@@ -6773,6 +6795,32 @@ const oracleRepItemsHandler = async (req, res) => {
             if (typeof form.requestSubmit === 'function') form.requestSubmit();
             else form.submit();
             return;
+          }
+          // تفصيلي / فواتير بنود: تحميل عند الطلب فقط
+          if ((which === 'detail' || which === 'invoice') && form) {
+            var lazyPanel = document.querySelector('.ora-view[data-ora-view-panel="' + which + '"]');
+            if (lazyPanel && lazyPanel.getAttribute('data-ora-lazy') === '1') {
+              try {
+                var qEl2 = document.getElementById('ora-cust-quick-q');
+                sessionStorage.setItem(ORA_UI_STATE_KEY, JSON.stringify({
+                  view: which,
+                  q: qEl2 ? String(qEl2.value || '') : '',
+                  scroll: (oraScrollEl() && oraScrollEl().scrollTop) || 0,
+                  ts: Date.now()
+                }));
+              } catch (eLazy) {}
+              if (typeof form.requestSubmit === 'function') form.requestSubmit();
+              else form.submit();
+              return;
+            }
+          }
+          if (which === 'all-reps') {
+            var sumPanel = document.querySelector('.ora-view[data-ora-view-panel="summary"]');
+            var allPanel = document.querySelector('.ora-view[data-ora-view-panel="all-reps"]');
+            if (sumPanel && allPanel && !allPanel.querySelector('.ora-summary-block, .ora-cust-block')) {
+              var note = allPanel.querySelector('.ora-all-reps-note');
+              allPanel.innerHTML = (note ? note.outerHTML : '') + sumPanel.innerHTML;
+            }
           }
           switchOraView(which);
           return;
