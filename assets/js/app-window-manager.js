@@ -162,7 +162,11 @@
     }
     try {
       var cur = new URL(global.location.href);
-      if (cur.searchParams.get('run') === '1' && String(best.method || 'get') === 'get') {
+      // تقارير PRG (POST ثم GET?run=1): الصفحة الحالية جاهزة من الجلسة — لا نعيد العرض
+      if (cur.searchParams.get('run') === '1') {
+        return false;
+      }
+      if (String(best.fields.run) === '1' && document.querySelector('.report-sales-result, .si-print-area.report-sales-result, [data-ora-view-panel]')) {
         return false;
       }
     } catch (e0) {
@@ -493,8 +497,25 @@
     document.body.classList.remove('app-mdi-page-parked');
   }
 
+  function samePagePath(aHref, bHref) {
+    try {
+      var a = new URL(aHref, global.location.origin);
+      var b = new URL(bHref, global.location.origin);
+      return stripBasePath(a.pathname) === stripBasePath(b.pathname);
+    } catch (e) {
+      return false;
+    }
+  }
+
   function isParkedLiveWindow(win) {
-    return !!(win && win.parkedLive && normalizeKey(win.href) === normalizeKey(global.location.href));
+    if (!win || !win.parkedLive) {
+      return false;
+    }
+    if (normalizeKey(win.href) === normalizeKey(global.location.href)) {
+      return true;
+    }
+    // نفس مسار التقرير يكفي لإلغاء التوقيف دون إعادة تحميل
+    return samePagePath(win.href, global.location.href);
   }
 
   function unparkLiveWindow(win) {
@@ -511,6 +532,28 @@
     hideHubOverlay();
     persistWindowsNow();
     syncTaskbar();
+    try {
+      if (global.AppBusy && typeof global.AppBusy.hide === 'function') {
+        global.AppBusy.hide(true);
+      }
+      document.documentElement.classList.remove('hypex-nav-busy');
+    } catch (eBusy) {
+      /* ignore */
+    }
+    try {
+      var raw = sessionStorage.getItem(pageStateStorageKey(win));
+      if (raw) {
+        var payload = JSON.parse(raw);
+        var y = Number(payload && payload.scrollY) || 0;
+        if (y > 0) {
+          requestAnimationFrame(function () {
+            global.scrollTo(0, y);
+          });
+        }
+      }
+    } catch (eScroll) {
+      /* ignore */
+    }
   }
 
   function dismissFloatingUi() {
@@ -588,7 +631,13 @@
     if (!href) {
       return;
     }
+    var target = withAppBase(stripEmbedParams(href));
     var parked = parkedLiveId ? findWindow(parkedLiveId) : null;
+    // الرجوع لنفس التقرير الموقف: إلغاء التوقيف فقط — بدون إعادة تحميل
+    if (parked && (normalizeKey(parked.href) === normalizeKey(target) || samePagePath(parked.href, target))) {
+      unparkLiveWindow(parked);
+      return;
+    }
     if (parked) {
       capturePageState(parked);
     }
@@ -598,7 +647,7 @@
     document.body.classList.remove('app-mdi-page-parked');
     showBusyNav('جاري فتح الشاشة…');
     global.__managerAllowUnload = true;
-    global.location.href = withAppBase(stripEmbedParams(href));
+    global.location.href = target;
   }
 
   function findCurrentFullPageWindow() {
@@ -1532,13 +1581,31 @@
       syncTaskbar();
       return;
     }
+    win.href = withAppBase(win.href) || win.href;
+    // إن كان الرابط يعيد التقرير الجاهز (?run=1) لا نعيد إرسال النموذج بعد التحميل
+    var needsResubmit = true;
     try {
-      sessionStorage.setItem(RESTORE_PENDING_KEY, win.key || normalizeKey(win.href));
-    } catch (e) {
+      var uh = new URL(win.href, global.location.origin);
+      if (uh.searchParams.get('run') === '1') {
+        needsResubmit = false;
+      }
+    } catch (eRun) {
       /* ignore */
     }
+    if (needsResubmit) {
+      try {
+        sessionStorage.setItem(RESTORE_PENDING_KEY, win.key || normalizeKey(win.href));
+      } catch (e) {
+        /* ignore */
+      }
+    } else {
+      try {
+        sessionStorage.removeItem(RESTORE_PENDING_KEY);
+      } catch (eClr) {
+        /* ignore */
+      }
+    }
     showBusyNav('جاري فتح الشاشة…');
-    win.href = withAppBase(win.href) || win.href;
     prefetchHref(win.href);
     global.__managerAllowUnload = true;
     global.location.href = win.href;
