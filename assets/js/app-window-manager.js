@@ -449,7 +449,66 @@
       var route = u.searchParams.get('r') || '';
       if (route === 'dashboard' || route === 'menu_hub') return true;
       var path = stripBasePath(u.pathname);
-      return path === '/' || path === '/app' || path === '/login' || path === '/menu' || path.indexOf('/hub/') === 0;
+      if (path.length > 1 && path.charAt(path.length - 1) === '/') {
+        path = path.slice(0, -1);
+      }
+      if (path === '/' || path === '/app' || path === '/login' || path === '/menu' || path.indexOf('/hub/') === 0) {
+        return true;
+      }
+      // index.php بدون مسار شاشة = لوحة فقط
+      if (/\/index\.php$/i.test(path) && (!route || route === 'dashboard' || route === 'menu_hub')) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function isAppScreenPath(path) {
+    path = String(path || '');
+    if (path.length > 1 && path.charAt(path.length - 1) === '/') {
+      path = path.slice(0, -1);
+    }
+    return (
+      /^\/(sales|inventory|customers|purchases|accounting|hr|system|finance|warehouse|reports|mobile|sales-reps)\b/i.test(
+        path
+      ) || /^\/embed\//i.test(path)
+    );
+  }
+
+  function isHubFrameLocation(u) {
+    try {
+      if (!u) return false;
+      if (isMenuLikeLocation(u)) return true;
+      var path = stripBasePath(u.pathname);
+      if (path.length > 1 && path.charAt(path.length - 1) === '/') {
+        path = path.slice(0, -1);
+      }
+      var route = u.searchParams.get('r') || '';
+      if (route === 'dashboard' || route === 'menu_hub') return true;
+      if (path === '/app' || path === '/' || path === '/menu' || path.indexOf('/hub/') === 0) return true;
+      if (/\/index\.php$/i.test(path) && (!route || route === 'dashboard' || route === 'menu_hub')) {
+        return true;
+      }
+      try {
+        var hub = new URL(defaultHubUrl(), global.location.origin);
+        var hubPath = stripBasePath(hub.pathname);
+        if (hubPath.length > 1 && hubPath.charAt(hubPath.length - 1) === '/') {
+          hubPath = hubPath.slice(0, -1);
+        }
+        if (hubPath === path) {
+          var hubRoute = hub.searchParams.get('r') || '';
+          if (!hubRoute || !route || hubRoute === route) return true;
+        }
+      } catch (eHub) {
+        /* ignore */
+      }
+      // /app مع embed=menu = قائمة التصغير (حتى لو فشل تطابق المسار بسبب القاعدة)
+      if (u.searchParams.get('embed') === 'menu' && (path === '/app' || path === '/' || path.indexOf('/hub/') === 0)) {
+        return true;
+      }
+      return false;
     } catch (e) {
       return false;
     }
@@ -478,6 +537,7 @@
     }
     ensureHubFrameGuard();
     url = buildHubEmbedUrl(url || defaultHubUrl());
+    // أعد استخدام iframe القائمة إن كانت محمّلة — أسرع عند التصغير المتكرر
     if (hubOverlayUrl !== url) {
       hubFrameEl.src = url;
       hubOverlayUrl = url;
@@ -598,6 +658,16 @@
     win.fullPage = true;
     win.parkedLive = true;
     parkedLiveId = win.id;
+    // لا تُظهر طبقة التحميل عند التصغير — الصفحة تبقى في الذاكرة
+    try {
+      if (global.AppBusy && typeof global.AppBusy.hide === 'function') {
+        global.AppBusy.hide(true);
+      }
+      document.documentElement.classList.remove('hypex-nav-busy');
+      sessionStorage.removeItem('hypex:nav-busy');
+    } catch (eParkBusy) {
+      /* ignore */
+    }
     showHubOverlay(hubUrl);
     syncTaskbar();
   }
@@ -820,17 +890,17 @@
       if (u.origin !== global.location.origin) {
         return;
       }
-      var route = u.searchParams.get('r') || '';
-      if ((route !== '' && route !== 'menu_hub' && route !== 'dashboard') || !isMenuLikeLocation(u)) {
-        navigateFromHubParent(cw.location.href);
+      // قائمة/لوحة بعد التصغير تبقى في الـ iframe — لا تُفتح في الأب (كانت تسبب التعليق)
+      if (isHubFrameLocation(u)) {
+        if (u.searchParams.get('embed') !== 'menu') {
+          u.searchParams.set('embed', 'menu');
+          u.searchParams.delete('mdi_id');
+          hubFrameEl.src = u.pathname + u.search + u.hash;
+        }
         return;
       }
-      if (u.searchParams.get('embed') === 'menu') {
-        return;
-      }
-      u.searchParams.set('embed', 'menu');
-      u.searchParams.delete('mdi_id');
-      hubFrameEl.src = u.pathname + u.search + u.hash;
+      // المستخدم فتح شاشة من القائمة داخل الـ iframe → انقلها للأب
+      navigateFromHubParent(cw.location.href);
     } catch (e) {
       /* ignore */
     }
