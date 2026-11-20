@@ -2760,18 +2760,7 @@ const oracleRepItemsHandler = async (req, res) => {
       rows = rows.map(applyExcelCat);
       returnRows = returnRows.map(applyExcelCat);
       netRows = netRows.map(applyExcelCat);
-      // بعد فرض فئات الاكسل: أبقي فقط الفئات المختارة في الفلتر
-      if (catNames.length) {
-        const allowExact = new Set(catNames.map((n) => String(n).trim()).filter(Boolean));
-        const allowLower = new Set([...allowExact].map((n) => n.toLowerCase()));
-        const keepCat = (r) => {
-          const cat = String(r.cat_name || '').trim() || 'بدون فئة';
-          return allowExact.has(cat) || allowLower.has(cat.toLowerCase());
-        };
-        rows = rows.filter(keepCat);
-        returnRows = returnRows.filter(keepCat);
-        netRows = netRows.filter(keepCat);
-      }
+      // لا نفلتر الفئات قبل البناء: نحتاج كل بنود الفاتورة لتوزيع خصم VOU_DISC حسب الفئة
       if (sizeNames.length) {
         const allowExactSz = new Set(sizeNames.map((n) => String(n).trim()).filter(Boolean));
         const allowLowerSz = new Set([...allowExactSz].map((n) => n.toLowerCase()));
@@ -3137,15 +3126,64 @@ const oracleRepItemsHandler = async (req, res) => {
           cat = xlCat;
         }
         if (!cat) cat = 'بدون فئة';
-        if (catNames.length) {
-          const allowLower = new Set(catNames.map((n) => String(n).trim().toLowerCase()).filter(Boolean));
-          if (!allowLower.has(cat.toLowerCase())) return;
+        const allowLowerCats = catNames.length
+          ? new Set(catNames.map((n) => String(n).trim().toLowerCase()).filter(Boolean))
+          : null;
+        const catVisible = !allowLowerCats || allowLowerCats.has(cat.toLowerCase());
+        const acc = String(r.customer_acc || '');
+        const amount = Number(r.amount) || 0;
+        const qty = Number(r.qty) || 0;
+        const bonus = Number(r.bonus) || 0;
+        const docKind = String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0 ? 'R' : 'S';
+        const isRet = docKind === 'R';
+        const saleDate = String(r.sale_date || '').trim();
+        const invNo = Number(r.invoice_no) || 0;
+        const invYear = Number(r.invoice_year) || 0;
+        const saleYear = Number((saleDate.match(/^(\d{4})/) || [])[1]) || invYear || 0;
+        const invKey = `${docKind}|${invYear}|${invNo}|${acc}`;
+        if (!invMap.has(invKey)) {
+          invMap.set(invKey, {
+            docKind,
+            invNo,
+            invYear,
+            saleDate,
+            customer: String(r.customer_name || acc || '—'),
+            customerAcc: acc,
+            lines: [],
+            qty: 0,
+            bonus: 0,
+            amount: 0,
+            vouDisc: 0,
+            vouTax: 0,
+            allocDisc: 0,
+            allocTax: 0,
+          });
         }
+        const inv = invMap.get(invKey);
+        if (saleDate && (!inv.saleDate || saleDate < inv.saleDate)) inv.saleDate = saleDate;
+        inv.qty += qty;
+        inv.bonus += bonus;
+        inv.amount += amount;
+        const rowVou = Number(r.vou_disc);
+        const rowTax = Number(r.vou_tax);
+        if (Number.isFinite(rowVou) && Math.abs(rowVou) > 0) {
+          inv.vouDisc = Math.max(Number(inv.vouDisc) || 0, Math.abs(rowVou));
+        } else if (!(Number(inv.vouDisc) > 0)) {
+          const fb = lookupInvDisc(docKind, no, invYear, invNo, acc);
+          if (fb) inv.vouDisc = fb;
+        }
+        if (Number.isFinite(rowTax) && Math.abs(rowTax) > 0) {
+          inv.vouTax = Math.max(Number(inv.vouTax) || 0, Math.abs(rowTax));
+        } else if (!(Number(inv.vouTax) > 0)) {
+          const fb = lookupInvTax(docKind, no, invYear, invNo, acc);
+          if (fb) inv.vouTax = fb;
+        }
+        inv.lines.push({ cat, name, barcode, qty, bonus, amount });
+        if (!catVisible) return;
         if (!catSeen.has(cat)) {
           catSeen.add(cat);
           catOrder.push(cat);
         }
-        const acc = String(r.customer_acc || '');
         if (!custMap.has(acc)) {
           custMap.set(acc, {
             label: String(r.customer_name || acc || '—'),
@@ -3164,11 +3202,6 @@ const oracleRepItemsHandler = async (req, res) => {
           bag = { amt: 0, gross: 0, qty: 0, bonus: 0, byYear: new Map(), byYearGross: new Map(), items: [] };
           slot.cats.set(cat, bag);
         }
-        const amount = Number(r.amount) || 0;
-        const qty = Number(r.qty) || 0;
-        const bonus = Number(r.bonus) || 0;
-        const docKind = String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0 ? 'R' : 'S';
-        const isRet = docKind === 'R';
         bag.amt += amount;
         bag.qty += qty;
         bag.bonus += bonus;
@@ -3181,10 +3214,6 @@ const oracleRepItemsHandler = async (req, res) => {
         } else {
           slot.sale += amount;
         }
-        const saleDate = String(r.sale_date || '').trim();
-        const invNo = Number(r.invoice_no) || 0;
-        const invYear = Number(r.invoice_year) || 0;
-        const saleYear = Number((saleDate.match(/^(\d{4})/) || [])[1]) || invYear || 0;
         if (saleYear > 0) {
           bag.byYear.set(saleYear, (bag.byYear.get(saleYear) || 0) + amount);
           if (!isRet) {
@@ -3222,83 +3251,44 @@ const oracleRepItemsHandler = async (req, res) => {
             bag.items.push({ name, code, barcode, saleDate, qty, bonus, amount, invNo, invYear });
           }
         }
-        const invKey = `${docKind}|${invYear}|${invNo}|${acc}`;
-        if (!invMap.has(invKey)) {
-          invMap.set(invKey, {
-            docKind,
-            invNo,
-            invYear,
-            saleDate,
-            customer: String(r.customer_name || acc || '—'),
-            customerAcc: acc,
-            lines: [],
-            qty: 0,
-            bonus: 0,
-            amount: 0,
-            vouDisc: 0,
-            vouTax: 0,
-          });
-        }
-        const inv = invMap.get(invKey);
-        if (saleDate && (!inv.saleDate || saleDate < inv.saleDate)) inv.saleDate = saleDate;
-        inv.qty += qty;
-        inv.bonus += bonus;
-        inv.amount += amount;
-        const rowVou = Number(r.vou_disc);
-        const rowTax = Number(r.vou_tax);
-        if (Number.isFinite(rowVou) && Math.abs(rowVou) > 0) {
-          inv.vouDisc = Math.max(Number(inv.vouDisc) || 0, Math.abs(rowVou));
-        } else if (!(Number(inv.vouDisc) > 0)) {
-          const fb = lookupInvDisc(docKind, no, invYear, invNo, acc);
-          if (fb) inv.vouDisc = fb;
-        }
-        if (Number.isFinite(rowTax) && Math.abs(rowTax) > 0) {
-          inv.vouTax = Math.max(Number(inv.vouTax) || 0, Math.abs(rowTax));
-        } else if (!(Number(inv.vouTax) > 0)) {
-          const fb = lookupInvTax(docKind, no, invYear, invNo, acc);
-          if (fb) inv.vouTax = fb;
-        }
-        inv.lines.push({ cat, name, barcode, qty, bonus, amount });
       });
-      // خصم مجموع المندوب مباشرة من vou_disc على صفوف حركته (مرة لكل فاتورة)
+      // توزيع خصم/ضريبة الفاتورة (VOU) حسب نسبة مبلغ الفئات الظاهرة من إجمالي بنود الفاتورة
+      const allowCatsForDisc = catNames.length
+        ? new Set(catNames.map((n) => String(n).trim().toLowerCase()).filter(Boolean))
+        : null;
+      const lineCatAllowed = (cat) =>
+        !allowCatsForDisc || allowCatsForDisc.has(String(cat || '').trim().toLowerCase());
       let repDiscFixed = 0;
       let repTaxFixed = 0;
-      const seenInvForRepDisc = new Set();
-      repRows.forEach((r) => {
-        const amount = Number(r.amount) || 0;
-        const qty = Number(r.qty) || 0;
-        const isRet =
-          String(r.doc_kind || '').toUpperCase() === 'R' || amount < 0 || qty < 0;
-        const kind = isRet ? 'R' : 'S';
-        const invUniq = `${kind}|${Number(r.invoice_year) || 0}|${Number(r.invoice_no) || 0}`;
-        if (seenInvForRepDisc.has(invUniq)) return;
-        seenInvForRepDisc.add(invUniq);
-        let disc = Math.abs(Number(r.vou_disc) || 0);
-        let tax = Math.abs(Number(r.vou_tax) || 0);
-        if (!disc) {
-          disc = lookupInvDisc(kind, no, r.invoice_year, r.invoice_no, r.customer_acc);
-        }
-        if (!tax) {
-          tax = lookupInvTax(kind, no, r.invoice_year, r.invoice_no, r.customer_acc);
-        }
-        repDiscFixed += isRet ? -disc : disc;
-        repTaxFixed += isRet ? -tax : tax;
-      });
-      if (!repDiscFixed) {
-        const repVou = sumRepVouDisc(no);
-        if (repVou.found) repDiscFixed = repVou.sum;
-      }
-      // خصم/ضريبة لكل عميل من فواتير invMap (للأعمدة في الملخص + المجاميع النهائية بالتحديد)
       const discByCustRep = new Map();
       const taxByCustRep = new Map();
       invMap.forEach((inv) => {
         const acc = normAccKey(inv.customerAcc);
         if (!acc) return;
         const kind = String(inv.docKind || 'S').toUpperCase() === 'R' ? 'R' : 'S';
-        const disc = Number(inv.vouDisc) || 0;
-        const tax = Number(inv.vouTax) || 0;
-        const signedDisc = kind === 'R' ? -disc : disc;
-        const signedTax = kind === 'R' ? -tax : tax;
+        let disc = Number(inv.vouDisc) || 0;
+        let tax = Number(inv.vouTax) || 0;
+        if (!disc) {
+          disc = lookupInvDisc(kind, no, inv.invYear, inv.invNo, acc);
+          if (disc) inv.vouDisc = disc;
+        }
+        if (!tax) {
+          tax = lookupInvTax(kind, no, inv.invYear, inv.invNo, acc);
+          if (tax) inv.vouTax = tax;
+        }
+        const fullAbs = (inv.lines || []).reduce((s, ln) => s + Math.abs(Number(ln.amount) || 0), 0);
+        const visAbs = (inv.lines || []).reduce((s, ln) => {
+          if (!lineCatAllowed(ln.cat)) return s;
+          return s + Math.abs(Number(ln.amount) || 0);
+        }, 0);
+        const ratio = fullAbs > 0 ? visAbs / fullAbs : 0;
+        const signedDisc = Math.round(((kind === 'R' ? -disc : disc) * ratio) * 1000) / 1000;
+        const signedTax = Math.round(((kind === 'R' ? -tax : tax) * ratio) * 1000) / 1000;
+        inv.allocDisc = signedDisc;
+        inv.allocTax = signedTax;
+        if (!visAbs) return;
+        repDiscFixed += signedDisc;
+        repTaxFixed += signedTax;
         const y =
           Number((String(inv.saleDate || '').match(/^(\d{4})/) || [])[1]) ||
           Number(inv.invYear) ||
@@ -3592,13 +3582,15 @@ const oracleRepItemsHandler = async (req, res) => {
           ? `<a class="ora-inv-link" href="${esc(invHref)}">${esc(invLabel)}</a>`
           : esc(invLabel);
         const accKey = normAccKey(inv.customerAcc);
-        const vouDisc =
-          Number(inv.vouDisc) ||
-          lookupInvDisc(isRet ? 'R' : 'S', no, inv.invYear, inv.invNo, accKey);
-        const invGross = Number(inv.amount) || 0;
+        const visibleLines = (inv.lines || []).filter((ln) => lineCatAllowed(ln.cat));
+        if (!visibleLines.length) return;
+        const vouDisc = Number(inv.allocDisc) || 0;
+        const invGross = visibleLines.reduce((s, ln) => s + (Number(ln.amount) || 0), 0);
+        const invQty = visibleLines.reduce((s, ln) => s + (Number(ln.qty) || 0), 0);
+        const invBonus = visibleLines.reduce((s, ln) => s + (Number(ln.bonus) || 0), 0);
         const invNet = invGross - vouDisc;
         {
-          const sortedLines = inv.lines.slice().sort((a, b) => {
+          const sortedLines = visibleLines.slice().sort((a, b) => {
             const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
             if (c) return c;
             return cleanName(a.name).localeCompare(cleanName(b.name), 'ar');
@@ -3624,21 +3616,21 @@ const oracleRepItemsHandler = async (req, res) => {
             </tr>`;
           });
           invoiceBody += `<tr class="ora-cust-final" data-ora-group-end="1"><td colspan="3">مجموع ${esc(kindLabel)}</td>
-            ${qtyExtraCell(inv.qty, inv.bonus)}
+            ${qtyExtraCell(invQty, invBonus)}
             <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
             <td class="si-num ora-disc-cell" dir="ltr">${vouDisc ? esc(fmtAmt(vouDisc)) : ''}</td>
             <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td></tr>`;
         }
-        invRepQty += inv.qty;
-        invRepBonus += Number(inv.bonus) || 0;
+        invRepQty += invQty;
+        invRepBonus += invBonus;
         invRepAmt += invGross;
         invRepNet += invNet;
-        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${inv.qty}" data-sort-bonus="${Number(inv.bonus) || 0}" data-sort-amount="${invNet}" data-sort-gross="${invGross}" data-sort-disc="${vouDisc}">
+        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${invQty}" data-sort-bonus="${invBonus}" data-sort-amount="${invNet}" data-sort-gross="${invGross}" data-sort-disc="${vouDisc}">
           <td>${esc(kindLabel)}</td>
           <td>${invTitle}</td>
           <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
           <td class="ora-cust-name">${esc(inv.customer)}</td>
-          ${qtyExtraCell(inv.qty, inv.bonus)}
+          ${qtyExtraCell(invQty, invBonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
           <td class="si-num ora-disc-cell" dir="ltr">${vouDisc ? esc(fmtAmt(vouDisc)) : ''}</td>
           <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td>
@@ -3801,7 +3793,7 @@ const oracleRepItemsHandler = async (req, res) => {
       </div>`;
       const yearNote = yearCompare
         ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — الفئات بالإجمالي، وفي النهاية: الإجمالي · الخصم · الصافي. فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
-        : `<div class="ora-year-note muted">الفئات تعرض المبلغ (مبيعات − مرتجعات). في النهاية: الإجمالي · الخصم (VOU_DISC) · الصافي = الإجمالي − الخصم.</div>`;
+        : `<div class="ora-year-note muted">الفئات تعرض المبلغ (مبيعات − مرتجعات). الخصم = نصيب الفئات الظاهرة من خصم الفاتورة (VOU_DISC) · الصافي = الإجمالي − الخصم.</div>`;
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
@@ -3843,7 +3835,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 <th class="ora-vhead js-sort-th ora-col-gross" data-sort="gross" data-sort-type="number" title="إجمالي المبيعات بعد خصم المرتجعات (قبل خصم الفاتورة)"><span class="ora-cat-title">الإجمالي</span>${
                   yearCompare ? yearHeadHtml(false) : ''
                 }</th>
-                <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number" title="خصم الفاتورة VOU_DISC"><span class="ora-cat-title">الخصم</span>${
+                <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number" title="خصم الفاتورة VOU_DISC موزّع حسب نسبة مبالغ الفئات الظاهرة"><span class="ora-cat-title">الخصم</span>${
                   yearCompare ? yearHeadHtml(false) : ''
                 }</th>
                 <th class="ora-vhead js-sort-th ora-col-net" data-sort="total" data-sort-type="number" title="الصافي = الإجمالي − الخصم"><span class="ora-cat-title">الصافي</span>${
