@@ -3589,6 +3589,19 @@ const oracleRepItemsHandler = async (req, res) => {
         const invQty = visibleLines.reduce((s, ln) => s + (Number(ln.qty) || 0), 0);
         const invBonus = visibleLines.reduce((s, ln) => s + (Number(ln.bonus) || 0), 0);
         const invNet = invGross - vouDisc;
+        // نسبة الخصم الأصلية على الفاتورة (خصم الرأس / إجمالي كل البنود)
+        const fullAbsForPct = (inv.lines || []).reduce(
+          (s, ln) => s + Math.abs(Number(ln.amount) || 0),
+          0
+        );
+        const rawDiscForPct = Math.abs(Number(inv.vouDisc) || 0);
+        const discPct =
+          fullAbsForPct > 0
+            ? Math.round((rawDiscForPct / fullAbsForPct) * 10000) / 100
+            : 0;
+        const discPctLabel = discPct
+          ? `${discPct.toLocaleString('en-US', { maximumFractionDigits: 2 })}%`
+          : '';
         {
           const sortedLines = visibleLines.slice().sort((a, b) => {
             const c = String(a.cat || '').localeCompare(String(b.cat || ''), 'ar');
@@ -3625,23 +3638,33 @@ const oracleRepItemsHandler = async (req, res) => {
         invRepBonus += invBonus;
         invRepAmt += invGross;
         invRepNet += invNet;
-        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${invQty}" data-sort-bonus="${invBonus}" data-sort-amount="${invNet}" data-sort-gross="${invGross}" data-sort-disc="${vouDisc}">
+        invoiceSumBody += `<tr class="${isRet ? 'ora-ret-row' : ''}" data-sort-row data-sort-kind="${esc(kindLabel)}" data-sort-invoice="${esc(String(inv.invNo || 0))}" data-sort-date="${esc(inv.saleDate || '')}" data-sort-customer="${esc(inv.customer)}" data-sort-qty="${invQty}" data-sort-bonus="${invBonus}" data-sort-amount="${invNet}" data-sort-gross="${invGross}" data-sort-disc-pct="${discPct}" data-sort-disc="${vouDisc}">
           <td>${esc(kindLabel)}</td>
           <td>${invTitle}</td>
           <td class="si-num" dir="ltr">${esc(fmtSaleDate(inv.saleDate) || '—')}</td>
           <td class="ora-cust-name">${esc(inv.customer)}</td>
           ${qtyExtraCell(invQty, invBonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(invGross))}</td>
+          <td class="si-num ora-disc-pct-cell" dir="ltr">${discPctLabel ? esc(discPctLabel) : ''}</td>
           <td class="si-num ora-disc-cell" dir="ltr">${vouDisc ? esc(fmtAmt(vouDisc)) : ''}</td>
           <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invNet))}</td>
         </tr>`;
       });
       if (invoiceSumBody) {
         const invRepDisc = invRepAmt - invRepNet;
+        const invRepAbsGross = Math.abs(Number(invRepAmt) || 0);
+        const invRepDiscPct =
+          invRepAbsGross > 0
+            ? Math.round((Math.abs(Number(invRepDisc) || 0) / invRepAbsGross) * 10000) / 100
+            : 0;
+        const invRepDiscPctLabel = invRepDiscPct
+          ? `${invRepDiscPct.toLocaleString('en-US', { maximumFractionDigits: 2 })}%`
+          : '';
         invoiceSumBody += `<tr class="ora-cust-final">
           <td colspan="4">مجموع المندوب</td>
           ${qtyExtraCell(invRepQty, invRepBonus)}
           <td class="si-num" dir="ltr">${esc(fmtAmt(invRepAmt))}</td>
+          <td class="si-num ora-disc-pct-cell" dir="ltr">${invRepDiscPctLabel ? esc(invRepDiscPctLabel) : ''}</td>
           <td class="si-num ora-disc-cell" dir="ltr">${esc(fmtAmt(invRepDisc))}</td>
           <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invRepNet))}</td>
         </tr>`;
@@ -3995,6 +4018,7 @@ const oracleRepItemsHandler = async (req, res) => {
                 <th class="ora-vhead js-sort-th" data-sort="qty" data-sort-type="number">الكمية</th>
                 <th class="ora-vhead js-sort-th" data-sort="bonus" data-sort-type="number">إضافي</th>
                 <th class="ora-vhead js-sort-th" data-sort="gross" data-sort-type="number">الإجمالي</th>
+                <th class="ora-vhead js-sort-th ora-col-disc-pct" data-sort="disc-pct" data-sort-type="number" title="نسبة خصم الفاتورة الأصلية">نسبة الخصم</th>
                 <th class="ora-vhead js-sort-th ora-col-disc" data-sort="disc" data-sort-type="number">الخصم</th>
                 <th class="ora-vhead js-sort-th ora-col-net" data-sort="amount" data-sort-type="number">الصافي</th>
               </tr></thead>
