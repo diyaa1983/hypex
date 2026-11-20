@@ -390,6 +390,13 @@
     if (!taskbarEl) {
       return;
     }
+    // أثناء التصغير: الشريط يجب أن يبقى ظاهراً خارج app-shell المخفي
+    if (document.body.classList.contains('app-mdi-page-parked')) {
+      if (taskbarEl.parentNode !== document.body) {
+        document.body.appendChild(taskbarEl);
+      }
+      return;
+    }
     var nav = document.querySelector('.hx-topnav');
     if (nav && taskbarEl.parentNode !== nav) {
       nav.appendChild(taskbarEl);
@@ -537,14 +544,26 @@
     }
     ensureHubFrameGuard();
     url = buildHubEmbedUrl(url || defaultHubUrl());
-    // أعد استخدام iframe القائمة إن كانت محمّلة — أسرع عند التصغير المتكرر
-    if (hubOverlayUrl !== url) {
+    // أعد استخدام iframe القائمة إن كانت محمّلة — وأعد التحميل إن كانت بدون قائمة
+    var needReload = hubOverlayUrl !== url;
+    if (!needReload) {
+      try {
+        var hubDoc = hubFrameEl.contentDocument;
+        if (!hubDoc || !hubDoc.querySelector(".hx-topnav, .hx-topnav__nav")) {
+          needReload = true;
+        }
+      } catch (eHubDoc) {
+        needReload = true;
+      }
+    }
+    if (needReload) {
       hubFrameEl.src = url;
       hubOverlayUrl = url;
     }
     hubOverlayEl.hidden = false;
     hubOverlayEl.setAttribute('aria-hidden', 'false');
     document.body.classList.add('app-mdi-page-parked');
+    placeTaskbar();
   }
 
   function hideHubOverlay() {
@@ -555,6 +574,7 @@
     hubOverlayEl.hidden = true;
     hubOverlayEl.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('app-mdi-page-parked');
+    placeTaskbar();
   }
 
   function samePagePath(aHref, bHref) {

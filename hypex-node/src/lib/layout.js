@@ -66,8 +66,18 @@ function setRequestPath(p, embed) {
   currentRequestEmbed = embed == null || embed === false ? '' : String(embed).trim();
 }
 
+function isScreenEmbedRequest() {
+  return currentRequestEmbed === '1';
+}
+
+function isMenuHubEmbedRequest() {
+  return currentRequestEmbed === 'menu';
+}
+
 function isMdiEmbedRequest() {
-  return currentRequestEmbed === '1' || currentRequestEmbed === 'menu';
+  // embed=1: شاشة داخل نافذة MDI بدون قائمة
+  // embed=menu: قائمة التصغير — يجب أن تظهر القائمة
+  return isScreenEmbedRequest() || isMenuHubEmbedRequest();
 }
 
 function normalizeAppPath(p) {
@@ -113,7 +123,7 @@ function wrapScreenChrome(title, bodyHtml, activePath) {
   const path = normalizeAppPath(currentRequestPath || activePath);
   if (isDashboardPath(path)) return bodyHtml;
   const href = screenExitHref(activePath) || '/app';
-  const minimizeBtn = isMdiEmbedRequest()
+  const minimizeBtn = isScreenEmbedRequest()
     ? ''
     : `<button type="button" class="ora12-title-bar__btn ora12-title-bar__minimize" id="app-mdi-minimize-screen" title="تصغير" aria-label="تصغير"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 16h12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>`;
   const favBtn = renderFavoriteToggleButton();
@@ -399,17 +409,21 @@ function renderApp({
     })
     .join('\n');
 
+  const screenEmbed = isScreenEmbedRequest();
+  const menuHubEmbed = isMenuHubEmbedRequest();
   const embedReq = isMdiEmbedRequest();
   const bodyCls = [
     'app-body',
     bodyClass,
-    embedReq ? 'app-body--embed app-body--focus' : '',
-    user && !embedReq ? 'has-topnav' : '',
+    // شاشة MDI فقط بدون قائمة؛ قائمة التصغير تُظهر الشريط العلوي
+    screenEmbed ? 'app-body--embed app-body--focus' : '',
+    menuHubEmbed ? 'app-body--menu-hub' : '',
+    user && !screenEmbed ? 'has-topnav' : '',
     printChrome && user ? 'has-print-chrome' : '',
   ]
     .filter(Boolean)
     .join(' ');
-  const mainCls = embedReq
+  const mainCls = screenEmbed
     ? `${mainClass || 'main main--wide'} app-embed-main`.replace(/\s+/g, ' ').trim()
     : mainClass || 'main main--wide';
   const printed = printChrome && user ? wrapPrintShell(bodyHtml) : bodyHtml;
@@ -477,8 +491,8 @@ function renderApp({
       <p class="app-busy-hint">يرجى الانتظار — لا تغلق المتصفح حتى انتهاء العملية</p>
     </div>
   </div>
-  <div class="app-shell${embedReq ? ' app-shell--focus' : ''}">
-    ${user && !embedReq ? renderSidebar(user, activePath, bellHtml, title) : ''}
+  <div class="app-shell${screenEmbed ? ' app-shell--focus' : ''}">
+    ${user && !screenEmbed ? renderSidebar(user, activePath, bellHtml, title) : ''}
     <main class="${esc(mainCls)}">
       ${mainBody}
     </main>
