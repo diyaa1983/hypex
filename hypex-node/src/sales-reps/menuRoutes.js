@@ -219,7 +219,7 @@ router.get('/sales-reps/tour-map', async (req, res) => {
         .stm-filters label{display:flex;flex-direction:column;gap:.2rem;font-size:.8rem;font-weight:700;color:#5c6578;margin:0}
         .stm-filters .si-field,.stm-filters select.si-field{min-width:14rem}
         .stm-map-wrap{position:relative;height:min(68vh,640px);min-height:420px;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e8eef6}
-        .stm-map-wrap .leaflet-container{height:100%;width:100%;font-family:inherit}
+        .stm-map-wrap .leaflet-container{height:100%;width:100%;font-family:inherit;direction:ltr}
         .stm-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:.75rem;align-items:stretch}
         @media (max-width:900px){.stm-side{grid-template-columns:1fr}}
         .stm-list{max-height:min(68vh,640px);overflow:auto;border:1px solid #e2e8f0;border-radius:12px;background:#fff;padding:.4rem}
@@ -231,7 +231,10 @@ router.get('/sales-reps/tour-map', async (req, res) => {
         .stm-item__t{min-width:0;flex:1}
         .stm-item__t strong{display:block;font-size:.82rem;line-height:1.35}
         .stm-item__t small{display:block;color:#64748b;font-size:.72rem;margin-top:.1rem}
-        .stm-pin-label{background:#0f766e;color:#fff;border:none;border-radius:999px;padding:2px 8px;font-weight:700;font-size:11px;box-shadow:0 1px 4px rgba(15,23,42,.25);white-space:nowrap}
+        .stm-marker{background:transparent!important;border:none!important}
+        .stm-marker__wrap{display:flex;align-items:center;gap:5px;transform:translate(-14px,-11px);pointer-events:none}
+        .stm-pin-label{flex:0 0 auto;min-width:1.55rem;height:1.55rem;padding:0 6px;background:#0f766e;color:#fff;border-radius:999px;font-weight:800;font-size:11px;line-height:1.55rem;text-align:center;box-shadow:0 1px 4px rgba(15,23,42,.28);white-space:nowrap}
+        .stm-marker__name{display:inline-block;max-width:11.5rem;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.96);border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.14);color:#0f172a;font-size:11px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right}
         .stm-stats{display:flex;flex-wrap:wrap;gap:.4rem;margin:.35rem 0 .75rem}
         .stm-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:999px;background:#f1f5f9;font-size:.78rem;font-weight:700;color:#334155}
       </style>
@@ -383,28 +386,34 @@ router.get('/sales-reps/tour-map', async (req, res) => {
             addTiles().then(function(){
               withGps.forEach(function(p, i){
                 var n = i + 1;
+                var rawName = String(p.name || ('عميل ' + n)).trim();
+                var shortName = rawName.length > 28 ? rawName.slice(0, 26) + '…' : rawName;
+                function escHtml(s){
+                  return String(s || '')
+                    .replace(/&/g,'&amp;')
+                    .replace(/</g,'&lt;')
+                    .replace(/>/g,'&gt;')
+                    .replace(/"/g,'&quot;');
+                }
+                // الاسم داخل الأيقونة بجانب الرقم — أدق من Tooltip في صفحات RTL
                 var icon = L.divIcon({
-                  className: '',
-                  html: '<div class="stm-pin-label">' + n + '</div>',
+                  className: 'stm-marker',
+                  html: '<div class="stm-marker__wrap">'
+                    + '<span class="stm-pin-label">' + n + '</span>'
+                    + '<span class="stm-marker__name" title="' + escHtml(rawName) + '">' + escHtml(shortName) + '</span>'
+                    + '</div>',
                   iconSize: [28, 22],
                   iconAnchor: [14, 11]
                 });
                 var days = (p.weekday_labels || []).join(' · ');
-                var html = '<strong>' + String(p.name || '').replace(/</g,'&lt;') + '</strong>'
-                  + (p.code ? '<br><span dir="ltr">' + String(p.code).replace(/</g,'&lt;') + '</span>' : '')
-                  + (days ? '<br><small>' + String(days).replace(/</g,'&lt;') + '</small>' : '')
+                var html = '<strong>' + escHtml(p.name || '') + '</strong>'
+                  + (p.code ? '<br><span dir="ltr">' + escHtml(p.code) + '</span>' : '')
+                  + (days ? '<br><small>' + escHtml(days) + '</small>' : '')
                   + ((p.region_name || p.address_name)
-                      ? '<br><small>' + String([p.region_name, p.address_name].filter(Boolean).join(' / ')).replace(/</g,'&lt;') + '</small>'
+                      ? '<br><small>' + escHtml([p.region_name, p.address_name].filter(Boolean).join(' / ')) + '</small>'
                       : '');
                 var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
                 m.bindPopup(html);
-                m.bindTooltip(String(p.name || ('عميل ' + n)), {
-                  permanent: true,
-                  direction: 'top',
-                  offset: [0, -12],
-                  opacity: 0.95,
-                  className: 'stm-name-tip'
-                });
                 markers.push(m);
                 bounds.push([p.lat, p.lng]);
                 if (listBody) {
