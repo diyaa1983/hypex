@@ -22,6 +22,8 @@
   var hubOverlayUrl = '';
   var parkedLiveId = null;
   var prefetchedUrls = {};
+  var screenOverlayEl = null;
+  var activeOverlayId = null;
 
   function esc(text) {
     var d = document.createElement('div');
@@ -623,10 +625,22 @@
       return;
     }
     try {
-      if (!hubFrameEl) {
-        return;
+      var hubDoc = null;
+      if (screenOverlayEl && !screenOverlayEl.hidden && activeOverlayId) {
+        var activeFr = screenOverlayEl.querySelector(
+          '.app-mdi-screen-frame.is-active[data-mdi-frame="' + activeOverlayId + '"]'
+        );
+        if (activeFr) {
+          try {
+            hubDoc = activeFr.contentDocument;
+          } catch (eFr) {
+            hubDoc = null;
+          }
+        }
       }
-      var hubDoc = hubFrameEl.contentDocument;
+      if ((!hubDoc || !hubDoc.body) && hubFrameEl) {
+        hubDoc = hubFrameEl.contentDocument;
+      }
       if (!hubDoc || !hubDoc.body) {
         return;
       }
@@ -905,6 +919,7 @@
     if (parkedLiveId === win.id) {
       parkedLiveId = null;
     }
+    hideScreenOverlayHost();
     hideHubOverlay();
     persistWindowsNow();
     syncTaskbar();
@@ -1013,29 +1028,237 @@
     }
   }
 
+  function ensureScreenOverlay() {
+    if (screenOverlayEl && screenOverlayEl.parentNode) {
+      return screenOverlayEl;
+    }
+    screenOverlayEl = document.getElementById('app-mdi-screen-overlay');
+    if (!screenOverlayEl) {
+      screenOverlayEl = document.createElement('div');
+      screenOverlayEl.id = 'app-mdi-screen-overlay';
+      screenOverlayEl.className = 'app-mdi-screen-overlay no-print';
+      screenOverlayEl.hidden = true;
+      screenOverlayEl.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(screenOverlayEl);
+    }
+    return screenOverlayEl;
+  }
+
+  function hideScreenOverlayHost() {
+    activeOverlayId = null;
+    if (!screenOverlayEl) {
+      screenOverlayEl = document.getElementById('app-mdi-screen-overlay');
+    }
+    if (screenOverlayEl) {
+      screenOverlayEl.hidden = true;
+      screenOverlayEl.setAttribute('aria-hidden', 'true');
+      Array.prototype.forEach.call(screenOverlayEl.querySelectorAll('.app-mdi-screen-frame'), function (fr) {
+        fr.classList.remove('is-active');
+      });
+    }
+  }
+
+  function buildScreenEmbedUrl(href) {
+    try {
+      var u = new URL(withAppBase(stripEmbedParams(href)) || href, global.location.origin);
+      u.searchParams.set('embed', 'menu');
+      u.searchParams.delete('mdi_id');
+      return u.pathname + u.search + u.hash;
+    } catch (e) {
+      return href;
+    }
+  }
+
+  function resetHubToMenu() {
+    if (!hubFrameEl) {
+      return;
+    }
+    var url = buildHubEmbedUrl(defaultHubUrl());
+    try {
+      if (hubFrameEl.contentWindow) {
+        var cur = new URL(hubFrameEl.contentWindow.location.href);
+        if (isHubFrameLocation(cur) && cur.searchParams.get('embed') === 'menu') {
+          hubOverlayUrl = url;
+          return;
+        }
+      }
+    } catch (eCur) {
+      /* reload */
+    }
+    hubFrameEl.src = url;
+    hubOverlayUrl = url;
+  }
+
+  function ensureOverlayFrame(win) {
+    if (!win) {
+      return null;
+    }
+    var host = ensureScreenOverlay();
+    var frame = host.querySelector('.app-mdi-screen-frame[data-mdi-frame="' + win.id + '"]');
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.className = 'app-mdi-screen-frame';
+      frame.setAttribute('data-mdi-frame', win.id);
+      frame.title = win.title || 'شاشة';
+      frame.addEventListener('load', function () {
+        try {
+          var doc = frame.contentDocument;
+          stripIframeMdiChrome(doc);
+          if (document.body.classList.contains('app-mdi-page-parked')) {
+            syncHubTaskbarMirror();
+          }
+          if (global.AppBusy && typeof global.AppBusy.hide === 'function') {
+            global.AppBusy.hide(true);
+          }
+          document.documentElement.classList.remove('hypex-nav-busy');
+        } catch (eLoad) {
+          /* ignore */
+        }
+      });
+      host.appendChild(frame);
+    }
+    win.overlayFrame = frame;
+    return frame;
+  }
+
+  function showOverlayWindow(win, forceReload) {
+    if (!win) {
+      return;
+    }
+    var host = ensureScreenOverlay();
+    var frame = ensureOverlayFrame(win);
+    var embedUrl = buildScreenEmbedUrl(preferRestoreHref(win.href));
+    Array.prototype.forEach.call(host.querySelectorAll('.app-mdi-screen-frame'), function (fr) {
+      fr.classList.toggle('is-active', fr === frame);
+    });
+    host.hidden = false;
+    host.setAttribute('aria-hidden', 'false');
+    activeOverlayId = win.id;
+    win.overlayLive = true;
+    win.minimized = false;
+    win.fullPage = true;
+    activeId = win.id;
+    if (!document.body.classList.contains('app-mdi-page-parked')) {
+      document.body.classList.add('app-mdi-page-parked');
+    }
+    if (hubOverlayEl) {
+      hubOverlayEl.hidden = false;
+      hubOverlayEl.setAttribute('aria-hidden', 'false');
+    }
+    var needLoad = !!forceReload || !frame.getAttribute('src');
+    if (!needLoad) {
+      try {
+        var curPath = stripBasePath(new URL(frame.contentWindow.location.href).pathname);
+        var wantPath = stripBasePath(new URL(embedUrl, global.location.origin).pathname);
+        if (curPath !== wantPath) {
+          needLoad = true;
+        }
+      } catch (eSrc) {
+        needLoad = true;
+      }
+    }
+    if (needLoad) {
+      showBusyNav('جاري فتح الشاشة…');
+      frame.src = embedUrl;
+    } else {
+      try {
+        if (global.AppBusy && typeof global.AppBusy.hide === 'function') {
+          global.AppBusy.hide(true);
+        }
+      } catch (eHide) {
+        /* ignore */
+      }
+    }
+    placeTaskbar();
+    syncTaskbar();
+    persistWindowsNow();
+  }
+
+  function openScreenOverlayFromHref(href, title) {
+    var target = withAppBase(stripEmbedParams(href)) || href;
+    target = preferRestoreHref(target);
+    var key = identityKey(target);
+    var existing = findByKey(key);
+    var id;
+    if (existing) {
+      existing.href = target;
+      existing.key = key;
+      if (title) {
+        existing.title = title;
+      }
+      id = existing.id;
+    } else {
+      id = registerFullPageWindow({
+        key: key,
+        href: target,
+        title: title || titleFromHref(target),
+        minimized: false,
+      });
+    }
+    var win = findWindow(id);
+    if (!win) {
+      return null;
+    }
+    win.overlayLive = true;
+    win.parkedLive = false;
+    showOverlayWindow(win, true);
+    resetHubToMenu();
+    return id;
+  }
+
+  function parkVisiblePageIfNeeded() {
+    if (document.body.classList.contains('app-mdi-page-parked')) {
+      return parkedLiveId ? findWindow(parkedLiveId) : null;
+    }
+    if (isMenuLikeLocation(global.location.href)) {
+      return null;
+    }
+    var href = global.location.href;
+    if (pageHasReportResults()) {
+      href = withAppBase(withRunFlag(href)) || withRunFlag(href);
+    }
+    var key = identityKey(href);
+    var win = findByKey(key);
+    if (!win) {
+      registerFullPageWindow({
+        key: key,
+        href: href,
+        title: currentPageTitle(),
+        minimized: true,
+      });
+      win = findByKey(key);
+    } else {
+      win.href = href;
+      win.key = key;
+      win.title = currentPageTitle() || win.title;
+    }
+    if (win) {
+      capturePageState(win);
+      parkLivePage(win, defaultHubUrl());
+    }
+    return win;
+  }
+
   function navigateFromHubParent(href) {
     if (!href) {
       return;
     }
     var target = withAppBase(stripEmbedParams(href));
     var parked = parkedLiveId ? findWindow(parkedLiveId) : null;
-    // الرجوع لنفس التقرير الموقف: إلغاء التوقيف فقط — بدون إعادة تحميل
     if (parked && (normalizeKey(parked.href) === normalizeKey(target) || samePagePath(parked.href, target))) {
+      hideScreenOverlayHost();
       unparkLiveWindow(parked);
       return;
     }
-    if (parked) {
+    if (parked && parked.parkedLive) {
       capturePageState(parked);
+      openScreenOverlayFromHref(target);
+      return;
     }
-    releaseParkedLiveForNavigation();
-    hideHubOverlay();
-    parkedLiveId = null;
-    document.body.classList.remove('app-mdi-page-parked');
     showBusyNav('جاري فتح الشاشة…');
     global.__managerAllowUnload = true;
     global.location.href = target;
   }
-
   function findCurrentFullPageWindow() {
     return findByKey(normalizeKey(global.location.href));
   }
@@ -1134,10 +1357,13 @@
     if (!win || win.minimized) {
       return false;
     }
-    if (win.parkedLive && isParkedLiveWindow(win)) {
+    if (activeOverlayId && win.id === activeOverlayId) {
       return true;
     }
-    if (win.fullPage && isWindowCurrentPage(win)) {
+    if (win.parkedLive && isParkedLiveWindow(win)) {
+      return false;
+    }
+    if (win.fullPage && isWindowCurrentPage(win) && !document.body.classList.contains('app-mdi-page-parked')) {
       return true;
     }
     if (win.el && win.id === activeId) {
@@ -1217,7 +1443,7 @@
     if (!doc) {
       return;
     }
-    ['app-mdi-taskbar', 'app-mdi-layer', 'app-mdi-hub-overlay'].forEach(function (id) {
+    ['app-mdi-taskbar', 'app-mdi-layer', 'app-mdi-hub-overlay', 'app-mdi-screen-overlay', 'app-mdi-taskbar-hub'].forEach(function (id) {
       var el = doc.getElementById(id);
       if (el && el.parentNode) {
         el.parentNode.removeChild(el);
@@ -1253,8 +1479,16 @@
         }
         return;
       }
-      // المستخدم فتح شاشة من القائمة داخل الـ iframe → انقلها للأب
-      navigateFromHubParent(cw.location.href);
+      // المستخدم فتح شاشة من القائمة داخل الـ iframe
+      var screenHref = cw.location.href;
+      navigateFromHubParent(screenHref);
+      try {
+        if (document.body.classList.contains('app-mdi-page-parked')) {
+          resetHubToMenu();
+        }
+      } catch (eReset) {
+        /* ignore */
+      }
     } catch (e) {
       /* ignore */
     }
@@ -2002,12 +2236,16 @@
     if (!win) {
       return;
     }
-    if (isParkedLiveWindow(win) || (win.parkedLive && isWindowCurrentPage(win))) {
+    if (win.parkedLive || isParkedLiveWindow(win)) {
+      hideScreenOverlayHost();
       unparkLiveWindow(win);
       return;
     }
-    if (parkedLiveId && parkedLiveId !== id) {
-      releaseParkedLiveForNavigation();
+    if (win.overlayLive || (win.overlayFrame && win.overlayFrame.parentNode)) {
+      parkVisiblePageIfNeeded();
+      win.overlayLive = true;
+      showOverlayWindow(win, false);
+      return;
     }
     var samePage = isWindowCurrentPage(win);
     win.minimized = false;
@@ -2016,14 +2254,22 @@
     activeId = id;
     persistWindowsNow();
     if (samePage) {
+      hideScreenOverlayHost();
       hideHubOverlay();
       document.body.classList.remove('app-mdi-page-parked');
       syncTaskbar();
       return;
     }
+    if (parkedLiveId && parkedLiveId !== id) {
+      var parked = findWindow(parkedLiveId);
+      if (parked && parked.parkedLive) {
+        openScreenOverlayFromHref(preferRestoreHref(withAppBase(win.href) || win.href), win.title);
+        return;
+      }
+      releaseParkedLiveForNavigation();
+    }
     win.href = preferRestoreHref(withAppBase(win.href) || win.href);
     win.key = identityKey(win.href);
-    // إن كان الرابط يعيد التقرير الجاهز (?run=1) لا نعيد إرسال النموذج بعد التحميل
     var needsResubmit = true;
     try {
       var uh = new URL(win.href, global.location.origin);
@@ -2076,6 +2322,23 @@
       minimizeThisPage(true);
       return;
     }
+    if (win.overlayLive || (win.overlayFrame && activeOverlayId === win.id)) {
+      win.minimized = true;
+      win.overlayLive = true;
+      win.fullPage = true;
+      if (activeOverlayId === win.id) {
+        hideScreenOverlayHost();
+      }
+      if (hubOverlayEl) {
+        hubOverlayEl.hidden = false;
+        hubOverlayEl.setAttribute('aria-hidden', 'false');
+      }
+      document.body.classList.add('app-mdi-page-parked');
+      placeTaskbar();
+      syncTaskbar();
+      persistWindowsNow();
+      return;
+    }
     win.minimized = true;
     win.parkedLive = false;
     win.fullPage = true;
@@ -2105,6 +2368,22 @@
       return;
     }
     var win = windows[idx];
+    if (win.overlayFrame && win.overlayFrame.parentNode) {
+      try {
+        win.overlayFrame.parentNode.removeChild(win.overlayFrame);
+      } catch (eRmFr) {
+        /* ignore */
+      }
+      win.overlayFrame = null;
+    }
+    if (activeOverlayId === id) {
+      hideScreenOverlayHost();
+      if (document.body.classList.contains('app-mdi-page-parked') && hubOverlayEl) {
+        hubOverlayEl.hidden = false;
+        hubOverlayEl.setAttribute('aria-hidden', 'false');
+      }
+    }
+    win.overlayLive = false;
     if (!force) {
       if (win.unsaved) {
         confirmCloseWindow(win, function () {
