@@ -229,23 +229,23 @@ router.get('/sales-reps/tour-map', async (req, res) => {
         .stm-list h3{margin:.25rem .4rem .5rem;font-size:.88rem}
         .stm-item{display:flex;gap:.45rem;align-items:flex-start;padding:.45rem .5rem;border-radius:8px;cursor:pointer;border:1px solid transparent}
         .stm-item:hover,.stm-item.is-active{background:#f1f5f9;border-color:#cbd5e1}
-        .stm-item__n{flex:0 0 1.5rem;width:1.5rem;height:1.5rem;border-radius:999px;background:#0f766e;color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center}
+        .stm-item__n{flex:0 0 1.5rem;width:1.5rem;height:1.5rem;border-radius:999px;background:#16a34a;color:#fff;font-size:.72rem;font-weight:800;display:flex;align-items:center;justify-content:center}
         .stm-item.is-miss .stm-item__n{background:#94a3b8}
         .stm-item__t{min-width:0;flex:1}
         .stm-item__t strong{display:block;font-size:.82rem;line-height:1.35}
         .stm-item__t small{display:block;color:#64748b;font-size:.72rem;margin-top:.1rem}
         .stm-marker.leaflet-div-icon{background:transparent!important;border:none!important;width:auto!important;height:auto!important;margin:0!important;overflow:visible!important}
         .stm-marker__wrap{display:inline-flex;flex-direction:row;align-items:center;gap:4px;white-space:nowrap;pointer-events:auto;line-height:1}
-        .stm-pin-label{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:26px;height:26px;padding:0 7px;background:#0f766e;color:#fff;border-radius:999px;font-weight:800;font-size:12px;line-height:1;box-shadow:0 1px 4px rgba(15,23,42,.28);white-space:nowrap}
+        .stm-pin-label{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:26px;height:26px;padding:0 7px;background:#16a34a;color:#fff;border-radius:999px;font-weight:800;font-size:12px;line-height:1;box-shadow:0 1px 4px rgba(15,23,42,.28);white-space:nowrap}
         .stm-marker__name{display:inline-block;flex:0 1 auto;max-width:160px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.97);border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.16);color:#0f172a;font-size:12px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;unicode-bidi:plaintext;text-align:right;writing-mode:horizontal-tb}
         .stm-stats{display:flex;flex-wrap:wrap;gap:.4rem;margin:.35rem 0 .75rem}
         .stm-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:999px;background:#f1f5f9;font-size:.78rem;font-weight:700;color:#334155}
-        .stm-pin-label.is-visited{background:#0f766e;color:#fff}
-        .stm-pin-label.is-pending{background:#64748b;color:#fff}
-        .stm-item.is-visited .stm-item__n{background:#0f766e}
-        .stm-item.is-pending .stm-item__n{background:#94a3b8}
+        .stm-pin-label.is-visited{background:#dc2626;color:#fff}
+        .stm-pin-label.is-pending{background:#16a34a;color:#fff}
+        .stm-item.is-visited .stm-item__n{background:#dc2626}
+        .stm-item.is-pending .stm-item__n{background:#16a34a}
         .stm-item.is-pending .stm-item__t strong{color:#64748b}
-        .stm-visit-tag{display:inline-block;margin-top:.2rem;padding:.1rem .4rem;border-radius:6px;background:#ecfdf5;color:#0f766e;font-size:.72rem;font-weight:800}
+        .stm-visit-tag{display:inline-block;margin-top:.2rem;padding:.1rem .4rem;border-radius:6px;background:#fef2f2;color:#b91c1c;font-size:.72rem;font-weight:800}
       </style>
       ${ui.hero({
         mark: '🧭',
