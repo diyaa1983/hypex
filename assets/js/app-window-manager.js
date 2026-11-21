@@ -54,6 +54,99 @@
     }
   }
 
+  // هوية النافذة مستقرة: run=1 من PRG لا يُنشئ نافذة جديدة ولا يُفقد المطابقة
+  function identityKey(href) {
+    try {
+      var u = new URL(href, global.location.origin);
+      u.searchParams.delete('embed');
+      u.searchParams.delete('mdi_id');
+      u.searchParams.delete('run');
+      var parts = [];
+      u.searchParams.forEach(function (val, key) {
+        parts.push(key + '=' + val);
+      });
+      parts.sort();
+      return u.pathname + (parts.length ? '?' + parts.join('&') : '');
+    } catch (e) {
+      return normalizeKey(href);
+    }
+  }
+
+  function withRunFlag(href) {
+    try {
+      var u = new URL(href, global.location.origin);
+      u.searchParams.set('run', '1');
+      u.searchParams.delete('embed');
+      u.searchParams.delete('mdi_id');
+      return u.pathname + u.search + u.hash;
+    } catch (e) {
+      return href;
+    }
+  }
+
+  function pageHasReportResults() {
+    try {
+      return !!(
+        document.querySelector('.report-sales-result, .si-print-area.report-sales-result, [data-ora-view-panel]:not([hidden])') ||
+        document.querySelector('.ora-summary-block, .ora-view[data-ora-view-panel]')
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function preferRestoreHref(href) {
+    if (!href) {
+      return href;
+    }
+    try {
+      var u = new URL(href, global.location.origin);
+      if (u.searchParams.get('run') === '1') {
+        return href;
+      }
+      // فقط إذا كان الرابط لنفس الصفحة الحالية وفيها نتائج معروضة
+      var samePage = false;
+      try {
+        samePage = stripBasePath(u.pathname) === stripBasePath(global.location.pathname);
+      } catch (eSame) {
+        samePage = false;
+      }
+      if (samePage && pageHasReportResults()) {
+        return withAppBase(withRunFlag(href)) || withRunFlag(href);
+      }
+      var raw = null;
+      try {
+        raw = sessionStorage.getItem(PAGE_STATE_PREFIX + identityKey(href));
+        if (!raw) {
+          raw = sessionStorage.getItem(PAGE_STATE_PREFIX + normalizeKey(href));
+        }
+      } catch (eRaw) {
+        raw = null;
+      }
+      if (raw) {
+        try {
+          var payload = JSON.parse(raw);
+          var best = pickRestoreForm(payload && payload.forms);
+          if (best && best.fields && String(best.fields.run) === '1') {
+            return withAppBase(withRunFlag(href)) || withRunFlag(href);
+          }
+          // حالة محفوظة بعد عرض ناجح (حتى لو الحقل run غير موجود في النموذج)
+          if (payload && payload.href) {
+            var ph = new URL(payload.href, global.location.origin);
+            if (ph.searchParams.get('run') === '1') {
+              return withAppBase(withRunFlag(href)) || withRunFlag(href);
+            }
+          }
+        } catch (eParse) {
+          /* ignore */
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    return href;
+  }
+
   function buildEmbedUrl(href, mdiId) {
     var u = new URL(withAppBase(href) || href, global.location.origin);
     u.searchParams.set('embed', '1');
@@ -70,12 +163,12 @@
 
   function pageStateStorageKey(winOrKey) {
     if (!winOrKey) {
-      return PAGE_STATE_PREFIX + normalizeKey(global.location.href);
+      return PAGE_STATE_PREFIX + identityKey(global.location.href);
     }
     if (typeof winOrKey === 'string') {
-      return PAGE_STATE_PREFIX + winOrKey;
+      return PAGE_STATE_PREFIX + identityKey(winOrKey);
     }
-    return PAGE_STATE_PREFIX + (winOrKey.key || normalizeKey(winOrKey.href || global.location.href));
+    return PAGE_STATE_PREFIX + (winOrKey.key || identityKey(winOrKey.href || global.location.href));
   }
 
   function capturePageState(win) {
@@ -106,10 +199,18 @@
           fields: fields,
         });
       });
-      var key = (win && win.key) || normalizeKey((win && win.href) || global.location.href);
+      var hrefNow = global.location.href;
+      if (pageHasReportResults()) {
+        hrefNow = withAppBase(withRunFlag(hrefNow)) || withRunFlag(hrefNow);
+      }
+      var key = (win && win.key) || identityKey((win && win.href) || hrefNow);
+      if (win) {
+        win.key = key;
+        win.href = hrefNow;
+      }
       var payload = {
         key: key,
-        href: (win && win.href) || global.location.href,
+        href: hrefNow,
         path: global.location.pathname,
         scrollY: global.scrollY || 0,
         forms: forms,
@@ -256,15 +357,16 @@
     var seen = {};
     var data = [];
     windows.forEach(function (w) {
-      var key = w.key || normalizeKey(w.href);
+      var key = identityKey(w.key || w.href);
       if (seen[key]) {
         return;
       }
       seen[key] = true;
+      w.key = key;
       data.push({
         id: w.id,
         key: key,
-        href: w.href,
+        href: preferRestoreHref(w.href),
         title: w.title,
         route: w.route,
         minimized: w.minimized,
@@ -926,11 +1028,18 @@
       return;
     }
 
-    var matched = findByKey(normalizeKey(global.location.href));
+    var hrefNow = global.location.href;
+    if (pageHasReportResults()) {
+      hrefNow = withAppBase(withRunFlag(hrefNow)) || withRunFlag(hrefNow);
+    }
+    var matched = findByKey(identityKey(hrefNow));
     if (matched) {
+      matched.href = hrefNow;
+      matched.key = identityKey(hrefNow);
       matched.minimized = false;
       matched.parkedLive = false;
       matched.fullPage = true;
+      matched.title = currentPageTitle() || matched.title;
       activeId = matched.id;
       persistWindowsNow();
     }
@@ -1095,8 +1204,13 @@
   }
 
   function findByKey(key) {
+    if (!key) {
+      return null;
+    }
+    var idKey = identityKey(key);
     for (var i = 0; i < windows.length; i++) {
-      if (windows[i].key === key) {
+      var wKey = windows[i].key || identityKey(windows[i].href);
+      if (wKey === key || wKey === idKey || identityKey(wKey) === idKey || identityKey(windows[i].href) === idKey) {
         return windows[i];
       }
     }
@@ -1233,7 +1347,7 @@
     if (spec && spec.href) {
       spec.href = withAppBase(spec.href) || spec.href;
     }
-    var key = spec.key || normalizeKey(spec.href);
+    var key = identityKey(spec.key || spec.href);
     var existing = findByKey(key);
     if (existing) {
       if (spec.unsaved) {
@@ -1243,7 +1357,7 @@
         existing.title = spec.title;
       }
       if (spec.href) {
-        existing.href = spec.href;
+        existing.href = preferRestoreHref(spec.href);
         existing.key = key;
       }
       return existing.id;
@@ -1258,8 +1372,8 @@
     }
     var win = {
       id: id,
-      key: spec.key || normalizeKey(spec.href),
-      href: spec.href,
+      key: key,
+      href: preferRestoreHref(spec.href),
       route: spec.route || parseRouteFromHref(spec.href),
       title: spec.title || titleFromHref(spec.href),
       minimized: true,
@@ -1500,7 +1614,10 @@
 
   function minimizeThisPage(goMenu) {
     var href = global.location.href;
-    var key = normalizeKey(href);
+    if (pageHasReportResults()) {
+      href = withAppBase(withRunFlag(href)) || withRunFlag(href);
+    }
+    var key = identityKey(href);
     var existing = findByKey(key);
     var minimizeDetail = preparePageMinimize();
     var id;
@@ -1752,7 +1869,8 @@
       syncTaskbar();
       return;
     }
-    win.href = withAppBase(win.href) || win.href;
+    win.href = preferRestoreHref(withAppBase(win.href) || win.href);
+    win.key = identityKey(win.href);
     // إن كان الرابط يعيد التقرير الجاهز (?run=1) لا نعيد إرسال النموذج بعد التحميل
     var needsResubmit = true;
     try {
@@ -1765,7 +1883,7 @@
     }
     if (needsResubmit) {
       try {
-        sessionStorage.setItem(RESTORE_PENDING_KEY, win.key || normalizeKey(win.href));
+        sessionStorage.setItem(RESTORE_PENDING_KEY, win.key || identityKey(win.href));
       } catch (e) {
         /* ignore */
       }
@@ -1916,7 +2034,7 @@
   function createWindow(href, title, opts) {
     opts = opts || {};
     href = withAppBase(href) || href;
-    var key = normalizeKey(href);
+    var key = identityKey(href);
     var existing = findByKey(key);
     if (existing) {
       if (opts.minimized) {

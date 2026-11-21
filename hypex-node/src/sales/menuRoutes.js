@@ -2227,6 +2227,20 @@ const oracleRepItemsHandler = async (req, res) => {
     if (String(bodyParams.ora_mode || '').trim() === 'all_oracle') q.set('ora_mode', 'all_oracle');
     return res.redirect(303, `${BASE}?${q.toString()}`);
   }
+  // GET بدون run=1 مع وجود آخر عرض في الجلسة → أعد العرض تلقائياً (عند الرجوع من تقرير آخر)
+  if (
+    req.method === 'GET' &&
+    String((req.query || {}).run || '') !== '1' &&
+    req.session &&
+    req.session.oraRepItemsFilter
+  ) {
+    const q = new URLSearchParams();
+    q.set('run', '1');
+    if (String(req.session.oraRepItemsFilter.ora_mode || '').trim() === 'all_oracle') {
+      q.set('ora_mode', 'all_oracle');
+    }
+    return res.redirect(302, `${BASE}?${q.toString()}`);
+  }
   // GET: استرجاع فلاتر آخر تشغيل من الجلسة عند run=1
   let params = { ...(req.query || {}) };
   if (String(params.run || '') === '1' && req.session && req.session.oraRepItemsFilter) {
