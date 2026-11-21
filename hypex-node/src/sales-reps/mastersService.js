@@ -735,11 +735,18 @@ const TOUR_VISIT_MAP_SQL = [
   'WHERE rl.visit_checkin_at IS NOT NULL',
 ].join('\n');
 
-async function loadTourVisitRows(tour) {
+async function loadTourVisitRows(tour, mapDate) {
   const tourId = Number(tour?.id || 0);
+  const dayFilter = normalizeIsoDate(mapDate || '');
   let rows = [];
   if (tourId > 0) {
-    rows = await safeQuery(`${TOUR_VISIT_MAP_SQL} AND r.tour_id = ?`, [tourId]);
+    const params = [tourId];
+    let sql = `${TOUR_VISIT_MAP_SQL} AND r.tour_id = ?`;
+    if (dayFilter) {
+      sql += ' AND r.route_date = ?';
+      params.push(dayFilter);
+    }
+    rows = await safeQuery(sql, params);
   }
   if (
     (!rows || rows.length === 0) &&
@@ -751,10 +758,17 @@ async function loadTourVisitRows(tour) {
     const df = String(tour.date_from || '').slice(0, 10);
     const dt = String(tour.date_to || '').slice(0, 10);
     if (repId > 0 && df && dt) {
-      rows = await safeQuery(
-        `${TOUR_VISIT_MAP_SQL} AND r.sales_rep_id = ? AND r.route_date >= ? AND r.route_date <= ?`,
-        [repId, df, dt]
-      );
+      if (dayFilter) {
+        rows = await safeQuery(
+          `${TOUR_VISIT_MAP_SQL} AND r.sales_rep_id = ? AND r.route_date = ?`,
+          [repId, dayFilter]
+        );
+      } else {
+        rows = await safeQuery(
+          `${TOUR_VISIT_MAP_SQL} AND r.sales_rep_id = ? AND r.route_date >= ? AND r.route_date <= ?`,
+          [repId, df, dt]
+        );
+      }
     }
   }
   return rows || [];
@@ -796,7 +810,8 @@ function mergeVisitIntoPoint(point, vr) {
 }
 
 /** نقاط خريطة جولة: عملاء الجولة مع إحداثياتهم وزيارات المسار الفعلية. */
-async function getTourMapData(tourId) {
+async function getTourMapData(tourId, opts = {}) {
+  const mapDate = normalizeIsoDate(opts.mapDate || '');
   const tour = await getTour(tourId);
   if (!tour) return null;
   const byCust = new Map();
@@ -834,7 +849,7 @@ async function getTourMapData(tourId) {
     }
   }
 
-  const visitRows = await loadTourVisitRows(tour);
+  const visitRows = await loadTourVisitRows(tour, mapDate || null);
   for (const vr of visitRows) {
     const cid = Number(vr.customer_id || 0);
     if (cid < 1) continue;
@@ -881,7 +896,7 @@ async function getTourMapData(tourId) {
     mergeVisitIntoPoint(point, vr);
   }
 
-  const points = [...byCust.values()].map((p) => {
+  let points = [...byCust.values()].map((p) => {
     const { _visit_pos_at, ...rest } = p;
     return {
       ...rest,
@@ -892,6 +907,17 @@ async function getTourMapData(tourId) {
         .filter(Boolean),
     };
   });
+  let mapWeekday = null;
+  let mapWeekdayLabel = '';
+  if (mapDate) {
+    mapWeekday = weekdayOfIso(mapDate);
+    if (mapWeekday != null) {
+      mapWeekdayLabel = WEEKDAY_LABELS[mapWeekday] || '';
+      points = points.filter(
+        (p) => (Array.isArray(p.weekdays) && p.weekdays.includes(mapWeekday)) || p.visited
+      );
+    }
+  }
   points.sort((a, b) => {
     if (a.visited !== b.visited) return a.visited ? -1 : 1;
     return String(a.name).localeCompare(String(b.name), 'ar');
@@ -899,16 +925,22 @@ async function getTourMapData(tourId) {
   const withGps = points.filter((p) => p.has_gps);
   const visited = points.filter((p) => p.visited).length;
   const visitedOnMap = points.filter((p) => p.visited && p.has_gps).length;
-  return {
-    tour: {
-      id: Number(tour.id),
-      sales_rep_id: Number(tour.sales_rep_id),
-      sales_rep_name: String(tour.sales_rep_name || ''),
-      date_from: String(tour.date_from || '').slice(0, 10),
-      date_to: String(tour.date_to || '').slice(0, 10),
-      status: String(tour.status || ''),
-      notes: String(tour.notes || ''),
-    },
+  const tourOut = {
+    id: Number(tour.id),
+    sales_rep_id: Number(tour.sales_rep_id),
+    sales_rep_name: String(tour.sales_rep_name || ''),
+    date_from: String(tour.date_from || '').slice(0, 10),
+    date_to: String(tour.date_to || '').slice(0, 10),
+    status: String(tour.status || ''),
+    notes: String(tour.notes || ''),
+  };
+  if (mapDate) {
+    tourOut.map_date = mapDate;
+    tourOut.map_weekday = mapWeekday;
+    tourOut.map_weekday_label = mapWeekdayLabel;
+  }
+  const out = {
+    tour: tourOut,
     points,
     totals: {
       customers: points.length,
@@ -919,6 +951,10 @@ async function getTourMapData(tourId) {
       not_visited: points.length - visited,
     },
   };
+  if (mapDate) {
+    out.filter = { map_date: mapDate };
+  }
+  return out;
 }
 
 

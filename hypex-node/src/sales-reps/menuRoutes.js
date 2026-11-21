@@ -136,10 +136,11 @@ router.get('/sales-reps/tour-map', async (req, res) => {
   const reps = await q.listRepsSimple();
   let salesRepId = Number(req.query.sales_rep_id || 0) || 0;
   let tourId = Number(req.query.tour_id || 0) || 0;
+  const mapDate = masters.normalizeIsoDate(req.query.map_date || '');
 
   let mapData = null;
   if (tourId > 0) {
-    mapData = await masters.getTourMapData(tourId);
+    mapData = await masters.getTourMapData(tourId, { mapDate });
     if (mapData && !salesRepId) {
       salesRepId = Number(mapData.tour.sales_rep_id) || 0;
     }
@@ -199,9 +200,18 @@ router.get('/sales-reps/tour-map', async (req, res) => {
 
   const pointsJson = JSON.stringify(mapData?.points || []).replace(/</g, '\\u003c');
   const totals = mapData?.totals || { customers: 0, with_gps: 0, without_gps: 0, visited: 0, visited_on_map: 0, not_visited: 0 };
-  const tourTitle = mapData
+  let tourTitle = mapData
     ? `${mapData.tour.sales_rep_name || 'مندوب'} · ${isoToDmy(mapData.tour.date_from)} → ${isoToDmy(mapData.tour.date_to)}`
     : '';
+  if (mapData && mapDate) {
+    const wdLabel =
+      mapData.tour.map_weekday_label ||
+      (masters.WEEKDAY_LABELS || [])[mapData.tour.map_weekday] ||
+      '';
+    tourTitle += ` · يوم ${isoToDmy(mapDate)} (${wdLabel})`;
+  }
+  const mapDayMin = mapData ? esc(mapData.tour.date_from || '') : '';
+  const mapDayMax = mapData ? esc(mapData.tour.date_to || '') : '';
 
   const missingPoints = mapData ? (mapData.points || []).filter((p) => !p.has_gps) : [];
   const missingList =
@@ -251,7 +261,7 @@ router.get('/sales-reps/tour-map', async (req, res) => {
         mark: '🧭',
         kicker: KICKER,
         title: 'خريطة جولة المندوب',
-        subtitle: 'اختر المندوب ثم الجولة لعرض الزيارات والمواقع. يظهر العملاء المزارون بإحداثيات الدخول إن لم يكن للعميل موقع ثابت.',
+        subtitle: 'اختر المندوب ثم الجولة. اختر يوماً محدداً لعرض عملاء ذلك اليوم وزياراته، أو اترك اليوم فارغاً لعرض كل أيام الجولة. يظهر العملاء المزارون بإحداثيات الدخول إن لم يكن للعميل موقع ثابت.',
         actions: [
           { label: 'الجولات', href: '/sales-reps/route' },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
@@ -271,6 +281,14 @@ router.get('/sales-reps/tour-map', async (req, res) => {
               ${tourOptions}
             </select>
           </label>
+          <label>اليوم
+            <input class="si-field" type="date" name="map_date" id="stm-day"
+              value="${esc(mapDate)}"
+              ${mapDayMin ? `min="${mapDayMin}"` : ''}
+              ${mapDayMax ? `max="${mapDayMax}"` : ''}
+              ${salesRepId < 1 ? 'disabled' : ''}>
+            <small class="muted" style="font-weight:500;font-size:.72rem">اتركه فارغاً لعرض كل أيام الجولة</small>
+          </label>
           <button class="si-btn si-btn--primary" type="submit">عرض الخريطة</button>
         </form>
       </div>
@@ -282,6 +300,11 @@ router.get('/sales-reps/tour-map', async (req, res) => {
           <span class="si-count">جولة #${esc(mapData.tour.id)}</span>
         </div>
         <div class="stm-stats">
+          ${
+            mapDate
+              ? `<span class="stm-chip">يوم العرض: <b>${esc(isoToDmy(mapDate))}</b>${mapData.tour.map_weekday_label ? ' · ' + esc(mapData.tour.map_weekday_label) : ''}</span>`
+              : ''
+          }
           <span class="stm-chip">عملاء الجولة: <b>${esc(totals.customers)}</b></span>
           <span class="stm-chip">على الخريطة: <b>${esc(totals.with_gps)}</b></span>
           <span class="stm-chip">بلا موقع: <b>${esc(totals.without_gps)}</b></span>
