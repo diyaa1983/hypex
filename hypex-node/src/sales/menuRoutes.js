@@ -2227,21 +2227,23 @@ const oracleRepItemsHandler = async (req, res) => {
     if (String(bodyParams.ora_mode || '').trim() === 'all_oracle') q.set('ora_mode', 'all_oracle');
     return res.redirect(303, `${BASE}?${q.toString()}`);
   }
-  // GET بدون run=1 مع وجود آخر عرض في الجلسة → أعد العرض تلقائياً (عند الرجوع من تقرير آخر)
-  if (
-    req.method === 'GET' &&
-    String((req.query || {}).run || '') !== '1' &&
-    req.session &&
-    req.session.oraRepItemsFilter
-  ) {
-    const q = new URLSearchParams();
-    q.set('run', '1');
-    if (String(req.session.oraRepItemsFilter.ora_mode || '').trim() === 'all_oracle') {
-      q.set('ora_mode', 'all_oracle');
+  // مسح فلتر آخر عرض عند الإغلاق (فتح جديد = شاشة فارغة)
+  if (req.method === 'GET' && String((req.query || {}).clear_view || '') === '1' && req.session) {
+    try {
+      delete req.session.oraRepItemsFilter;
+    } catch (eClr) {
+      req.session.oraRepItemsFilter = null;
     }
-    return res.redirect(302, `${BASE}?${q.toString()}`);
+    await new Promise((resolve, reject) => {
+      req.session.save((err) => (err ? reject(err) : resolve()));
+    });
+    const q = new URLSearchParams({ ...(req.query || {}) });
+    q.delete('clear_view');
+    q.delete('run');
+    const qs = q.toString();
+    return res.redirect(302, qs ? `${BASE}?${qs}` : BASE);
   }
-  // GET: استرجاع فلاتر آخر تشغيل من الجلسة عند run=1
+  // GET: استرجاع فلاتر آخر تشغيل من الجلسة فقط عند run=1 (تصغير/استعادة — ليس بعد الإغلاق)
   let params = { ...(req.query || {}) };
   if (String(params.run || '') === '1' && req.session && req.session.oraRepItemsFilter) {
     params = { ...req.session.oraRepItemsFilter, ...params };

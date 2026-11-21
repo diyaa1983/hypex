@@ -97,16 +97,20 @@
     }
   }
 
-  function preferRestoreHref(href) {
+  function preferRestoreHref(href, win) {
     if (!href) {
       return href;
     }
     try {
       var u = new URL(href, global.location.origin);
-      if (u.searchParams.get('run') === '1') {
+      // نافذة مُصغَّرة مع بيانات معروضة — أبقِ run=1 كاحتياط فقط
+      if (win && win.keepView) {
+        if (u.searchParams.get('run') !== '1') {
+          return withAppBase(withRunFlag(href)) || withRunFlag(href);
+        }
         return href;
       }
-      // فقط إذا كان الرابط لنفس الصفحة الحالية وفيها نتائج معروضة
+      // نفس الصفحة الحالية وفيها نتائج (أثناء التصغير)
       var samePage = false;
       try {
         samePage = stripBasePath(u.pathname) === stripBasePath(global.location.pathname);
@@ -116,37 +120,61 @@
       if (samePage && pageHasReportResults()) {
         return withAppBase(withRunFlag(href)) || withRunFlag(href);
       }
-      var raw = null;
-      try {
-        raw = sessionStorage.getItem(PAGE_STATE_PREFIX + identityKey(href));
-        if (!raw) {
-          raw = sessionStorage.getItem(PAGE_STATE_PREFIX + normalizeKey(href));
-        }
-      } catch (eRaw) {
-        raw = null;
-      }
-      if (raw) {
-        try {
-          var payload = JSON.parse(raw);
-          var best = pickRestoreForm(payload && payload.forms);
-          if (best && best.fields && String(best.fields.run) === '1') {
-            return withAppBase(withRunFlag(href)) || withRunFlag(href);
-          }
-          // حالة محفوظة بعد عرض ناجح (حتى لو الحقل run غير موجود في النموذج)
-          if (payload && payload.href) {
-            var ph = new URL(payload.href, global.location.origin);
-            if (ph.searchParams.get('run') === '1') {
-              return withAppBase(withRunFlag(href)) || withRunFlag(href);
-            }
-          }
-        } catch (eParse) {
-          /* ignore */
-        }
+      // فتح جديد / بعد إغلاق: لا تُعد بيانات قديمة
+      if (u.searchParams.get('run') === '1' && !(win && win.keepView)) {
+        u.searchParams.delete('run');
+        return u.pathname + (u.search ? u.search : '') + u.hash;
       }
     } catch (e) {
       /* ignore */
     }
     return href;
+  }
+
+  function clearPageViewState(winOrKey) {
+    try {
+      var key = typeof winOrKey === 'string' ? identityKey(winOrKey) : identityKey((winOrKey && (winOrKey.key || winOrKey.href)) || '');
+      sessionStorage.removeItem(PAGE_STATE_PREFIX + key);
+      sessionStorage.removeItem(RESTORE_PENDING_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function clearServerLastView(href) {
+    try {
+      var u = new URL(withAppBase(stripEmbedParams(href)) || href, global.location.origin);
+      var path = stripBasePath(u.pathname);
+      if (!/\/sales\/reports\/oracle-rep-items/i.test(path)) {
+        return;
+      }
+      u.searchParams.set('clear_view', '1');
+      u.searchParams.delete('run');
+      var clearUrl = u.pathname + u.search;
+      try {
+        if (global.fetch) {
+          global.fetch(clearUrl, { method: 'GET', credentials: 'same-origin', keepalive: true, cache: 'no-store' });
+        } else {
+          var img = new Image();
+          img.src = clearUrl + '&_=' + Date.now();
+        }
+      } catch (eFetch) {
+        /* ignore */
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function stripRunFromHref(href) {
+    try {
+      var u = new URL(href, global.location.origin);
+      u.searchParams.delete('run');
+      u.searchParams.delete('clear_view');
+      return u.pathname + (u.search ? u.search : '') + u.hash;
+    } catch (e) {
+      return href;
+    }
   }
 
   function buildEmbedUrl(href, mdiId) {
@@ -306,6 +334,16 @@
     if (!pending) {
       return;
     }
+    // لا تستعد بيانات بعد إغلاق — فقط نوافذ keepView
+    try {
+      var keepWin = findByKey(pending);
+      if (!keepWin || !keepWin.keepView) {
+        sessionStorage.removeItem(RESTORE_PENDING_KEY);
+        return;
+      }
+    } catch (eKeep) {
+      /* continue */
+    }
     try {
       sessionStorage.removeItem(RESTORE_PENDING_KEY);
     } catch (e2) {
@@ -368,13 +406,14 @@
       data.push({
         id: w.id,
         key: key,
-        href: preferRestoreHref(w.href),
+        href: w.keepView ? preferRestoreHref(w.href, w) : stripRunFromHref(w.href),
         title: w.title,
         route: w.route,
         minimized: w.minimized,
         maximized: w.maximized,
         fullPage: !!w.fullPage,
         unsaved: !!w.unsaved,
+        keepView: !!w.keepView,
       });
     });
     try {
@@ -988,6 +1027,7 @@
     win.minimized = true;
     win.fullPage = true;
     win.parkedLive = true;
+    win.keepView = pageHasReportResults() || !!win.keepView;
     parkedLiveId = win.id;
     // لا تُظهر طبقة التحميل عند التصغير — الصفحة تبقى في الذاكرة
     try {
@@ -1127,7 +1167,7 @@
     }
     var host = ensureScreenOverlay();
     var frame = ensureOverlayFrame(win);
-    var embedUrl = buildScreenEmbedUrl(preferRestoreHref(win.href));
+    var embedUrl = buildScreenEmbedUrl(preferRestoreHref(win.href, win));
     Array.prototype.forEach.call(host.querySelectorAll('.app-mdi-screen-frame'), function (fr) {
       fr.classList.toggle('is-active', fr === frame);
     });
@@ -1176,7 +1216,9 @@
 
   function openScreenOverlayFromHref(href, title) {
     var target = withAppBase(stripEmbedParams(href)) || href;
-    target = preferRestoreHref(target);
+    // شاشة جديدة من القائمة: فارغة ما لم تكن نفس النافذة keepView
+    var existingHint = findByKey(identityKey(target));
+    target = preferRestoreHref(target, existingHint);
     var key = identityKey(target);
     var existing = findByKey(key);
     var id;
@@ -1250,8 +1292,12 @@
       unparkLiveWindow(parked);
       return;
     }
-    if (parked && parked.parkedLive) {
-      capturePageState(parked);
+    // أي صفحة موقفَة / مصغّرة حيّة: لا تدمّر الأب — افتح الهدف في overlay
+    if (document.body.classList.contains('app-mdi-page-parked') || (parked && parked.parkedLive)) {
+      if (parked) {
+        parked.keepView = true;
+        capturePageState(parked);
+      }
       openScreenOverlayFromHref(target);
       return;
     }
@@ -1743,7 +1789,7 @@
         existing.title = spec.title;
       }
       if (spec.href) {
-        existing.href = preferRestoreHref(spec.href);
+        existing.href = preferRestoreHref(spec.href, existing);
         existing.key = key;
       }
       return existing.id;
@@ -1759,7 +1805,7 @@
     var win = {
       id: id,
       key: key,
-      href: preferRestoreHref(spec.href),
+      href: preferRestoreHref(spec.href, spec),
       route: spec.route || parseRouteFromHref(spec.href),
       title: spec.title || titleFromHref(spec.href),
       minimized: true,
@@ -1902,15 +1948,19 @@
       if (findByKey(key)) {
         return;
       }
-      registerFullPageWindow({
+      var rid = registerFullPageWindow({
         id: spec.id,
         key: key,
-        href: spec.href,
+        href: spec.keepView ? preferRestoreHref(spec.href, { keepView: true }) : stripRunFromHref(spec.href),
         title: spec.title,
         route: spec.route,
         minimized: spec.minimized !== false,
         unsaved: !!spec.unsaved,
       });
+      var rw = findWindow(rid);
+      if (rw) {
+        rw.keepView = !!spec.keepView;
+      }
     });
   }
 
@@ -2029,6 +2079,12 @@
       win.key = key;
       win.title = currentPageTitle();
       win.fullPage = true;
+    }
+    if (win) {
+      win.keepView = pageHasReportResults() || !!win.keepView;
+      if (win.keepView) {
+        win.href = withAppBase(withRunFlag(href)) || withRunFlag(href);
+      }
     }
     capturePageState(win || { key: key, href: href });
     if (goMenu !== false && id && win) {
@@ -2236,11 +2292,13 @@
     if (!win) {
       return;
     }
+    // مصغّر حي في الأب: أظهره فوراً بنفس البيانات
     if (win.parkedLive || isParkedLiveWindow(win)) {
       hideScreenOverlayHost();
       unparkLiveWindow(win);
       return;
     }
+    // شاشة في overlay: أعد نفس الـ iframe
     if (win.overlayLive || (win.overlayFrame && win.overlayFrame.parentNode)) {
       parkVisiblePageIfNeeded();
       win.overlayLive = true;
@@ -2249,7 +2307,6 @@
     }
     var samePage = isWindowCurrentPage(win);
     win.minimized = false;
-    win.parkedLive = false;
     win.fullPage = true;
     activeId = id;
     persistWindowsNow();
@@ -2260,35 +2317,30 @@
       syncTaskbar();
       return;
     }
-    if (parkedLiveId && parkedLiveId !== id) {
-      var parked = findWindow(parkedLiveId);
-      if (parked && parked.parkedLive) {
-        openScreenOverlayFromHref(preferRestoreHref(withAppBase(win.href) || win.href), win.title);
-        return;
+    // لا تدمّر صفحة موقفَة — افتح هذه النافذة في overlay
+    if (document.body.classList.contains('app-mdi-page-parked') || parkedLiveId) {
+      var parked = parkedLiveId ? findWindow(parkedLiveId) : null;
+      if (parked) {
+        parked.keepView = true;
+        capturePageState(parked);
       }
-      releaseParkedLiveForNavigation();
+      openScreenOverlayFromHref(win.href, win.title);
+      return;
     }
-    win.href = preferRestoreHref(withAppBase(win.href) || win.href);
+    win.href = preferRestoreHref(withAppBase(win.href) || win.href, win);
     win.key = identityKey(win.href);
-    var needsResubmit = true;
-    try {
-      var uh = new URL(win.href, global.location.origin);
-      if (uh.searchParams.get('run') === '1') {
-        needsResubmit = false;
-      }
-    } catch (eRun) {
-      /* ignore */
-    }
-    if (needsResubmit) {
+    // بعد إغلاق: لا run=1. بعد تصغير مع keepView: run=1 كاحتياط
+    if (!win.keepView) {
+      win.href = stripRunFromHref(win.href);
       try {
-        sessionStorage.setItem(RESTORE_PENDING_KEY, win.key || identityKey(win.href));
-      } catch (e) {
+        sessionStorage.removeItem(RESTORE_PENDING_KEY);
+      } catch (eClr) {
         /* ignore */
       }
     } else {
       try {
         sessionStorage.removeItem(RESTORE_PENDING_KEY);
-      } catch (eClr) {
+      } catch (eClr2) {
         /* ignore */
       }
     }
@@ -2368,6 +2420,11 @@
       return;
     }
     var win = windows[idx];
+    // إغلاق = شاشة جديدة لاحقاً بدون بيانات قديمة
+    win.keepView = false;
+    clearPageViewState(win);
+    clearServerLastView(win.href);
+    win.href = stripRunFromHref(win.href);
     if (win.overlayFrame && win.overlayFrame.parentNode) {
       try {
         win.overlayFrame.parentNode.removeChild(win.overlayFrame);
@@ -2475,6 +2532,8 @@
       }
       return existing.id;
     }
+    // فتح جديد من القائمة: بدون بيانات قديمة
+    href = stripRunFromHref(href);
     if (opts.minimized) {
       return registerFullPageWindow({
         key: key,
@@ -2594,6 +2653,52 @@
     });
   }
 
+  function bindTopnavParkIntercept() {
+    if (global.__mdiTopnavParkBound) {
+      return;
+    }
+    global.__mdiTopnavParkBound = true;
+    document.addEventListener(
+      'click',
+      function (e) {
+        if (document.body.classList.contains('app-mdi-page-parked')) {
+          return;
+        }
+        if (isMenuLikeLocation(global.location.href)) {
+          return;
+        }
+        var a = e.target && e.target.closest ? e.target.closest('.hx-topnav a[href]') : null;
+        if (!a) {
+          return;
+        }
+        var href = a.getAttribute('href') || '';
+        if (!href || href.charAt(0) === '#' || href.indexOf('javascript:') === 0) {
+          return;
+        }
+        if (a.classList.contains('app-screen-exit-btn') || href.indexOf('logout') >= 0) {
+          return;
+        }
+        try {
+          var abs = new URL(a.href, global.location.origin);
+          if (abs.origin !== global.location.origin) {
+            return;
+          }
+          if (samePagePath(abs.href, global.location.href) && abs.search === global.location.search) {
+            return;
+          }
+          // مغادرة شاشة/تقرير: صغّر الحالي حيّاً ثم افتح الهدف
+          e.preventDefault();
+          e.stopPropagation();
+          parkVisiblePageIfNeeded();
+          navigateFromHubParent(abs.href);
+        } catch (err) {
+          /* ignore */
+        }
+      },
+      true
+    );
+  }
+
   function initMdiUi() {
     ensureShell();
     restorePersistedWindows();
@@ -2602,6 +2707,7 @@
     tryRestorePendingFilters();
     global.addEventListener('message', handleHubParentMessage);
     bindMinimizeButton(ensureMinimizeButton());
+    bindTopnavParkIntercept();
   }
 
   if (document.readyState === 'loading') {
