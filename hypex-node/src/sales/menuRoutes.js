@@ -2257,8 +2257,10 @@ const oracleRepItemsHandler = async (req, res) => {
   let reportMonths = asList(params.report_month).map((m) => Number(m)).filter((m) => m >= 1 && m <= 12);
   const oraMode = String(params.ora_mode || '').trim() === 'all_oracle' ? 'all_oracle' : 'hypex';
   const oraViewRaw = String(params.ora_view || 'summary').trim().toLowerCase();
-  const oraView = ['summary', 'detail', 'invoice', 'invoice-sum', 'cat-totals', 'all-reps'].includes(oraViewRaw)
-    ? oraViewRaw
+  const oraViewMapped =
+    oraViewRaw === 'detail' || oraViewRaw === 'invoice' ? 'summary' : oraViewRaw;
+  const oraView = ['summary', 'cat-amt-qty', 'invoice-sum', 'cat-totals', 'all-reps'].includes(oraViewMapped)
+    ? oraViewMapped
     : 'summary';
   // GET مع run=1 (بعد التحويل من POST أو رابط مباشر)
   const run =
@@ -3058,6 +3060,7 @@ const oracleRepItemsHandler = async (req, res) => {
     const needDetail = !!viewOpts.needDetail;
     const needInvoice = !!viewOpts.needInvoice;
     let summaryHtml = '';
+    let catAmtQtyHtml = '';
     let detailHtml = '';
     let invoiceHtml = '';
     let invoiceSumHtml = '';
@@ -3360,6 +3363,7 @@ const oracleRepItemsHandler = async (req, res) => {
       const repYearDiscTotals = new Map(compareYears.map((y) => [y, 0]));
       const repYearNetTotals = new Map(compareYears.map((y) => [y, 0]));
       let summaryBody = '';
+      let catAmtQtyBody = '';
       let detailBody = '';
       let invoiceBody = '';
       let invoiceSumBody = '';
@@ -3461,7 +3465,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const catQtys = [];
         const catBonuses = [];
         const catYearParts = [];
-        const sumCells = catOrder
+        const sumCellsAmt = catOrder
           .map((cat, idx) => {
             const grossAmt = catGrossParts[idx] || 0;
             const bag = slot.cats.get(cat);
@@ -3483,7 +3487,20 @@ const oracleRepItemsHandler = async (req, res) => {
               catYearParts.push(yParts.join(','));
               return `<td class="si-num ora-cat-years ora-cat-cell"${catAttrs}>${yearStackHtml(catYearGrossMaps[idx], true, true)}</td>`;
             }
-            return `<td class="si-num ora-cat-cell ora-cat-qty-cell"${catAttrs} dir="ltr">${qPart ? esc(fmtQty(qPart)) : ''}</td><td class="si-num ora-cat-cell ora-cat-bonus-cell"${catAttrs} dir="ltr">${bPart ? esc(fmtQty(bPart)) : ''}</td>`;
+            return `<td class="si-num ora-cat-cell"${catAttrs} dir="ltr">${grossAmt ? esc(fmtAmt(grossAmt)) : ''}</td>`;
+          })
+          .join('');
+        const sumCellsQtyAmt = catOrder
+          .map((cat, idx) => {
+            const grossAmt = catGrossParts[idx] || 0;
+            const bag = slot.cats.get(cat);
+            const qPart = Number(bag?.qty || 0) || 0;
+            const bPart = Number(bag?.bonus || 0) || 0;
+            const catAttrs = ` data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(cat)}"`;
+            if (yearCompare) {
+              return `<td class="si-num ora-cat-years ora-cat-cell"${catAttrs}>${yearStackHtml(catYearGrossMaps[idx], true, true)}</td>`;
+            }
+            return `<td class="si-num ora-cat-cell ora-cat-qty-cell"${catAttrs} dir="ltr">${qPart ? esc(fmtQty(qPart)) : ''}</td><td class="si-num ora-cat-cell ora-cat-bonus-cell"${catAttrs} dir="ltr">${bPart ? esc(fmtQty(bPart)) : ''}</td><td class="si-num ora-cat-cell ora-cat-amt-cell"${catAttrs} dir="ltr">${grossAmt ? esc(fmtAmt(grossAmt)) : ''}</td>`;
           })
           .join('');
         repGross += rowGross;
@@ -3498,9 +3515,16 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         const catSortAttrs = catOrder
           .map((cat, idx) => {
+            const g = Number(catAmts[idx] || 0) || 0;
+            return ` data-sort-cat${idx}="${g}"`;
+          })
+          .join('');
+        const catSortAttrsQtyAmt = catOrder
+          .map((cat, idx) => {
             const q = Number(catQtys[idx] || 0) || 0;
             const b = Number(catBonuses[idx] || 0) || 0;
-            return ` data-sort-cat${idx}="${q}" data-sort-catb${idx}="${b}"`;
+            const g = Number(catAmts[idx] || 0) || 0;
+            return ` data-sort-cat${idx}="${q}" data-sort-catb${idx}="${b}" data-sort-cata${idx}="${g}"`;
           })
           .join('');
         const accSafe = esc(String(acc || slot.label || ''));
@@ -3532,7 +3556,9 @@ const oracleRepItemsHandler = async (req, res) => {
         const netCell = yearCompare
           ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(rowByYearNet, true)}</td>`
           : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td>`;
-        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-sale="${rowSale}" data-ora-ret-amt="${rowRetAmt}" data-ora-ret-qty="${rowRetQty}" data-ora-tax="${rowTax}" data-ora-qty="${rowQty}" data-ora-bonus="${rowBonus}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-discs="${esc(catDiscs.map(String).join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
+        const rowDataCore = ` data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-sale="${rowSale}" data-ora-ret-amt="${rowRetAmt}" data-ora-ret-qty="${rowRetQty}" data-ora-tax="${rowTax}" data-ora-qty="${rowQty}" data-ora-bonus="${rowBonus}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-discs="${esc(catDiscs.map(String).join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}`;
+        summaryBody += `<tr class="ora-sum-row"${rowDataCore}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCellsAmt}${grossCell}${discCell}${netCell}</tr>`;
+        catAmtQtyBody += `<tr class="ora-sum-row"${rowDataCore}${catSortAttrsQtyAmt}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCellsQtyAmt}${grossCell}${discCell}${netCell}</tr>`;
         if (!needDetail) return;
         let custQty = 0;
         let custBonus = 0;
@@ -3718,7 +3744,23 @@ const oracleRepItemsHandler = async (req, res) => {
           <td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(invRepNet))}</td>
         </tr>`;
       }
-      const foot = yearCompare
+      const footSummary = yearCompare
+        ? colYearTotals
+            .map(
+              (ym, idx) =>
+                `<td class="si-num ora-cat-years ora-cat-cell" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                  catOrder[idx] || ''
+                )}">${yearStackHtml(ym, true, true)}</td>`
+            )
+            .join('')
+        : colTotals
+            .map((a, idx) => {
+              const cat = catOrder[idx] || '';
+              const catAttrs = ` data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(cat)}"`;
+              return `<td class="si-num ora-cat-cell"${catAttrs} dir="ltr">${a ? esc(fmtAmt(a)) : ''}</td>`;
+            })
+            .join('');
+      const footCatQtyAmt = yearCompare
         ? colYearTotals
             .map(
               (ym, idx) =>
@@ -3730,9 +3772,10 @@ const oracleRepItemsHandler = async (req, res) => {
         : colQtyTotals
             .map((q, idx) => {
               const b = Number(colBonusTotals[idx] || 0) || 0;
+              const a = Number(colTotals[idx] || 0) || 0;
               const cat = catOrder[idx] || '';
               const catAttrs = ` data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(cat)}"`;
-              return `<td class="si-num ora-cat-cell ora-cat-qty-cell"${catAttrs} dir="ltr">${q ? esc(fmtQty(q)) : ''}</td><td class="si-num ora-cat-cell ora-cat-bonus-cell"${catAttrs} dir="ltr">${b ? esc(fmtQty(b)) : ''}</td>`;
+              return `<td class="si-num ora-cat-cell ora-cat-qty-cell"${catAttrs} dir="ltr">${q ? esc(fmtQty(q)) : ''}</td><td class="si-num ora-cat-cell ora-cat-bonus-cell"${catAttrs} dir="ltr">${b ? esc(fmtQty(b)) : ''}</td><td class="si-num ora-cat-cell ora-cat-amt-cell"${catAttrs} dir="ltr">${a ? esc(fmtAmt(a)) : ''}</td>`;
             })
             .join('');
       const footGross = yearCompare
@@ -3744,8 +3787,9 @@ const oracleRepItemsHandler = async (req, res) => {
       const footNet = yearCompare
         ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(repYearNetTotals, true)}</td>`
         : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(repNet))}</td>`;
-      const footRow = `<tr class="ora-cust-final ora-sum-all"><td>المجموع</td>${foot}${footGross}${footDisc}${footNet}</tr>`;
-      const pickCats = yearCompare
+      const footRowSummary = `<tr class="ora-cust-final ora-sum-all"><td>المجموع</td>${footSummary}${footGross}${footDisc}${footNet}</tr>`;
+      const footRowCatQtyAmt = `<tr class="ora-cust-final ora-sum-all"><td>المجموع</td>${footCatQtyAmt}${footGross}${footDisc}${footNet}</tr>`;
+      const pickCatsSummary = yearCompare
         ? catOrder
             .map(
               (cat, idx) =>
@@ -3757,15 +3801,40 @@ const oracleRepItemsHandler = async (req, res) => {
         : catOrder
             .map(
               (cat, idx) =>
-                `<td class="si-num ora-pick-cat ora-pick-cat-qty ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
-                  cat
-                )}" dir="ltr"></td><td class="si-num ora-pick-cat ora-pick-cat-bonus ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                `<td class="si-num ora-pick-cat ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
                   cat
                 )}" dir="ltr"></td>`
             )
             .join('');
-      const pickRow = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCats}<td class="si-num ora-pick-gross" dir="ltr"></td><td class="si-num ora-pick-disc" dir="ltr"></td><td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
-      const heads = catOrder
+      const pickCatsCatQtyAmt = yearCompare
+        ? pickCatsSummary
+        : catOrder
+            .map(
+              (cat, idx) =>
+                `<td class="si-num ora-pick-cat ora-pick-cat-qty ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                  cat
+                )}" dir="ltr"></td><td class="si-num ora-pick-cat ora-pick-cat-bonus ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                  cat
+                )}" dir="ltr"></td><td class="si-num ora-pick-cat ora-cat-cell" data-cat-idx="${idx}" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+                  cat
+                )}" dir="ltr"></td>`
+            )
+            .join('');
+      const pickRowSummary = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCatsSummary}<td class="si-num ora-pick-gross" dir="ltr"></td><td class="si-num ora-pick-disc" dir="ltr"></td><td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
+      const pickRowCatQtyAmt = `<tr class="ora-pick-sum is-empty"><td>مجموع المحددين (<span class="ora-pick-n">0</span>)</td>${pickCatsCatQtyAmt}<td class="si-num ora-pick-gross" dir="ltr"></td><td class="si-num ora-pick-disc" dir="ltr"></td><td class="si-num ora-pick-total" dir="ltr"></td></tr>`;
+      const headsSummary = catOrder
+        .map((cat, idx) => {
+          if (yearCompare) {
+            return `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+              cat
+            )}" title="${esc(cat)}"><span class="ora-cat-title">${esc(cat)}</span>${yearHeadHtml(true, true)}</th>`;
+          }
+          return `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+            cat
+          )}" title="${esc(cat)}"><span class="ora-cat-title">${esc(cat)}</span></th>`;
+        })
+        .join('');
+      const headsCatQtyAmt = catOrder
         .map((cat, idx) => {
           if (yearCompare) {
             return `<th class="ora-vhead ora-cat-col js-sort-th" data-sort="cat${idx}" data-sort-type="number" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
@@ -3776,7 +3845,9 @@ const oracleRepItemsHandler = async (req, res) => {
             cat
           )}" title="${esc(cat)}"><span class="ora-cat-title">${esc(cat)}</span><span class="ora-cat-sub">كمية</span></th><th class="ora-vhead ora-cat-col ora-cat-bonus-col js-sort-th" data-sort="catb${idx}" data-sort-type="number" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
             cat
-          )}" title="إضافي — ${esc(cat)}"><span class="ora-cat-title">إضافي</span></th>`;
+          )}" title="إضافي — ${esc(cat)}"><span class="ora-cat-title">إضافي</span></th><th class="ora-vhead ora-cat-col ora-cat-amt-col js-sort-th" data-sort="cata${idx}" data-sort-type="number" data-ora-cat-idx="${idx}" data-ora-cat-name="${esc(
+            cat
+          )}" title="مبلغ — ${esc(cat)}"><span class="ora-cat-title">مبلغ</span></th>`;
         })
         .join('');
       const repQtyAll = colQtyTotals.reduce((s, n) => s + (Number(n) || 0), 0);
@@ -3879,13 +3950,16 @@ const oracleRepItemsHandler = async (req, res) => {
           </table>
         </div>
       </div>`;
-      const yearNote = yearCompare
+      const yearNoteSummary = yearCompare
         ? `<div class="ora-year-note muted">مقارنة السنوات: ${esc(compareYears.join(' و '))} — الفئات بالإجمالي، وفي النهاية: الإجمالي · الخصم · الصافي. فعّل «إظهار فرق الفئات» لعرض فرق كل فئة.</div>`
-        : `<div class="ora-year-note muted">الفئات تعرض الكمية والإضافي (البونص)، والإجمالي/الخصم/الصافي في الأعمدة الأخيرة. الخصم = نصيب الفئات الظاهرة من خصم الفاتورة (VOU_DISC) · الصافي = الإجمالي − الخصم.</div>`;
+        : `<div class="ora-year-note muted">الفئات تعرض المبالغ (إجمالي الفئة قبل خصم الفاتورة)، والإجمالي/الخصم/الصافي في الأعمدة الأخيرة. الخصم = نصيب الفئات الظاهرة من خصم الفاتورة (VOU_DISC) · الصافي = الإجمالي − الخصم.</div>`;
+      const yearNoteCatQtyAmt = yearCompare
+        ? yearNoteSummary
+        : `<div class="ora-year-note muted">الفئات: كمية · إضافي · المبلغ — والإجمالي/الخصم/الصافي في النهاية. الخصم = نصيب الفئات الظاهرة من خصم الفاتورة (VOU_DISC) · الصافي = الإجمالي − الخصم.</div>`;
       const catDiffToggle = yearCompare
         ? `<label class="ora-cat-diff-toggle no-print"><input type="checkbox" class="ora-show-cat-diff"> إظهار فرق الفئات</label>`
         : '';
-      const sectionOf = (body) => `<section class="ora-cust-block ora-summary-block" data-ora-rep-key="${esc(repKey)}">
+      const sectionOf = (body, sec = {}) => { const headsUse = sec.heads || headsSummary; const pickRowUse = sec.pickRow || pickRowSummary; const footRowUse = sec.footRow || footRowSummary; const yearNoteUse = sec.yearNote || yearNoteSummary; const blockExtra = sec.blockClass || ''; return `<section class="ora-cust-block ora-summary-block${blockExtra}" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
           <div class="ora-rep-line">
             <button type="button" class="ora-rep-toggle no-print" aria-expanded="true" title="فتح أو إغلاق عملاء المندوب">
@@ -3897,7 +3971,7 @@ const oracleRepItemsHandler = async (req, res) => {
             <div class="ora-rep">المندوب: ${esc(repLabel)}</div>
             <span class="ora-rep-cust-hint muted no-print">عملاء مطويون — اضغط السهم للفتح</span>
           </div>
-          ${yearNote}
+          ${yearNoteUse}
           ${catDiffToggle}
           <div class="ora-pick-bar no-print is-empty">
             <div class="ora-pick-bar-main">
@@ -3919,7 +3993,7 @@ const oracleRepItemsHandler = async (req, res) => {
             )}">
               <thead><tr>
                 <th class="ora-vhead js-sort-th" data-sort="customer" data-sort-type="text">العميل</th>
-                ${heads}
+                ${headsUse}
                 <th class="ora-vhead js-sort-th ora-col-gross" data-sort="gross" data-sort-type="number" title="إجمالي المبيعات بعد خصم المرتجعات (قبل خصم الفاتورة)"><span class="ora-cat-title">الإجمالي</span>${
                   yearCompare ? yearHeadHtml(false) : ''
                 }</th>
@@ -3930,7 +4004,7 @@ const oracleRepItemsHandler = async (req, res) => {
                   yearCompare ? yearHeadHtml(true) : ''
                 }</th>
               </tr></thead>
-              <tbody>${pickRow}${body}${footRow}</tbody>
+              <tbody>${pickRowUse}${body}${footRowUse}</tbody>
             </table>
           </div>
           <div class="ora-pick-foot no-print is-empty">
@@ -3943,8 +4017,15 @@ const oracleRepItemsHandler = async (req, res) => {
             <div class="ora-pick-foot-cats"></div>
           </div>
         </div>
-      </section>`;
+      </section>`; };
       summaryHtml += sectionOf(summaryBody);
+      catAmtQtyHtml += sectionOf(catAmtQtyBody, {
+        heads: headsCatQtyAmt,
+        pickRow: pickRowCatQtyAmt,
+        footRow: footRowCatQtyAmt,
+        yearNote: yearNoteCatQtyAmt,
+        blockClass: ' ora-cat-amt-qty-block',
+      });
       // عرض «مجاميع الفئات» فقط: جدول الفئات مع الإجمالي/الخصم/الصافي بجانب الفئات
       catTotalsHtml += `<section class="ora-cust-block ora-cat-totals-only" data-ora-rep-key="${esc(repKey)}">
         <header class="ora-cust-head">
@@ -4251,21 +4332,20 @@ const oracleRepItemsHandler = async (req, res) => {
         </div>
       </section>`;
     }
-    return { summaryHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
+    return { summaryHtml, catAmtQtyHtml, detailHtml, invoiceHtml, invoiceSumHtml, catTotalsHtml };
     };
-    // عروض خفيفة دائماً؛ التفصيلي/فواتير البنود عند الطلب فقط
-    const needDetail = oraView === 'detail';
-    const needInvoice = oraView === 'invoice';
+    const needDetail = false;
+    const needInvoice = false;
     const netV = netRows.length
       ? buildOraViews(netRows, { needDetail, needInvoice })
-      : { summaryHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '', catTotalsHtml: '' };
+      : { summaryHtml: '', catAmtQtyHtml: '', detailHtml: '', invoiceHtml: '', invoiceSumHtml: '', catTotalsHtml: '' };
     const emptyNet = '<p class="muted">لا توجد حركة في الفترة المحددة.</p>';
     const lazyHint = (label) =>
       `<p class="muted no-print ora-view-lazy">العرض «${label}» يُحمَّل عند الطلب لتسريع التقرير — اضغط الزر مرة أخرى.</p>`;
     const defaultView =
       oraMode === 'all_oracle'
         ? 'all-reps'
-        : ['detail', 'invoice', 'invoice-sum', 'cat-totals', 'all-reps', 'summary'].includes(oraView)
+        : ['cat-amt-qty', 'invoice-sum', 'cat-totals', 'all-reps', 'summary'].includes(oraView)
           ? oraView
           : 'summary';
     const viewBtn = (id, label) =>
@@ -4273,8 +4353,7 @@ const oracleRepItemsHandler = async (req, res) => {
     const toolsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
         ${viewBtn('summary', 'ملخص')}
-        ${viewBtn('detail', 'تفصيلي')}
-        ${viewBtn('invoice', 'فواتير تفصيلي')}
+        ${viewBtn('cat-amt-qty', 'تفاصيل المبالغ والكراتين للفئات')}
         ${viewBtn('invoice-sum', 'فواتير إجمالي')}
         ${viewBtn('all-reps', 'مبيعات جميع المندوبين')}
         ${viewBtn('cat-totals', 'مجاميع الفئات')}
@@ -4289,8 +4368,7 @@ const oracleRepItemsHandler = async (req, res) => {
     const sumHtml = netV.summaryHtml || '';
     rowsHtml = `${toolsHtml}
       ${panel('summary', sumHtml)}
-      ${panel('detail', netV.detailHtml || lazyHint('تفصيلي'), !netV.detailHtml)}
-      ${panel('invoice', netV.invoiceHtml || lazyHint('فواتير تفصيلي'), !netV.invoiceHtml)}
+      ${panel('cat-amt-qty', netV.catAmtQtyHtml || '')}
       ${panel('invoice-sum', netV.invoiceSumHtml)}
       ${panel(
         'all-reps',
@@ -4308,7 +4386,7 @@ const oracleRepItemsHandler = async (req, res) => {
   const defaultViewOpen =
     oraMode === 'all_oracle'
       ? 'all-reps'
-      : ['detail', 'invoice', 'invoice-sum', 'cat-totals', 'all-reps', 'summary'].includes(oraView)
+      : ['cat-amt-qty', 'invoice-sum', 'cat-totals', 'all-reps', 'summary'].includes(oraView)
         ? oraView
         : 'summary';
   const oraViewBtn = (id, label) =>
@@ -4316,8 +4394,7 @@ const oracleRepItemsHandler = async (req, res) => {
   const fullOraToolsHtml = `<div class="ora-tools no-print">
         <button type="button" class="si-btn" id="ora-excel-btn">Excel</button>
         ${oraViewBtn('summary', 'ملخص')}
-        ${oraViewBtn('detail', 'تفصيلي')}
-        ${oraViewBtn('invoice', 'فواتير تفصيلي')}
+        ${oraViewBtn('cat-amt-qty', 'تفاصيل المبالغ والكراتين للفئات')}
         ${oraViewBtn('invoice-sum', 'فواتير إجمالي')}
         ${oraViewBtn('all-reps', 'مبيعات جميع المندوبين')}
         ${oraViewBtn('cat-totals', 'مجاميع الفئات')}
@@ -5233,6 +5310,8 @@ const oracleRepItemsHandler = async (req, res) => {
         .ora-cat-sub{display:block;font-size:10px;font-weight:600;opacity:.75}
         .ora-cat-bonus-col .ora-cat-title{font-size:12px}
         td.ora-cat-bonus-cell{opacity:.95}
+        th.ora-cat-amt-col,td.ora-cat-amt-cell{min-width:5.5rem}
+        th.ora-cat-amt-col{background:#eef2ff!important}
         .ora-yhint {
           display: block;
           margin-top: .1rem;
@@ -6537,9 +6616,11 @@ const oracleRepItemsHandler = async (req, res) => {
           } else if (td.classList.contains('ora-pick-cat-bonus')) {
             td.textContent =
               count && bonusSums[idx] ? fmtOraPickQty(bonusSums[idx] || 0) : '';
-          } else {
+          } else if (td.classList.contains('ora-pick-cat-qty')) {
             td.textContent =
-              count && qtySums[idx] ? fmtOraPickQty(qtySums[idx] || 0) : (count ? '—' : '');
+              count && qtySums[idx] ? fmtOraPickQty(qtySums[idx] || 0) : '';
+          } else {
+            td.textContent = count ? fmtOraPickAmt(sums[idx] || 0) : '';
           }
         });
         var grossCell = pickRow.querySelector('.ora-pick-gross');
@@ -6566,7 +6647,10 @@ const oracleRepItemsHandler = async (req, res) => {
           for (i = 0; i < catCount; i += 1) {
             var headRef = yearMode
               ? heads[i]
-              : table.querySelector('th.ora-cat-qty-col[data-ora-cat-idx="' + i + '"]') || heads[i];
+              : table.querySelector('th.ora-cat-qty-col[data-ora-cat-idx="' + i + '"]')
+                || table.querySelector('th.ora-cat-amt-col[data-ora-cat-idx="' + i + '"]')
+                || table.querySelector('th.ora-cat-col[data-ora-cat-idx="' + i + '"]')
+                || heads[i];
             var rawLabel = headRef
               ? String(
                   (headRef.querySelector('.ora-cat-title') && headRef.querySelector('.ora-cat-title').textContent) ||
@@ -6732,6 +6816,7 @@ const oracleRepItemsHandler = async (req, res) => {
       }
       function switchOraView(which) {
         if (!which) which = 'summary';
+        if (which === 'detail' || which === 'invoice') which = 'summary';
         if (which === 'invoice-net') which = 'invoice-sum';
         document.querySelectorAll('[data-ora-view]').forEach(function (btn) {
           if (btn.getAttribute('data-ora-view') === which) btn.classList.add('si-btn--primary');
