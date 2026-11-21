@@ -2725,7 +2725,8 @@ const oracleRepItemsHandler = async (req, res) => {
       store,
       rep_no: filterOracleRep && oracleRepNos.length === 1 ? oracleRepNos[0] : null,
       cust_accs: custAccs,
-      cat_names: catNames,
+      // لا ترسل تصفية فئة لأوراكل — نحتاج كل بنود الفاتورة لتوزيع VOU_DISC؛ التصفية للعرض فقط عبر catNames
+      cat_names: [],
       year_months: period.yearMonths,
       filter_oracle_rep: filterOracleRep,
     });

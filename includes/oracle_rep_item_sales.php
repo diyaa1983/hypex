@@ -349,15 +349,6 @@ WHERE d.COMP_NUM = :comp_num
     $oraCatToLocal = oracle_rep_item_sales_oracle_cat_local_names();
 
     $rowsAll = [];
-    $wantCats = [];
-    $wantCatsLower = [];
-    foreach ($catNames as $name) {
-        $name = trim((string) $name);
-        if ($name !== '') {
-            $wantCats[$name] = true;
-            $wantCatsLower[function_exists('mb_strtolower') ? mb_strtolower($name, 'UTF-8') : strtolower($name)] = true;
-        }
-    }
     foreach ($raw as $r) {
         $rep = (int) oracle_statement_row_val($r, 'REP_NO');
         $custAcc = trim((string) oracle_statement_row_val($r, 'CUST_ACC'));
@@ -427,13 +418,7 @@ WHERE d.COMP_NUM = :comp_num
         if ($catName === '') {
             $catName = 'بدون فئة';
         }
-        // عند تحديد فئات: أظهر فقط بنود الفئات المحددة (مبيعات ومرتجعات)
-        if ($wantCats !== []) {
-            $catKey = function_exists('mb_strtolower') ? mb_strtolower($catName, 'UTF-8') : strtolower($catName);
-            if (!isset($wantCats[$catName]) && !isset($wantCatsLower[$catKey])) {
-                continue;
-            }
-        }
+        // تصفية الفئة للعرض تُطبَّق في واجهة تقرير Node حتى يبقى VOU_DISC موزّعاً على كل بنود الفاتورة
         $itemName = trim((string) ($itemNames[$item] ?? ''));
         if ($itemName === '' && is_array($hx)) {
             $itemName = trim((string) ($hx['name_ar'] ?? ''));
