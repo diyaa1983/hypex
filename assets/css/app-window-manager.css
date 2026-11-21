@@ -110,63 +110,32 @@ body.app-mdi-taskbar-open {
   --app-mdi-bottom: 2.15rem;
 }
 
-/* أثناء التصغير: شريط النوافذ تحت القوائم العلوية (داخل مساحة الـ hub) لا فوقها */
+/* أثناء التصغير: الشريط الحقيقي داخل iframe القائمة (لا يغطي القوائم المنسدلة) */
 body.app-mdi-page-parked.app-mdi-taskbar-open {
   --app-mdi-bottom: 0;
 }
 
 body.app-mdi-page-parked > .app-mdi-taskbar,
 body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top {
-  top: var(--app-mdi-parked-taskbar-top, 0px);
-  bottom: auto;
-  min-height: 2.15rem;
-  padding: 4px 10px 6px;
-  background: #111827;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: none;
-  box-shadow: none;
-  z-index: 1180;
-}
-
-body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-item,
-body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top .app-mdi-task-item {
-  max-width: min(280px, 46vw);
-  border-color: rgba(255, 255, 255, 0.12);
-  background: #1f2937;
-}
-
-body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-btn,
-body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top .app-mdi-task-btn {
-  background: #1f2937;
-  color: #e5e7eb;
-  border-inline-end-color: rgba(255, 255, 255, 0.1);
-  font-size: 12px;
-  min-height: 28px;
-}
-
-body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-item.is-minimized .app-mdi-task-btn,
-body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top .app-mdi-task-item.is-minimized .app-mdi-task-btn {
-  background: #1e3a5f;
-  color: #e0f2fe;
-}
-
-body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-btn:hover,
-body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top .app-mdi-task-btn:hover {
-  background: #334155;
-  color: #fff;
-}
-
-body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-close,
-body.app-mdi-page-parked > .app-mdi-taskbar .app-mdi-task-minimize,
-body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top .app-mdi-task-close,
-body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top .app-mdi-task-minimize {
-  background: #1f2937;
-  color: #e5e7eb;
-  border-inline-end-color: rgba(255, 255, 255, 0.1);
+  /* مخفي في الأب — النسخة التفاعلية داخل الـ hub تحت القوائم */
+  position: fixed !important;
+  left: -9999px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -1 !important;
 }
 
 body.app-mdi-page-parked .app-mdi-hub-overlay {
   top: 0;
+}
+
+body.app-mdi-page-parked .app-mdi-layer {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 .app-mdi-layer--active {
