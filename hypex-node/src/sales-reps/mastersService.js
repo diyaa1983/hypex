@@ -699,7 +699,103 @@ async function getTour(id) {
   }
 }
 
-/** نقاط خريطة جولة: عملاء الجولة مع إحداثياتهم المدخلة (إن وُجدت). */
+function parseMapCoords(latRaw, lngRaw) {
+  const lat = Number(latRaw);
+  const lng = Number(lngRaw);
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng) ||
+    (Math.abs(lat) < 0.00001 && Math.abs(lng) < 0.00001) ||
+    lat < -90 ||
+    lat > 90 ||
+    lng < -180 ||
+    lng > 180
+  ) {
+    return null;
+  }
+  return {
+    lat: Math.round(lat * 1e7) / 1e7,
+    lng: Math.round(lng * 1e7) / 1e7,
+  };
+}
+
+const TOUR_VISIT_MAP_SQL = [
+  'SELECT rl.customer_id, rl.visit_checkin_at, rl.visit_checkout_at,',
+  '  rl.checkin_lat, rl.checkin_lng, rl.checkin_method,',
+  '  COALESCE(rl.in_plan, 1) AS in_plan,',
+  '  c.code AS customer_code, c.name_ar AS customer_name,',
+  '  c.latitude AS cust_lat, c.longitude AS cust_lng,',
+  "  COALESCE(rg.name_ar, '') AS region_name,",
+  "  COALESCE(ra.name_ar, '') AS address_name",
+  'FROM sal_rep_route r',
+  'INNER JOIN sal_rep_route_line rl ON rl.route_id = r.id',
+  'INNER JOIN crm_customer c ON c.id = rl.customer_id',
+  'LEFT JOIN crm_region rg ON rg.id = c.region_id',
+  'LEFT JOIN crm_region_address ra ON ra.id = c.region_address_id',
+  'WHERE rl.visit_checkin_at IS NOT NULL',
+].join('\n');
+
+async function loadTourVisitRows(tour) {
+  const tourId = Number(tour?.id || 0);
+  let rows = [];
+  if (tourId > 0) {
+    rows = await safeQuery(`${TOUR_VISIT_MAP_SQL} AND r.tour_id = ?`, [tourId]);
+  }
+  if (
+    (!rows || rows.length === 0) &&
+    tour?.sales_rep_id &&
+    tour?.date_from &&
+    tour?.date_to
+  ) {
+    const repId = Number(tour.sales_rep_id);
+    const df = String(tour.date_from || '').slice(0, 10);
+    const dt = String(tour.date_to || '').slice(0, 10);
+    if (repId > 0 && df && dt) {
+      rows = await safeQuery(
+        `${TOUR_VISIT_MAP_SQL} AND r.sales_rep_id = ? AND r.route_date >= ? AND r.route_date <= ?`,
+        [repId, df, dt]
+      );
+    }
+  }
+  return rows || [];
+}
+
+function mergeVisitIntoPoint(point, vr) {
+  point.visited = true;
+  const cin = vr.visit_checkin_at;
+  const cout = vr.visit_checkout_at;
+  if (cin) {
+    const cinS = String(cin);
+    if (!point.visit_checkin_at || cinS < String(point.visit_checkin_at)) {
+      point.visit_checkin_at = cin;
+    }
+  }
+  if (cout) {
+    const coutS = String(cout);
+    if (!point.visit_checkout_at || coutS > String(point.visit_checkout_at)) {
+      point.visit_checkout_at = cout;
+    }
+  }
+  if (vr.checkin_method) point.checkin_method = String(vr.checkin_method);
+  const checkCoords = parseMapCoords(vr.checkin_lat, vr.checkin_lng);
+  if (checkCoords) {
+    const cinS = cin ? String(cin) : '';
+    const prevCin = point._visit_pos_at ? String(point._visit_pos_at) : '';
+    if (!point.visit_lat || (cinS && cinS >= prevCin)) {
+      point.visit_lat = checkCoords.lat;
+      point.visit_lng = checkCoords.lng;
+      point._visit_pos_at = cin || point._visit_pos_at;
+    }
+  }
+  if (!point.has_gps && checkCoords) {
+    point.lat = checkCoords.lat;
+    point.lng = checkCoords.lng;
+    point.has_gps = true;
+    point.gps_source = 'visit';
+  }
+}
+
+/** نقاط خريطة جولة: عملاء الجولة مع إحداثياتهم وزيارات المسار الفعلية. */
 async function getTourMapData(tourId) {
   const tour = await getTour(tourId);
   if (!tour) return null;
@@ -709,25 +805,25 @@ async function getTourMapData(tourId) {
     if (cid < 1) continue;
     let row = byCust.get(cid);
     if (!row) {
-      const lat = Number(ln.latitude);
-      const lng = Number(ln.longitude);
-      const hasGps =
-        Number.isFinite(lat) &&
-        Number.isFinite(lng) &&
-        !(Math.abs(lat) < 0.00001 && Math.abs(lng) < 0.00001) &&
-        lat >= -90 &&
-        lat <= 90 &&
-        lng >= -180 &&
-        lng <= 180;
+      const coords = parseMapCoords(ln.latitude, ln.longitude);
+      const hasGps = !!coords;
       row = {
         customer_id: cid,
         code: String(ln.customer_code || ''),
         name: String(ln.customer_name || ''),
         region_name: String(ln.region_name || ''),
         address_name: String(ln.address_name || ''),
-        lat: hasGps ? Math.round(lat * 1e7) / 1e7 : null,
-        lng: hasGps ? Math.round(lng * 1e7) / 1e7 : null,
+        lat: coords ? coords.lat : null,
+        lng: coords ? coords.lng : null,
         has_gps: hasGps,
+        visited: false,
+        visit_checkin_at: null,
+        visit_checkout_at: null,
+        checkin_method: null,
+        gps_source: hasGps ? 'customer' : null,
+        in_plan: true,
+        visit_lat: null,
+        visit_lng: null,
         weekdays: [],
       };
       byCust.set(cid, row);
@@ -737,16 +833,72 @@ async function getTourMapData(tourId) {
       row.weekdays.push(wd);
     }
   }
-  const points = [...byCust.values()].map((p) => ({
-    ...p,
-    weekdays: p.weekdays.sort((a, b) => a - b),
-    weekday_labels: p.weekdays
-      .sort((a, b) => a - b)
-      .map((w) => WEEKDAY_LABELS[w] || '')
-      .filter(Boolean),
-  }));
-  points.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ar'));
+
+  const visitRows = await loadTourVisitRows(tour);
+  for (const vr of visitRows) {
+    const cid = Number(vr.customer_id || 0);
+    if (cid < 1) continue;
+    let point = byCust.get(cid);
+    if (!point) {
+      const custCoords = parseMapCoords(vr.cust_lat, vr.cust_lng);
+      const checkCoords = parseMapCoords(vr.checkin_lat, vr.checkin_lng);
+      let lat = null;
+      let lng = null;
+      let hasGps = false;
+      let gpsSource = null;
+      if (custCoords) {
+        lat = custCoords.lat;
+        lng = custCoords.lng;
+        hasGps = true;
+        gpsSource = 'customer';
+      } else if (checkCoords) {
+        lat = checkCoords.lat;
+        lng = checkCoords.lng;
+        hasGps = true;
+        gpsSource = 'visit';
+      }
+      point = {
+        customer_id: cid,
+        code: String(vr.customer_code || ''),
+        name: String(vr.customer_name || ''),
+        region_name: String(vr.region_name || ''),
+        address_name: String(vr.address_name || ''),
+        lat,
+        lng,
+        has_gps: hasGps,
+        visited: false,
+        visit_checkin_at: null,
+        visit_checkout_at: null,
+        checkin_method: null,
+        gps_source: gpsSource,
+        in_plan: Number(vr.in_plan) !== 0,
+        visit_lat: null,
+        visit_lng: null,
+        weekdays: [],
+      };
+      byCust.set(cid, point);
+    }
+    mergeVisitIntoPoint(point, vr);
+  }
+
+  const points = [...byCust.values()].map((p) => {
+    const { _visit_pos_at, ...rest } = p;
+    return {
+      ...rest,
+      weekdays: p.weekdays.sort((a, b) => a - b),
+      weekday_labels: p.weekdays
+        .sort((a, b) => a - b)
+        .map((w) => WEEKDAY_LABELS[w] || '')
+        .filter(Boolean),
+    };
+  });
+  points.sort((a, b) => {
+    if (a.visited !== b.visited) return a.visited ? -1 : 1;
+    return String(a.name).localeCompare(String(b.name), 'ar');
+  });
   const withGps = points.filter((p) => p.has_gps);
+  const visited = points.filter((p) => p.visited).length;
+  const visitedOnMap = points.filter((p) => p.visited && p.has_gps).length;
   return {
     tour: {
       id: Number(tour.id),
@@ -762,9 +914,13 @@ async function getTourMapData(tourId) {
       customers: points.length,
       with_gps: withGps.length,
       without_gps: points.length - withGps.length,
+      visited,
+      visited_on_map: visitedOnMap,
+      not_visited: points.length - visited,
     },
   };
 }
+
 
 function parseTourLines(payload, tourFrom, tourTo) {
   const lines = [];

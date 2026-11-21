@@ -198,17 +198,20 @@ router.get('/sales-reps/tour-map', async (req, res) => {
           .join('');
 
   const pointsJson = JSON.stringify(mapData?.points || []).replace(/</g, '\\u003c');
-  const totals = mapData?.totals || { customers: 0, with_gps: 0, without_gps: 0 };
+  const totals = mapData?.totals || { customers: 0, with_gps: 0, without_gps: 0, visited: 0, visited_on_map: 0, not_visited: 0 };
   const tourTitle = mapData
     ? `${mapData.tour.sales_rep_name || 'مندوب'} · ${isoToDmy(mapData.tour.date_from)} → ${isoToDmy(mapData.tour.date_to)}`
     : '';
 
+  const missingPoints = mapData ? (mapData.points || []).filter((p) => !p.has_gps) : [];
   const missingList =
-    mapData && totals.without_gps > 0
-      ? (mapData.points || [])
-          .filter((p) => !p.has_gps)
+    mapData && missingPoints.length > 0
+      ? missingPoints
           .slice(0, 40)
-          .map((p) => `<li>${esc(p.name || p.code || '#' + p.customer_id)}</li>`)
+          .map((p) => {
+            const tag = p.visited ? ' <small>(تمت الزيارة — بلا موقع على الخريطة)</small>' : '';
+            return `<li>${esc(p.name || p.code || '#' + p.customer_id)}${tag}</li>`;
+          })
           .join('')
       : '';
 
@@ -237,12 +240,18 @@ router.get('/sales-reps/tour-map', async (req, res) => {
         .stm-marker__name{display:inline-block;flex:0 1 auto;max-width:160px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.97);border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.16);color:#0f172a;font-size:12px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;unicode-bidi:plaintext;text-align:right;writing-mode:horizontal-tb}
         .stm-stats{display:flex;flex-wrap:wrap;gap:.4rem;margin:.35rem 0 .75rem}
         .stm-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:999px;background:#f1f5f9;font-size:.78rem;font-weight:700;color:#334155}
+        .stm-pin-label.is-visited{background:#0f766e;color:#fff}
+        .stm-pin-label.is-pending{background:#64748b;color:#fff}
+        .stm-item.is-visited .stm-item__n{background:#0f766e}
+        .stm-item.is-pending .stm-item__n{background:#94a3b8}
+        .stm-item.is-pending .stm-item__t strong{color:#64748b}
+        .stm-visit-tag{display:inline-block;margin-top:.2rem;padding:.1rem .4rem;border-radius:6px;background:#ecfdf5;color:#0f766e;font-size:.72rem;font-weight:800}
       </style>
       ${ui.hero({
         mark: '🧭',
         kicker: KICKER,
         title: 'خريطة جولة المندوب',
-        subtitle: 'اختر المندوب ثم الجولة لعرض مواقع العملاء المدخلة وأسمائهم على الخريطة',
+        subtitle: 'اختر المندوب ثم الجولة لعرض الزيارات والمواقع. يظهر العملاء المزارون بإحداثيات الدخول إن لم يكن للعميل موقع ثابت.',
         actions: [
           { label: 'الجولات', href: '/sales-reps/route' },
           { label: 'تقرير الجولات', href: '/sales-reps/reports/tours' },
@@ -276,6 +285,8 @@ router.get('/sales-reps/tour-map', async (req, res) => {
           <span class="stm-chip">عملاء الجولة: <b>${esc(totals.customers)}</b></span>
           <span class="stm-chip">على الخريطة: <b>${esc(totals.with_gps)}</b></span>
           <span class="stm-chip">بلا موقع: <b>${esc(totals.without_gps)}</b></span>
+          <span class="stm-chip">تمت زيارتهم: <b>${esc(totals.visited)}</b></span>
+          <span class="stm-chip">مزارون على الخريطة: <b>${esc(totals.visited_on_map)}</b></span>
         </div>
         ${
           totals.with_gps < 1
@@ -292,6 +303,7 @@ router.get('/sales-reps/tour-map', async (req, res) => {
           </div>
           <aside class="stm-list" id="stm-list">
             <h3>عملاء الجولة</h3>
+            <p class="muted" style="margin:.15rem .4rem .45rem;font-size:.78rem" id="stm-visited-hdr"></p>
             <div id="stm-list-body"></div>
             ${
               missingList
@@ -351,6 +363,11 @@ router.get('/sales-reps/tour-map', async (req, res) => {
             try { points = JSON.parse(jsonEl.textContent || '[]'); } catch (e) { points = []; }
             if (!Array.isArray(points)) points = [];
             var withGps = points.filter(function(p){ return p && p.has_gps && p.lat != null && p.lng != null; });
+            var visitedHdr = document.getElementById("stm-visited-hdr");
+            if (visitedHdr) {
+              var vc = points.filter(function(p){ return p && p.visited; }).length;
+              visitedHdr.textContent = vc > 0 ? ("تمت زيارتهم: " + vc) : "";
+            }
             var map = L.map('stm-map', { zoomControl: true, scrollWheelZoom: true });
             var provider = host.getAttribute('data-map-provider') || 'esri';
             var tileUrl = host.getAttribute('data-tile-url') || '';
@@ -396,10 +413,22 @@ router.get('/sales-reps/tour-map', async (req, res) => {
                     .replace(/"/g,'&quot;');
                 }
                 // الاسم داخل الأيقونة بجانب الرقم — أدق من Tooltip في صفحات RTL
+                function visitTimeHm(v) {
+                  if (!v) return '';
+                  var s = String(v);
+                  var m = s.match(/(\d{1,2}):(\d{2})/);
+                  if (m) return (m[1].length < 2 ? '0' : '') + m[1] + ':' + m[2];
+                  var d = new Date(s.replace(' ', 'T'));
+                  if (!isNaN(d.getTime())) {
+                    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+                  }
+                  return '';
+                }
+                var pinState = p.visited ? ' is-visited' : ' is-pending';
                 var icon = L.divIcon({
                   className: 'stm-marker',
                   html: '<div class="stm-marker__wrap">'
-                    + '<span class="stm-pin-label">' + n + '</span>'
+                    + '<span class="stm-pin-label' + pinState + '">' + n + '</span>'
                     + '<span class="stm-marker__name" title="' + escHtml(rawName) + '">' + escHtml(shortName) + '</span>'
                     + '</div>',
                   iconSize: null,
@@ -412,21 +441,29 @@ router.get('/sales-reps/tour-map', async (req, res) => {
                   + ((p.region_name || p.address_name)
                       ? '<br><small>' + escHtml([p.region_name, p.address_name].filter(Boolean).join(' / ')) + '</small>'
                       : '');
+                if (p.visited) {
+                  var vtm = visitTimeHm(p.visit_checkin_at);
+                  html += '<br><span class="stm-visit-tag">تمت الزيارة' + (vtm ? ' · ' + escHtml(vtm) : '') + '</span>';
+                  if (p.gps_source === 'visit') {
+                    html += '<br><small>الموقع من تسجيل الدخول</small>';
+                  }
+                }
                 var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
                 m.bindPopup(html);
                 markers.push(m);
                 bounds.push([p.lat, p.lng]);
                 if (listBody) {
                   var item = document.createElement('div');
-                  item.className = 'stm-item';
+                  item.className = 'stm-item' + (p.visited ? ' is-visited' : ' is-pending');
                   item.setAttribute('data-idx', String(i));
                   item.innerHTML = '<span class="stm-item__n">' + n + '</span><div class="stm-item__t"><strong></strong><small></small></div>';
                   item.querySelector('strong').textContent = p.name || ('#' + p.customer_id);
-                  item.querySelector('small').textContent = [p.code, days].filter(Boolean).join(' · ');
+                  var sub = [p.code, days].filter(Boolean);
+                  if (p.visited) sub.push('تمت الزيارة');
+                  item.querySelector('small').textContent = sub.join(' · ');
                   item.addEventListener('click', function(){ focusIdx(i); });
                   listBody.appendChild(item);
                 }
-              });
               if (bounds.length === 1) map.setView(bounds[0], 15);
               else if (bounds.length > 1) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
               else map.setView([31.95, 35.91], 8);
