@@ -118,19 +118,17 @@ body.app-mdi-page-parked.app-mdi-taskbar-open {
 body.app-mdi-page-parked > .app-mdi-taskbar,
 body.app-mdi-page-parked .app-mdi-taskbar.is-parked-top {
   /* مخفي في الأب — النسخة التفاعلية داخل الـ hub تحت القوائم */
-  position: fixed !important;
-  left: -9999px !important;
-  top: auto !important;
-  width: 1px !important;
-  height: 1px !important;
-  overflow: hidden !important;
-  opacity: 0 !important;
+  display: none !important;
+  visibility: hidden !important;
   pointer-events: none !important;
-  z-index: -1 !important;
 }
 
 body.app-mdi-page-parked .app-mdi-hub-overlay {
   top: 0;
+}
+
+body.app-mdi-page-parked .app-mdi-hub-overlay:not([hidden]) {
+  z-index: 1150;
 }
 
 body.app-mdi-page-parked .app-mdi-layer {

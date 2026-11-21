@@ -512,14 +512,41 @@
     return true;
   }
 
+  function ensureHubOverlayDom() {
+    hubOverlayEl = hubOverlayEl || document.getElementById('app-mdi-hub-overlay');
+    if (!hubOverlayEl) {
+      hubOverlayEl = document.createElement('div');
+      hubOverlayEl.id = 'app-mdi-hub-overlay';
+      hubOverlayEl.className = 'app-mdi-hub-overlay no-print';
+      hubOverlayEl.hidden = true;
+      hubOverlayEl.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(hubOverlayEl);
+    }
+    hubFrameEl = hubFrameEl || hubOverlayEl.querySelector('#app-mdi-hub-frame');
+    if (!hubFrameEl) {
+      hubFrameEl = document.getElementById('app-mdi-hub-frame');
+    }
+    if (!hubFrameEl) {
+      hubFrameEl = document.createElement('iframe');
+      hubFrameEl.id = 'app-mdi-hub-frame';
+      hubFrameEl.className = 'app-mdi-hub-frame';
+      hubFrameEl.title = 'القائمة';
+      hubOverlayEl.appendChild(hubFrameEl);
+    } else if (hubFrameEl.parentNode !== hubOverlayEl) {
+      hubOverlayEl.appendChild(hubFrameEl);
+    }
+  }
+
   function ensureShell() {
     if (layerEl) {
+      ensureHubOverlayDom();
       return;
     }
     layerEl = document.getElementById('app-mdi-layer');
     taskbarEl = document.getElementById('app-mdi-taskbar');
     hubOverlayEl = document.getElementById('app-mdi-hub-overlay');
     hubFrameEl = document.getElementById('app-mdi-hub-frame');
+    ensureHubOverlayDom();
     if (!layerEl || !taskbarEl) {
       return;
     }
@@ -872,7 +899,7 @@
 
   function buildHubEmbedUrl(href) {
     try {
-      var u = new URL(href, global.location.origin);
+      var u = new URL(withAppBase(href) || href, global.location.origin);
       u.searchParams.set('embed', 'menu');
       u.searchParams.delete('mdi_id');
       return u.pathname + u.search + u.hash;
@@ -887,7 +914,9 @@
   }
 
   function showHubOverlay(url) {
+    hideScreenOverlayHost();
     ensureShell();
+    ensureHubOverlayDom();
     if (!hubOverlayEl || !hubFrameEl) {
       return;
     }
@@ -910,6 +939,7 @@
       hubOverlayUrl = url;
     }
     hubOverlayEl.hidden = false;
+    hubOverlayEl.removeAttribute('hidden');
     hubOverlayEl.setAttribute('aria-hidden', 'false');
     document.body.classList.add('app-mdi-page-parked');
     placeTaskbar();
@@ -1039,6 +1069,7 @@
     } catch (eParkBusy) {
       /* ignore */
     }
+    hideScreenOverlayHost();
     showHubOverlay(hubUrl);
     syncTaskbar();
   }
