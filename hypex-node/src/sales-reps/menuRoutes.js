@@ -228,9 +228,14 @@ router.get('/sales-reps/tour-map', async (req, res) => {
   const body = `
     <div class="si-stage si-report-page" data-report-route="sales_rep_tour_map">
       <style>
-        .stm-filters{display:flex;flex-wrap:wrap;gap:.55rem .75rem;align-items:flex-end;margin:0}
-        .stm-filters label{display:flex;flex-direction:column;gap:.2rem;font-size:.8rem;font-weight:700;color:#5c6578;margin:0}
-        .stm-filters .si-field,.stm-filters select.si-field{min-width:14rem}
+        .stm-filters{display:grid;grid-template-columns:minmax(11rem,14rem) minmax(16rem,1.4fr) minmax(10rem,12rem) auto;gap:.65rem .85rem;align-items:end;margin:0;width:100%}
+        @media (max-width:900px){.stm-filters{grid-template-columns:1fr 1fr}.stm-filters .stm-filters__actions{grid-column:1 / -1}}
+        @media (max-width:560px){.stm-filters{grid-template-columns:1fr}}
+        .stm-filters label{display:flex;flex-direction:column;gap:.28rem;font-size:.8rem;font-weight:700;color:#5c6578;margin:0;min-width:0}
+        .stm-filters .si-field,.stm-filters select.si-field{width:100%;min-width:0;box-sizing:border-box}
+        .stm-filters .stm-day-hint{font-weight:500;font-size:.7rem;color:#64748b;line-height:1.3;margin:0}
+        .stm-filters__actions{display:flex;align-items:flex-end;padding-bottom:1px}
+        .stm-filters__actions .si-btn{white-space:nowrap;min-height:2.35rem}
         .stm-map-wrap{position:relative;height:min(68vh,640px);min-height:420px;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e8eef6}
         .stm-map-wrap .leaflet-container{height:100%;width:100%;font-family:inherit;direction:ltr}
         .stm-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:.75rem;align-items:stretch}
@@ -287,9 +292,11 @@ router.get('/sales-reps/tour-map', async (req, res) => {
               ${mapDayMin ? `min="${mapDayMin}"` : ''}
               ${mapDayMax ? `max="${mapDayMax}"` : ''}
               ${salesRepId < 1 ? 'disabled' : ''}>
-            <small class="muted" style="font-weight:500;font-size:.72rem">اتركه فارغاً لعرض كل أيام الجولة</small>
+            <span class="stm-day-hint">اتركه فارغاً لعرض كل أيام الجولة</span>
           </label>
-          <button class="si-btn si-btn--primary" type="submit">عرض الخريطة</button>
+          <div class="stm-filters__actions">
+            <button class="si-btn si-btn--primary" type="submit">عرض الخريطة</button>
+          </div>
         </form>
       </div>
       ${
