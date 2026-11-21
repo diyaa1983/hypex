@@ -402,68 +402,73 @@ router.get('/sales-reps/tour-map', async (req, res) => {
             }
             addTiles().then(function(){
               withGps.forEach(function(p, i){
-                var n = i + 1;
-                var rawName = String(p.name || ('عميل ' + n)).trim();
-                var shortName = rawName.length > 28 ? rawName.slice(0, 26) + '…' : rawName;
-                function escHtml(s){
-                  return String(s || '')
-                    .replace(/&/g,'&amp;')
-                    .replace(/</g,'&lt;')
-                    .replace(/>/g,'&gt;')
-                    .replace(/"/g,'&quot;');
-                }
-                // الاسم داخل الأيقونة بجانب الرقم — أدق من Tooltip في صفحات RTL
-                function visitTimeHm(v) {
-                  if (!v) return '';
-                  var s = String(v);
-                  var m = s.match(/(\d{1,2}):(\d{2})/);
-                  if (m) return (m[1].length < 2 ? '0' : '') + m[1] + ':' + m[2];
-                  var d = new Date(s.replace(' ', 'T'));
-                  if (!isNaN(d.getTime())) {
-                    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+                try {
+                  var n = i + 1;
+                  var rawName = String(p.name || ('عميل ' + n)).trim();
+                  var shortName = rawName.length > 28 ? rawName.slice(0, 26) + '…' : rawName;
+                  function escHtml(s){
+                    return String(s || '')
+                      .replace(/&/g,'&amp;')
+                      .replace(/</g,'&lt;')
+                      .replace(/>/g,'&gt;')
+                      .replace(/"/g,'&quot;');
                   }
-                  return '';
-                }
-                var pinState = p.visited ? ' is-visited' : ' is-pending';
-                var icon = L.divIcon({
-                  className: 'stm-marker',
-                  html: '<div class="stm-marker__wrap">'
-                    + '<span class="stm-pin-label' + pinState + '">' + n + '</span>'
-                    + '<span class="stm-marker__name" title="' + escHtml(rawName) + '">' + escHtml(shortName) + '</span>'
-                    + '</div>',
-                  iconSize: null,
-                  iconAnchor: [13, 13]
-                });
-                var days = (p.weekday_labels || []).join(' · ');
-                var html = '<strong>' + escHtml(p.name || '') + '</strong>'
-                  + (p.code ? '<br><span dir="ltr">' + escHtml(p.code) + '</span>' : '')
-                  + (days ? '<br><small>' + escHtml(days) + '</small>' : '')
-                  + ((p.region_name || p.address_name)
-                      ? '<br><small>' + escHtml([p.region_name, p.address_name].filter(Boolean).join(' / ')) + '</small>'
-                      : '');
-                if (p.visited) {
-                  var vtm = visitTimeHm(p.visit_checkin_at);
-                  html += '<br><span class="stm-visit-tag">تمت الزيارة' + (vtm ? ' · ' + escHtml(vtm) : '') + '</span>';
-                  if (p.gps_source === 'visit') {
-                    html += '<br><small>الموقع من تسجيل الدخول</small>';
+                  // الاسم داخل الأيقونة بجانب الرقم — أدق من Tooltip في صفحات RTL
+                  function visitTimeHm(v) {
+                    if (!v) return '';
+                    var s = String(v);
+                    var m = s.match(/(\d{1,2}):(\d{2})/);
+                    if (m) return (m[1].length < 2 ? '0' : '') + m[1] + ':' + m[2];
+                    var d = new Date(s.replace(' ', 'T'));
+                    if (!isNaN(d.getTime())) {
+                      var h = d.getHours();
+                      var min = d.getMinutes();
+                      return (h < 10 ? '0' : '') + h + ':' + (min < 10 ? '0' : '') + min;
+                    }
+                    return '';
                   }
-                }
-                var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
-                m.bindPopup(html);
-                markers.push(m);
-                bounds.push([p.lat, p.lng]);
-                if (listBody) {
-                  var item = document.createElement('div');
-                  item.className = 'stm-item' + (p.visited ? ' is-visited' : ' is-pending');
-                  item.setAttribute('data-idx', String(i));
-                  item.innerHTML = '<span class="stm-item__n">' + n + '</span><div class="stm-item__t"><strong></strong><small></small></div>';
-                  item.querySelector('strong').textContent = p.name || ('#' + p.customer_id);
-                  var sub = [p.code, days].filter(Boolean);
-                  if (p.visited) sub.push('تمت الزيارة');
-                  item.querySelector('small').textContent = sub.join(' · ');
-                  item.addEventListener('click', function(){ focusIdx(i); });
-                  listBody.appendChild(item);
-                }
+                  var pinState = p.visited ? ' is-visited' : ' is-pending';
+                  var icon = L.divIcon({
+                    className: 'stm-marker',
+                    html: '<div class="stm-marker__wrap">'
+                      + '<span class="stm-pin-label' + pinState + '">' + n + '</span>'
+                      + '<span class="stm-marker__name" title="' + escHtml(rawName) + '">' + escHtml(shortName) + '</span>'
+                      + '</div>',
+                    iconSize: null,
+                    iconAnchor: [13, 13]
+                  });
+                  var days = (p.weekday_labels || []).join(' · ');
+                  var html = '<strong>' + escHtml(p.name || '') + '</strong>'
+                    + (p.code ? '<br><span dir="ltr">' + escHtml(p.code) + '</span>' : '')
+                    + (days ? '<br><small>' + escHtml(days) + '</small>' : '')
+                    + ((p.region_name || p.address_name)
+                        ? '<br><small>' + escHtml([p.region_name, p.address_name].filter(Boolean).join(' / ')) + '</small>'
+                        : '');
+                  if (p.visited) {
+                    var vtm = visitTimeHm(p.visit_checkin_at);
+                    html += '<br><span class="stm-visit-tag">تمت الزيارة' + (vtm ? ' · ' + escHtml(vtm) : '') + '</span>';
+                    if (p.gps_source === 'visit') {
+                      html += '<br><small>الموقع من تسجيل الدخول</small>';
+                    }
+                  }
+                  var m = L.marker([p.lat, p.lng], { icon: icon }).addTo(map);
+                  m.bindPopup(html);
+                  markers.push(m);
+                  bounds.push([p.lat, p.lng]);
+                  if (listBody) {
+                    var item = document.createElement('div');
+                    item.className = 'stm-item' + (p.visited ? ' is-visited' : ' is-pending');
+                    item.setAttribute('data-idx', String(i));
+                    item.innerHTML = '<span class="stm-item__n">' + n + '</span><div class="stm-item__t"><strong></strong><small></small></div>';
+                    item.querySelector('strong').textContent = p.name || ('#' + p.customer_id);
+                    var sub = [p.code, days].filter(Boolean);
+                    if (p.visited) sub.push('تمت الزيارة');
+                    item.querySelector('small').textContent = sub.join(' · ');
+                    item.addEventListener('click', function(){ focusIdx(i); });
+                    listBody.appendChild(item);
+                  }
+                } catch (err) { /* skip bad point */ }
+              });
               if (bounds.length === 1) map.setView(bounds[0], 15);
               else if (bounds.length > 1) map.fitBounds(bounds, { padding: [36, 36], maxZoom: 15 });
               else map.setView([31.95, 35.91], 8);
