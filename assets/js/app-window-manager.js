@@ -1313,25 +1313,31 @@
   }
 
   function navigateFromHubParent(href) {
-    if (!href) {
-      return;
-    }
+    if (!href) return;
     var target = withAppBase(stripEmbedParams(href));
     var parked = parkedLiveId ? findWindow(parkedLiveId) : null;
+    // Same parked page → unpark live (keep data, no reload)
     if (parked && (normalizeKey(parked.href) === normalizeKey(target) || samePagePath(parked.href, target))) {
       hideScreenOverlayHost();
       unparkLiveWindow(parked);
       return;
     }
-    // أي صفحة موقفَة / مصغّرة حيّة: لا تدمّر الأب — افتح الهدف في overlay
-    if (document.body.classList.contains('app-mdi-page-parked') || (parked && parked.parkedLive)) {
-      if (parked) {
-        parked.keepView = true;
-        capturePageState(parked);
-      }
-      openScreenOverlayFromHref(target);
-      return;
+    // Leaving parked page for another screen: save keepView, then normal navigation
+    if (parked) {
+      parked.keepView = pageHasReportResults() || !!parked.keepView;
+      capturePageState(parked);
+      parked.parkedLive = false;
+      parked.minimized = true;
     }
+    parkedLiveId = null;
+    hideScreenOverlayHost();
+    try {
+      if (hubOverlayEl) {
+        hubOverlayEl.hidden = true;
+        hubOverlayEl.setAttribute('aria-hidden', 'true');
+      }
+    } catch (e) {}
+    document.body.classList.remove('app-mdi-page-parked');
     showBusyNav('جاري فتح الشاشة…');
     global.__managerAllowUnload = true;
     global.location.href = target;
@@ -1473,6 +1479,11 @@
   }
 
   function reconcileParkStateOnLoad() {
+    try {
+      if (typeof hideScreenOverlayHost === 'function') hideScreenOverlayHost();
+      if (global.AppBusy && global.AppBusy.hide) global.AppBusy.hide(true);
+      document.documentElement.classList.remove('hypex-nav-busy');
+    } catch (e) {}
     hideHubOverlay();
     parkedLiveId = null;
     document.body.classList.remove('app-mdi-page-parked');
@@ -1559,13 +1570,6 @@
       // المستخدم فتح شاشة من القائمة داخل الـ iframe
       var screenHref = cw.location.href;
       navigateFromHubParent(screenHref);
-      try {
-        if (document.body.classList.contains('app-mdi-page-parked')) {
-          resetHubToMenu();
-        }
-      } catch (eReset) {
-        /* ignore */
-      }
     } catch (e) {
       /* ignore */
     }
@@ -2329,12 +2333,16 @@
       unparkLiveWindow(win);
       return;
     }
-    // شاشة في overlay: أعد نفس الـ iframe
+    // شاشة في overlay: أعد نفس الـ iframe إن وُجد مصدر صالح
     if (win.overlayLive || (win.overlayFrame && win.overlayFrame.parentNode)) {
-      parkVisiblePageIfNeeded();
-      win.overlayLive = true;
-      showOverlayWindow(win, false);
-      return;
+      var oFrame = win.overlayFrame;
+      var oSrc = oFrame && (oFrame.getAttribute('src') || oFrame.getAttribute('data-src'));
+      if (oSrc) {
+        parkVisiblePageIfNeeded();
+        win.overlayLive = true;
+        showOverlayWindow(win, false);
+        return;
+      }
     }
     var samePage = isWindowCurrentPage(win);
     win.minimized = false;
@@ -2348,15 +2356,18 @@
       syncTaskbar();
       return;
     }
-    // لا تدمّر صفحة موقفَة — افتح هذه النافذة في overlay
     if (document.body.classList.contains('app-mdi-page-parked') || parkedLiveId) {
-      var parked = parkedLiveId ? findWindow(parkedLiveId) : null;
-      if (parked) {
-        parked.keepView = true;
-        capturePageState(parked);
+      var parkedWin = parkedLiveId ? findWindow(parkedLiveId) : null;
+      if (parkedWin) {
+        parkedWin.keepView = pageHasReportResults() || !!parkedWin.keepView;
+        capturePageState(parkedWin);
+        parkedWin.parkedLive = false;
+        parkedWin.minimized = true;
       }
-      openScreenOverlayFromHref(win.href, win.title);
-      return;
+      parkedLiveId = null;
+      hideScreenOverlayHost();
+      hideHubOverlay();
+      document.body.classList.remove('app-mdi-page-parked');
     }
     win.href = preferRestoreHref(withAppBase(win.href) || win.href, win);
     win.key = identityKey(win.href);
@@ -2738,7 +2749,6 @@
     tryRestorePendingFilters();
     global.addEventListener('message', handleHubParentMessage);
     bindMinimizeButton(ensureMinimizeButton());
-    bindTopnavParkIntercept();
   }
 
   if (document.readyState === 'loading') {
