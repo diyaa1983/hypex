@@ -228,14 +228,57 @@ router.get('/sales-reps/tour-map', async (req, res) => {
   const body = `
     <div class="si-stage si-report-page" data-report-route="sales_rep_tour_map">
       <style>
-        .stm-filters{display:grid;grid-template-columns:minmax(11rem,14rem) minmax(16rem,1.4fr) minmax(10rem,12rem) auto;gap:.65rem .85rem;align-items:end;margin:0;width:100%}
-        @media (max-width:900px){.stm-filters{grid-template-columns:1fr 1fr}.stm-filters .stm-filters__actions{grid-column:1 / -1}}
-        @media (max-width:560px){.stm-filters{grid-template-columns:1fr}}
-        .stm-filters label{display:flex;flex-direction:column;gap:.28rem;font-size:.8rem;font-weight:700;color:#5c6578;margin:0;min-width:0}
-        .stm-filters .si-field,.stm-filters select.si-field{width:100%;min-width:0;box-sizing:border-box}
-        .stm-filters .stm-day-hint{font-weight:500;font-size:.7rem;color:#64748b;line-height:1.3;margin:0}
-        .stm-filters__actions{display:flex;align-items:flex-end;padding-bottom:1px}
-        .stm-filters__actions .si-btn{white-space:nowrap;min-height:2.35rem}
+        .stm-filters{
+          display:flex;
+          flex-wrap:nowrap;
+          align-items:flex-end;
+          gap:.55rem .7rem;
+          margin:0;
+          width:100%;
+        }
+        .stm-filters label{
+          display:flex;
+          flex-direction:column;
+          gap:.22rem;
+          font-size:.78rem;
+          font-weight:700;
+          color:#5c6578;
+          margin:0;
+          min-width:0;
+        }
+        .stm-filters label.stm-f-rep{flex:0 0 12.5rem;width:12.5rem}
+        .stm-filters label.stm-f-tour{flex:1 1 auto;min-width:14rem;max-width:28rem}
+        .stm-filters label.stm-f-day{flex:0 0 11rem;width:11rem}
+        .stm-filters .si-field,
+        .stm-filters select.si-field{
+          width:100%;
+          min-width:0;
+          height:2.4rem;
+          box-sizing:border-box;
+        }
+        .stm-filters__actions{
+          flex:0 0 auto;
+          display:flex;
+          align-items:flex-end;
+        }
+        .stm-filters__actions .si-btn{
+          white-space:nowrap;
+          height:2.4rem;
+          min-height:2.4rem;
+          padding-inline:1rem;
+        }
+        .stm-filters-note{
+          margin:.4rem 0 0;
+          font-size:.72rem;
+          color:#64748b;
+          font-weight:500;
+        }
+        @media (max-width:720px){
+          .stm-filters{flex-wrap:wrap}
+          .stm-filters label.stm-f-rep,
+          .stm-filters label.stm-f-day{flex:1 1 10rem;width:auto}
+          .stm-filters label.stm-f-tour{flex:1 1 100%;max-width:none}
+        }
         .stm-map-wrap{position:relative;height:min(68vh,640px);min-height:420px;border:1px solid #cbd5e1;border-radius:12px;overflow:hidden;background:#e8eef6}
         .stm-map-wrap .leaflet-container{height:100%;width:100%;font-family:inherit;direction:ltr}
         .stm-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,18rem);gap:.75rem;align-items:stretch}
@@ -275,29 +318,29 @@ router.get('/sales-reps/tour-map', async (req, res) => {
       })}
       <div class="si-surface no-print" style="margin:0 0 1rem;padding:.85rem 1rem">
         <form method="get" action="/sales-reps/tour-map" class="stm-filters" data-app-busy-msg="جاري فتح الخريطة…">
-          <label>المندوب
+          <label class="stm-f-rep">المندوب
             <select class="si-field" name="sales_rep_id" id="stm-rep" required>
               <option value="">— اختر المندوب —</option>
               ${repOptions}
             </select>
           </label>
-          <label>الجولة
+          <label class="stm-f-tour">الجولة
             <select class="si-field" name="tour_id" id="stm-tour" ${salesRepId < 1 ? 'disabled' : ''}>
               ${tourOptions}
             </select>
           </label>
-          <label>اليوم
+          <label class="stm-f-day">اليوم
             <input class="si-field" type="date" name="map_date" id="stm-day"
               value="${esc(mapDate)}"
               ${mapDayMin ? `min="${mapDayMin}"` : ''}
               ${mapDayMax ? `max="${mapDayMax}"` : ''}
               ${salesRepId < 1 ? 'disabled' : ''}>
-            <span class="stm-day-hint">اتركه فارغاً لعرض كل أيام الجولة</span>
           </label>
           <div class="stm-filters__actions">
             <button class="si-btn si-btn--primary" type="submit">عرض الخريطة</button>
           </div>
         </form>
+        <p class="stm-filters-note no-print">اليوم اختياري — اتركه فارغاً لعرض كل أيام الجولة</p>
       </div>
       ${
         mapData
