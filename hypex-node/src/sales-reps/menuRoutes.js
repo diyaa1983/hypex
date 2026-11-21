@@ -231,10 +231,10 @@ router.get('/sales-reps/tour-map', async (req, res) => {
         .stm-item__t{min-width:0;flex:1}
         .stm-item__t strong{display:block;font-size:.82rem;line-height:1.35}
         .stm-item__t small{display:block;color:#64748b;font-size:.72rem;margin-top:.1rem}
-        .stm-marker{background:transparent!important;border:none!important}
-        .stm-marker__wrap{display:flex;align-items:center;gap:5px;transform:translate(-14px,-11px);pointer-events:none}
-        .stm-pin-label{flex:0 0 auto;min-width:1.55rem;height:1.55rem;padding:0 6px;background:#0f766e;color:#fff;border-radius:999px;font-weight:800;font-size:11px;line-height:1.55rem;text-align:center;box-shadow:0 1px 4px rgba(15,23,42,.28);white-space:nowrap}
-        .stm-marker__name{display:inline-block;max-width:11.5rem;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.96);border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.14);color:#0f172a;font-size:11px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:right}
+        .stm-marker.leaflet-div-icon{background:transparent!important;border:none!important;width:auto!important;height:auto!important;margin:0!important;overflow:visible!important}
+        .stm-marker__wrap{display:inline-flex;flex-direction:row;align-items:center;gap:4px;white-space:nowrap;pointer-events:auto;line-height:1}
+        .stm-pin-label{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;min-width:26px;height:26px;padding:0 7px;background:#0f766e;color:#fff;border-radius:999px;font-weight:800;font-size:12px;line-height:1;box-shadow:0 1px 4px rgba(15,23,42,.28);white-space:nowrap}
+        .stm-marker__name{display:inline-block;flex:0 1 auto;max-width:160px;padding:4px 8px;border-radius:8px;background:rgba(255,255,255,.97);border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.16);color:#0f172a;font-size:12px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;unicode-bidi:plaintext;text-align:right;writing-mode:horizontal-tb}
         .stm-stats{display:flex;flex-wrap:wrap;gap:.4rem;margin:.35rem 0 .75rem}
         .stm-chip{display:inline-flex;align-items:center;gap:.25rem;padding:.2rem .55rem;border-radius:999px;background:#f1f5f9;font-size:.78rem;font-weight:700;color:#334155}
       </style>
@@ -402,8 +402,8 @@ router.get('/sales-reps/tour-map', async (req, res) => {
                     + '<span class="stm-pin-label">' + n + '</span>'
                     + '<span class="stm-marker__name" title="' + escHtml(rawName) + '">' + escHtml(shortName) + '</span>'
                     + '</div>',
-                  iconSize: [28, 22],
-                  iconAnchor: [14, 11]
+                  iconSize: null,
+                  iconAnchor: [13, 13]
                 });
                 var days = (p.weekday_labels || []).join(' · ');
                 var html = '<strong>' + escHtml(p.name || '') + '</strong>'
