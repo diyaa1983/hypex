@@ -3280,6 +3280,7 @@ const oracleRepItemsHandler = async (req, res) => {
       let repDiscFixed = 0;
       let repTaxFixed = 0;
       const discByCustRep = new Map();
+      const discByCustCat = new Map();
       const taxByCustRep = new Map();
       invMap.forEach((inv) => {
         const acc = normAccKey(inv.customerAcc);
@@ -3305,6 +3306,23 @@ const oracleRepItemsHandler = async (req, res) => {
         const signedTax = Math.round(((kind === 'R' ? -tax : tax) * ratio) * 1000) / 1000;
         inv.allocDisc = signedDisc;
         inv.allocTax = signedTax;
+        const fullSigned = kind === 'R' ? -disc : disc;
+        if (fullAbs > 0 && fullSigned) {
+          const byCatAbs = new Map();
+          (inv.lines || []).forEach((ln) => {
+            const a = Math.abs(Number(ln.amount) || 0);
+            if (!a) return;
+            const c = String(ln.cat || '').trim() || 'بدون فئة';
+            byCatAbs.set(c, (byCatAbs.get(c) || 0) + a);
+          });
+          byCatAbs.forEach((catAbs, cat) => {
+            const share = Math.round(((fullSigned * catAbs) / fullAbs) * 1000) / 1000;
+            if (!share) return;
+            if (!discByCustCat.has(acc)) discByCustCat.set(acc, new Map());
+            const m = discByCustCat.get(acc);
+            m.set(cat, (m.get(cat) || 0) + share);
+          });
+        }
         if (!visAbs) return;
         repDiscFixed += signedDisc;
         repTaxFixed += signedTax;
@@ -3333,6 +3351,7 @@ const oracleRepItemsHandler = async (req, res) => {
         return a.localeCompare(b, 'ar');
       });
       const colTotals = catOrder.map(() => 0);
+      const colDiscTotals = catOrder.map(() => 0);
       const colQtyTotals = catOrder.map(() => 0);
       const colBonusTotals = catOrder.map(() => 0);
       const colYearTotals = catOrder.map(() => new Map(compareYears.map((y) => [y, 0])));
@@ -3432,6 +3451,11 @@ const oracleRepItemsHandler = async (req, res) => {
             yearGrossParts.forEach((n, idx) => catYearGrossMaps[idx].set(y, n));
           });
         }
+        const catDiscMap = discByCustCat.get(normAccKey(acc)) || new Map();
+        const catDiscs = catOrder.map((cat) => Number(catDiscMap.get(cat) || 0) || 0);
+        catDiscs.forEach((d, idx) => {
+          colDiscTotals[idx] += d;
+        });
         const catAmts = [];
         const catQtys = [];
         const catBonuses = [];
@@ -3503,7 +3527,7 @@ const oracleRepItemsHandler = async (req, res) => {
         const netCell = yearCompare
           ? `<td class="si-num ora-total-years ora-net-cell">${yearStackHtml(rowByYearNet, true)}</td>`
           : `<td class="si-num ora-net-cell" dir="ltr">${esc(fmtAmt(rowNet))}</td>`;
-        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-sale="${rowSale}" data-ora-ret-amt="${rowRetAmt}" data-ora-ret-qty="${rowRetQty}" data-ora-tax="${rowTax}" data-ora-qty="${rowQty}" data-ora-bonus="${rowBonus}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
+        summaryBody += `<tr class="ora-sum-row" data-sort-row data-sort-customer="${esc(slot.label)}" data-sort-total="${rowNet}" data-sort-gross="${rowGross}" data-sort-disc="${rowDisc}" data-ora-total="${rowNet}" data-ora-gross="${rowGross}" data-ora-disc="${rowDisc}" data-ora-sale="${rowSale}" data-ora-ret-amt="${rowRetAmt}" data-ora-ret-qty="${rowRetQty}" data-ora-tax="${rowTax}" data-ora-qty="${rowQty}" data-ora-bonus="${rowBonus}" data-ora-cats="${esc(catAmts.join('|'))}" data-ora-cat-discs="${esc(catDiscs.map(String).join('|'))}" data-ora-cat-qtys="${esc(catQtys.join('|'))}" data-ora-cat-bonuses="${esc(catBonuses.join('|'))}" data-ora-acc="${accSafe}"${yearAttr}${catSortAttrs}><td class="ora-cust-name"><label class="ora-cust-pick-lab no-print" title="تحديد للتجميع"><input type="checkbox" class="ora-cust-pick" value="${accSafe}"></label><span class="ora-cust-label">${esc(slot.label)}</span></td>${sumCells}${grossCell}${discCell}${netCell}</tr>`;
         if (!needDetail) return;
         let custQty = 0;
         let custBonus = 0;
@@ -3782,6 +3806,7 @@ const oracleRepItemsHandler = async (req, res) => {
         data-ora-all-qtys="${esc(colQtyTotals.map((n) => String(Number(n) || 0)).join('|'))}"
         data-ora-all-bonuses="${esc(colBonusTotals.map((n) => String(Number(n) || 0)).join('|'))}"
         data-ora-all-amts="${esc(colTotals.map((n) => String(Number(n) || 0)).join('|'))}"
+        data-ora-all-cat-discs="${esc(colDiscTotals.map((n) => String(Number(n) || 0)).join('|'))}"
         data-ora-all-gross="${esc(String(Number(repGross) || 0))}"
         data-ora-all-disc="${esc(String(Number(repDisc) || 0))}"
         data-ora-all-net="${esc(String(Number(repNet) || 0))}">
@@ -5913,9 +5938,21 @@ const oracleRepItemsHandler = async (req, res) => {
         }
         if (allowCats && !usePick) {
           showGross = totA;
-          // خصم نسبي حسب مبالغ الفئات الظاهرة من إجمالي كل الفئات
-          showDisc =
-            allGross > 0 ? Math.round(((allDisc * totA) / allGross) * 1000) / 1000 : 0;
+          var allCatDiscsRaw = String(box.getAttribute('data-ora-all-cat-discs') || '');
+          if (allCatDiscsRaw) {
+            var allCatDiscs = allCatDiscsRaw.split('|');
+            showDisc = 0;
+            for (i = 0; i < cats.length; i += 1) {
+              var catLab = String(cats[i] || '').trim();
+              if (!catLab) continue;
+              if (!allowCats[catLab.toLowerCase()]) continue;
+              showDisc += Number(allCatDiscs[i] || 0) || 0;
+            }
+            showDisc = Math.round(showDisc * 1000) / 1000;
+          } else {
+            showDisc =
+              allGross > 0 ? Math.round(((allDisc * totA) / allGross) * 1000) / 1000 : 0;
+          }
           showNet = Math.round((showGross - showDisc) * 1000) / 1000;
         }
         function escTxt(s) {
@@ -6032,9 +6069,12 @@ const oracleRepItemsHandler = async (req, res) => {
             tr.setAttribute('data-ora-total-base', String(tr.getAttribute('data-ora-total') || 0));
           }
           var cats = String(tr.getAttribute('data-ora-cats') || '').split('|');
+          var catDiscsRaw = String(tr.getAttribute('data-ora-cat-discs') || '');
+          var catDiscs = catDiscsRaw ? catDiscsRaw.split('|') : null;
           var baseGross = Number(tr.getAttribute('data-ora-gross-base') || 0) || 0;
           var baseDisc = Number(tr.getAttribute('data-ora-disc-base') || 0) || 0;
           var visGross = 0;
+          var visDisc = 0;
           var has = false;
           var i;
           for (i = 0; i < cats.length; i += 1) {
@@ -6046,9 +6086,14 @@ const oracleRepItemsHandler = async (req, res) => {
                   .toLowerCase()
               : '';
             var catOk = !allow || (name && allow[name]);
+            var dPart = catDiscs ? Number(catDiscs[i] || 0) || 0 : 0;
             if (catOk && amt) {
               visGross += amt;
               has = true;
+            }
+            if (catOk && catDiscs) {
+              visDisc += dPart;
+              if (dPart) has = true;
             }
           }
           if (!allow) {
@@ -6058,10 +6103,16 @@ const oracleRepItemsHandler = async (req, res) => {
             tr.hidden = !has;
           }
           var showGross = allow ? visGross : baseGross;
-          var showDisc =
-            !allow || baseGross <= 0
-              ? baseDisc
-              : Math.round(((baseDisc * visGross) / baseGross) * 1000) / 1000;
+          var showDisc;
+          if (!allow) {
+            showDisc = baseDisc;
+          } else if (catDiscs) {
+            showDisc = Math.round(visDisc * 1000) / 1000;
+          } else if (baseGross <= 0) {
+            showDisc = baseDisc;
+          } else {
+            showDisc = Math.round(((baseDisc * visGross) / baseGross) * 1000) / 1000;
+          }
           var showNet = Math.round((showGross - showDisc) * 1000) / 1000;
           tr.setAttribute('data-ora-gross', String(showGross));
           tr.setAttribute('data-ora-disc', String(showDisc));
