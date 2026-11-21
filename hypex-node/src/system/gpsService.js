@@ -406,11 +406,32 @@ async function trackUsers() {
 }
 
 /** خط السير اليومي — مبسّط ومتوافق مع user-gps-route.js */
+function normalizeTrackDate(raw) {
+  const s = String(raw || '').trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+  if (m) {
+    const dd = String(m[1]).padStart(2, '0');
+    const mm = String(m[2]).padStart(2, '0');
+    return `${m[3]}-${mm}-${dd}`;
+  }
+  const dig = s.replace(/\D/g, '');
+  if (dig.length === 8) {
+    return `${dig.slice(4, 8)}-${dig.slice(2, 4)}-${dig.slice(0, 2)}`;
+  }
+  return '';
+}
+
 async function trackDayPayload({ userId = 0, date = '' } = {}) {
   const users = await trackUsers();
-  let d = String(date || '').slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) {
-    d = new Date().toISOString().slice(0, 10);
+  let d = normalizeTrackDate(date);
+  if (!d) {
+    // تاريخ محلي للسيرفر وليس UTC حتى لا ينزاح اليوم في الأردن
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    d = `${y}-${m}-${day}`;
   }
   const [yy, mm, dd] = d.split('-');
   const dateDmy = `${dd}-${mm}-${yy}`;

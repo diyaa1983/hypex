@@ -50,8 +50,31 @@
       .replace(/"/g, '&quot;');
   }
 
-  function shiftDate(iso, days) {
-    var d = new Date(iso + 'T00:00:00');
+  /** يقبل Y-m-d أو d-m-Y (بعد تحويل منتقي التاريخ) */
+  function toIsoDate(raw) {
+    var s = String(raw == null ? '' : raw).trim();
+    if (!s) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+    var m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if (m) {
+      return m[3] + '-' + String(m[2]).padStart(2, '0') + '-' + String(m[1]).padStart(2, '0');
+    }
+    var dig = s.replace(/\D/g, '');
+    if (dig.length === 8) {
+      return dig.slice(4, 8) + '-' + dig.slice(2, 4) + '-' + dig.slice(0, 2);
+    }
+    return '';
+  }
+
+  function formatIsoToDmY(iso) {
+    var p = String(iso || '').slice(0, 10).split('-');
+    if (p.length !== 3) return '';
+    return p[2] + '-' + p[1] + '-' + p[0];
+  }
+
+  function shiftDate(isoOrDmy, days) {
+    var iso = toIsoDate(isoOrDmy);
+    var d = iso ? new Date(iso + 'T00:00:00') : new Date();
     if (isNaN(d.getTime())) d = new Date();
     d.setDate(d.getDate() + days);
     var y = d.getFullYear();
@@ -136,7 +159,7 @@
     if (this.els.prev) {
       this.els.prev.addEventListener('click', function () {
         if (self.els.date) {
-          self.els.date.value = shiftDate(self.els.date.value || self.today, -1);
+          self.setSelectedIso(shiftDate(self.getSelectedIso() || self.today, -1));
           clearTimeout(self._loadTimer);
           self.loadTrack();
         }
@@ -145,9 +168,10 @@
     if (this.els.next) {
       this.els.next.addEventListener('click', function () {
         if (self.els.date) {
-          var nv = shiftDate(self.els.date.value || self.today, 1);
-          if (self.today && nv > self.today) nv = self.today;
-          self.els.date.value = nv;
+          var nv = shiftDate(self.getSelectedIso() || self.today, 1);
+          var todayIso = toIsoDate(self.today);
+          if (todayIso && nv > todayIso) nv = todayIso;
+          self.setSelectedIso(nv);
           clearTimeout(self._loadTimer);
           self.loadTrack();
         }
@@ -355,6 +379,31 @@
       });
   };
 
+  RouteView.prototype.getSelectedIso = function () {
+    if (this.els.date) {
+      var wrap = this.els.date.closest ? this.els.date.closest('.date-dmy-field') : null;
+      var native = wrap && wrap.querySelector ? wrap.querySelector('.date-dmy-native') : null;
+      if (native && toIsoDate(native.value)) return toIsoDate(native.value);
+      var fromText = toIsoDate(this.els.date.value);
+      if (fromText) return fromText;
+      if (this.els.date.type === 'date' && this.els.date.value) return String(this.els.date.value).slice(0, 10);
+    }
+    return toIsoDate(this.today) || '';
+  };
+
+  RouteView.prototype.setSelectedIso = function (iso) {
+    iso = toIsoDate(iso);
+    if (!iso || !this.els.date) return;
+    var wrap = this.els.date.closest ? this.els.date.closest('.date-dmy-field') : null;
+    var native = wrap && wrap.querySelector ? wrap.querySelector('.date-dmy-native') : null;
+    if (this.els.date.type === 'date') {
+      this.els.date.value = iso;
+    } else {
+      this.els.date.value = formatIsoToDmY(iso) || iso;
+    }
+    if (native) native.value = iso;
+  };
+
   RouteView.prototype.loadTrack = function () {
     var self = this;
     if (!this.map) {
@@ -373,7 +422,7 @@
         });
     }
     var uid = this.els.user ? this.els.user.value : '';
-    var date = this.els.date ? this.els.date.value : this.today;
+    var date = this.getSelectedIso() || toIsoDate(this.today) || '';
     if (!uid) {
       this.renderEmpty('اختر المندوب لعرض مساره.');
       return;

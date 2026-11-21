@@ -31,11 +31,16 @@ try {
 
     $userId = isset($_GET['user_id']) ? (int) $_GET['user_id'] : 0;
     $dateRaw = trim((string) ($_GET['date'] ?? ''));
-    $dateTs = $dateRaw !== '' ? strtotime($dateRaw) : time();
-    if ($dateTs === false) {
-        $dateTs = time();
+    $date = '';
+    if (preg_match('/^(\d{4})-(\d{2})-(\d{2})/', $dateRaw, $m)) {
+        $date = $m[1] . '-' . $m[2] . '-' . $m[3];
+    } elseif (preg_match('/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/', $dateRaw, $m)) {
+        $date = sprintf('%04d-%02d-%02d', (int) $m[3], (int) $m[2], (int) $m[1]);
+    } else {
+        $dateTsTmp = $dateRaw !== '' ? strtotime($dateRaw) : false;
+        $date = $dateTsTmp !== false ? date('Y-m-d', $dateTsTmp) : date('Y-m-d');
     }
-    $date = date('Y-m-d', $dateTs);
+    $dateTs = strtotime($date . ' 00:00:00') ?: time();
 
     $users = sys_user_location_track_users($pdo);
     $osm = app_osm_js_config();
