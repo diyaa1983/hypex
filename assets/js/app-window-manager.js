@@ -386,19 +386,86 @@
     placeTaskbar();
   }
 
+  function clearParkedTaskbarOffset() {
+    try {
+      document.documentElement.style.removeProperty('--app-mdi-parked-taskbar-top');
+    } catch (eClear) {
+      /* ignore */
+    }
+    if (taskbarEl) {
+      taskbarEl.style.top = '';
+    }
+  }
+
+  function ensureHubTaskbarSlot() {
+    try {
+      if (!hubFrameEl) {
+        return null;
+      }
+      var hubDoc = hubFrameEl.contentDocument;
+      if (!hubDoc || !hubDoc.body) {
+        return null;
+      }
+      var nav = hubDoc.querySelector('.hx-topnav');
+      if (!nav) {
+        return null;
+      }
+      var styleId = 'app-mdi-taskbar-slot-style';
+      if (!hubDoc.getElementById(styleId)) {
+        var st = hubDoc.createElement('style');
+        st.id = styleId;
+        st.textContent =
+          '.app-mdi-taskbar-slot{display:block;width:100%;min-height:2.15rem;height:2.15rem;padding:0;background:#111827;border-top:1px solid rgba(255,255,255,.1);box-sizing:border-box;flex:0 0 auto}';
+        (hubDoc.head || hubDoc.documentElement).appendChild(st);
+      }
+      var slot = hubDoc.getElementById('app-mdi-taskbar-slot');
+      if (!slot) {
+        slot = hubDoc.createElement('div');
+        slot.id = 'app-mdi-taskbar-slot';
+        slot.className = 'app-mdi-taskbar-slot';
+        slot.setAttribute('aria-hidden', 'true');
+        nav.appendChild(slot);
+      } else if (slot.parentNode !== nav) {
+        nav.appendChild(slot);
+      }
+      return slot;
+    } catch (eSlot) {
+      return null;
+    }
+  }
+
+  function syncParkedTaskbarPosition() {
+    if (!taskbarEl || !document.body.classList.contains('app-mdi-page-parked')) {
+      clearParkedTaskbarOffset();
+      return;
+    }
+    var slot = ensureHubTaskbarSlot();
+    if (!slot) {
+      document.documentElement.style.setProperty('--app-mdi-parked-taskbar-top', '0px');
+      taskbarEl.style.top = '0px';
+      return;
+    }
+    var rect = slot.getBoundingClientRect();
+    var top = Math.max(0, Math.round(rect.top));
+    document.documentElement.style.setProperty('--app-mdi-parked-taskbar-top', top + 'px');
+    taskbarEl.style.top = top + 'px';
+  }
+
   function placeTaskbar() {
     if (!taskbarEl) {
       return;
     }
-    // أثناء التصغير: خارج app-shell المخفي، ويُثبَّت أعلى الشاشة عبر CSS
+    // أثناء التصغير: خارج app-shell المخفي، ويُثبَّت تحت قائمة الـ hub لا فوقها
     if (document.body.classList.contains('app-mdi-page-parked')) {
       if (taskbarEl.parentNode !== document.body) {
         document.body.appendChild(taskbarEl);
       }
       taskbarEl.classList.add('is-parked-top');
+      syncParkedTaskbarPosition();
       return;
     }
     taskbarEl.classList.remove('is-parked-top');
+    clearParkedTaskbarOffset();
     var nav = document.querySelector('.hx-topnav');
     if (nav && taskbarEl.parentNode !== nav) {
       nav.appendChild(taskbarEl);
@@ -918,6 +985,10 @@
           u.searchParams.set('embed', 'menu');
           u.searchParams.delete('mdi_id');
           hubFrameEl.src = u.pathname + u.search + u.hash;
+          return;
+        }
+        if (document.body.classList.contains('app-mdi-page-parked')) {
+          placeTaskbar();
         }
         return;
       }
@@ -934,6 +1005,14 @@
     }
     hubFrameEl.setAttribute('data-mdi-guard', '1');
     hubFrameEl.addEventListener('load', enforceHubFrameEmbed);
+    if (!global.__mdiParkedTaskbarResizeBound) {
+      global.__mdiParkedTaskbarResizeBound = true;
+      global.addEventListener('resize', function () {
+        if (document.body.classList.contains('app-mdi-page-parked')) {
+          syncParkedTaskbarPosition();
+        }
+      });
+    }
   }
 
   function bindTaskbarEventsOnce() {
