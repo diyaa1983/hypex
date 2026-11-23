@@ -594,6 +594,10 @@ class OfflineStore {
         'cache_to',
         (meta['cache_to'] ?? report['to'] ?? '').toString(),
       );
+      final priceModeRev = meta['price_mode_rev'] ?? payload['price_mode_rev'];
+      if (priceModeRev != null) {
+        await putMeta('price_mode_rev', priceModeRev.toString());
+      }
     });
   }
 

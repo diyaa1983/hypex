@@ -80,9 +80,18 @@ try {
     $customersDelta = $sinceDt !== null;
     $customersRemoved = [];
 
+    $hasWholesale = false;
+    try {
+        $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
+        $hasWholesale = true;
+    } catch (Throwable $e) {
+        $hasWholesale = false;
+    }
+
     $custParams = [];
+    $wholesaleSel = $hasWholesale ? ', c.use_wholesale_price' : '';
     $custSql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude,
-                       c.oracle_key, c.payment_period, c.oracle_pending
+                       c.oracle_key, c.payment_period, c.oracle_pending' . $wholesaleSel . '
                 FROM crm_customer c WHERE c.is_active = 1';
     if ($scopedRepId !== null) {
         [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
@@ -117,17 +126,10 @@ try {
             'latitude' => isset($r['latitude']) && $r['latitude'] !== null ? (float) $r['latitude'] : null,
             'longitude' => isset($r['longitude']) && $r['longitude'] !== null ? (float) $r['longitude'] : null,
             'payment_period' => trim((string) ($r['payment_period'] ?? '')),
-            'use_wholesale_price' => 1,
+            'use_wholesale_price' => (int) ($r['use_wholesale_price'] ?? 1) === 0 ? 0 : 1,
         ];
     }
 
-    // عمود اختياري — لا يفشل التحميل إن لم يُرحَّل بعد
-    try {
-        $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
-        $hasWholesale = true;
-    } catch (Throwable $e) {
-        $hasWholesale = false;
-    }
     if ($hasWholesale) {
         $map = [];
         foreach ($pdo->query('SELECT id, use_wholesale_price FROM crm_customer') as $wr) {
@@ -607,6 +609,7 @@ try {
             'cache_to' => $cacheTo,
             'statement_from' => $stmtFrom,
             'statement_to' => $stmtTo,
+            'price_mode_rev' => 1,
         ],
         'counts' => [
             'customers' => count($customers),

@@ -10,6 +10,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 require_once app_path('includes/mobile_auth.php');
 require_once app_path('includes/crm_sales_rep_schema.php');
+require_once app_path('includes/inv_item_doc_pricing.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -46,8 +47,19 @@ try {
             exit;
         }
         crm_customer_ensure_oracle_pending_columns($pdo);
+        $hasWholesaleCol = false;
+        if (function_exists('inv_customer_price_mode_ensure')) {
+            inv_customer_price_mode_ensure($pdo);
+        }
+        try {
+            $pdo->query('SELECT use_wholesale_price FROM crm_customer LIMIT 1');
+            $hasWholesaleCol = true;
+        } catch (Throwable $e) {
+            $hasWholesaleCol = false;
+        }
+        $wholesaleSel = $hasWholesaleCol ? ', c.use_wholesale_price' : '';
         $sql = 'SELECT c.id, c.name_ar, c.code, c.phone, c.address_ar, c.latitude, c.longitude,
-                       c.oracle_key, c.payment_period, c.oracle_pending
+                       c.oracle_key, c.payment_period, c.oracle_pending' . $wholesaleSel . '
                 FROM crm_customer c WHERE c.is_active = 1';
         if ($scopedRepId !== null) {
             [$linkSql, $linkParams] = crm_customer_sql_linked_to_rep($pdo, 'c', $scopedRepId);
@@ -100,6 +112,7 @@ try {
             $out['pending_oracle_link'] = $pendingLink;
             $out['payment_period'] = $payPeriod;
             $out['payment_period_label'] = crm_customer_payment_period_label($payPeriod);
+            $out['use_wholesale_price'] = (int) ($r['use_wholesale_price'] ?? 1) === 0 ? 0 : 1;
         }
         return $out;
     }, $rows);

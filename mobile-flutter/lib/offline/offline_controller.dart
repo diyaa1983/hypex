@@ -407,7 +407,10 @@ class OfflineController extends ChangeNotifier {
     onStep?.call(statusMessage!);
     notifyListeners();
     try {
-      final since = forceFull ? '' : (info.syncedAt ?? '').trim();
+      final forceCatalog =
+          (await store.getMeta('force_full_catalog') ?? '').trim() == '1';
+      final since =
+          (forceFull || forceCatalog) ? '' : (info.syncedAt ?? '').trim();
       final res = await api.getJson(
         AppConfig.syncPullPath,
         query: since.isEmpty ? const {} : {'since': since},
@@ -418,6 +421,9 @@ class OfflineController extends ChangeNotifier {
       onStep?.call(statusMessage!);
       notifyListeners();
       await store.replaceCatalog(res);
+      if (forceCatalog) {
+        await store.setMeta('force_full_catalog', '');
+      }
       pullProgress = 1;
       await refreshInfo();
       final delta = res['customers_delta'] == true;
