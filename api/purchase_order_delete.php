@@ -39,6 +39,26 @@ if (!in_array($status, ['draft', 'submitted', 'cancelled'], true) && pur_order_l
     exit;
 }
 
+$snap = null;
+try {
+    require_once app_path('includes/pur_order_load.php');
+    $snap = pur_order_fetch_by_id($pdo, $orderId);
+} catch (Throwable $e) {
+    try {
+        $stSnap = $pdo->prepare('SELECT order_no, order_date, total, status FROM pur_order WHERE id = ? LIMIT 1');
+        $stSnap->execute([$orderId]);
+        $snap = $stSnap->fetch(PDO::FETCH_ASSOC) ?: null;
+    } catch (Throwable $e2) {
+        $snap = null;
+    }
+}
+
 $pdo->prepare('DELETE FROM pur_order WHERE id = ?')->execute([$orderId]);
+
+try {
+    require_once app_path('includes/sys_audit_log.php');
+    sys_audit_log_pur_order($pdo, 'delete', $orderId, is_array($snap) ? $snap : null);
+} catch (Throwable $e) {
+}
 
 echo json_encode(['ok' => true, 'message' => 'تم حذف طلب الشراء.'], JSON_UNESCAPED_UNICODE);

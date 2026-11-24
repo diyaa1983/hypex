@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const sysAuditLog = require('../system/sysAuditLog');
 const { parseDateToIso, todayIso } = require('../lib/html');
 const itemPricing = require('../lib/itemPricing');
 const companyDecimals = require('../lib/companyDecimals');
@@ -581,6 +582,11 @@ async function saveOrder(payload, userId) {
         console.error('offer log order', e.message);
       }
       const ord = await getOrder(orderId);
+      try {
+        await sysAuditLog.logCustomerOrder('save', orderId, userId, 'sales_customer_order_entry');
+      } catch {
+        /* ignore */
+      }
       return { ok: true, id: orderId, order_no: ord?.order_no || payload.order_no || '', order: ord };
     }
 
@@ -693,6 +699,11 @@ async function saveOrder(payload, userId) {
       console.error('offer log order new', e.message);
     }
     const ord = await getOrder(newId);
+    try {
+      await sysAuditLog.logCustomerOrder('save', newId, userId, 'sales_customer_order_entry');
+    } catch {
+      /* ignore */
+    }
     return { ok: true, id: newId, order_no: orderNo, order: ord };
   } catch (e) {
     try {
@@ -812,6 +823,11 @@ async function setApproved(id, approved, userId) {
       );
     }
     await conn.commit();
+    try {
+      await sysAuditLog.logCustomerOrder(approved ? 'approve' : 'unapprove', orderId, userId, 'sales_customer_orders_approve');
+    } catch {
+      /* ignore */
+    }
     return { ok: true, id: orderId, order: await getOrder(orderId) };
   } catch (e) {
     try {
@@ -916,12 +932,18 @@ async function afterOrderDeletedVisitCleanup(conn, visitRouteLineId) {
   return resetVisitLine(conn, lineId);
 }
 
-async function deleteOrder(id) {
+async function deleteOrder(id, userId = null) {
   const orderId = Number(id);
   if (!orderId) return { ok: false, error: 'معرّف غير صالح.' };
   const pool = db.getPool();
   const conn = await pool.getConnection();
   try {
+    let auditSnap = null;
+    try {
+      auditSnap = await sysAuditLog.fetchCustomerOrderSnapshot(orderId);
+    } catch {
+      auditSnap = null;
+    }
     await conn.beginTransaction();
     let visitLineId = 0;
     try {
@@ -972,6 +994,13 @@ async function deleteOrder(id) {
     await conn.execute(`DELETE FROM sal_customer_order WHERE id = ?`, [orderId]);
     const visitReset = visitLineId > 0 ? await afterOrderDeletedVisitCleanup(conn, visitLineId) : false;
     await conn.commit();
+    if (auditSnap) {
+      try {
+        await sysAuditLog.logCustomerOrderSnapshot('delete', auditSnap, userId, 'sales_customer_orders');
+      } catch {
+        /* ignore */
+      }
+    }
     const redirectId = nextId > 0 ? nextId : prevId > 0 ? prevId : 0;
     return {
       ok: true,
@@ -1346,7 +1375,7 @@ async function cleanupOrphanOracleLink(orderId, userId, { deleteOrder: doDelete 
     }
   }
 
-  const del = await deleteOrder(id);
+  const del = await deleteOrder(id, uid);
   if (!del.ok) {
     return {
       ok: false,

@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const sysAuditLog = require('../system/sysAuditLog');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -2035,7 +2036,7 @@ async function resetVisitLineConn(conn, routeLineId, note) {
   return true;
 }
 
-async function deleteVisitLines(lineIds) {
+async function deleteVisitLines(lineIds, userId = null) {
   const ids = [...new Set((lineIds || []).map((v) => Number(v)).filter((v) => v > 0))];
   if (!ids.length) {
     return { ok: false, deleted: 0, skipped: [], message: 'لم يُحدَّد أي زيارة.' };
@@ -2053,8 +2054,23 @@ async function deleteVisitLines(lineIds) {
         });
         continue;
       }
+      let snap = null;
+      try {
+        snap = await sysAuditLog.fetchVisitLineSnapshot(lineId);
+      } catch {
+        snap = null;
+      }
       const ok = await resetVisitLineConn(conn, lineId);
-      if (ok) deleted += 1;
+      if (ok) {
+        deleted += 1;
+        if (snap && snap.visit_checkin_at) {
+          try {
+            await sysAuditLog.logVisitLineDelete(snap, userId);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
       else skipped.push({ line_id: lineId, message: 'الزيارة غير موجودة أو غير مسجّلة.' });
     }
   } finally {

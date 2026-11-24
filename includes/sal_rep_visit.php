@@ -880,7 +880,6 @@ function sal_rep_visit_after_order_deleted(PDO $pdo, int $visitRouteLineId): boo
  */
 function sal_rep_visit_delete_lines(PDO $pdo, array $lineIds, ?int $userId = null): array
 {
-    unset($userId);
     sal_rep_visit_ensure_schema($pdo);
     $deleted = 0;
     $skipped = [];
@@ -913,7 +912,36 @@ function sal_rep_visit_delete_lines(PDO $pdo, array $lineIds, ?int $userId = nul
             ];
             continue;
         }
+        $visitSnap = null;
+        try {
+            $stV = $pdo->prepare(
+                'SELECT l.id AS line_id, l.visit_checkin_at, r.route_date, r.sales_rep_id,
+                        c.name_ar AS customer_name, c.code AS customer_code,
+                        COALESCE(rep.name_ar, \'\') AS sales_rep_name
+                 FROM sal_rep_route_line l
+                 INNER JOIN sal_rep_route r ON r.id = l.route_id
+                 INNER JOIN crm_customer c ON c.id = l.customer_id
+                 LEFT JOIN crm_sales_rep rep ON rep.id = r.sales_rep_id
+                 WHERE l.id = ? LIMIT 1'
+            );
+            $stV->execute([$lineId]);
+            $visitSnap = $stV->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Throwable $e) {
+            $visitSnap = null;
+        }
         if (sal_rep_visit_reset_line($pdo, $lineId, 'حذف من تقرير الزيارات')) {
+            if ($visitSnap && ($visitSnap['visit_checkin_at'] ?? '') !== '') {
+                try {
+                    require_once app_path('includes/sys_audit_log.php');
+                    $ref = trim((string) ($visitSnap['customer_code'] ?? ''));
+                    if ($ref === '') {
+                        $ref = 'زيارة #' . $lineId;
+                    }
+                    $visitSnap['entity_ref'] = $ref;
+                    sys_audit_log_visit_line($pdo, 'delete', $visitSnap, ['user_id' => $userId]);
+                } catch (Throwable $e) {
+                }
+            }
             $deleted++;
         } else {
             $skipped[] = [

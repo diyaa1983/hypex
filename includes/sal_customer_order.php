@@ -569,6 +569,23 @@ function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null):
             throw new RuntimeException('لا يمكنك حذف طلب لمندوب آخر.');
         }
         $visitLineId = $hasVisitCol ? (int) ($row['visit_route_line_id'] ?? 0) : 0;
+        $auditSnap = null;
+        try {
+            require_once app_path('includes/sys_audit_log.php');
+            $snapSt = $pdo->prepare(
+                'SELECT o.id, o.order_no, o.order_date, o.total, o.status, o.payment_type,
+                        c.name_ar AS customer_name, c.code AS customer_code,
+                        COALESCE(r.name_ar, \'\') AS sales_rep_name
+                 FROM sal_customer_order o
+                 INNER JOIN crm_customer c ON c.id = o.customer_id
+                 LEFT JOIN crm_sales_rep r ON r.id = o.sales_rep_id
+                 WHERE o.id = ? LIMIT 1'
+            );
+            $snapSt->execute([$id]);
+            $auditSnap = $snapSt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Throwable $e) {
+            $auditSnap = null;
+        }
         $pdo->prepare('DELETE FROM sal_customer_order_line WHERE order_id = ?')->execute([$id]);
         $pdo->prepare('DELETE FROM sal_customer_order WHERE id = ?')->execute([$id]);
         $visitReset = false;
@@ -577,6 +594,15 @@ function sal_customer_order_delete(PDO $pdo, int $id, ?int $scopedRepId = null):
             $visitReset = sal_rep_visit_after_order_deleted($pdo, $visitLineId);
         }
         $pdo->commit();
+        if ($auditSnap) {
+            try {
+                if (!function_exists('sys_audit_log_sal_customer_order_snapshot')) {
+                    require_once app_path('includes/sys_audit_log.php');
+                }
+                sys_audit_log_sal_customer_order_snapshot($pdo, 'delete', $auditSnap, 'sales_customer_orders');
+            } catch (Throwable $e) {
+            }
+        }
 
         return [
             'visit_reset' => $visitReset,
@@ -1002,6 +1028,11 @@ function sal_customer_order_save(PDO $pdo, array $data, array $lines, ?int $user
         }
 
         $pdo->commit();
+        try {
+            require_once app_path('includes/sys_audit_log.php');
+            sys_audit_log_sal_customer_order($pdo, 'save', $id, 'sales_customer_order_entry', ['user_id' => $userId]);
+        } catch (Throwable $e) {
+        }
 
         // طلب الموبايل الجديد لا يظهر على ويندوز حتى يُرسل.
         if (
@@ -1056,6 +1087,12 @@ function sal_customer_order_set_approved(PDO $pdo, int $id, bool $approved, ?int
         }
         if ($ownTx) {
             $pdo->commit();
+        }
+        try {
+            require_once app_path('includes/sys_audit_log.php');
+            $act = $approved ? 'approve' : 'unapprove';
+            sys_audit_log_sal_customer_order($pdo, $act, $id, 'sales_customer_orders_approve', ['user_id' => $userId]);
+        } catch (Throwable $e) {
         }
     } catch (Throwable $e) {
         if ($ownTx && $pdo->inTransaction()) {

@@ -1076,7 +1076,7 @@ router.post('/api/sales/customer-orders/:id/delete', async (req, res) => {
     if (!canDeleteOrder(req.session.user)) {
       return res.status(403).json({ ok: false, error: 'لا صلاحية حذف.' });
     }
-    const result = await svc.deleteOrder(req.params.id);
+    const result = await svc.deleteOrder(req.params.id, req.session.user && req.session.user.id);
     if (!result.ok) return res.status(400).json(result);
     res.json(result);
   } catch (e) {

@@ -844,6 +844,20 @@ function acc_journal_delete_draft(PDO $pdo, int $id): void
     $entryNo = trim((string) ($row['entry_no'] ?? ''));
     $entryDate = (string) ($row['entry_date'] ?? date('Y-m-d'));
     $pdo->prepare('DELETE FROM acc_journal_entry WHERE id = ?')->execute([$id]);
+    try {
+        require_once app_path('includes/sys_audit_log.php');
+        sys_audit_log_write($pdo, 'journal_voucher', 'delete', [
+            'entity_type' => 'acc_journal_entry',
+            'entity_id' => $id,
+            'entity_ref' => $entryNo,
+            'doc_date' => $entryDate,
+            'summary' => sys_audit_log_build_summary([
+                'الحالة' => 'مسودة',
+                'قيد' => $entryNo,
+            ]),
+        ]);
+    } catch (Throwable $e) {
+    }
     if ($entryNo !== '') {
         require_once app_path('includes/doc_number_pool.php');
         doc_number_pool_release($pdo, doc_number_pool_key_journal(), $entryNo, $entryDate);

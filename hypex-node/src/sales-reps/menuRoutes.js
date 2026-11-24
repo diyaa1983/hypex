@@ -2445,7 +2445,7 @@ router.post('/sales-reps/reports/visits/delete', async (req, res) => {
     return res.status(403).json({ ok: false, message: 'لا تملك صلاحية حذف الزيارات.' });
   }
   const lineIds = Array.isArray(req.body?.line_ids) ? req.body.line_ids : [];
-  const result = await masters.deleteVisitLines(lineIds);
+  const result = await masters.deleteVisitLines(lineIds, req.session.user && req.session.user.id);
   res.json(result);
 });
 

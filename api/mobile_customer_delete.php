@@ -71,8 +71,25 @@ try {
         exit;
     }
 
-    $st = $pdo->prepare('DELETE FROM crm_customer WHERE id = ?');
+    $custSnap = null;
+try {
+    $stCust = $pdo->prepare('SELECT id, code, name_ar FROM crm_customer WHERE id = ? LIMIT 1');
+    $stCust->execute([$customerId]);
+    $custSnap = $stCust->fetch(PDO::FETCH_ASSOC) ?: null;
+} catch (Throwable $e) {
+    $custSnap = null;
+}
+
+$st = $pdo->prepare('DELETE FROM crm_customer WHERE id = ?');
     $st->execute([$customerId]);
+
+    try {
+        require_once app_path('includes/sys_audit_log.php');
+        if (is_array($custSnap)) {
+            sys_audit_log_crm_customer($pdo, 'delete', $custSnap, ['user_id' => $uid, 'screen_code' => 'm_customer_list']);
+        }
+    } catch (Throwable $e) {
+    }
 
     echo json_encode([
         'ok' => true,

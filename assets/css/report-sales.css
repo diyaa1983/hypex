@@ -884,8 +884,22 @@
 }
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-docdate {
-  width: 12%;
+  width: 9%;
 }
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-summary {
+  width: 22%;
+}
+
+.report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-summary {
+  text-align: start;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  font-size: 0.88rem;
+}
+
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table th,
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table td {
@@ -907,6 +921,14 @@
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table col.col-audit-summary,
+  .report-sales-page[data-report-route="report_audit_log"] .report-audit-log-table .col-audit-summary {
+    width: 24%;
+    white-space: normal;
+    word-break: break-word;
+    font-size: 0.8rem;
+  }
+
 
 .report-sales-page[data-report-route="report_audit_log"] .report-audit-dt {
   display: inline-flex;

@@ -14,6 +14,7 @@ $domainCode = trim((string) ($_GET['domain'] ?? ''));
 $screenCode = trim((string) ($_GET['screen'] ?? ''));
 $userId = (int) ($_GET['user_id'] ?? 0);
 $searchQ = trim((string) ($_GET['q'] ?? ''));
+$actionCode = trim((string) ($_GET['action'] ?? ''));
 
 if ($from === '') {
     $from = app_default_date_from();
@@ -32,10 +33,11 @@ $listPagerUrl = '';
 $domainOptions = sys_audit_log_domain_options();
 $screenOptions = sys_audit_log_screen_options($domainCode !== '' ? $domainCode : null);
 $userOptions = sys_audit_log_user_options($pdo);
+$actionOptions = sys_audit_log_action_labels();
 
 $submitted = isset($_GET['from']) || isset($_GET['to']) || isset($_GET['domain'])
     || isset($_GET['screen']) || isset($_GET['user_id']) || isset($_GET['q'])
-    || isset($_GET['page']);
+    || isset($_GET['action']) || isset($_GET['page']);
 
 if ($submitted) {
     $fromIso = parse_date_to_iso($from);
@@ -51,6 +53,7 @@ if ($submitted) {
         $screenFilter = $screenCode !== '' ? $screenCode : null;
         $userFilter = $userId > 0 ? $userId : null;
         $searchFilter = $searchQ !== '' ? $searchQ : null;
+        $actionFilter = $actionCode !== '' ? $actionCode : null;
 
         $listTotal = sys_audit_log_count(
             $pdo,
@@ -59,7 +62,8 @@ if ($submitted) {
             $domainFilter,
             $screenFilter,
             $userFilter,
-            $searchFilter
+            $searchFilter,
+            $actionFilter
         );
         $pager = list_pager_with_total(list_pager_from_request($pdo), $listTotal);
         $rows = sys_audit_log_fetch(
@@ -71,7 +75,8 @@ if ($submitted) {
             $userFilter,
             $searchFilter,
             (int) $pager['limit'],
-            (int) $pager['offset']
+            (int) $pager['offset'],
+            $actionFilter
         );
         $pagerQuery = [
             'from' => format_date_dmY($from),
@@ -89,6 +94,10 @@ if ($submitted) {
         if ($searchQ !== '') {
             $pagerQuery['q'] = $searchQ;
         }
+        if ($actionCode !== '') {
+            $pagerQuery['action'] = $actionCode;
+        }
+
         $listPagerUrl = list_pager_base_url('report_audit_log', $pagerQuery);
         $showResult = true;
     }
@@ -106,12 +115,21 @@ if ($domainCode !== '') {
 }
 
 $screenLabel = 'الكل';
+$actionLabel = 'الكل';
 if ($screenCode !== '') {
     foreach ($screenOptions as $s) {
         if ($s['code'] === $screenCode) {
             $screenLabel = $s['label'];
             break;
         }
+    }
+}
+if ($actionCode !== '') {
+    $labels = sys_audit_log_action_labels();
+  if (isset($labels[$actionCode])) {
+        $actionLabel = $labels[$actionCode];
+    } else {
+        $actionLabel = $actionCode;
     }
 }
 
@@ -179,6 +197,15 @@ if ($showResult) {
                         <?php endforeach; ?>
                     </select>
                 </label>
+                <label class="field" style="flex:1 1 11rem;">
+                    <span class="field-label">نوع الحركة</span>
+                    <select class="input" name="action">
+                        <option value="">— الكل —</option>
+                        <?php foreach ($actionOptions as $code => $label): ?>
+                            <option value="<?= esc($code) ?>" <?= $actionCode === $code ? 'selected' : '' ?>><?= esc($label) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </label>
                 <label class="field" style="flex:1 1 14rem;">
                     <span class="field-label">بحث</span>
                     <input class="input" type="search" name="q" value="<?= esc($searchQ) ?>"
@@ -200,6 +227,8 @@ if ($showResult) {
                             <strong>المجال:</strong> <?= esc($domainLabel) ?>
                             &nbsp;&nbsp;|&nbsp;&nbsp;
                             <strong>الشاشة:</strong> <?= esc($screenLabel) ?>
+                            &nbsp;&nbsp;|&nbsp;&nbsp;
+                            <strong>نوع الحركة:</strong> <?= esc($actionLabel) ?>
                             <?php if ($searchQ !== ''): ?>
                                 &nbsp;&nbsp;|&nbsp;&nbsp;
                                 <strong>بحث:</strong> <?= esc($searchQ) ?>
@@ -224,6 +253,7 @@ if ($showResult) {
                     <col class="col-audit-action">
                     <col class="col-audit-ref">
                     <col class="col-audit-docdate">
+                    <col class="col-audit-summary">
                 </colgroup>
                 <thead>
                 <tr>
@@ -234,12 +264,13 @@ if ($showResult) {
                     <th class="col-audit-action js-sort-th" data-sort="action_label" data-sort-type="text">نوع الحركة</th>
                     <th class="col-audit-ref js-sort-th" data-sort="entity_ref" data-sort-type="text">المرجع</th>
                     <th class="col-audit-docdate js-sort-th" data-sort="doc_date" data-sort-type="date">تاريخ المستند</th>
+                    <th class="col-audit-summary js-sort-th" data-sort="summary" data-sort-type="text">التفاصيل</th>
                 </tr>
                 </thead>
                 <tbody>
                 <?php if (!$rows): ?>
                     <tr>
-                        <td colspan="7" class="muted" style="text-align:center;padding:1.25rem;">
+                        <td colspan="8" class="muted" style="text-align:center;padding:1.25rem;">
                             لا توجد حركات مطابقة للفلتر المحدد.
                         </td>
                     </tr>
@@ -264,8 +295,9 @@ if ($showResult) {
                     $actionCode = (string) ($r['action_code'] ?? '');
                     $actionBadgeClass = match ($actionCode) {
                         'delete' => 'report-audit-badge-delete',
-                        'unpost' => 'badge-warn',
-                        'post' => 'badge-ok',
+                        'unpost', 'unapprove' => 'badge-warn',
+                        'post', 'approve' => 'badge-ok',
+                        'cancel' => 'badge-warn',
                         default => 'badge-off',
                     };
                     ?>
@@ -276,7 +308,8 @@ if ($showResult) {
                         data-sort-screen_label="<?= esc((string) ($r['screen_label_ar'] ?? '')) ?>"
                         data-sort-action_label="<?= esc((string) ($r['action_label_ar'] ?? '')) ?>"
                         data-sort-entity_ref="<?= esc($entityRef) ?>"
-                        data-sort-doc_date="<?= esc((string) ($r['doc_date'] ?? '')) ?>">
+                        data-sort-doc_date="<?= esc((string) ($r['doc_date'] ?? '')) ?>"
+                        data-sort-summary="<?= esc((string) ($r['summary'] ?? '')) ?>">
                         <td class="col-seq"><?= $seq ?></td>
                         <td class="col-audit-datetime" dir="ltr">
                             <?php if ($loggedAtDate !== ''): ?>
@@ -306,6 +339,7 @@ if ($showResult) {
                             <?php endif; ?>
                         </td>
                         <td class="col-audit-docdate" dir="ltr"><?= ($r['doc_date'] ?? '') !== '' ? esc(format_date_dmY((string) $r['doc_date'])) : '—' ?></td>
+                        <td class="col-audit-summary"><?= esc((string) ($r['summary'] ?? '')) !== '' ? esc((string) $r['summary']) : '—' ?></td>
                     </tr>
                 <?php endforeach; ?>
                 </tbody>
