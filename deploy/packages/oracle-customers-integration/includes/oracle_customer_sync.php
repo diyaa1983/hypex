@@ -87,8 +87,8 @@ function oracle_sync_customers_to_mysql(
     $sel = $mysql->prepare('SELECT id FROM crm_customer WHERE oracle_key = ? LIMIT 1');
     $selCode = $mysql->prepare('SELECT id FROM crm_customer WHERE code = ? LIMIT 1');
     $ins = $mysql->prepare(
-        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, is_active, oracle_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, is_active, oracle_key)
+         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)'
     );
     $upd = $mysql->prepare(
         'UPDATE crm_customer

@@ -12,7 +12,7 @@ class OfflineDb {
     final path = p.join(dir, 'hypex_offline.db');
     _db = await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         await _createV1(db);
         await _createV2(db);
@@ -20,6 +20,7 @@ class OfflineDb {
         await _createV4(db);
         await _createV5(db);
         await _createV6(db);
+        await _createV7(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -36,6 +37,9 @@ class OfflineDb {
         }
         if (oldVersion < 6) {
           await _createV6(db);
+        }
+        if (oldVersion < 7) {
+          await _createV7(db);
         }
       },
     );
@@ -59,7 +63,7 @@ class OfflineDb {
             latitude REAL,
             longitude REAL,
             payment_period INTEGER NOT NULL DEFAULT 0,
-            use_wholesale_price INTEGER NOT NULL DEFAULT 0
+            use_wholesale_price INTEGER NOT NULL DEFAULT 1
           )
         ''');
     await db.execute(
@@ -211,6 +215,15 @@ class OfflineDb {
   }
 
   static Future<void> _createV6(Database db) async {
+    await db.insert(
+      'sync_meta',
+      {'key': 'force_price_flags_refresh', 'value': '1'},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> _createV7(Database db) async {
+    await db.execute('UPDATE customers SET use_wholesale_price = 1');
     await db.insert(
       'sync_meta',
       {'key': 'force_price_flags_refresh', 'value': '1'},

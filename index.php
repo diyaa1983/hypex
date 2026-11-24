@@ -216,6 +216,7 @@ $appBootMigrations = [
     'database/migrations/295_action_delete_user.sql',
     'database/migrations/296_mobile_manager_customer_orders_approve.sql',
     'database/migrations/301_sys_audit_log_detail.sql',
+    'database/migrations/302_crm_customer_wholesale_default_v2.sql',
 ];
 app_boot_run($pdo, $appBootMigrations);
 

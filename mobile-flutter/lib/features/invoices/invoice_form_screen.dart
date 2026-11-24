@@ -144,6 +144,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   double _defaultTaxPercent = 5;
   int _defaultTaxRateId = 0;
   Party? _customer;
+  bool? _customerWholesale;
   final List<_Line> _lines = [];
 
   final _barcodeCtrl = TextEditingController();
@@ -175,6 +176,22 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     final offline = context.read<OfflineController>();
     if (!offline.online && !offline.serverReachable) return false;
     return offline.refreshCustomerPriceFlags(silent: true);
+  }
+
+  Future<void> _syncCustomerWholesaleFlag() async {
+    final cid = _customer?.id ?? 0;
+    if (cid < 1) {
+      if (mounted) setState(() => _customerWholesale = null);
+      return;
+    }
+    await _refreshCustomerPriceFlagsIfOnline();
+    final w = await OfflineStore.instance.customerUsesWholesale(cid);
+    if (mounted) setState(() => _customerWholesale = w);
+  }
+
+  String? get _customerPriceModeHint {
+    if (_customer == null || _customerWholesale == null) return null;
+    return _customerWholesale! ? 'جملة والتجزئة' : 'كبار العملاء';
   }
 
   @override
@@ -355,6 +372,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
           ..addAll(loaded);
         _loadingMeta = false;
       });
+      if (cid > 0) await _syncCustomerWholesaleFlag();
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -375,7 +393,10 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
   Future<void> _pickCustomer() async {
     if (!_canEdit) return;
     final p = await pickParty(context, type: 'customer');
-    if (p != null) setState(() => _customer = p);
+    if (p != null && mounted) {
+      setState(() => _customer = p);
+      await _syncCustomerWholesaleFlag();
+    }
   }
 
   Future<void> _pickDate() async {
@@ -405,9 +426,9 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       showSnack(context, 'اختر المستودع أولاً', error: true);
       return;
     }
-    await _refreshCustomerPriceFlagsIfOnline();
-    final wholesale = await OfflineStore.instance
-        .customerUsesWholesale(_customer?.id ?? 0);
+    await _syncCustomerWholesaleFlag();
+    final wholesale =
+        _customerWholesale ?? await OfflineStore.instance.customerUsesWholesale(_customer?.id ?? 0);
     if (!mounted) return;
     final it = await pickItem(
       context,
@@ -1021,6 +1042,18 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
                         color: _customer == null ? _muted : _ink,
                       ),
                     ),
+                    if (_customerPriceModeHint != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _customerPriceModeHint!,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: _muted,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

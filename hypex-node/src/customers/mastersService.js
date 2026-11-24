@@ -74,6 +74,28 @@ async function migrateDefaultWholesaleCustomers() {
         'cust_retail_wholesale_default_v1',
       ]);
     }
+    const rowsV2 = await safeQuery(
+      `SELECT flag_key FROM sys_schema_flag WHERE flag_key = ? LIMIT 1`,
+      ['cust_retail_wholesale_default_v2']
+    );
+    if (!rowsV2[0]) {
+      await safeQuery(
+        `UPDATE crm_customer SET use_wholesale_price = 1
+         WHERE use_wholesale_price <> 1 OR use_wholesale_price IS NULL`
+      );
+      try {
+        await safeQuery(
+          `ALTER TABLE crm_customer
+           MODIFY use_wholesale_price TINYINT(1) NOT NULL DEFAULT 1
+           COMMENT '1=الجملة والتجزئة، 0=سعر كبار العملاء'`
+        );
+      } catch {
+        /* */
+      }
+      await safeQuery(`INSERT INTO sys_schema_flag (flag_key) VALUES (?)`, [
+        'cust_retail_wholesale_default_v2',
+      ]);
+    }
     retailWholesaleDefaultReady = true;
   } catch (e) {
     console.error('migrateDefaultWholesaleCustomers', e.message);

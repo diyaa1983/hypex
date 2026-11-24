@@ -52,6 +52,26 @@ function inv_customer_price_mode_ensure(PDO $pdo): void
                 "INSERT INTO sys_schema_flag (flag_key) VALUES ('cust_retail_wholesale_default_v1')"
             );
         }
+        $stV2 = $pdo->query(
+            "SELECT flag_key FROM sys_schema_flag WHERE flag_key = 'cust_retail_wholesale_default_v2' LIMIT 1"
+        );
+        if ($stV2 && $stV2->fetchColumn() === false) {
+            $pdo->exec(
+                'UPDATE crm_customer SET use_wholesale_price = 1
+                 WHERE use_wholesale_price <> 1 OR use_wholesale_price IS NULL'
+            );
+            try {
+                $pdo->exec(
+                    "ALTER TABLE crm_customer
+                     MODIFY use_wholesale_price TINYINT(1) NOT NULL DEFAULT 1
+                     COMMENT '1=الجملة والتجزئة، 0=سعر كبار العملاء'"
+                );
+            } catch (Throwable $e) {
+            }
+            $pdo->exec(
+                "INSERT INTO sys_schema_flag (flag_key) VALUES ('cust_retail_wholesale_default_v2')"
+            );
+        }
         $done = true;
     } catch (Throwable $e) {
     }

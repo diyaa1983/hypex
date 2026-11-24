@@ -253,8 +253,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ]);
                     } catch (Throwable $eCol2) {
                         $st = $pdo->prepare(
-                            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
+                            'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, region_id, region_address_id, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)'
                         );
                         $st->execute([
                             $code,
@@ -263,6 +263,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $email !== '' ? $email : null,
                             $tax !== '' ? $tax : null,
                             $addr !== '' ? $addr : null,
+                            $useWholesale,
                             $regionIdDb,
                             $regionAddressIdDb,
                             $gps['latitude'],

@@ -444,6 +444,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   int _defaultTaxRateId = 0;
   double _defaultTaxPercent = 0;
   Party? _customer;
+  bool? _customerWholesale;
   final _lines = <_OrderLine>[];
   Map<String, dynamic>? _arSummary;
   bool _arLoading = false;
@@ -518,6 +519,23 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     if (!offline.online && !offline.serverReachable) return false;
     return offline.refreshCustomerPriceFlags(silent: true);
   }
+
+  Future<void> _syncCustomerWholesaleFlag() async {
+    final cid = _customer?.id ?? widget.initialCustomerId ?? 0;
+    if (cid < 1) {
+      if (mounted) setState(() => _customerWholesale = null);
+      return;
+    }
+    await _refreshCustomerPriceFlagsIfOnline();
+    final w = await OfflineStore.instance.customerUsesWholesale(cid);
+    if (mounted) setState(() => _customerWholesale = w);
+  }
+
+  String? get _customerPriceModeHint {
+    if (_customer == null || _customerWholesale == null) return null;
+    return _customerWholesale! ? 'جملة والتجزئة' : 'كبار العملاء';
+  }
+
 
   @override
   void didChangeDependencies() {
@@ -899,6 +917,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       _notesCtrl.text = Fmt.str(order['notes']);
       _markClean();
       if (_customer != null) {
+        await _syncCustomerWholesaleFlag();
         await _loadArSummary(_customer!.id);
       }
     } on ApiException catch (e) {
@@ -960,6 +979,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final party = await pickParty(context, type: 'customer');
     if (party != null && mounted) {
       setState(() => _customer = party);
+      await _syncCustomerWholesaleFlag();
       await _loadArSummary(party.id);
     }
   }
@@ -969,9 +989,10 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       showSnack(context, 'لا يوجد مستودع مرتبط بالمندوب.', error: true);
       return;
     }
-    await _refreshCustomerPriceFlagsIfOnline();
-    final wholesale = await OfflineStore.instance
-        .customerUsesWholesale(_customer?.id ?? widget.initialCustomerId ?? 0);
+    await _syncCustomerWholesaleFlag();
+    final wholesale = _customerWholesale ??
+        await OfflineStore.instance
+            .customerUsesWholesale(_customer?.id ?? widget.initialCustomerId ?? 0);
     if (!mounted) return;
     final item = await pickItem(
       context,
@@ -2520,6 +2541,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     final hasCustomer = _customer != null;
     final name = hasCustomer ? _customer!.name : 'اختر العميل…';
     final code = (_customer?.code ?? '').trim();
+    final hint = _customerPriceModeHint;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -2544,15 +2566,33 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(
-                  code.isEmpty ? name : '$name  ($code)',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: hasCustomer ? AppTheme.textMain : AppTheme.textSoft,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      code.isEmpty ? name : '$name  ($code)',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        color:
+                            hasCustomer ? AppTheme.textMain : AppTheme.textSoft,
+                      ),
+                    ),
+                    if (hint != null)
+                      Text(
+                        hint,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (canPick)
@@ -3472,6 +3512,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
   Widget _orderHeaderCustomer() {
     final canPick = _editable && !widget.hideCustomerPicker;
     final name = _customer?.name ?? 'اضغط للاختيار';
+    final hint = _customerPriceModeHint;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -3481,17 +3522,32 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
           child: Row(
             children: [
               Expanded(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: _customer == null
-                        ? AppTheme.textSoft
-                        : AppTheme.textMain,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: _customer == null
+                            ? AppTheme.textSoft
+                            : AppTheme.textMain,
+                      ),
+                    ),
+                    if (hint != null)
+                      Text(
+                        hint,
+                        maxLines: 1,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               if (canPick)

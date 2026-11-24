@@ -878,8 +878,8 @@ function crm_mobile_customer_create_for_user(
     try {
         if ($hasGps) {
             $st = $pdo->prepare(
-                'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
-                 VALUES (?,?,?,?,?,?,?,1,?,?,?,NOW(),?,1)'
+                'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, payment_period, oracle_pending, latitude, longitude, gps_accuracy, gps_at, sales_rep_id, is_active)
+                 VALUES (?,?,?,?,?,?,1,?,1,?,?,?,NOW(),?,1)'
             );
             $st->execute([
                 $tempCode,
@@ -896,8 +896,8 @@ function crm_mobile_customer_create_for_user(
             ]);
         } else {
             $st = $pdo->prepare(
-                'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, payment_period, oracle_pending, sales_rep_id, is_active)
-                 VALUES (?,?,?,?,?,?,?,1,?,1)'
+                'INSERT INTO crm_customer (code, name_ar, phone, email, tax_number, address_ar, use_wholesale_price, payment_period, oracle_pending, sales_rep_id, is_active)
+                 VALUES (?,?,?,?,?,?,1,?,1,?,1)'
             );
             $st->execute([
                 $tempCode,
