@@ -448,7 +448,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       showSnack(context, 'اختر المستودع أولاً', error: true);
       return;
     }
-    await _refreshCustomerPriceFlagsIfOnline();
+    await _syncCustomerWholesaleFlag();
     setState(() => _lookupBusy = true);
     final api = context.read<ApiClient>();
     try {

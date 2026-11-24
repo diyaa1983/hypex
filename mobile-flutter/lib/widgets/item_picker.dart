@@ -143,6 +143,8 @@ class _ItemPickerSheetState extends State<_ItemPickerSheet> {
           'barcode': e['barcode'],
           'default_sale': e['sale_price'],
           'sale_price': e['sale_price'],
+          'default_wholesale': e['wholesale_price'],
+          'wholesale_price': e['wholesale_price'],
           'stock_qty': e['stock_qty'] ?? 0,
           'units': _parseUnitsJson(e['units_json']?.toString() ?? '[]'),
         };

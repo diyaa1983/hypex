@@ -68,8 +68,8 @@ function inv_warehouse_has_stock_moves(PDO $pdo, int $warehouseId): bool
 function inv_item_price_select_sql(bool $hasBarcode): string
 {
     return $hasBarcode
-        ? 'i.id, i.sku, i.barcode, i.name_ar, i.unit_name, i.default_cost, i.default_sale'
-        : 'i.id, i.sku, i.name_ar, i.unit_name, i.default_cost, i.default_sale';
+        ? 'i.id, i.sku, i.barcode, i.name_ar, i.unit_name, i.default_cost, i.default_sale, i.default_wholesale'
+        : 'i.id, i.sku, i.name_ar, i.unit_name, i.default_cost, i.default_sale, i.default_wholesale';
 }
 
 function inv_warehouse_items_search_query(PDO $pdo, int $warehouseId, string $q, bool $listAll): array
@@ -184,8 +184,8 @@ function inv_items_search_all_query(PDO $pdo, string $q, bool $listAll): array
     }
 
     $cols = $hasBarcode
-        ? 'id, sku, barcode, name_ar, unit_name, default_cost, default_sale'
-        : 'id, sku, name_ar, unit_name, default_cost, default_sale';
+        ? 'id, sku, barcode, name_ar, unit_name, default_cost, default_sale, default_wholesale'
+        : 'id, sku, name_ar, unit_name, default_cost, default_sale, default_wholesale';
 
     $sql = 'SELECT ' . $cols . ' FROM inv_item WHERE ' . implode(' AND ', $where)
         . ' ORDER BY name_ar ASC LIMIT 80';
@@ -218,8 +218,8 @@ function inv_items_picker_query(PDO $pdo, string $q, bool $listAll): array
     }
 
     $cols = $hasBarcode
-        ? 'id, sku, barcode, name_ar, default_sale'
-        : 'id, sku, name_ar, default_sale';
+        ? 'id, sku, barcode, name_ar, default_sale, default_wholesale'
+        : 'id, sku, name_ar, default_sale, default_wholesale';
 
     $sql = 'SELECT ' . $cols . ' FROM inv_item WHERE ' . implode(' AND ', $where)
         . ' ORDER BY name_ar ASC LIMIT 80';

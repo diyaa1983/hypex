@@ -48,6 +48,14 @@ $pickerMode = isset($_GET['picker']) && (string) $_GET['picker'] === '1';
 
 $pdo = db();
 require_once dirname(__DIR__) . '/includes/inv_item_units.php';
+function items_search_row_prices(array &$row): void
+{
+    if (isset($row['default_wholesale'])) {
+        $row['wholesale_price'] = $row['default_wholesale'];
+    }
+}
+
+
 inv_item_units_ensure_schema($pdo);
 
 require_once dirname(__DIR__) . '/includes/warehouse_access.php';
@@ -85,6 +93,7 @@ if ($exactCode !== '') {
         if (isset($row['stock_qty'])) {
             $row['stock_qty'] = company_round_amount((float) $row['stock_qty']);
         }
+        items_search_row_prices($row);
     }
     unset($row);
     $rows = inv_item_units_attach_to_items($pdo, $rows);
@@ -129,6 +138,7 @@ foreach ($rows as &$row) {
     if (isset($row['stock_qty'])) {
         $row['stock_qty'] = company_round_amount((float) $row['stock_qty']);
     }
+    items_search_row_prices($row);
 }
 unset($row);
 $rows = inv_item_units_attach_to_items($pdo, $rows);
