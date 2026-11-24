@@ -170,11 +170,11 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     });
   }
 
-  Future<void> _refreshCustomerPriceFlagsIfOnline() async {
-    if (!mounted) return;
+  Future<bool> _refreshCustomerPriceFlagsIfOnline() async {
+    if (!mounted) return false;
     final offline = context.read<OfflineController>();
-    if (!offline.online && !offline.serverReachable) return;
-    await offline.refreshCustomerPriceFlags(silent: true);
+    if (!offline.online && !offline.serverReachable) return false;
+    return offline.refreshCustomerPriceFlags(silent: true);
   }
 
   @override
@@ -405,6 +405,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       showSnack(context, 'اختر المستودع أولاً', error: true);
       return;
     }
+    await _refreshCustomerPriceFlagsIfOnline();
     final wholesale = await OfflineStore.instance
         .customerUsesWholesale(_customer?.id ?? 0);
     if (!mounted) return;
@@ -426,6 +427,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
       showSnack(context, 'اختر المستودع أولاً', error: true);
       return;
     }
+    await _refreshCustomerPriceFlagsIfOnline();
     setState(() => _lookupBusy = true);
     final api = context.read<ApiClient>();
     try {

@@ -512,11 +512,11 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
     });
   }
 
-  Future<void> _refreshCustomerPriceFlagsIfOnline() async {
-    if (!mounted) return;
+  Future<bool> _refreshCustomerPriceFlagsIfOnline() async {
+    if (!mounted) return false;
     final offline = _offline ?? context.read<OfflineController>();
-    if (!offline.online && !offline.serverReachable) return;
-    await offline.refreshCustomerPriceFlags(silent: true);
+    if (!offline.online && !offline.serverReachable) return false;
+    return offline.refreshCustomerPriceFlags(silent: true);
   }
 
   @override
@@ -969,6 +969,7 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       showSnack(context, 'لا يوجد مستودع مرتبط بالمندوب.', error: true);
       return;
     }
+    await _refreshCustomerPriceFlagsIfOnline();
     final wholesale = await OfflineStore.instance
         .customerUsesWholesale(_customer?.id ?? widget.initialCustomerId ?? 0);
     if (!mounted) return;

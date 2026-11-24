@@ -333,13 +333,13 @@ async function ensureSalesRepTourMapScreen() {
     const maxRows = await q(`SELECT IFNULL(MAX(sort_order), 0) AS m FROM sys_screen`);
     const nextOrder = Math.max(Number(maxRows[0]?.m || 0) + 10, 236);
     await q(
-      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'list', ?)`,
+      `INSERT INTO sys_screen (code, name_ar, screen_type, sort_order) VALUES (?, ?, 'screen', ?)`,
       [code, nameAr, nextOrder]
     );
     rows = await q(`SELECT id FROM sys_screen WHERE code = ? LIMIT 1`, [code]);
     screenId = Number(rows[0]?.id || 0);
   } else {
-    await q(`UPDATE sys_screen SET name_ar = ? WHERE id = ?`, [nameAr, screenId]);
+    await q(`UPDATE sys_screen SET name_ar = ?, screen_type = 'screen' WHERE id = ?`, [nameAr, screenId]);
   }
   if (!screenId) return false;
   await q(
