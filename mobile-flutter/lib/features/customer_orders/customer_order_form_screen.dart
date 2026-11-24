@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -505,6 +507,16 @@ class CustomerOrderFormScreenState extends State<CustomerOrderFormScreen> {
       ]);
     }
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_refreshCustomerPriceFlagsIfOnline());
+    });
+  }
+
+  Future<void> _refreshCustomerPriceFlagsIfOnline() async {
+    if (!mounted) return;
+    final offline = _offline ?? context.read<OfflineController>();
+    if (!offline.online && !offline.serverReachable) return;
+    await offline.refreshCustomerPriceFlags(silent: true);
   }
 
   @override

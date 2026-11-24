@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -10,6 +12,7 @@ import '../../core/api_client.dart';
 import '../../core/config.dart';
 import '../../core/format.dart';
 import '../../core/session.dart';
+import '../../offline/offline_controller.dart';
 import '../../offline/offline_store.dart';
 import '../../core/theme.dart';
 import '../../services/invoice_print_helper.dart';
@@ -162,6 +165,16 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
     _invoiceId = widget.invoiceId ?? 0;
     _invoiceDate = Fmt.todayIso();
     _loadMeta();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_refreshCustomerPriceFlagsIfOnline());
+    });
+  }
+
+  Future<void> _refreshCustomerPriceFlagsIfOnline() async {
+    if (!mounted) return;
+    final offline = context.read<OfflineController>();
+    if (!offline.online && !offline.serverReachable) return;
+    await offline.refreshCustomerPriceFlags(silent: true);
   }
 
   @override

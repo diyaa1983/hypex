@@ -50,6 +50,19 @@ class OfflineSyncInfo {
 }
 
 class OfflineStore {
+  /// 1 = جملة، 0 = كبار عملاء (key). يقبل int/string/bool من السيرفر.
+  static int parseWholesaleFlag(dynamic v, {int fallback = 1}) {
+    if (v == null) return fallback;
+    if (v is bool) return v ? 1 : 0;
+    if (v is num) return v.toInt() == 0 ? 0 : 1;
+    final s = v.toString().trim().toLowerCase();
+    if (s == "0" || s == "false" || s == "no") return 0;
+    if (s == "1" || s == "true" || s == "yes") return 1;
+    final n = int.tryParse(s);
+    if (n != null) return n == 0 ? 0 : 1;
+    return fallback;
+  }
+
   OfflineStore._();
   static final OfflineStore instance = OfflineStore._();
 
@@ -285,7 +298,7 @@ class OfflineStore {
             'longitude': r['longitude'],
             'payment_period': (r['payment_period'] ?? '').toString(),
             'use_wholesale_price':
-                (r['use_wholesale_price'] as num?)?.toInt() ?? 1,
+                parseWholesaleFlag(r['use_wholesale_price']),
           };
 
       if (customersDelta) {
@@ -627,6 +640,27 @@ class OfflineStore {
     };
   }
 
+  Future<void> applyCustomerPriceFlags(
+      List<Map<String, dynamic>> flags) async {
+    if (flags.isEmpty) return;
+    final db = await _db;
+    final batch = db.batch();
+    for (final f in flags) {
+      final id = (f['id'] as num?)?.toInt() ??
+          int.tryParse('${f['id']}') ??
+          0;
+      if (id < 1) continue;
+      final flag = parseWholesaleFlag(f['use_wholesale_price']);
+      batch.update(
+        'customers',
+        {'use_wholesale_price': flag},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    await batch.commit(noResult: true);
+  }
+
   /// استبدال عملاء السيرفر في الكاش بقائمة المندوب الحالية (بدون مسح العملاء المحليين السالبين).
   Future<void> replaceCustomersFromLive(List<Map<String, dynamic>> rows) async {
     final db = await _db;
@@ -649,7 +683,7 @@ class OfflineStore {
             'longitude': r['longitude'],
             'payment_period': (r['payment_period'] ?? '').toString(),
             'use_wholesale_price':
-                (r['use_wholesale_price'] as num?)?.toInt() ?? 1,
+                parseWholesaleFlag(r['use_wholesale_price']),
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
@@ -739,7 +773,7 @@ class OfflineStore {
       limit: 1,
     );
     if (rows.isEmpty) return true;
-    return (rows.first['use_wholesale_price'] as num?)?.toInt() != 0;
+    return parseWholesaleFlag(rows.first['use_wholesale_price'], fallback: 1) != 0;
   }
 
   Future<void> patchCustomerGps(

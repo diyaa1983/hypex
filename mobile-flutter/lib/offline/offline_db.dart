@@ -12,13 +12,14 @@ class OfflineDb {
     final path = p.join(dir, 'hypex_offline.db');
     _db = await openDatabase(
       path,
-      version: 5,
+      version: 6,
       onCreate: (db, version) async {
         await _createV1(db);
         await _createV2(db);
         await _createV3(db);
         await _createV4(db);
         await _createV5(db);
+        await _createV6(db);
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
@@ -32,6 +33,9 @@ class OfflineDb {
         }
         if (oldVersion < 5) {
           await _createV5(db);
+        }
+        if (oldVersion < 6) {
+          await _createV6(db);
         }
       },
     );
@@ -202,6 +206,14 @@ class OfflineDb {
     await db.insert(
       'sync_meta',
       {'key': 'force_full_catalog', 'value': '1'},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  static Future<void> _createV6(Database db) async {
+    await db.insert(
+      'sync_meta',
+      {'key': 'force_price_flags_refresh', 'value': '1'},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }

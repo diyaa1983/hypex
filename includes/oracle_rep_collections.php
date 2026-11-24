@@ -158,10 +158,10 @@ function oracle_rep_collections_gl_names(array $conn, array $cfg, array $accs): 
         if ($a === '') {
             continue;
         }
-        $want[$a] = true;
+        $want[(string) $a] = true;
         $digits = preg_replace('/\D+/', '', $a) ?? '';
         if ($digits !== '') {
-            $want[$digits] = true;
+            $want[(string) $digits] = true;
         }
     }
     if ($want === []) {
@@ -172,6 +172,7 @@ function oracle_rep_collections_gl_names(array $conn, array $cfg, array $accs): 
     foreach (array_chunk(array_keys($want), 400) as $chunk) {
         $quoted = [];
         foreach ($chunk as $a) {
+            $a = (string) $a;
             $quoted[] = "'" . str_replace("'", "''", $a) . "'";
         }
         $sql = 'SELECT TRIM(TO_CHAR(' . oracle_stmt_q($cfg['gl_acc_num']) . ')) AS ACC,
@@ -488,11 +489,11 @@ function oracle_fetch_rep_collections(
         $usedMode[] = 'cash_' . $cashFlagMode;
     } catch (Throwable $e) {
         try {
-            $sqlCash2 = str_replace($glJoin, '', $sqlCash);
+            $sqlCash2 = str_replace((string) $glJoin, '', (string) $sqlCash);
             $sqlCash2 = str_replace(
-                $nameExpr,
+                (string) $nameExpr,
                 'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), TRIM(TO_CHAR(v." . oracle_stmt_q($accCol) . ')))',
-                $sqlCash2
+                (string) $sqlCash2
             );
             $sqlCash2 = str_replace('CAST(NULL AS VARCHAR2(40))', 'NULL', $sqlCash2);
             $sqlCash2 = str_replace('CAST(NULL AS DATE)', 'NULL', $sqlCash2);
@@ -891,11 +892,11 @@ function oracle_fetch_rep_collections(
             $usedMode[] = 'cheque_by_receipt_date';
         } catch (Throwable $e) {
             try {
-                $sqlChq2 = str_replace($glJoinChq, '', $sqlChq);
+                $sqlChq2 = str_replace((string) $glJoinChq, '', (string) $sqlChq);
                 $sqlChq2 = str_replace(
-                    $nameExprChq,
+                    (string) $nameExprChq,
                     'NVL(NULLIF(TRIM(c.' . oracle_stmt_q($cusNameCol) . "), ''), v.VOD_ACC)",
-                    $sqlChq2
+                    (string) $sqlChq2
                 );
                 $raw = array_merge($raw, oracle_query_all($conn, $sqlChq2, $bindsChq));
                 $usedMode[] = 'cheque_fallback';

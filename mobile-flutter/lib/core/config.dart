@@ -3,7 +3,7 @@ class AppConfig {
   AppConfig._();
 
   /// إصدار التطبيق الظاهر في ترويسة الرئيسية — يُحدَّث مع `version` في pubspec.yaml.
-  static const String appVersion = '1.0.8';
+  static const String appVersion = '1.0.9';
 
   /// عنوان السيرفر الافتراضي (يمكن للمستخدم تغييره من شاشة الإعداد).
   static const String defaultServerBase = 'http://176.29.176.192/hypex';
@@ -30,6 +30,7 @@ class AppConfig {
   static const String verifyAdminPath = 'api/mobile_verify_admin.php';
   static const String pingPath = 'm/ping.php';
   static const String syncPullPath = 'api/mobile_sync_pull.php';
+  static const String customerPriceFlagsPath = 'api/mobile_customer_price_flags.php';
 
   /// واجهات الشاشات (JSON) — نفس ما يستدعيه /m الحالي.
   static const String salesInvoiceListPath = 'api/sales_invoices_list.php';

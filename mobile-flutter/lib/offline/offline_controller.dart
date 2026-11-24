@@ -70,6 +70,7 @@ class OfflineController extends ChangeNotifier {
     await store.cleanupOutbox();
     await store.applyDecimalSettings();
     await refreshInfo();
+    unawaited(applyForcedPriceFlagsRefreshIfNeeded());
     final results = await Connectivity().checkConnectivity();
     _applyConnectivity(results, notify: false);
     _sub?.cancel();
@@ -212,6 +213,7 @@ class OfflineController extends ChangeNotifier {
         _setReachable(true);
         if (!was || initial) {
           await refreshInfo();
+          await applyForcedPriceFlagsRefreshIfNeeded();
           if (sessionReauth != null) {
             await sessionReauth!();
           }
@@ -388,7 +390,37 @@ class OfflineController extends ChangeNotifier {
     if (changed) notifyListeners();
   }
 
-  /// زر «تحديث البيانات» — تحميل كامل الكتالوج من السيرفر.
+  /// تحديث أعلام تسعير العملاء محلياً دون مسح الكتالوج.
+  Future<bool> refreshCustomerPriceFlags({bool silent = true}) async {
+    if (!online && !serverReachable) return false;
+    try {
+      final res = await api.getJson(AppConfig.customerPriceFlagsPath);
+      if (res['ok'] != true) return false;
+      final flags = (res['flags'] as List? ?? [])
+          .whereType<Map>()
+          .map((e) => e.cast<String, dynamic>())
+          .toList();
+      await store.applyCustomerPriceFlags(flags);
+      return true;
+    } catch (e) {
+      if (!silent) {
+        lastError = e.toString();
+        notifyListeners();
+      }
+      return false;
+    }
+  }
+
+  Future<void> applyForcedPriceFlagsRefreshIfNeeded() async {
+    final force =
+        (await store.getMeta('force_price_flags_refresh') ?? '').trim() == '1';
+    if (!force || !catalogReady) return;
+    if (!online && !serverReachable) return;
+    final ok = await refreshCustomerPriceFlags(silent: true);
+    if (ok) await store.setMeta('force_price_flags_refresh', '');
+  }
+
+    /// زر «تحديث البيانات» — تحميل كامل الكتالوج من السيرفر.
   Future<bool> pullCatalog({
     void Function(String step)? onStep,
     bool forceFull = true,
@@ -423,6 +455,10 @@ class OfflineController extends ChangeNotifier {
       await store.replaceCatalog(res);
       if (forceCatalog) {
         await store.setMeta('force_full_catalog', '');
+      }
+      final priceFlagsOk = await refreshCustomerPriceFlags(silent: true);
+      if (priceFlagsOk) {
+        await store.setMeta('force_price_flags_refresh', '');
       }
       pullProgress = 1;
       await refreshInfo();
