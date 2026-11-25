@@ -156,6 +156,83 @@ function sys_audit_log_build_summary(array $parts): ?string
     return implode(' | ', $chunks);
 }
 
+function sys_audit_log_norm_val(mixed $v): string
+{
+    if ($v === null) {
+        return '';
+    }
+    if (is_bool($v)) {
+        return $v ? '1' : '0';
+    }
+    if (is_int($v) || is_float($v)) {
+        return (string) $v;
+    }
+    $s = trim((string) $v);
+    if ($s === '') {
+        return '';
+    }
+    if (is_numeric(str_replace(',', '.', $s))) {
+        return (string) (float) str_replace(',', '.', $s);
+    }
+
+    return $s;
+}
+
+/**
+ * @param array<string,string> $fieldMap
+ * @param array<string,mixed> $before
+ * @param array<string,mixed> $after
+ * @param list<string> $identityKeys
+ * @param ?callable(string, mixed): string $displayValue
+ */
+function sys_audit_log_build_old_new_summary(
+    array $fieldMap,
+    array $before,
+    array $after,
+    array $identityKeys,
+    ?callable $displayValue = null
+): ?string {
+    $disp = static function (string $key, mixed $raw) use ($displayValue): string {
+        if ($displayValue !== null) {
+            return trim((string) $displayValue($key, $raw));
+        }
+
+        return trim((string) ($raw ?? ''));
+    };
+    $parts = [];
+    foreach ($identityKeys as $key) {
+        $label = $fieldMap[$key] ?? '';
+        if ($label === '') {
+            continue;
+        }
+        $v = $disp($key, $after[$key] ?? null);
+        if ($v !== '') {
+            $parts[$label] = $v;
+        }
+    }
+    $oldChunks = [];
+    $newChunks = [];
+    foreach ($fieldMap as $key => $label) {
+        if (sys_audit_log_norm_val($before[$key] ?? null) === sys_audit_log_norm_val($after[$key] ?? null)) {
+            continue;
+        }
+        $ov = $disp($key, $before[$key] ?? null);
+        $nv = $disp($key, $after[$key] ?? null);
+        if ($ov === '' && $nv === '') {
+            continue;
+        }
+        $oldChunks[] = $label . '=' . ($ov !== '' ? $ov : '—');
+        $newChunks[] = $label . '=' . ($nv !== '' ? $nv : '—');
+    }
+    if ($oldChunks !== []) {
+        $parts['القديم'] = implode('، ', $oldChunks);
+    }
+    if ($newChunks !== []) {
+        $parts['الجديد'] = implode('، ', $newChunks);
+    }
+
+    return sys_audit_log_build_summary($parts);
+}
 function sys_audit_log_status_label(string $status): string
 {
     return match ($status) {
@@ -682,11 +759,21 @@ function sys_audit_log_inv_item(PDO $pdo, string $actionCode, int $itemId, array
     if ($itemId < 1) {
         return;
     }
-    $cols = 'id, sku, barcode, name_ar, default_sale';
+    $cols = 'id, sku, barcode, name_ar, default_sale, default_cost, is_active';
     try {
         $pdo->query('SELECT default_wholesale FROM inv_item LIMIT 1');
         $cols .= ', default_wholesale';
     } catch (Throwable $e) {
+    }
+    try {
+        $pdo->query('SELECT default_cost FROM inv_item LIMIT 1');
+    } catch (Throwable $e) {
+        $cols = 'id, sku, barcode, name_ar, default_sale, is_active';
+        try {
+            $pdo->query('SELECT default_wholesale FROM inv_item LIMIT 1');
+            $cols .= ', default_wholesale';
+        } catch (Throwable $e2) {
+        }
     }
     $st = $pdo->prepare("SELECT {$cols} FROM inv_item WHERE id = ? LIMIT 1");
     $st->execute([$itemId]);
@@ -694,22 +781,69 @@ function sys_audit_log_inv_item(PDO $pdo, string $actionCode, int $itemId, array
     if (!is_array($row)) {
         return;
     }
-    $parts = [
-        'المادة' => (string) ($row['name_ar'] ?? ''),
-        'رمز' => (string) ($row['sku'] ?? ''),
-        'بيع' => sys_audit_log_money($pdo, $row['default_sale'] ?? 0),
+    $before = $extraCtx['before'] ?? null;
+    unset($extraCtx['before']);
+
+    $fieldMap = [
+        'name_ar' => 'المادة',
+        'sku' => 'رمز',
+        'barcode' => 'باركود',
+        'default_sale' => 'بيع',
+        'default_wholesale' => 'جملة',
+        'default_cost' => 'تكلفة',
+        'is_active' => 'الحالة',
     ];
-    if (trim((string) ($row['barcode'] ?? '')) !== '') {
-        $parts['باركود'] = (string) $row['barcode'];
+    if (!array_key_exists('default_wholesale', $row) && (!is_array($before) || !array_key_exists('default_wholesale', $before))) {
+        unset($fieldMap['default_wholesale']);
     }
-    if (array_key_exists('default_wholesale', $row)) {
-        $parts['جملة'] = sys_audit_log_money($pdo, $row['default_wholesale'] ?? 0);
+    if (!array_key_exists('default_cost', $row) && (!is_array($before) || !array_key_exists('default_cost', $before))) {
+        unset($fieldMap['default_cost']);
+    }
+    if (!array_key_exists('is_active', $row) && (!is_array($before) || !array_key_exists('is_active', $before))) {
+        unset($fieldMap['is_active']);
+    }
+
+    $display = static function (string $key, mixed $raw) use ($pdo): string {
+        if ($key === 'is_active') {
+            return (int) $raw === 1 ? 'مفعّل' : 'موقوف';
+        }
+        if ($key === 'default_sale' || $key === 'default_wholesale' || $key === 'default_cost') {
+            return sys_audit_log_money($pdo, $raw ?? 0);
+        }
+
+        return trim((string) ($raw ?? ''));
+    };
+
+    if ($actionCode === 'update' && is_array($before) && $before !== []) {
+        $summary = sys_audit_log_build_old_new_summary(
+            $fieldMap,
+            $before,
+            $row,
+            ['name_ar', 'sku'],
+            $display
+        );
+    } else {
+        $parts = [
+            'المادة' => (string) ($row['name_ar'] ?? ''),
+            'رمز' => (string) ($row['sku'] ?? ''),
+            'بيع' => sys_audit_log_money($pdo, $row['default_sale'] ?? 0),
+        ];
+        if (trim((string) ($row['barcode'] ?? '')) !== '') {
+            $parts['باركود'] = (string) $row['barcode'];
+        }
+        if (array_key_exists('default_wholesale', $row)) {
+            $parts['جملة'] = sys_audit_log_money($pdo, $row['default_wholesale'] ?? 0);
+        }
+        $summary = sys_audit_log_build_summary($parts);
     }
     if (isset($extraCtx['الحالة'])) {
-        $parts['الحالة'] = (string) $extraCtx['الحالة'];
+        if ($summary !== null && $summary !== '') {
+            $summary .= ' | الحالة: ' . (string) $extraCtx['الحالة'];
+        } else {
+            $summary = sys_audit_log_build_summary(['الحالة' => (string) $extraCtx['الحالة']]);
+        }
         unset($extraCtx['الحالة']);
     }
-    $summary = sys_audit_log_build_summary($parts);
     $ref = trim((string) ($row['barcode'] ?? '')) !== ''
         ? (string) $row['barcode']
         : (string) ($row['sku'] ?? (string) $itemId);

@@ -49,6 +49,49 @@ function buildSummary(parts) {
   return chunks.length ? chunks.join(' | ') : null;
 }
 
+function normAuditVal(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'boolean') return v ? '1' : '0';
+  if (typeof v === 'number' && !Number.isNaN(v)) return String(v);
+  const s = String(v).trim();
+  if (s === '') return '';
+  const n = Number(s.replace(',', '.'));
+  if (!Number.isNaN(n) && /^-?\d+([.,]\d+)?$/.test(s.replace(/\s/g, ''))) return String(n);
+  return s;
+}
+
+function buildOldNewSummary(fieldMap, before, after, identityKeys, displayValue = null) {
+  const disp = (key, raw) => {
+    if (displayValue) {
+      const d = displayValue(key, raw);
+      return d == null ? '' : String(d).trim();
+    }
+    return raw == null ? '' : String(raw).trim();
+  };
+  const b = before || {};
+  const a = after || {};
+  const parts = {};
+  for (const key of identityKeys || []) {
+    const label = fieldMap[key];
+    if (!label) continue;
+    const v = disp(key, a[key]);
+    if (v) parts[label] = v;
+  }
+  const oldChunks = [];
+  const newChunks = [];
+  for (const [key, label] of Object.entries(fieldMap || {})) {
+    if (normAuditVal(b[key]) === normAuditVal(a[key])) continue;
+    const ov = disp(key, b[key]);
+    const nv = disp(key, a[key]);
+    if (!ov && !nv) continue;
+    oldChunks.push(`${label}=${ov || '—'}`);
+    newChunks.push(`${label}=${nv || '—'}`);
+  }
+  if (oldChunks.length) parts['القديم'] = oldChunks.join('، ');
+  if (newChunks.length) parts['الجديد'] = newChunks.join('، ');
+  return buildSummary(parts);
+}
+
 async function formatMoney(amount) {
   try {
     await companyDecimals.load();
@@ -290,8 +333,12 @@ async function colExistsSimple(table, column) {
   }
 }
 
+function itemRowOrIdIsUpdatePair(o) {
+  return o && typeof o === 'object' && o.before != null && o.after != null;
+}
+
 async function fetchItemSnapshot(itemIdOrRow) {
-  if (itemIdOrRow && typeof itemIdOrRow === 'object') {
+  if (itemIdOrRow && typeof itemIdOrRow === 'object' && !itemRowOrIdIsUpdatePair(itemIdOrRow)) {
     const id = Number(itemIdOrRow.id) || 0;
     if (id && itemIdOrRow.name_ar != null && itemIdOrRow.default_sale != null) {
       return itemIdOrRow;
@@ -302,18 +349,102 @@ async function fetchItemSnapshot(itemIdOrRow) {
   if (!id) return null;
   try {
     const hasWh = await colExistsSimple('inv_item', 'default_wholesale');
-    const rows = await db.query(
-      `SELECT id, sku, barcode, name_ar, default_sale${hasWh ? ', default_wholesale' : ''}
-       FROM inv_item WHERE id = ? LIMIT 1`,
-      [id]
-    );
+    const hasCost = await colExistsSimple('inv_item', 'default_cost');
+    const hasActive = await colExistsSimple('inv_item', 'is_active');
+    let cols = 'id, sku, barcode, name_ar, default_sale';
+    if (hasCost) cols += ', default_cost';
+    if (hasWh) cols += ', default_wholesale';
+    if (hasActive) cols += ', is_active';
+    const rows = await db.query(`SELECT ${cols} FROM inv_item WHERE id = ? LIMIT 1`, [id]);
     return rows[0] || null;
   } catch {
     return null;
   }
 }
 
+const ITEM_AUDIT_FIELD_MAP = {
+  name_ar: 'المادة',
+  sku: 'رمز',
+  barcode: 'باركود',
+  default_sale: 'بيع',
+  default_wholesale: 'جملة',
+  default_cost: 'تكلفة',
+  is_active: 'الحالة',
+};
+const ITEM_AUDIT_IDENTITY = ['name_ar', 'sku'];
+
+async function itemAuditDisplayValue(key, raw) {
+  if (key === 'is_active') return Number(raw) === 1 ? 'مفعّل' : 'موقوف';
+  if (key === 'default_sale' || key === 'default_wholesale' || key === 'default_cost') {
+    return await formatMoney(raw);
+  }
+  return raw == null ? '' : String(raw).trim();
+}
+
 async function logItem(actionCode, itemRowOrId, userId, extraParts = null) {
+  const isUpdatePair =
+    actionCode === 'update' &&
+    itemRowOrId &&
+    typeof itemRowOrId === 'object' &&
+    itemRowOrId.before != null &&
+    itemRowOrId.after != null;
+
+  if (isUpdatePair) {
+    const before =
+      typeof itemRowOrId.before === 'object'
+        ? itemRowOrId.before
+        : await fetchItemSnapshot(itemRowOrId.before);
+    const after =
+      typeof itemRowOrId.after === 'object'
+        ? itemRowOrId.after
+        : await fetchItemSnapshot(itemRowOrId.after);
+    if (!before || !after) return false;
+    const fieldMap = { ...ITEM_AUDIT_FIELD_MAP };
+    if (
+      after.default_wholesale == null &&
+      before.default_wholesale == null &&
+      !('default_wholesale' in after) &&
+      !('default_wholesale' in before)
+    ) {
+      delete fieldMap.default_wholesale;
+    }
+    const displayCache = new Map();
+    for (const row of [before, after]) {
+      for (const key of Object.keys(fieldMap)) {
+        const ck = `${key}:${normAuditVal(row[key])}`;
+        if (!displayCache.has(ck)) {
+          displayCache.set(ck, await itemAuditDisplayValue(key, row[key]));
+        }
+      }
+    }
+    const displayValueResolved = (key, raw) => {
+      const ck = `${key}:${normAuditVal(raw)}`;
+      return displayCache.get(ck) ?? '';
+    };
+    let summary = buildOldNewSummary(
+      fieldMap,
+      before,
+      after,
+      ITEM_AUDIT_IDENTITY,
+      displayValueResolved
+    );
+    if (extraParts) {
+      const extraSummary = buildSummary(extraParts);
+      if (extraSummary) summary = summary ? `${summary} | ${extraSummary}` : extraSummary;
+    }
+    const ref = String(after.barcode || after.sku || after.id || '').trim();
+    return logMaster({
+      screenCode: 'items',
+      actionCode,
+      userId,
+      entityType: 'inv_item',
+      entityId: Number(after.id) || null,
+      entityRef: ref,
+      summary,
+      domainCode: 'inventory',
+    });
+  }
+
   const row = await fetchItemSnapshot(itemRowOrId);
   if (!row) return false;
   const sale = await formatMoney(row.default_sale);
@@ -342,7 +473,12 @@ async function logItem(actionCode, itemRowOrId, userId, extraParts = null) {
 }
 
 async function fetchCustomerSnapshot(customerIdOrRow) {
-  if (customerIdOrRow && typeof customerIdOrRow === 'object' && customerIdOrRow.name_ar) {
+  if (
+    customerIdOrRow &&
+    typeof customerIdOrRow === 'object' &&
+    !itemRowOrIdIsUpdatePair(customerIdOrRow) &&
+    customerIdOrRow.name_ar
+  ) {
     return customerIdOrRow;
   }
   const id = Number(
@@ -360,7 +496,62 @@ async function fetchCustomerSnapshot(customerIdOrRow) {
   }
 }
 
+const CUSTOMER_AUDIT_FIELD_MAP = {
+  name_ar: 'الاسم',
+  code: 'الرمز',
+  use_wholesale_price: 'تسعير',
+};
+
+function customerPricingLabel(useWholesale) {
+  return Number(useWholesale) === 1 ? 'جملة' : 'كبار';
+}
+
 async function logCustomer(actionCode, customerIdOrRow, userId) {
+  const isUpdatePair =
+    actionCode === 'update' &&
+    customerIdOrRow &&
+    typeof customerIdOrRow === 'object' &&
+    customerIdOrRow.before != null &&
+    customerIdOrRow.after != null;
+
+  if (isUpdatePair) {
+    const before =
+      typeof customerIdOrRow.before === 'object'
+        ? customerIdOrRow.before
+        : await fetchCustomerSnapshot(customerIdOrRow.before);
+    const after =
+      typeof customerIdOrRow.after === 'object'
+        ? customerIdOrRow.after
+        : await fetchCustomerSnapshot(customerIdOrRow.after);
+    if (!before || !after) return false;
+    const displayValue = (key, raw) => {
+      if (key === 'use_wholesale_price') return customerPricingLabel(raw);
+      return raw == null ? '' : String(raw).trim();
+    };
+    const parts = { العميل: partyLabel(after.name_ar, after.code) };
+    const innerParts = { 'القديم': [], 'الجديد': [] };
+    for (const [key, label] of Object.entries(CUSTOMER_AUDIT_FIELD_MAP)) {
+      if (normAuditVal(before[key]) === normAuditVal(after[key])) continue;
+      const ov = displayValue(key, before[key]);
+      const nv = displayValue(key, after[key]);
+      innerParts['القديم'].push(`${label}=${ov || '—'}`);
+      innerParts['الجديد'].push(`${label}=${nv || '—'}`);
+    }
+    if (innerParts['القديم'].length) parts['القديم'] = innerParts['القديم'].join('، ');
+    if (innerParts['الجديد'].length) parts['الجديد'] = innerParts['الجديد'].join('، ');
+    const summary = buildSummary(parts);
+    return logMaster({
+      screenCode: 'customers',
+      actionCode,
+      userId,
+      entityType: 'crm_customer',
+      entityId: Number(after.id) || null,
+      entityRef: String(after.code || after.name_ar || '').trim(),
+      summary,
+      domainCode: 'customers',
+    });
+  }
+
   const row = await fetchCustomerSnapshot(customerIdOrRow);
   if (!row) return false;
   const wholesale =
@@ -519,11 +710,14 @@ module.exports = {
   fetchVisitLineSnapshot,
   logVisitLineDelete,
   buildSummary,
+  buildOldNewSummary,
+  normAuditVal,
   ensureSchema,
   ACTION_LABELS,
   auditSafe,
   logMaster,
   fetchItemSnapshot,
+  fetchCustomerSnapshot,
   logItem,
   logCustomer,
   logSupplier,

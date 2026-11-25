@@ -738,9 +738,10 @@ async function saveItem(payload, userId = null) {
       params.push(expiryDate, notifyExpiry);
     }
     params.push(id);
+    const beforeItem = await sysAuditLog.fetchItemSnapshot(id);
     await safeQuery(`UPDATE inv_item SET ${sets.join(', ')} WHERE id=?`, params);
     await saveItemUnits(id, unitId, packExtras, !packWriteAllowed);
-    await sysAuditLog.auditSafe(sysAuditLog.logItem('update', id, userId));
+    await sysAuditLog.auditSafe(sysAuditLog.logItem('update', { before: beforeItem, after: id }, userId));
     let msg = 'تم تحديث المادة.';
     if (pricesLocked) {
       msg = packWriteAllowed && packExtras.length

@@ -244,6 +244,7 @@ async function saveCustomer(payload, userId = null) {
   if (id > 0) {
     const cur = await getCustomer(id);
     if (!cur) return { ok: false, error: 'العميل غير موجود.' };
+    const beforeCustomer = await sysAuditLog.fetchCustomerSnapshot(id);
     const oracleLocked = String(cur.oracle_key || '').trim() !== '';
     const finalName = oracleLocked ? String(cur.name_ar || '') : name;
 
@@ -334,7 +335,7 @@ async function saveCustomer(payload, userId = null) {
       }
     }
     await saveCustomerReps(id, repIds);
-    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('update', id, userId));
+    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('update', { before: beforeCustomer, after: id }, userId));
     return {
       ok: true,
       id,

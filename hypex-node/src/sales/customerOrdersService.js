@@ -373,7 +373,7 @@ async function saveOrder(payload, userId) {
   }
   // العميل يجب أن يكون مربوطاً بالمندوب المختار
   try {
-    const linkRows = await q(
+    const linkRows = await db.query(
       `SELECT 1 AS ok FROM crm_customer c
        WHERE c.id = ?
          AND (
@@ -390,7 +390,7 @@ async function saveOrder(payload, userId) {
       return { ok: false, error: 'العميل غير مربوط بالمندوب المختار. اختر عميلاً من عملاء هذا المندوب.' };
     }
   } catch {
-    const linkRows = await q(
+    const linkRows = await db.query(
       `SELECT 1 AS ok FROM crm_customer WHERE id = ? AND sales_rep_id = ? LIMIT 1`,
       [customerId, salesRepId]
     );

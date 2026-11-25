@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wholesale = (string) ($_POST['default_wholesale'] ?? '0');
             $track = 1;
             $isEdit = $id > 0;
+            $itemBeforeAudit = null;
             $isActive = isset($_POST['is_active']) ? 1 : 0;
             $openingQty = max(0, (float) str_replace(',', '.', (string) ($_POST['opening_qty'] ?? '0')));
             $pricesLocked = $isEdit && inv_item_has_any_movements($pdo, $id);
@@ -194,6 +195,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $sets[] = 'tax_rate_id=?';
                     $params[] = $taxVal;
                 }
+                $auditCols = 'id, sku, barcode, name_ar, default_sale, default_cost, is_active';
+                if ($hasWholesale) {
+                    $auditCols .= ', default_wholesale';
+                }
+                $stBeforeAudit = $pdo->prepare("SELECT {$auditCols} FROM inv_item WHERE id = ? LIMIT 1");
+                $stBeforeAudit->execute([$id]);
+                $itemBeforeAudit = $stBeforeAudit->fetch(PDO::FETCH_ASSOC) ?: null;
                 $params[] = $id;
                 $pdo->prepare('UPDATE inv_item SET ' . implode(', ', $sets) . ' WHERE id=?')->execute($params);
                 flash_set(
@@ -280,7 +288,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $auditUserId = (int) (auth_user()['id'] ?? 0);
             $auditAction = $isEdit ? 'update' : 'create';
             try {
-                sys_audit_log_inv_item($pdo, $auditAction, $savedId, ['user_id' => $auditUserId]);
+                $auditCtx = ['user_id' => $auditUserId];
+                if ($isEdit && is_array($itemBeforeAudit) && $itemBeforeAudit !== []) {
+                    $auditCtx['before'] = $itemBeforeAudit;
+                }
+                sys_audit_log_inv_item($pdo, $auditAction, $savedId, $auditCtx);
             } catch (Throwable $auditEx) {
             }
         } elseif ($act === 'toggle') {
