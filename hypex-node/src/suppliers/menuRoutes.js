@@ -180,7 +180,7 @@ async function supplierForm(req, res, id) {
 router.get('/suppliers/new', (req, res) => supplierForm(req, res, 0));
 router.post('/suppliers/new', async (req, res) => {
   if (!can(req.session.user, 'suppliers')) return res.status(403).send('ممنوع');
-  const result = await masters.saveSupplier(req.body || {});
+  const result = await masters.saveSupplier(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/suppliers/new?err=' + encodeURIComponent(result.error));
   res.redirect('/suppliers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -256,7 +256,7 @@ router.post('/suppliers/:id', async (req, res, next) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id < 1) return next();
   if (!can(req.session.user, 'suppliers')) return res.status(403).send('ممنوع');
-  const result = await masters.saveSupplier({ ...(req.body || {}), id });
+  const result = await masters.saveSupplier({ ...(req.body || {}), id }, req.session.user?.id);
   if (!result.ok) return res.redirect('/suppliers/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/suppliers/list?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });

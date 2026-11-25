@@ -2,6 +2,7 @@
 
 const db = require('../db');
 const companyDecimals = require('../lib/companyDecimals');
+const sysAuditLog = require('../system/sysAuditLog');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -43,7 +44,7 @@ async function getWarehouse(id) {
   return rows[0] || null;
 }
 
-async function saveWarehouse(payload) {
+async function saveWarehouse(payload, userId = null) {
   const id = Number(payload.id || 0);
   let code = String(payload.code || '').trim();
   const name = String(payload.name_ar || '').trim();
@@ -61,16 +62,19 @@ async function saveWarehouse(payload) {
 
   if (id > 0) {
     await safeQuery(`UPDATE inv_warehouse SET code = ?, name_ar = ? WHERE id = ?`, [code, name, id]);
+    await sysAuditLog.auditSafe(sysAuditLog.logWarehouse('update', { id, code, name_ar: name }, userId));
     return { ok: true, id, message: 'تم تحديث المستودع.' };
   }
   const [result] = await db.getPool().execute(
     `INSERT INTO inv_warehouse (code, name_ar, is_active) VALUES (?,?,1)`,
     [code, name]
   );
-  return { ok: true, id: Number(result.insertId), message: 'تم إضافة المستودع.' };
+  const newWhId = Number(result.insertId);
+  await sysAuditLog.auditSafe(sysAuditLog.logWarehouse('create', { id: newWhId, code, name_ar: name }, userId));
+  return { ok: true, id: newWhId, message: 'تم إضافة المستودع.' };
 }
 
-async function deleteWarehouse(id) {
+async function deleteWarehouse(id, userId = null) {
   const whId = Number(id);
   if (!whId) return { ok: false, error: 'معرّف غير صالح.' };
 
@@ -97,7 +101,9 @@ async function deleteWarehouse(id) {
     /* */
   }
 
+  const whSnap = await getWarehouse(whId);
   await safeQuery(`DELETE FROM inv_warehouse WHERE id = ?`, [whId]);
+  await sysAuditLog.auditSafe(sysAuditLog.logWarehouse('delete', whSnap || whId, userId));
   return { ok: true, message: 'تم حذف المستودع.' };
 }
 
@@ -560,7 +566,7 @@ async function saveItemUnits(itemId, baseUnitId, extras, locked) {
   }
 }
 
-async function saveItem(payload) {
+async function saveItem(payload, userId = null) {
   await ensureItemCardColumns();
   const id = Number(payload.id || 0);
   let sku = String(payload.sku || '').trim();
@@ -734,6 +740,7 @@ async function saveItem(payload) {
     params.push(id);
     await safeQuery(`UPDATE inv_item SET ${sets.join(', ')} WHERE id=?`, params);
     await saveItemUnits(id, unitId, packExtras, !packWriteAllowed);
+    await sysAuditLog.auditSafe(sysAuditLog.logItem('update', id, userId));
     let msg = 'تم تحديث المادة.';
     if (pricesLocked) {
       msg = packWriteAllowed && packExtras.length
@@ -796,6 +803,7 @@ async function saveItem(payload) {
   }
 
   await saveItemUnits(newId, unitId, packExtras, false);
+  await sysAuditLog.auditSafe(sysAuditLog.logItem('create', newId, userId));
 
   const openingQty = Number(String(payload.opening_qty || '0').replace(',', '.')) || 0;
   if (openingQty > 0 && warehouseId && newId) {
@@ -823,27 +831,32 @@ async function saveItem(payload) {
   return { ok: true, id: newId, message: 'تم إضافة المادة.' };
 }
 
-async function deleteItem(id) {
+async function deleteItem(id, userId = null) {
   const itemId = Number(id);
   if (!itemId) return { ok: false, error: 'معرّف غير صالح.' };
   if (await itemHasMovements(itemId)) {
     return { ok: false, error: 'لا يمكن حذف مادة لها حركات. أوقفها من بطاقة المادة بدلاً من ذلك.' };
   }
+  const itemSnap = await sysAuditLog.fetchItemSnapshot(itemId);
   try {
     await safeQuery(`DELETE FROM inv_item_unit WHERE item_id = ?`, [itemId]);
   } catch {
     /* */
   }
   await safeQuery(`DELETE FROM inv_item WHERE id = ?`, [itemId]);
+  await sysAuditLog.auditSafe(sysAuditLog.logItem('delete', itemSnap || itemId, userId));
   return { ok: true, message: 'تم حذف المادة.' };
 }
 
-async function toggleItemActive(id) {
+async function toggleItemActive(id, userId = null) {
   const itemId = Number(id);
   if (!itemId) return { ok: false, error: 'معرّف غير صالح.' };
   await safeQuery(`UPDATE inv_item SET is_active = 1 - is_active WHERE id = ?`, [itemId]);
   const rows = await safeQuery(`SELECT is_active FROM inv_item WHERE id = ? LIMIT 1`, [itemId]);
   const on = Number(rows[0]?.is_active) === 1;
+  await sysAuditLog.auditSafe(
+    sysAuditLog.logItem('update', itemId, userId, { الحالة: on ? 'تفعيل' : 'إيقاف' })
+  );
   return { ok: true, message: on ? 'تم تفعيل المادة.' : 'تم إيقاف المادة.' };
 }
 
@@ -867,7 +880,7 @@ async function getUnit(id) {
   return rows[0] || null;
 }
 
-async function saveUnit(payload) {
+async function saveUnit(payload, userId = null) {
   const id = Number(payload.id || 0);
   let code = String(payload.code || '').trim();
   const name = String(payload.name_ar || '').trim();
@@ -890,6 +903,7 @@ async function saveUnit(payload) {
     } catch {
       /* optional */
     }
+    await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_units', entityType: 'inv_unit', actionCode: 'update', rowOrId: { id, code, name_ar: name }, userId, table: 'inv_unit', labelKey: 'الوحدة' }));
     return { ok: true, id, message: 'تم تحديث الوحدة.' };
   }
 
@@ -897,7 +911,9 @@ async function saveUnit(payload) {
     `INSERT INTO inv_unit (code, name_ar, is_active) VALUES (?,?,1)`,
     [code, name]
   );
-  return { ok: true, id: Number(result.insertId), message: 'تم إضافة الوحدة.' };
+  const unitNewId = Number(result.insertId);
+  await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_units', entityType: 'inv_unit', actionCode: 'create', rowOrId: { id: unitNewId, code, name_ar: name }, userId, table: 'inv_unit', labelKey: 'الوحدة' }));
+  return { ok: true, id: unitNewId, message: 'تم إضافة الوحدة.' };
 }
 
 async function toggleUnit(id) {
@@ -959,7 +975,7 @@ async function getCategory(id) {
   return rows[0] || null;
 }
 
-async function saveCategory(payload) {
+async function saveCategory(payload, userId = null) {
   const id = Number(payload.id || 0);
   let code = String(payload.code || '').trim();
   const name = String(payload.name_ar || '').trim();
@@ -976,6 +992,7 @@ async function saveCategory(payload) {
     } else {
       await safeQuery(`UPDATE inv_item_category SET name_ar = ? WHERE id = ?`, [name, id]);
     }
+    await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_categories', entityType: 'inv_item_category', actionCode: 'update', rowOrId: { id, code, name_ar: name }, userId, table: 'inv_item_category', labelKey: 'الفئة' }));
     return { ok: true, id, message: 'تم تحديث الفئة.' };
   }
 
@@ -988,7 +1005,9 @@ async function saveCategory(payload) {
     `INSERT INTO inv_item_category (code, name_ar, is_active) VALUES (?,?,1)`,
     [code, name]
   );
-  return { ok: true, id: Number(result.insertId), message: `تم إضافة الفئة. الرمز: ${code}` };
+  const catNewId = Number(result.insertId);
+  await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_categories', entityType: 'inv_item_category', actionCode: 'create', rowOrId: { id: catNewId, code, name_ar: name }, userId, table: 'inv_item_category', labelKey: 'الفئة' }));
+  return { ok: true, id: catNewId, message: `تم إضافة الفئة. الرمز: ${code}` };
 }
 
 async function toggleCategory(id) {
@@ -998,7 +1017,7 @@ async function toggleCategory(id) {
   return { ok: true, message: 'تم تحديث حالة الفئة.' };
 }
 
-async function deleteCategory(id) {
+async function deleteCategory(id, userId = null) {
   const catId = Number(id);
   if (!catId) return { ok: false, error: 'معرّف غير صالح.' };
   const cat = await getCategory(catId);
@@ -1027,6 +1046,7 @@ async function deleteCategory(id) {
     /* */
   }
   await safeQuery(`DELETE FROM inv_item_category WHERE id = ?`, [catId]);
+  await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_categories', entityType: 'inv_item_category', actionCode: 'delete', rowOrId: cat, userId, table: 'inv_item_category', labelKey: 'الفئة' }));
   return { ok: true, message: 'تم حذف الفئة.' };
 }
 
@@ -1067,7 +1087,7 @@ async function getSize(id) {
   return rows[0] || null;
 }
 
-async function saveSize(payload) {
+async function saveSize(payload, userId = null) {
   await ensureItemSizeSchema();
   const id = Number(payload.id || 0);
   let code = String(payload.code || '').trim();
@@ -1086,6 +1106,7 @@ async function saveSize(payload) {
     } else {
       await safeQuery(`UPDATE inv_item_size SET name_ar = ?, sort_order = ? WHERE id = ?`, [name, sortOrder, id]);
     }
+    await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_sizes', entityType: 'inv_item_size', actionCode: 'update', rowOrId: { id, code, name_ar: name }, userId, table: 'inv_item_size', labelKey: 'الحجم' }));
     return { ok: true, id, message: 'تم تحديث الحجم.' };
   }
 
@@ -1096,7 +1117,9 @@ async function saveSize(payload) {
     `INSERT INTO inv_item_size (code, name_ar, is_active, sort_order) VALUES (?,?,1,?)`,
     [code, name, sortOrder]
   );
-  return { ok: true, id: Number(result.insertId), message: `تم إضافة الحجم. الرمز: ${code}` };
+  const sizeNewId = Number(result.insertId);
+  await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_sizes', entityType: 'inv_item_size', actionCode: 'create', rowOrId: { id: sizeNewId, code, name_ar: name }, userId, table: 'inv_item_size', labelKey: 'الحجم' }));
+  return { ok: true, id: sizeNewId, message: `تم إضافة الحجم. الرمز: ${code}` };
 }
 
 async function toggleSize(id) {
@@ -1106,7 +1129,7 @@ async function toggleSize(id) {
   return { ok: true, message: 'تم تحديث حالة الحجم.' };
 }
 
-async function deleteSize(id) {
+async function deleteSize(id, userId = null) {
   const sizeId = Number(id);
   if (!sizeId) return { ok: false, error: 'معرّف غير صالح.' };
   const row = await getSize(sizeId);
@@ -1116,7 +1139,9 @@ async function deleteSize(id) {
   } catch {
     /* */
   }
+  const sizeSnap = await getSize(sizeId);
   await safeQuery(`DELETE FROM inv_item_size WHERE id = ?`, [sizeId]);
+  await sysAuditLog.auditSafe(sysAuditLog.logNamedMaster({ screenCode: 'item_sizes', entityType: 'inv_item_size', actionCode: 'delete', rowOrId: sizeSnap || sizeId, userId, table: 'inv_item_size', labelKey: 'الحجم' }));
   return { ok: true, message: 'تم حذف الحجم.' };
 }
 

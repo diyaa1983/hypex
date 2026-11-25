@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const db = require('../db');
+const sysAuditLog = require('../system/sysAuditLog');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -206,7 +207,7 @@ function parsePaymentPeriod(payload) {
   return null;
 }
 
-async function saveCustomer(payload) {
+async function saveCustomer(payload, userId = null) {
   await migrateDefaultWholesaleCustomers();
   const id = Number(payload.id || 0);
   const name = String(payload.name_ar || '').trim();
@@ -333,6 +334,7 @@ async function saveCustomer(payload) {
       }
     }
     await saveCustomerReps(id, repIds);
+    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('update', id, userId));
     return {
       ok: true,
       id,
@@ -370,6 +372,7 @@ async function saveCustomer(payload) {
     );
     const newId = Number(result.insertId);
     await saveCustomerReps(newId, repIds);
+    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('create', newId, userId));
     return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
   } catch {
     try {
@@ -393,6 +396,7 @@ async function saveCustomer(payload) {
       );
       const newId = Number(result.insertId);
       await saveCustomerReps(newId, repIds);
+    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('create', newId, userId));
       return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
     } catch {
       try {
@@ -404,6 +408,7 @@ async function saveCustomer(payload) {
         );
         const newId = Number(result.insertId);
         await saveCustomerReps(newId, repIds);
+    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('create', newId, userId));
         return { ok: true, id: newId, message: `تم إضافة العميل. الرمز: ${code}` };
       } catch {
         const [result] = await db.getPool().execute(
@@ -414,6 +419,7 @@ async function saveCustomer(payload) {
         );
         const newId = Number(result.insertId);
         await saveCustomerReps(newId, repIds);
+    await sysAuditLog.auditSafe(sysAuditLog.logCustomer('create', newId, userId));
         try {
           await safeQuery(`UPDATE crm_customer SET use_wholesale_price=? WHERE id=?`, [
             useWholesale,

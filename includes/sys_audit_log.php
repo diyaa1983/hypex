@@ -7,6 +7,8 @@ declare(strict_types=1);
 function sys_audit_log_action_labels(): array
 {
     return [
+        'create' => 'إضافة',
+        'update' => 'تعديل',
         'save' => 'حفظ',
         'delete' => 'حذف',
         'post' => 'ترحيل',
@@ -14,6 +16,7 @@ function sys_audit_log_action_labels(): array
         'cancel' => 'إلغاء',
         'approve' => 'اعتماد',
         'unapprove' => 'فك اعتماد',
+        'toggle' => 'تفعيل/إيقاف',
     ];
 }
 
@@ -671,6 +674,54 @@ function sys_audit_log_crm_customer(PDO $pdo, string $actionCode, ?array $snapsh
 }
 
 /** @param array<string,mixed> $snapshot */
+
+
+function sys_audit_log_inv_item(PDO $pdo, string $actionCode, int $itemId, array $extraCtx = []): void
+{
+    $itemId = (int) $itemId;
+    if ($itemId < 1) {
+        return;
+    }
+    $cols = 'id, sku, barcode, name_ar, default_sale';
+    try {
+        $pdo->query('SELECT default_wholesale FROM inv_item LIMIT 1');
+        $cols .= ', default_wholesale';
+    } catch (Throwable $e) {
+    }
+    $st = $pdo->prepare("SELECT {$cols} FROM inv_item WHERE id = ? LIMIT 1");
+    $st->execute([$itemId]);
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    if (!is_array($row)) {
+        return;
+    }
+    $parts = [
+        'المادة' => (string) ($row['name_ar'] ?? ''),
+        'رمز' => (string) ($row['sku'] ?? ''),
+        'بيع' => sys_audit_log_money($pdo, $row['default_sale'] ?? 0),
+    ];
+    if (trim((string) ($row['barcode'] ?? '')) !== '') {
+        $parts['باركود'] = (string) $row['barcode'];
+    }
+    if (array_key_exists('default_wholesale', $row)) {
+        $parts['جملة'] = sys_audit_log_money($pdo, $row['default_wholesale'] ?? 0);
+    }
+    if (isset($extraCtx['الحالة'])) {
+        $parts['الحالة'] = (string) $extraCtx['الحالة'];
+        unset($extraCtx['الحالة']);
+    }
+    $summary = sys_audit_log_build_summary($parts);
+    $ref = trim((string) ($row['barcode'] ?? '')) !== ''
+        ? (string) $row['barcode']
+        : (string) ($row['sku'] ?? (string) $itemId);
+    sys_audit_log_write($pdo, 'items', $actionCode, array_merge($extraCtx, [
+        'domain_code' => 'inventory',
+        'entity_type' => 'inv_item',
+        'entity_id' => $itemId,
+        'entity_ref' => $ref,
+        'summary' => $summary,
+    ]));
+}
+
 function sys_audit_log_visit_line(PDO $pdo, string $actionCode, array $snapshot, array $extraCtx = []): void
 {
     $lineId = (int) ($snapshot['line_id'] ?? 0);

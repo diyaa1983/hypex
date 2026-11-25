@@ -4,6 +4,8 @@ const db = require('../db');
 const companyDecimals = require('../lib/companyDecimals');
 
 const ACTION_LABELS = {
+  create: 'إضافة',
+  update: 'تعديل',
   save: 'حفظ',
   delete: 'حذف',
   post: 'ترحيل',
@@ -11,6 +13,7 @@ const ACTION_LABELS = {
   cancel: 'إلغاء',
   approve: 'اعتماد',
   unapprove: 'فك اعتماد',
+  toggle: 'تفعيل/إيقاف',
 };
 
 let schemaReady = false;
@@ -242,6 +245,272 @@ async function logVisitLineDelete(snapshot, userId) {
   });
 }
 
+
+async function auditSafe(promise) {
+  try {
+    return await promise;
+  } catch (e) {
+    console.error('sysAuditLog.auditSafe', e.message);
+    return false;
+  }
+}
+
+async function logMaster({
+  screenCode,
+  actionCode,
+  userId,
+  entityType,
+  entityId,
+  entityRef,
+  summary,
+  domainCode,
+  screenLabelAr,
+  docDate,
+} = {}) {
+  return write({
+    screenCode,
+    actionCode,
+    userId,
+    entityType,
+    entityId,
+    entityRef,
+    summary,
+    domainCode,
+    screenLabelAr,
+    docDate,
+  });
+}
+
+async function colExistsSimple(table, column) {
+  try {
+    await db.query(`SELECT \`${column}\` FROM \`${table}\` LIMIT 1`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function fetchItemSnapshot(itemIdOrRow) {
+  if (itemIdOrRow && typeof itemIdOrRow === 'object') {
+    const id = Number(itemIdOrRow.id) || 0;
+    if (id && itemIdOrRow.name_ar != null && itemIdOrRow.default_sale != null) {
+      return itemIdOrRow;
+    }
+    if (!id && itemIdOrRow.name_ar) return itemIdOrRow;
+  }
+  const id = Number(itemIdOrRow) || 0;
+  if (!id) return null;
+  try {
+    const hasWh = await colExistsSimple('inv_item', 'default_wholesale');
+    const rows = await db.query(
+      `SELECT id, sku, barcode, name_ar, default_sale${hasWh ? ', default_wholesale' : ''}
+       FROM inv_item WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function logItem(actionCode, itemRowOrId, userId, extraParts = null) {
+  const row = await fetchItemSnapshot(itemRowOrId);
+  if (!row) return false;
+  const sale = await formatMoney(row.default_sale);
+  let wholesale = '';
+  if (row.default_wholesale != null) wholesale = await formatMoney(row.default_wholesale);
+  const ref = String(row.barcode || row.sku || row.id || '').trim();
+  const parts = {
+    المادة: row.name_ar || '',
+    رمز: row.sku || '',
+    بيع: sale,
+  };
+  if (row.barcode) parts['باركود'] = row.barcode;
+  if (wholesale !== '') parts['جملة'] = wholesale;
+  if (extraParts) Object.assign(parts, extraParts);
+  const summary = buildSummary(parts);
+  return logMaster({
+    screenCode: 'items',
+    actionCode,
+    userId,
+    entityType: 'inv_item',
+    entityId: Number(row.id) || null,
+    entityRef: ref,
+    summary,
+    domainCode: 'inventory',
+  });
+}
+
+async function fetchCustomerSnapshot(customerIdOrRow) {
+  if (customerIdOrRow && typeof customerIdOrRow === 'object' && customerIdOrRow.name_ar) {
+    return customerIdOrRow;
+  }
+  const id = Number(
+    customerIdOrRow && typeof customerIdOrRow === 'object' ? customerIdOrRow.id : customerIdOrRow
+  );
+  if (!id) return null;
+  try {
+    const rows = await db.query(
+      `SELECT id, code, name_ar, use_wholesale_price FROM crm_customer WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function logCustomer(actionCode, customerIdOrRow, userId) {
+  const row = await fetchCustomerSnapshot(customerIdOrRow);
+  if (!row) return false;
+  const wholesale =
+    Number(row.use_wholesale_price) === 1 ? 'سعر جملة من البطاقة' : 'سعر بيع تجزئة';
+  const summary = buildSummary({
+    العميل: partyLabel(row.name_ar, row.code),
+    التسعير: wholesale,
+  });
+  return logMaster({
+    screenCode: 'customers',
+    actionCode,
+    userId,
+    entityType: 'crm_customer',
+    entityId: Number(row.id) || null,
+    entityRef: String(row.code || row.name_ar || '').trim(),
+    summary,
+    domainCode: 'customers',
+  });
+}
+
+async function fetchPartyRow(table, id) {
+  const partyId = Number(id) || 0;
+  if (!partyId) return null;
+  try {
+    const rows = await db.query(`SELECT id, code, name_ar FROM \`${table}\` WHERE id = ? LIMIT 1`, [partyId]);
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function logPartyMaster({ screenCode, entityType, domainCode, actionCode, rowOrId, userId, table }) {
+  let row = rowOrId;
+  if (!row || typeof row !== 'object' || !row.name_ar) {
+    row = await fetchPartyRow(table, rowOrId);
+  }
+  if (!row) return false;
+  const summary = buildSummary({
+    الاسم: partyLabel(row.name_ar, row.code),
+  });
+  return logMaster({
+    screenCode,
+    actionCode,
+    userId,
+    entityType,
+    entityId: Number(row.id) || null,
+    entityRef: String(row.code || row.name_ar || '').trim(),
+    summary,
+    domainCode,
+  });
+}
+
+async function logSupplier(actionCode, rowOrId, userId) {
+  return logPartyMaster({
+    screenCode: 'suppliers',
+    entityType: 'crm_supplier',
+    domainCode: 'suppliers',
+    actionCode,
+    rowOrId,
+    userId,
+    table: 'crm_supplier',
+  });
+}
+
+async function logSalesRep(actionCode, rowOrId, userId) {
+  return logPartyMaster({
+    screenCode: 'sales_reps',
+    entityType: 'crm_sales_rep',
+    domainCode: 'sales_reps',
+    actionCode,
+    rowOrId,
+    userId,
+    table: 'crm_sales_rep',
+  });
+}
+
+async function logWarehouse(actionCode, rowOrId, userId) {
+  return logPartyMaster({
+    screenCode: 'warehouses',
+    entityType: 'inv_warehouse',
+    domainCode: 'inventory',
+    actionCode,
+    rowOrId,
+    userId,
+    table: 'inv_warehouse',
+  });
+}
+
+async function logNamedMaster({ screenCode, entityType, actionCode, rowOrId, userId, table, labelKey }) {
+  let row = rowOrId;
+  if (!row || typeof row !== 'object' || !row.name_ar) {
+    const id = Number(rowOrId) || 0;
+    if (!id) return false;
+    try {
+      const rows = await db.query(`SELECT id, code, name_ar FROM \`${table}\` WHERE id = ? LIMIT 1`, [id]);
+      row = rows[0];
+    } catch {
+      row = null;
+    }
+  }
+  if (!row) return false;
+  const summary = buildSummary({
+    [labelKey || 'الاسم']: partyLabel(row.name_ar, row.code),
+  });
+  return logMaster({
+    screenCode,
+    actionCode,
+    userId,
+    entityType,
+    entityId: Number(row.id) || null,
+    entityRef: String(row.code || row.name_ar || '').trim(),
+    summary,
+    domainCode: 'inventory',
+  });
+}
+
+async function logPriceAdjustDoc(actionCode, docId, userId) {
+  const id = Number(docId) || 0;
+  if (!id) return false;
+  try {
+    const docs = await db.query(
+      `SELECT id, adj_no, adj_date, status FROM inv_price_adj_doc WHERE id = ? LIMIT 1`,
+      [id]
+    );
+    const doc = docs[0];
+    if (!doc) return false;
+    const lines = await db.query(`SELECT COUNT(*) AS c FROM inv_item_sale_price_adj WHERE doc_id = ?`, [id]);
+    const lineCount = Number(lines[0]?.c || 0);
+    const summary = buildSummary({
+      الحركة: doc.adj_no || '',
+      البنود: String(lineCount),
+      الحالة: String(doc.status) === 'posted' ? 'مرحّلة' : 'مسودة',
+    });
+    return logMaster({
+      screenCode: 'item_sale_price_adjust',
+      actionCode,
+      userId,
+      entityType: 'inv_price_adj_doc',
+      entityId: id,
+      entityRef: doc.adj_no,
+      docDate: doc.adj_date,
+      summary,
+      domainCode: 'inventory',
+    });
+  } catch (e) {
+    console.error('logPriceAdjustDoc', e.message);
+    return false;
+  }
+}
+
 module.exports = {
   write,
   logCustomerOrder,
@@ -251,4 +520,15 @@ module.exports = {
   logVisitLineDelete,
   buildSummary,
   ensureSchema,
+  ACTION_LABELS,
+  auditSafe,
+  logMaster,
+  fetchItemSnapshot,
+  logItem,
+  logCustomer,
+  logSupplier,
+  logSalesRep,
+  logWarehouse,
+  logNamedMaster,
+  logPriceAdjustDoc,
 };

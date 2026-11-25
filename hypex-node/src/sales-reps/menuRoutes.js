@@ -723,7 +723,7 @@ async function repForm(req, res, id) {
 router.get('/sales-reps/new', (req, res) => repForm(req, res, 0));
 router.post('/sales-reps/new', async (req, res) => {
   if (!can(req.session.user, 'sales_reps')) return res.status(403).send('ممنوع');
-  const result = await masters.saveRep(req.body || {});
+  const result = await masters.saveRep(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/sales-reps/new?err=' + encodeURIComponent(result.error));
   res.redirect('/sales-reps/list?msg=' + encodeURIComponent(result.message || 'تم'));
 });
@@ -3881,7 +3881,7 @@ router.post('/sales-reps/:id', async (req, res, next) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id) || id < 1) return next();
   if (!can(req.session.user, 'sales_reps')) return res.status(403).send('ممنوع');
-  const result = await masters.saveRep({ ...(req.body || {}), id });
+  const result = await masters.saveRep({ ...(req.body || {}), id }, req.session.user?.id);
   if (!result.ok) return res.redirect('/sales-reps/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/sales-reps/list?msg=' + encodeURIComponent(result.message || 'تم'));
 });

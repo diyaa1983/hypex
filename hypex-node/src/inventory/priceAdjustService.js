@@ -6,6 +6,7 @@
  */
 const db = require('../db');
 const companyDecimals = require('../lib/companyDecimals');
+const sysAuditLog = require('../system/sysAuditLog');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -356,6 +357,8 @@ async function saveDoc(payload, userId) {
     }
 
     await conn.commit();
+    const wasNew = !(Number(payload.id || 0) > 0);
+    await sysAuditLog.auditSafe(sysAuditLog.logPriceAdjustDoc(wasNew ? 'create' : 'update', docId, userId));
     return { ok: true, id: docId, message: 'تم حفظ مسودة تعديل الأسعار.' };
   } catch (e) {
     try {
@@ -436,6 +439,7 @@ async function postDoc(id, userId) {
     }
 
     await conn.commit();
+    await sysAuditLog.auditSafe(sysAuditLog.logPriceAdjustDoc('post', docId, userId));
     return { ok: true, id: docId, message: 'تم ترحيل الأسعار وتحديث بطاقات المواد.' };
   } catch (e) {
     try {

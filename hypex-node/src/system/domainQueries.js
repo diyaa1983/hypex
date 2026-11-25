@@ -45,7 +45,7 @@ async function listUsers({ q = '', activeOnly = false } = {}) {
      LEFT JOIN crm_sales_rep r ON r.id = u.sales_rep_id
      WHERE ${where.join(' AND ')}
      ORDER BY u.id DESC
-     LIMIT 300`,
+     LIMIT 1000`,
     params
   );
 }
@@ -111,26 +111,31 @@ async function einvoiceSettings() {
   return rows[0] || null;
 }
 
-async function listAuditLog({ q = '', from, to } = {}) {
+async function listAuditLog({ q = '', from, to, action = '' } = {}) {
   const r = dateRange(from, to);
   const where = ['DATE(a.logged_at) BETWEEN ? AND ?'];
   const params = [r.from, r.to];
+  const actionCode = String(action || '').trim();
+  if (actionCode) {
+    where.push('a.action_code = ?');
+    params.push(actionCode);
+  }
   if (q) {
     const like = `%${q}%`;
     where.push(
-      `(IFNULL(a.summary,'') LIKE ? OR IFNULL(a.screen_label_ar,'') LIKE ? OR IFNULL(a.action_label_ar,'') LIKE ? OR IFNULL(a.entity_ref,'') LIKE ? OR IFNULL(u.username,'') LIKE ?)`
+      `(IFNULL(a.summary,'') LIKE ? OR IFNULL(a.screen_label_ar,'') LIKE ? OR IFNULL(a.action_label_ar,'') LIKE ? OR IFNULL(a.entity_ref,'') LIKE ? OR IFNULL(u.username,'') LIKE ? OR IFNULL(u.full_name_ar,'') LIKE ?)`
     );
-    params.push(like, like, like, like, like);
+    params.push(like, like, like, like, like, like);
   }
   return safeQuery(
     `SELECT a.id, a.logged_at, a.domain_code, a.screen_code, a.screen_label_ar, a.action_code,
-            a.action_label_ar, a.entity_type, a.entity_id, a.entity_ref, a.summary,
+            a.action_label_ar, a.entity_type, a.entity_id, a.entity_ref, a.doc_date, a.summary,
             u.username, u.full_name_ar
      FROM sys_audit_log a
      LEFT JOIN sys_user u ON u.id = a.user_id
      WHERE ${where.join(' AND ')}
      ORDER BY a.id DESC
-     LIMIT 300`,
+     LIMIT 1000`,
     params
   );
 }

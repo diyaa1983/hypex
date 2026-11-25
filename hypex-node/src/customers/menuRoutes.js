@@ -1918,7 +1918,7 @@ router.post('/customers/new', async (req, res) => {
   const repId = Number(body.sales_rep_id || 0);
   body.rep_ids = repId > 0 ? [repId] : [].concat(body.rep_ids || []).filter(Boolean);
   body.sales_rep_id = repId > 0 ? repId : null;
-  const result = await masters.saveCustomer(body);
+  const result = await masters.saveCustomer(body, req.session.user?.id);
   if (!result.ok) return res.redirect('/customers/new?err=' + encodeURIComponent(result.error));
   res.redirect(safeCustomerListReturn(req, result.message || 'تم الحفظ'));
 });
@@ -1943,7 +1943,7 @@ router.post('/customers/:id', async (req, res, next) => {
   const repId = Number(body.sales_rep_id || 0);
   body.rep_ids = repId > 0 ? [repId] : [].concat(body.rep_ids || []).filter(Boolean);
   body.sales_rep_id = repId > 0 ? repId : null;
-  const result = await masters.saveCustomer(body);
+  const result = await masters.saveCustomer(body, req.session.user?.id);
   if (!result.ok) return res.redirect('/customers/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect(safeCustomerListReturn(req, result.message || 'تم الحفظ'));
 });

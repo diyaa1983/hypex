@@ -3,6 +3,15 @@
 const { createDomainRouter } = require('../lib/domainFactory');
 const { systemCatalog } = require('./catalog');
 const q = require('./domainQueries');
+const { ACTION_LABELS } = require('./sysAuditLog');
+
+function formatAuditLoggedAt(v) {
+  if (v == null || v === '') return '';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return String(v);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function dash(ui, v) {
   const s = v == null || v === '' ? '' : String(v);
@@ -42,23 +51,28 @@ module.exports = createDomainRouter({
     '/system/audit-log': async (req, { ui }) => {
       const range = q.dateRange(String(req.query.from || ''), String(req.query.to || ''));
       const qv = String(req.query.q || '');
-      const rows = await q.listAuditLog({ q: qv, from: range.from, to: range.to });
+      const actionFv = String(req.query.action || '').trim();
+      const rows = await q.listAuditLog({ q: qv, from: range.from, to: range.to, action: actionFv });
+      const actionOpts = Object.entries(ACTION_LABELS || {})
+        .map(([code, label]) => `<option value="${ui.esc(code)}"${actionFv === code ? ' selected' : ''}>${ui.esc(label)}</option>`)
+        .join('');
       return {
         subtitle: 'سجل التعديلات',
-        headers: ['الوقت', 'المستخدم', 'الشاشة', 'الإجراء', 'المرجع', 'ملخص'],
+        headers: ['الوقت', 'المستخدم', 'الشاشة', 'الإجراء', 'المرجع', 'تاريخ المستند', 'ملخص'],
         rowsHtml:
           rows
             .map(
               (r) => `<tr>
-            <td class="si-num" dir="ltr">${dash(ui, r.logged_at)}</td>
+            <td class="si-num" dir="ltr">${dash(ui, formatAuditLoggedAt(r.logged_at))}</td>
             <td>${dash(ui, r.full_name_ar || r.username)}</td>
             <td>${dash(ui, r.screen_label_ar || r.screen_code)}</td>
             <td>${dash(ui, r.action_label_ar || r.action_code)}</td>
             <td class="si-num" dir="ltr">${dash(ui, r.entity_ref || r.entity_id)}</td>
-            <td>${dash(ui, r.summary)}</td>
+            <td class="si-num" dir="ltr">${dash(ui, r.doc_date ? String(r.doc_date).slice(0, 10) : '')}</td>
+            <td style="max-width:26rem;white-space:normal;word-break:break-word;line-height:1.35">${dash(ui, r.summary)}</td>
           </tr>`
             )
-            .join('') || ui.emptyRow(6),
+            .join('') || ui.emptyRow(7),
         count: rows.length,
         from: range.from,
         to: range.to,
@@ -70,6 +84,12 @@ module.exports = createDomainRouter({
               </label>
               <label style="font-size:.8rem;font-weight:700;color:#5c6578">إلى
                 <input class="si-field si-field--mono" type="date" name="to" value="${ui.esc(range.to)}">
+              </label>
+              <label style="font-size:.8rem;font-weight:700;color:#5c6578">الإجراء
+                <select class="si-field" name="action" style="min-width:6.5rem">
+                  <option value="">الكل</option>
+                  ${actionOpts}
+                </select>
               </label>
               <input type="search" name="q" value="${ui.esc(qv)}" placeholder="بحث…" style="min-width:10rem">
               <button class="si-btn si-btn--primary" type="submit">عرض</button>

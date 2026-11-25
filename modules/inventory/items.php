@@ -3,11 +3,13 @@ declare(strict_types=1);
 
 $listUrl = app_url('index.php?r=items');
 $pdo = db();
+require_once app_path('includes/auth.php');
 require_once app_path('includes/inv_item_barcode.php');
 require_once app_path('includes/inv_item_schema.php');
 require_once app_path('includes/inv_stock.php');
 require_once app_path('includes/inv_item_units.php');
 require_once app_path('includes/oracle_sync_service.php');
+require_once app_path('includes/sys_audit_log.php');
 
 $extendedSchemaOk = inv_item_ensure_extended_schema($pdo);
 $barcodeSchemaOk = inv_item_ensure_barcode_schema($pdo);
@@ -275,6 +277,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $extraUnits = $normalizedIssue ? [$normalizedIssue] : [];
                 inv_item_units_save($pdo, $savedId, $unitId, $extraUnits);
             }
+            $auditUserId = (int) (auth_user()['id'] ?? 0);
+            $auditAction = $isEdit ? 'update' : 'create';
+            try {
+                sys_audit_log_inv_item($pdo, $auditAction, $savedId, ['user_id' => $auditUserId]);
+            } catch (Throwable $auditEx) {
+            }
         } elseif ($act === 'toggle') {
             $id = (int) ($_POST['id'] ?? 0);
             if ($id < 1) {
@@ -289,6 +297,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $st = $pdo->prepare('UPDATE inv_item SET is_active = 1 - is_active WHERE id = ?');
             $st->execute([$id]);
             $nowActive = (int) $cur['is_active'] === 0;
+            try {
+                sys_audit_log_inv_item($pdo, 'update', $id, [
+                    'user_id' => (int) (auth_user()['id'] ?? 0),
+                    'الحالة' => $nowActive ? 'تفعيل' : 'إيقاف',
+                ]);
+            } catch (Throwable $auditEx) {
+            }
             flash_set(
                 'success',
                 $nowActive
@@ -303,6 +318,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $chk = inv_item_delete_check($pdo, $id);
             if (!$chk['can_delete']) {
                 throw new RuntimeException($chk['message']);
+            }
+            try {
+                sys_audit_log_inv_item($pdo, 'delete', $id, ['user_id' => (int) (auth_user()['id'] ?? 0)]);
+            } catch (Throwable $auditEx) {
             }
             $st = $pdo->prepare('DELETE FROM inv_item WHERE id = ?');
             $st->execute([$id]);

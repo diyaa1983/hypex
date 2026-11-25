@@ -427,7 +427,7 @@ async function listWarehouses() {
   }
 }
 
-async function saveRep(payload) {
+async function saveRep(payload, userId = null) {
   const id = Number(payload.id || 0);
   let code = String(payload.code || '').trim();
   const name = String(payload.name_ar || '').trim();
@@ -459,6 +459,7 @@ async function saveRep(payload) {
         id,
       ]);
     }
+    await sysAuditLog.auditSafe(sysAuditLog.logSalesRep('update', { id, code, name_ar: name }, userId));
     return { ok: true, id, message: 'تم تحديث بيانات المندوب.' };
   }
 
@@ -468,13 +469,17 @@ async function saveRep(payload) {
        VALUES (?,?,?,?,?,1)`,
       [code, name, phone, address, warehouseId]
     );
-    return { ok: true, id: Number(result.insertId), message: 'تم إضافة المندوب.' };
+    const rid = Number(result.insertId);
+    await sysAuditLog.auditSafe(sysAuditLog.logSalesRep('create', { id: rid, code, name_ar: name }, userId));
+    return { ok: true, id: rid, message: 'تم إضافة المندوب.' };
   } catch {
     const [result] = await db.getPool().execute(
       `INSERT INTO crm_sales_rep (code, name_ar, phone, address_ar, is_active) VALUES (?,?,?,?,1)`,
       [code, name, phone, address]
     );
-    return { ok: true, id: Number(result.insertId), message: 'تم إضافة المندوب.' };
+    const rid2 = Number(result.insertId);
+    await sysAuditLog.auditSafe(sysAuditLog.logSalesRep('create', { id: rid2, code, name_ar: name }, userId));
+    return { ok: true, id: rid2, message: 'تم إضافة المندوب.' };
   }
 }
 

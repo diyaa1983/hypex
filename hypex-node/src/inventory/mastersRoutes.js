@@ -177,7 +177,7 @@ router.get('/inventory/warehouses/:id', async (req, res) => {
 
 router.post('/inventory/warehouses/new', async (req, res) => {
   if (!canWh(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.saveWarehouse(req.body || {});
+  const result = await svc.saveWarehouse(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/warehouses/new?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/warehouses?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -185,14 +185,14 @@ router.post('/inventory/warehouses/new', async (req, res) => {
 router.post('/inventory/warehouses/:id', async (req, res) => {
   if (!canWh(req.session.user)) return res.status(403).send('ممنوع');
   const id = Number(req.params.id);
-  const result = await svc.saveWarehouse({ ...(req.body || {}), id });
+  const result = await svc.saveWarehouse({ ...(req.body || {}), id }, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/warehouses/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/warehouses?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
 
 router.post('/inventory/warehouses/:id/delete', async (req, res) => {
   if (!canWh(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.deleteWarehouse(req.params.id);
+  const result = await svc.deleteWarehouse(req.params.id, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/warehouses?msg=' + encodeURIComponent(result.error));
   res.redirect('/inventory/warehouses?msg=' + encodeURIComponent(result.message || 'تم الحذف'));
 });
@@ -872,7 +872,7 @@ router.get('/inventory/items/:id', async (req, res) => {
 
 router.post('/inventory/items/new', async (req, res) => {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.saveItem(req.body || {});
+  const result = await svc.saveItem(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/items/new?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/items/' + result.id + '?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -883,21 +883,21 @@ router.post('/inventory/items/:id', async (req, res) => {
   const body = { ...(req.body || {}), id };
   // unchecked checkbox = inactive
   if (body.is_active === undefined) body.is_active = '0';
-  const result = await svc.saveItem(body);
+  const result = await svc.saveItem(body, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/items/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/items/' + id + '?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
 
 router.post('/inventory/items/:id/delete', async (req, res) => {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.deleteItem(req.params.id);
+  const result = await svc.deleteItem(req.params.id, req.session.user?.id);
   const msg = result.ok ? result.message : result.error;
   res.redirect('/inventory/items?msg=' + encodeURIComponent(msg || ''));
 });
 
 router.post('/inventory/items/:id/toggle', async (req, res) => {
   if (!canItems(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.toggleItemActive(req.params.id);
+  const result = await svc.toggleItemActive(req.params.id, req.session.user?.id);
   res.redirect('/inventory/items?msg=' + encodeURIComponent(result.message || result.error || ''));
 });
 
@@ -1002,7 +1002,7 @@ router.get('/inventory/units/:id', async (req, res) => {
 
 router.post('/inventory/units/new', async (req, res) => {
   if (!canUnits(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.saveUnit(req.body || {});
+  const result = await svc.saveUnit(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/units/new?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/units?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -1010,7 +1010,7 @@ router.post('/inventory/units/new', async (req, res) => {
 router.post('/inventory/units/:id', async (req, res) => {
   if (!canUnits(req.session.user)) return res.status(403).send('ممنوع');
   const id = Number(req.params.id);
-  const result = await svc.saveUnit({ ...(req.body || {}), id });
+  const result = await svc.saveUnit({ ...(req.body || {}), id }, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/units/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/units?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -1124,7 +1124,7 @@ router.get('/inventory/categories/:id', async (req, res) => {
 
 router.post('/inventory/categories/new', async (req, res) => {
   if (!canCategories(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.saveCategory(req.body || {});
+  const result = await svc.saveCategory(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/categories/new?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/categories?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -1133,7 +1133,7 @@ router.post('/inventory/categories/:id', async (req, res) => {
   if (!canCategories(req.session.user)) return res.status(403).send('ممنوع');
   const id = Number(req.params.id);
   if (!id) return res.redirect('/inventory/categories');
-  const result = await svc.saveCategory({ ...(req.body || {}), id });
+  const result = await svc.saveCategory({ ...(req.body || {}), id }, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/categories/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/categories?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -1146,7 +1146,7 @@ router.post('/inventory/categories/:id/toggle', async (req, res) => {
 
 router.post('/inventory/categories/:id/delete', async (req, res) => {
   if (!canCategories(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.deleteCategory(req.params.id);
+  const result = await svc.deleteCategory(req.params.id, req.session.user?.id);
   const key = result.ok ? 'msg' : 'err';
   res.redirect('/inventory/categories?' + key + '=' + encodeURIComponent(result.message || result.error || ''));
 });
@@ -1260,7 +1260,7 @@ router.get('/inventory/sizes/:id', async (req, res) => {
 
 router.post('/inventory/sizes/new', async (req, res) => {
   if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.saveSize(req.body || {});
+  const result = await svc.saveSize(req.body || {}, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/sizes/new?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/sizes?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -1269,7 +1269,7 @@ router.post('/inventory/sizes/:id', async (req, res) => {
   if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
   const id = Number(req.params.id);
   if (!id) return res.redirect('/inventory/sizes');
-  const result = await svc.saveSize({ ...(req.body || {}), id });
+  const result = await svc.saveSize({ ...(req.body || {}), id }, req.session.user?.id);
   if (!result.ok) return res.redirect('/inventory/sizes/' + id + '?err=' + encodeURIComponent(result.error));
   res.redirect('/inventory/sizes?msg=' + encodeURIComponent(result.message || 'تم الحفظ'));
 });
@@ -1282,7 +1282,7 @@ router.post('/inventory/sizes/:id/toggle', async (req, res) => {
 
 router.post('/inventory/sizes/:id/delete', async (req, res) => {
   if (!canSizes(req.session.user)) return res.status(403).send('ممنوع');
-  const result = await svc.deleteSize(req.params.id);
+  const result = await svc.deleteSize(req.params.id, req.session.user?.id);
   const key = result.ok ? 'msg' : 'err';
   res.redirect('/inventory/sizes?' + key + '=' + encodeURIComponent(result.message || result.error || ''));
 });

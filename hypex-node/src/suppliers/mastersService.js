@@ -1,6 +1,7 @@
 'use strict';
 
 const db = require('../db');
+const sysAuditLog = require('../system/sysAuditLog');
 
 async function safeQuery(sql, params = []) {
   try {
@@ -26,7 +27,7 @@ function nullIfEmpty(v) {
   return s === '' ? null : s;
 }
 
-async function saveSupplier(payload) {
+async function saveSupplier(payload, userId = null) {
   const id = Number(payload.id || 0);
   let code = String(payload.code || '').trim();
   const name = String(payload.name_ar || '').trim();
@@ -51,6 +52,7 @@ async function saveSupplier(payload) {
       `UPDATE crm_supplier SET code=?, name_ar=?, phone=?, email=?, tax_number=?, address_ar=? WHERE id=?`,
       [code, name, phone, email, tax, addr, id]
     );
+    await sysAuditLog.auditSafe(sysAuditLog.logSupplier('update', { id, code, name_ar: name }, userId));
     return { ok: true, id, message: 'تم تحديث بيانات المورد.' };
   }
 
@@ -59,7 +61,9 @@ async function saveSupplier(payload) {
      VALUES (?,?,?,?,?,?,1)`,
     [code, name, phone, email, tax, addr]
   );
-  return { ok: true, id: Number(result.insertId), message: 'تم إضافة المورد.' };
+  const sid = Number(result.insertId);
+  await sysAuditLog.auditSafe(sysAuditLog.logSupplier('create', { id: sid, code, name_ar: name }, userId));
+  return { ok: true, id: sid, message: 'تم إضافة المورد.' };
 }
 
 module.exports = { getSupplier, saveSupplier, nextSupplierCode };
