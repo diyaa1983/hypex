@@ -18,6 +18,217 @@ body.co-ora-body .si-stage , .co-ora-skin {
 }
 
 /* شريط موحّد: عنوان + رقم الطلب + أزرار + اختصارات — يلتف عند الزووم */
+
+/* --- co-doc-bar on بيانات المستند blue caption --- */
+body.co-ora-body .oracle-rec-block-caption:has(#co-doc-bar),
+.co-ora-skin .oracle-rec-block-caption:has(#co-doc-bar) {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  align-content: flex-start !important;
+  column-gap: 6px;
+  row-gap: 4px;
+  padding: 3px 8px !important;
+  min-height: 28px;
+  height: auto !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption:has(#co-doc-bar) > h2,
+.co-ora-skin .oracle-rec-block-caption:has(#co-doc-bar) > h2 {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  margin-inline-end: 2px !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar.si-cmd.si-doc-toolbar.co-unified-bar,
+.co-ora-skin .oracle-rec-block-caption #co-doc-bar.si-cmd.si-doc-toolbar.co-unified-bar {
+  direction: rtl;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  align-content: flex-start !important;
+  justify-content: flex-start !important;
+  column-gap: 2px;
+  row-gap: 3px;
+  padding: 0 4px !important;
+  margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible !important;
+  position: relative;
+  z-index: 1;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group {
+  direction: rtl;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 3px;
+  align-items: center;
+  padding: 1px 4px !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  min-height: 0 !important;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group + .si-tb-group {
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.28) !important;
+  margin-inline-start: 0;
+  padding-inline-start: 5px !important;
+  box-shadow: inset 1px 0 0 rgba(255, 255, 255, 0.12) !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--identity {
+  gap: 6px !important;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-f-head {
+  color: rgba(255, 255, 255, 0.92) !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-docno-row {
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  background: rgba(255, 255, 255, 0.92);
+  min-width: 10.5rem;
+  width: 11.5rem;
+  max-width: 13rem;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-docno-btn {
+  background: rgba(255, 255, 255, 0.75) !important;
+  color: #1a2a40 !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-docno-input {
+  background: #fff !important;
+  color: #111 !important;
+  border-left: 1px solid rgba(80, 80, 80, 0.35) !important;
+  border-right: 1px solid rgba(80, 80, 80, 0.35) !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-pill {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.18);
+  color: #f5f8fc;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb {
+  --tb-fg: #f7fafc;
+  --tb-bd: rgba(255, 255, 255, 0.48);
+  color: var(--tb-fg) !important;
+  border: 1px solid var(--tb-bd) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.1) 100%) !important;
+  padding: 2px 8px !important;
+  border-radius: 3px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  min-height: 24px !important;
+  box-shadow: none !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb:hover:not(:disabled) {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0.18) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  color: #fff !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb:active:not(:disabled) {
+  background: rgba(0, 0, 0, 0.22) !important;
+  border-color: rgba(255, 255, 255, 0.55) !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb:disabled {
+  opacity: 0.38 !important;
+  color: rgba(255, 255, 255, 0.55) !important;
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.22) !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb--save,
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb--post {
+  background: linear-gradient(180deg, rgba(200, 255, 210, 0.45) 0%, rgba(120, 200, 140, 0.28) 100%) !important;
+  border-color: rgba(170, 230, 185, 0.75) !important;
+  color: #ecfff0 !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb--danger {
+  background: linear-gradient(180deg, rgba(255, 210, 210, 0.4) 0%, rgba(200, 100, 100, 0.28) 100%) !important;
+  border-color: rgba(255, 180, 180, 0.7) !important;
+  color: #fff5f5 !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb--ghost {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.08) 100%) !important;
+  border-color: rgba(255, 255, 255, 0.42) !important;
+  color: #f7fafc !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-key {
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  color: #f0f4f8 !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--keys .si-key-hint {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  color: #f5f8fc !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--keys .si-field-key {
+  background: rgba(0, 0, 0, 0.18) !important;
+  border: 1px solid rgba(255, 255, 255, 0.38) !important;
+  color: #f0f4f8 !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--keys .si-key-desc {
+  color: rgba(255, 255, 255, 0.88) !important;
+}
+
+body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-msg,
+.co-ora-skin .oracle-rec-block-caption #co-doc-bar .si-msg {
+  color: #f5f8fc !important;
+}
+
+@media (max-width: 1400px) {
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--identity {
+    flex: 1 1 100% !important;
+    max-width: 100% !important;
+  }
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--core,
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--nav,
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--risk,
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb-group--keys {
+    border-inline-start: none !important;
+    margin-inline-start: 0 !important;
+    box-shadow: none !important;
+  }
+}
+
+@media (max-width: 1100px) {
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb {
+    padding: 2px 6px !important;
+    font-size: 10px !important;
+  }
+  body.co-ora-body .oracle-rec-block-caption #co-doc-bar .si-tb .si-tb-key {
+    display: none !important;
+  }
+}
+
 body.co-ora-body .si-stage .si-cmd.si-doc-toolbar ,
 .co-ora-skin .si-cmd.si-doc-toolbar,
 body.co-ora-body .si-stage .si-cmd.si-doc-toolbar.co-unified-bar ,
@@ -576,6 +787,89 @@ body.co-ora-body .si-stage .si-cust-wrap , .co-ora-skin .si-cust-wrap {
 
 /* الجدول — مسطّر بالكامل + خط غامق */
 body.co-ora-body .si-stage .oracle-rec-grid-wrap, .co-ora-skin .oracle-rec-grid-wrap,
+/* جدول بنود طلب الشراء — عرض مضغوط (الوضع الطبيعي) */
+body.co-ora-body .si-stage #co-lines.si-lines--co,
+.co-ora-skin #co-lines.si-lines--co {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+body.co-ora-body .si-stage #co-lines col.co-c-qty-k,
+body.co-ora-body .si-stage #co-lines col.co-c-qty-q,
+body.co-ora-body .si-stage #co-lines col.co-c-extra-k,
+body.co-ora-body .si-stage #co-lines col.co-c-extra-q,
+.co-ora-skin #co-lines col.co-c-qty-k,
+.co-ora-skin #co-lines col.co-c-qty-q,
+.co-ora-skin #co-lines col.co-c-extra-k,
+.co-ora-skin #co-lines col.co-c-extra-q {
+  width: 3.1rem !important;
+}
+
+body.co-ora-body .si-stage #co-lines col.co-c-price-k,
+body.co-ora-body .si-stage #co-lines col.co-c-price-q,
+.co-ora-skin #co-lines col.co-c-price-k,
+.co-ora-skin #co-lines col.co-c-price-q {
+  width: 5.4rem !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-qty-pair,
+.co-ora-skin #co-lines .co-qty-pair {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 4px !important;
+  align-items: center !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-qty-slot,
+.co-ora-skin #co-lines .co-qty-slot {
+  flex-direction: row !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+  gap: 3px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-qty-slot input,
+.co-ora-skin #co-lines .co-qty-slot input {
+  max-width: 3rem !important;
+  min-width: 2.6rem !important;
+  width: 2.85rem !important;
+  min-height: 1.45rem !important;
+  height: 1.5rem !important;
+  font-size: 12px !important;
+  padding: 0 3px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-price-box,
+.co-ora-skin #co-lines .co-price-box {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 4px !important;
+  align-items: center !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-price-side,
+.co-ora-skin #co-lines .co-price-side {
+  flex-direction: row !important;
+  align-items: center !important;
+  padding: 2px 4px !important;
+  border-radius: 4px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-price-side__vals,
+.co-ora-skin #co-lines .co-price-side__vals {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 3px !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-price-chip,
+.co-ora-skin #co-lines .co-price-chip {
+  flex-direction: row !important;
+  gap: 2px !important;
+  padding: 1px 3px !important;
+}
+
+
 body.co-ora-body .si-stage .si-lines-wrap , .co-ora-skin .si-lines-wrap {
   border: 1px solid #000 !important;
   border-radius: 0 !important;
@@ -1252,6 +1546,18 @@ body.co-ora-body #co-batch-modal {
   color: #5c4500 !important;
 }
 
+.co-ora-body .co-batch-warn--undefined,
+.co-ora-body .co-batch-row--undefined .co-batch-warn {
+  background: #ffe8e8 !important;
+  border-color: #c04040 !important;
+  color: #7a1010 !important;
+  font-weight: 700 !important;
+}
+
+.co-ora-body .co-batch-row--undefined td {
+  background: #fff0f0 !important;
+}
+
 .co-ora-body .co-batch-foot {
   background: linear-gradient(180deg, #f0f0f0 0%, #d8d8d8 100%) !important;
   border-top: 1px solid #888 !important;
@@ -1303,4 +1609,114 @@ body.co-ora-body .si-stage .si-msg.ok , .co-ora-skin .si-msg.ok {
 body.co-ora-body .si-stage .si-msg.is-error, .co-ora-skin .si-msg.is-error,
 body.co-ora-body .si-stage .si-msg.err , .co-ora-skin .si-msg.err {
   color: #7f1d1d !important;
+}
+
+/* ═══ #co-lines — POS dense grid (Oracle CO screen; overrides above .si-lines rules) ═══ */
+body.co-ora-body .si-stage .si-lines-wrap:has(#co-lines),
+.co-ora-skin .si-lines-wrap:has(#co-lines) {
+  border: 1px solid #2c3a4a !important;
+  background: #fff !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co thead th,
+.co-ora-skin #co-lines.si-lines--co thead th {
+  background: #3d5068 !important;
+  color: #fff !important;
+  border: 1px solid #2c3a4a !important;
+  padding: 2px 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+}
+
+body.co-ora-body .si-stage #co-lines thead .co-group-head,
+.co-ora-skin #co-lines thead .co-group-head {
+  color: #fff !important;
+  background: #3d5068 !important;
+}
+
+body.co-ora-body .si-stage #co-lines thead .co-unit-sub,
+.co-ora-skin #co-lines thead .co-unit-sub {
+  color: #c5d0dc !important;
+  background: #35485e !important;
+  border-color: #2c3a4a !important;
+  font-size: 9px !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co tbody td,
+.co-ora-skin #co-lines.si-lines--co tbody td {
+  border: 1px solid #c5cad2 !important;
+  padding: 0 2px !important;
+  height: 28px !important;
+  max-height: 28px !important;
+  background: #fff;
+  font-weight: 600 !important;
+  vertical-align: middle !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co tbody tr:nth-child(even) td,
+.co-ora-skin #co-lines.si-lines--co tbody tr:nth-child(even) td {
+  background: #f2f4f7 !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co tbody tr:hover td,
+.co-ora-skin #co-lines.si-lines--co tbody tr:hover td {
+  background: #e5edf7 !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co input,
+body.co-ora-body .si-stage #co-lines.si-lines--co select,
+.co-ora-skin #co-lines.si-lines--co input,
+.co-ora-skin #co-lines.si-lines--co select {
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  padding: 0 3px !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  outline: none !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co input.js-item-name,
+.co-ora-skin #co-lines.si-lines--co input.js-item-name {
+  font-size: 10px !important;
+}
+
+body.co-ora-body .si-stage #co-lines.si-lines--co input:focus,
+body.co-ora-body .si-stage #co-lines.si-lines--co select:focus,
+.co-ora-skin #co-lines.si-lines--co input:focus,
+.co-ora-skin #co-lines.si-lines--co select:focus {
+  background: #d4e8fc !important;
+  outline: none !important;
+}
+
+body.co-ora-body .si-stage #co-lines .co-qty-slot,
+body.co-ora-body .si-stage #co-lines .co-price-side,
+body.co-ora-body .si-stage #co-lines .co-price-chip,
+.co-ora-skin #co-lines .co-qty-slot,
+.co-ora-skin #co-lines .co-price-side,
+.co-ora-skin #co-lines .co-price-chip {
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+body.co-ora-body .si-stage #co-lines td.si-num-out,
+body.co-ora-body .si-stage #co-lines td.si-row-num,
+body.co-ora-body .si-stage #co-lines td.js-sub,
+body.co-ora-body .si-stage #co-lines td.js-gross,
+.co-ora-skin #co-lines td.si-num-out,
+.co-ora-skin #co-lines td.si-row-num,
+.co-ora-skin #co-lines td.js-sub,
+.co-ora-skin #co-lines td.js-gross {
+  border: 1px solid #c5cad2 !important;
+  height: 28px !important;
+  min-height: 26px !important;
+  padding: 0 3px !important;
+  text-align: center !important;
+  font-size: 11px !important;
 }

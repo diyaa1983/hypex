@@ -3,6 +3,24 @@
 
   var root = document.getElementById('co-initial');
   if (!root) return;
+  (function mountCoDocBarInCaption() {
+    var bar = document.getElementById('co-doc-bar');
+    if (!bar) return;
+    var captions = document.querySelectorAll('.oracle-rec-block-caption');
+    var cap = null;
+    for (var i = 0; i < captions.length; i++) {
+      var h2 = captions[i].querySelector('h2');
+      if (h2 && String(h2.textContent || '').trim() === 'بيانات المستند') {
+        cap = captions[i];
+        break;
+      }
+    }
+    if (!cap) cap = captions[0] || null;
+    if (!cap) return;
+    bar.classList.remove('co-doc-bar--in-title');
+    bar.classList.add('co-doc-bar--in-caption');
+    cap.appendChild(bar);
+  })();
 
   var state = JSON.parse(root.textContent || '{}');
 
@@ -670,95 +688,103 @@
     return ln;
   }
 
-  function priceBoxHtml(ln) {
-    var units = splitUnits(ln);
+  function priceChipsHtml(ln, unit) {
     var tax = Number(ln.tax_rate_percent);
     if (!Number.isFinite(tax)) tax = Number(defaultTax) || 0;
+    var ex = unit ? unitPriceOf(ln, unit) : 0;
+    var inc = r3(ex * (1 + tax / 100));
     function money(n) {
       return escAttr(fmt(n || 0));
     }
-    function chip(kind, amount) {
+    function chip(title, amount) {
       return (
-        '<span class="co-price-chip"><i>' +
-        kind +
-        '</i><em dir="ltr">' +
+        '<span class="co-price-chip" title="' +
+        escAttr(title) +
+        '"><em dir="ltr">' +
         money(amount) +
         '</em></span>'
       );
     }
-    function side(label, unit) {
-      var ex = unit ? unitPriceOf(ln, unit) : 0;
-      var inc = r3(ex * (1 + tax / 100));
-      return (
-        '<span class="co-price-side">' +
-        '<b>' +
-        escAttr(label) +
-        '</b>' +
-        '<span class="co-price-side__vals">' +
-        chip('غ.ش', ex) +
-        chip('ش', inc) +
-        '</span></span>'
-      );
-    }
-    var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
     return (
-      '<div class="co-price-box">' +
-      side('كرت', units.carton) +
-      side('قط', units.piece) +
-      '<input type="hidden" class="js-price" value="' +
-      escAttr(pieceEx) +
-      '">' +
-      '</div>'
+      '<span class="co-price-side co-price-side--compact" dir="ltr">' +
+      '<span class="co-price-side__vals">' +
+      chip('غير شامل', ex) +
+      chip('شامل', inc) +
+      '</span></span>'
     );
   }
 
-  function qtyPairHtml(ln, kind, locked) {
+  function priceSideHtml(ln, side, withHidden) {
+    var units = splitUnits(ln);
+    var unit = side === 'carton' ? units.carton : units.piece;
+    var html = priceChipsHtml(ln, unit);
+    if (withHidden) {
+      var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
+      html +=
+        '<input type="hidden" class="js-price" value="' + escAttr(pieceEx) + '">';
+    }
+    return html;
+  }
+
+  function patchPriceCells(tr, ln) {
+    if (!tr || !ln) return;
+    var pk = tr.querySelector('.co-price-cell--k');
+    var pq = tr.querySelector('.co-price-cell--q');
+    if (pk) pk.innerHTML = priceSideHtml(ln, 'carton', false);
+    if (pq) pq.innerHTML = priceSideHtml(ln, 'piece', true);
+  }
+
+  function qtySlotHtml(ln, kind, slot, locked) {
     var units = splitUnits(ln);
     var piece = units.piece;
     var carton = units.carton;
     if (carton && piece && sameUnit(carton, piece)) carton = null;
     var extra = kind === 'extra';
     var ro = locked ? 'readonly' : '';
-    function one(label, cls, unit, slotKey, fallback) {
-      var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
-      var key = unit ? unitKey(unit) : slotKey;
-      return (
-        '<label class="co-qty-slot" title="' +
-        escAttr(label === 'ك' ? 'كرتونة' : label === 'ق' ? 'قطعة' : label) +
-        '">' +
-        '<span class="co-qty-slot__lab">' +
-        escAttr(label) +
-        '</span>' +
-        '<input class="' +
-        cls +
-        '" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
-        escAttr(key) +
-        '" placeholder="0" value="' +
-        escAttr(userNumAttr(val)) +
-        '" ' +
-        ro +
-        '>' +
-        '</label>'
-      );
-    }
+    var unit = slot === 'carton' ? carton : piece;
     var pieceCls = extra ? 'js-uextra js-extra-piece' : 'js-uqty js-qty-piece js-qty';
     var cartonCls = extra ? 'js-uextra js-extra-carton' : 'js-uqty js-qty-carton';
+    var cls = slot === 'carton' ? cartonCls : pieceCls;
+    var fallback =
+      slot === 'carton'
+        ? extra
+          ? ln.extra_carton
+          : ln.qty_carton
+        : extra
+          ? ln.extra_piece
+          : ln.qty_piece;
+    var slotKey = slot === 'carton' ? 'slot:carton' : 'slot:piece';
+    var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
+    var key = unit ? unitKey(unit) : slotKey;
+    var title = slot === 'carton' ? 'كرتونة' : 'قطعة';
     return (
-      '<div class="co-qty-pair" title="' +
-      (extra ? 'الكمية المجانية' : 'الكمية') +
-      '">' +
-      one(
-        'ك',
-        cartonCls,
-        carton,
-        'slot:carton',
-        extra ? ln.extra_carton : ln.qty_carton
-      ) +
-      one('ق', pieceCls, piece, 'slot:piece', extra ? ln.extra_piece : ln.qty_piece) +
-      '</div>'
+      '<input class="' +
+      cls +
+      ' co-qty-in" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
+      escAttr(key) +
+      '" placeholder="0" title="' +
+      escAttr(title) +
+      '" value="' +
+      escAttr(userNumAttr(val)) +
+      '" ' +
+      ro +
+      '>'
     );
   }
 
+  function patchQtyCells(tr, ln) {
+    if (!tr || !ln) return;
+    var map = [
+      ['.co-qty-cell--qty-k', 'qty', 'carton'],
+      ['.co-qty-cell--qty-q', 'qty', 'piece'],
+      ['.co-qty-cell--extra-k', 'extra', 'carton'],
+      ['.co-qty-cell--extra-q', 'extra', 'piece'],
+    ];
+    map.forEach(function (entry) {
+      var cell = tr.querySelector(entry[0]);
+      if (cell) cell.innerHTML = qtySlotHtml(ln, entry[1], entry[2], locked);
+    });
+  }
   function unitSelectHtml(ln, disabled) {
     var units = Array.isArray(ln.units) && ln.units.length
       ? ln.units
@@ -1134,8 +1160,7 @@
     var grossEl = tr.querySelector('.js-gross');
     if (subEl) subEl.textContent = fmt(t.sub);
     if (grossEl) grossEl.textContent = fmt(t.gross);
-    var priceCell = tr.querySelector('.co-price-cell');
-    if (priceCell) priceCell.innerHTML = priceBoxHtml(ln);
+    patchPriceCells(tr, ln);
     recomputeFooter();
   }
 
@@ -1258,14 +1283,23 @@
         '<td class="si-unit-cell co-pack-cell" dir="ltr">' +
         cartonPackText(ln) +
         '</td>' +
-        '<td class="co-qty-cell">' +
-        qtyPairHtml(ln, 'qty', locked) +
+        '<td class="co-qty-cell co-qty-cell--qty-k">' +
+        qtySlotHtml(ln, 'qty', 'carton', locked) +
         '</td>' +
-        '<td class="co-qty-cell">' +
-        qtyPairHtml(ln, 'extra', locked) +
+        '<td class="co-qty-cell co-qty-cell--qty-q">' +
+        qtySlotHtml(ln, 'qty', 'piece', locked) +
         '</td>' +
-        '<td class="co-price-cell">' +
-        priceBoxHtml(ln) +
+        '<td class="co-qty-cell co-qty-cell--extra-k">' +
+        qtySlotHtml(ln, 'extra', 'carton', locked) +
+        '</td>' +
+        '<td class="co-qty-cell co-qty-cell--extra-q">' +
+        qtySlotHtml(ln, 'extra', 'piece', locked) +
+        '</td>' +
+        '<td class="co-price-cell co-price-cell--k">' +
+        priceSideHtml(ln, 'carton', false) +
+        '</td>' +
+        '<td class="co-price-cell co-price-cell--q">' +
+        priceSideHtml(ln, 'piece', true) +
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
@@ -1400,13 +1434,8 @@
     }
     var packEl = tr.querySelector('.co-pack-cell');
     if (packEl) packEl.textContent = cartonPackText(ln);
-    var qtyCell = tr.querySelectorAll('.co-qty-cell');
-    if (qtyCell.length >= 2) {
-      qtyCell[0].innerHTML = qtyPairHtml(ln, 'qty', locked);
-      qtyCell[1].innerHTML = qtyPairHtml(ln, 'extra', locked);
-    }
-    var priceCell = tr.querySelector('.co-price-cell');
-    if (priceCell) priceCell.innerHTML = priceBoxHtml(ln);
+    patchQtyCells(tr, ln);
+    patchPriceCells(tr, ln);
     var discEl = tr.querySelector('.js-disc');
     if (discEl && ln.discount_pct != null) discEl.value = userNumAttr(ln.discount_pct);
     var taxEl = tr.querySelector('.js-tax');
@@ -2948,7 +2977,9 @@
         setMsg('تم الحفظ · ' + (data.order_no || ''), 'ok');
         clearFormDirty();
         if (data.order_no) {
-          var titleEl = document.getElementById('co-screen-title');
+          var titleEl = document.querySelector(
+            '.hx-ora-screen-title .dashboard-ora-screen-title__text'
+          );
           if (titleEl) titleEl.textContent = 'طلب شراء عميل';
         }
         if (data.id && Number(data.id) !== Number(state.id || 0)) {

@@ -7,7 +7,7 @@ const invSvc = require('./invoicesService');
 const { renderApp } = require('../lib/layout');
 const { esc, fmtAmt, isoToDmy, todayIso } = require('../lib/html');
 const { ensurePrintBrand, renderStandalonePrintPage } = require('../lib/printBrand');
-const { oracleStatementUrl, linesColgroup } = require('../lib/salesUi');
+const { oracleStatementUrl, coLinesColgroup } = require('../lib/salesUi');
 
 const router = express.Router();
 
@@ -143,9 +143,7 @@ function toolbarHtml(caps, order, badgeHtml = '') {
   return `
     <div class="si-cmd si-doc-toolbar co-unified-bar" id="co-doc-bar" role="toolbar" aria-label="إجراءات طلب الشراء"
          data-order-id="${id}" data-approved="${locked ? '1' : '0'}">
-      <div class="si-tb-group si-tb-group--identity">
-        <h1 class="si-doc-screen-title" id="co-screen-title">طلب شراء عميل</h1>
-        <label class="si-f si-f--docno si-f--docno-top">
+      <div class="si-tb-group si-tb-group--identity">        <label class="si-f si-f--docno si-f--docno-top">
           <span class="si-f-head">رقم الطلب</span>
           <div class="si-docno-row" dir="ltr">
             <button type="button" class="si-btn si-docno-btn" id="co_first" title="أول طلب">«</button>
@@ -646,22 +644,30 @@ async function renderForm(req, res, orderId) {
         </div>
         <div class="si-lines-wrap oracle-rec-grid-wrap">
           <table class="si-lines si-lines--co oracle-rec-grid" id="co-lines">
-            ${linesColgroup()}
+            ${coLinesColgroup()}
             <thead>
-              <tr>
-                <th>#</th>
-                <th>رقم المادة</th>
-                <th>الباركود</th>
-                <th>اسم المادة</th>
-                <th class="co-unit-head">التعبئة</th>
-                <th>الكمية</th>
-                <th>مجاني</th>
-                <th>السعر</th>
-                <th>خصم %</th>
-                <th>ضريبة %</th>
-                <th>الصافي</th>
-                <th>الإجمالي</th>
-                <th class="si-col-del" title="حذف">حذف</th>
+              <tr class="co-lines-head co-lines-head--group">
+                <th rowspan="2">#</th>
+                <th rowspan="2">رقم المادة</th>
+                <th rowspan="2">الباركود</th>
+                <th rowspan="2">اسم المادة</th>
+                <th rowspan="2" class="co-unit-head">التعبئة</th>
+                <th colspan="2" class="co-group-head">الكمية</th>
+                <th colspan="2" class="co-group-head">مجاني</th>
+                <th colspan="2" class="co-group-head">السعر</th>
+                <th rowspan="2">خصم %</th>
+                <th rowspan="2">ضريبة %</th>
+                <th rowspan="2">الصافي</th>
+                <th rowspan="2">الإجمالي</th>
+                <th rowspan="2" class="si-col-del" title="حذف">حذف</th>
+              </tr>
+              <tr class="co-lines-head co-lines-head--units">
+                <th class="co-unit-sub" title="كرتونة">ك</th>
+                <th class="co-unit-sub" title="قطعة">ق</th>
+                <th class="co-unit-sub" title="كرتونة">ك</th>
+                <th class="co-unit-sub" title="قطعة">ق</th>
+                <th class="co-unit-sub" title="كرتونة">كرت</th>
+                <th class="co-unit-sub" title="قطعة">قط</th>
               </tr>
             </thead>
             <tbody id="co-lines-body"></tbody>

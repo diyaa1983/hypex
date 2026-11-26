@@ -2374,29 +2374,35 @@ label .si-field-key {
 #co-lines.si-lines--co th:nth-child(6),
 #co-lines.si-lines--co td:nth-child(6),
 #co-lines.si-lines--co th:nth-child(7),
-#co-lines.si-lines--co td:nth-child(7) {
-  width: 6.6rem;
-}
+#co-lines.si-lines--co td:nth-child(7),
 #co-lines.si-lines--co th:nth-child(8),
-#co-lines.si-lines--co td:nth-child(8) {
-  width: 9.6rem;
-}
+#co-lines.si-lines--co td:nth-child(8),
 #co-lines.si-lines--co th:nth-child(9),
 #co-lines.si-lines--co td:nth-child(9) {
-  width: 3.2rem;
+  width: 3.1rem;
 }
 #co-lines.si-lines--co th:nth-child(10),
-#co-lines.si-lines--co td:nth-child(10) {
-  width: 3.6rem;
-}
+#co-lines.si-lines--co td:nth-child(10),
 #co-lines.si-lines--co th:nth-child(11),
-#co-lines.si-lines--co td:nth-child(11),
+#co-lines.si-lines--co td:nth-child(11) {
+  width: 5.4rem;
+}
 #co-lines.si-lines--co th:nth-child(12),
 #co-lines.si-lines--co td:nth-child(12) {
+  width: 3.2rem;
+}
+#co-lines.si-lines--co th:nth-child(13),
+#co-lines.si-lines--co td:nth-child(13) {
+  width: 3.6rem;
+}
+#co-lines.si-lines--co th:nth-child(14),
+#co-lines.si-lines--co td:nth-child(14),
+#co-lines.si-lines--co th:nth-child(15),
+#co-lines.si-lines--co td:nth-child(15) {
   width: 4.2rem;
 }
-.si-lines.si-lines--co th:nth-child(12),
-.si-lines.si-lines--co td:nth-child(12) {
+#co-lines.si-lines--co th:nth-child(16),
+#co-lines.si-lines--co td:nth-child(16) {
   width: 2.8rem;
 }
 
@@ -3766,45 +3772,48 @@ body.ic-pick-lock {
   overflow: hidden !important;
   visibility: hidden !important;
 }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(6),
+﻿.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(6),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(6),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(7),
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(7) {
-  width: 6.6rem;
+  width: 7.5rem;
 }
-/* الوضع الطبيعي: كمية/مجاني/سعر مضغوطة بالعرض */
+/* الوضع الطبيعي: كمية/مجاني/سعر — سطر أفقي واحد مضغوط */
 .si-lines--co .co-qty-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
   width: 100%;
   margin: 0;
-  align-items: stretch;
+  align-items: center;
 }
 .si-lines--co .co-qty-slot {
   display: flex;
   flex-direction: row;
   align-items: center;
-  justify-content: space-between;
-  gap: 2px;
+  justify-content: flex-start;
+  gap: 3px;
   min-width: 0;
+  flex: 1 1 0;
   margin: 0;
-  padding: 1px 2px;
+  padding: 2px 4px;
   border: 1px solid #c5d0de;
   border-radius: 4px;
   background: #f4f7fb;
-  line-height: 1;
+  line-height: 1.1;
   text-align: center;
   cursor: text;
 }
 .si-lines--co .co-qty-slot__lab {
-  display: block;
+  display: inline;
   flex: 0 0 auto;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   color: #1e3a5f;
   letter-spacing: 0;
   white-space: nowrap;
+  line-height: 1;
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell {
   overflow: visible !important;
@@ -3812,23 +3821,23 @@ body.ic-pick-lock {
   text-overflow: clip;
   text-align: center;
   vertical-align: middle;
-  padding: 0.12rem 0.1rem !important;
+  padding: 0.15rem 0.12rem !important;
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell .co-qty-slot input {
   display: block;
-  flex: 1 1 auto;
-  width: 100% !important;
-  min-width: 0 !important;
-  max-width: 2.6rem !important;
-  height: 1.35rem;
-  min-height: 1.35rem !important;
+  flex: 0 1 auto;
+  width: 2.85rem !important;
+  min-width: 2.6rem !important;
+  max-width: 3rem !important;
+  height: 1.5rem;
+  min-height: 1.45rem !important;
   margin: 0;
-  padding: 0 2px !important;
+  padding: 0 3px !important;
   border: 1px solid #94a3b8 !important;
   border-radius: 3px !important;
   background: #fff !important;
   text-align: center;
-  font-size: 11px !important;
+  font-size: 12px !important;
   font-weight: 800;
   color: #0f172a;
   box-shadow: none;
@@ -3838,73 +3847,70 @@ body.ic-pick-lock {
   background: #fff !important;
   box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.2);
 }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty,
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra { width: 6.6rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(6),
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(6),
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(7),
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(7) {
-  width: 6.6rem;
-}
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price { width: 9.6rem; }
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) th:nth-child(8),
-.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td:nth-child(8) {
-  width: 9.6rem;
-}
+
 .si-lines--co .co-price-box {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  gap: 4px;
   width: 100%;
-  align-items: stretch;
+  align-items: center;
 }
 .si-lines--co .co-price-side {
   display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 1px;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
   min-width: 0;
-  padding: 1px 2px 2px;
+  flex: 1 1 0;
+  padding: 2px 4px;
   border: 1px solid #c5d0de;
   border-radius: 4px;
   background: #f4f7fb;
 }
 .si-lines--co .co-price-side > b {
-  display: block;
+  display: inline;
+  flex: 0 0 auto;
   text-align: center;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   color: #1e3a5f;
   line-height: 1.1;
+  white-space: nowrap;
 }
 .si-lines--co .co-price-side__vals {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .si-lines--co .co-price-chip {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: 2px;
   min-width: 0;
-  padding: 0 1px;
+  padding: 1px 3px;
   border-radius: 3px;
   background: #fff;
   border: 1px solid #d5deea;
-  line-height: 1.05;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 .si-lines--co .co-price-chip i {
   font-style: normal;
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 800;
   color: #64748b;
 }
 .si-lines--co .co-price-chip em {
   font-style: normal;
   font-weight: 800;
-  font-size: 10px;
+  font-size: 11px;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
@@ -3914,7 +3920,7 @@ body.ic-pick-lock {
   overflow: visible !important;
   text-overflow: clip;
   vertical-align: middle;
-  padding: 0.1rem 0.08rem !important;
+  padding: 0.15rem 0.12rem !important;
 }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-disc { width: 3.2rem; }
 .si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-tax { width: 3.6rem; }
@@ -4040,4 +4046,301 @@ body.ic-pick-lock {
   margin: 0 auto;
 }
 
+/* ——— طلب شراء: رأس ثن الصف + أعمدة ك/ق منفصلة ——— */
+#co-lines thead .co-group-head {
+  font-size: 0.72rem;
+  padding: 0.18rem 0.12rem;
+  line-height: 1.15;
+}
+#co-lines thead .co-unit-sub {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.1rem 0.08rem;
+  line-height: 1.1;
+  color: #1e3a5f;
+  text-align: center;
+}
+#co-lines .co-qty-slot__lab,
+#co-lines .co-price-side > b {
+  display: none !important;
+}
+.si-lines--co .co-price-side--compact {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty-k,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-qty-q,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra-k,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-extra-q {
+  width: 3.1rem;
+}
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price-k,
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) col.co-c-price-q {
+  width: 5.4rem;
+}
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell .co-qty-in {
+  display: block;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 1.45rem;
+  min-height: 1.4rem !important;
+  margin: 0;
+  padding: 0 3px !important;
+  border: 1px solid #94a3b8 !important;
+  border-radius: 3px !important;
+  background: #fff !important;
+  text-align: center;
+  font-size: 12px !important;
+  font-weight: 800;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell .co-qty-in:focus {
+  border-color: #0284c7 !important;
+  box-shadow: 0 0 0 1px rgba(2, 132, 199, 0.2);
+}
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-qty-cell {
+  padding: 0.08rem 0.06rem !important;
+  white-space: nowrap !important;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.si-lines.si-lines--co:not(.si-lines--so):not(.si-lines--pa) td.co-price-cell {
+  padding: 0.08rem 0.05rem !important;
+  vertical-align: middle;
+}
 
+/* ═══ #co-lines — POS dense single-line (Hypex columns, style only) ═══ */
+#co-lines.si-lines--co {
+  border-collapse: collapse !important;
+  border-spacing: 0 !important;
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+#co-lines.si-lines--co thead th {
+  background: #3d5068 !important;
+  color: #fff !important;
+  border: 1px solid #2c3a4a !important;
+  padding: 2px 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1.15 !important;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+#co-lines thead .co-group-head {
+  color: #fff !important;
+  background: #3d5068 !important;
+  padding: 1px 3px !important;
+  font-size: 10px !important;
+}
+
+#co-lines thead .co-unit-sub {
+  color: #c5d0dc !important;
+  background: #35485e !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  padding: 1px 2px !important;
+  border-color: #2c3a4a !important;
+}
+
+#co-lines.si-lines--co tbody td {
+  border: 1px solid #c5cad2 !important;
+  padding: 0 2px !important;
+  height: 28px;
+  max-height: 28px;
+  vertical-align: middle;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+#co-lines.si-lines--co tbody tr:nth-child(even) td {
+  background: #f2f4f7 !important;
+}
+
+#co-lines.si-lines--co tbody tr:nth-child(odd) td {
+  background: #fff !important;
+}
+
+#co-lines.si-lines--co tbody tr:hover td {
+  background: #e5edf7 !important;
+}
+
+#co-lines.si-lines--co input:not([type='hidden']),
+#co-lines.si-lines--co select {
+  display: block;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  height: 26px !important;
+  min-height: 26px !important;
+  max-height: 26px !important;
+  margin: 0 !important;
+  padding: 0 3px !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  color: #111 !important;
+  outline: none !important;
+}
+
+#co-lines.si-lines--co td.co-qty-cell .co-qty-in,
+#co-lines.si-lines--co td.co-qty-cell input[type='number'] {
+  text-align: center !important;
+  direction: ltr !important;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700 !important;
+}
+
+#co-lines.si-lines--co input:focus,
+#co-lines.si-lines--co select:focus {
+  background: #d4e8fc !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+#co-lines.si-lines--co input[readonly],
+#co-lines.si-lines--co select:disabled {
+  background: transparent !important;
+  color: #333 !important;
+}
+
+#co-lines .co-qty-pair,
+#co-lines .co-qty-slot,
+#co-lines .co-price-box,
+#co-lines .co-price-side,
+#co-lines .co-price-side--compact {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 0 !important;
+  width: 100% !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+#co-lines .co-price-side__vals {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  flex-wrap: nowrap !important;
+}
+
+#co-lines .co-price-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+#co-lines .co-price-chip i {
+  display: none !important;
+}
+
+#co-lines .co-price-chip em {
+  font-style: normal !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  font-variant-numeric: tabular-nums;
+  color: #111 !important;
+}
+
+#co-lines .co-price-chip + .co-price-chip::before {
+  content: '/';
+  color: #8a96a6;
+  font-size: 9px;
+  font-weight: 400;
+  margin-inline-end: 1px;
+}
+
+#co-lines td.co-qty-cell,
+#co-lines td.co-price-cell {
+  text-align: center !important;
+  padding: 0 1px !important;
+}
+
+#co-lines td.si-num-out,
+#co-lines td.js-sub,
+#co-lines td.js-gross {
+  text-align: center !important;
+  direction: ltr;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  border: 1px solid #c5cad2 !important;
+  background: transparent !important;
+}
+
+#co-lines td.si-row-num {
+  text-align: center !important;
+  color: #556 !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+#co-lines td.co-pack-cell {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+}
+
+#co-lines .si-item-name-cell input.js-item-name {
+  font-size: 10px !important;
+  font-weight: 600 !important;
+}
+
+#co-lines td.si-col-del,
+#co-lines th.si-col-del {
+  box-shadow: none !important;
+  background: inherit !important;
+}
+
+#co-lines.si-lines--co tbody tr:nth-child(even) td.si-col-del {
+  background: #f2f4f7 !important;
+}
+
+#co-lines.si-lines--co tbody tr:nth-child(odd) td.si-col-del {
+  background: #fff !important;
+}
+
+#co-lines .si-item-sku-wrap,
+#co-lines .hx-lov-wrap {
+  min-height: 26px !important;
+  height: 26px !important;
+  background: transparent !important;
+  border: none !important;
+}
+
+#co-lines .si-item-pick,
+#co-lines .hx-lov-btn {
+  height: 26px !important;
+  min-height: 26px !important;
+  border: none !important;
+  border-inline-start: 1px solid #d8dde5 !important;
+  background: transparent !important;
+}

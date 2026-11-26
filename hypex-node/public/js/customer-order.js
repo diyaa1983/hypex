@@ -3,6 +3,24 @@
 
   var root = document.getElementById('co-initial');
   if (!root) return;
+  (function mountCoDocBarInCaption() {
+    var bar = document.getElementById('co-doc-bar');
+    if (!bar) return;
+    var captions = document.querySelectorAll('.oracle-rec-block-caption');
+    var cap = null;
+    for (var i = 0; i < captions.length; i++) {
+      var h2 = captions[i].querySelector('h2');
+      if (h2 && String(h2.textContent || '').trim() === 'بيانات المستند') {
+        cap = captions[i];
+        break;
+      }
+    }
+    if (!cap) cap = captions[0] || null;
+    if (!cap) return;
+    bar.classList.remove('co-doc-bar--in-title');
+    bar.classList.add('co-doc-bar--in-caption');
+    cap.appendChild(bar);
+  })();
 
   var state = JSON.parse(root.textContent || '{}');
 
@@ -670,93 +688,103 @@
     return ln;
   }
 
-  function priceBoxHtml(ln) {
-    var units = splitUnits(ln);
+  function priceChipsHtml(ln, unit) {
     var tax = Number(ln.tax_rate_percent);
     if (!Number.isFinite(tax)) tax = Number(defaultTax) || 0;
+    var ex = unit ? unitPriceOf(ln, unit) : 0;
+    var inc = r3(ex * (1 + tax / 100));
     function money(n) {
       return escAttr(fmt(n || 0));
     }
-    function chip(kind, amount) {
+    function chip(title, amount) {
       return (
-        '<span class="co-price-chip"><i>' +
-        kind +
-        '</i><em dir="ltr">' +
+        '<span class="co-price-chip" title="' +
+        escAttr(title) +
+        '"><em dir="ltr">' +
         money(amount) +
         '</em></span>'
       );
     }
-    function side(label, unit) {
-      var ex = unit ? unitPriceOf(ln, unit) : 0;
-      var inc = r3(ex * (1 + tax / 100));
-      return (
-        '<span class="co-price-side">' +
-        '<b>' +
-        escAttr(label) +
-        '</b>' +
-        '<span class="co-price-side__vals">' +
-        chip('غ.ش', ex) +
-        chip('ش', inc) +
-        '</span></span>'
-      );
-    }
-    var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
     return (
-      '<div class="co-price-box">' +
-      side('كرتونة', units.carton) +
-      side('قطعة', units.piece) +
-      '<input type="hidden" class="js-price" value="' +
-      escAttr(pieceEx) +
-      '">' +
-      '</div>'
+      '<span class="co-price-side co-price-side--compact" dir="ltr">' +
+      '<span class="co-price-side__vals">' +
+      chip('غير شامل', ex) +
+      chip('شامل', inc) +
+      '</span></span>'
     );
   }
 
-  function qtyPairHtml(ln, kind, locked) {
+  function priceSideHtml(ln, side, withHidden) {
+    var units = splitUnits(ln);
+    var unit = side === 'carton' ? units.carton : units.piece;
+    var html = priceChipsHtml(ln, unit);
+    if (withHidden) {
+      var pieceEx = unitPriceOf(ln, units.piece) || Number(ln.unit_price) || 0;
+      html +=
+        '<input type="hidden" class="js-price" value="' + escAttr(pieceEx) + '">';
+    }
+    return html;
+  }
+
+  function patchPriceCells(tr, ln) {
+    if (!tr || !ln) return;
+    var pk = tr.querySelector('.co-price-cell--k');
+    var pq = tr.querySelector('.co-price-cell--q');
+    if (pk) pk.innerHTML = priceSideHtml(ln, 'carton', false);
+    if (pq) pq.innerHTML = priceSideHtml(ln, 'piece', true);
+  }
+
+  function qtySlotHtml(ln, kind, slot, locked) {
     var units = splitUnits(ln);
     var piece = units.piece;
     var carton = units.carton;
     if (carton && piece && sameUnit(carton, piece)) carton = null;
     var extra = kind === 'extra';
     var ro = locked ? 'readonly' : '';
-    function one(label, cls, unit, slotKey, fallback) {
-      var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
-      var key = unit ? unitKey(unit) : slotKey;
-      return (
-        '<label class="co-qty-slot">' +
-        '<span class="co-qty-slot__lab">' +
-        escAttr(label) +
-        '</span>' +
-        '<input class="' +
-        cls +
-        '" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
-        escAttr(key) +
-        '" placeholder="0" value="' +
-        escAttr(userNumAttr(val)) +
-        '" ' +
-        ro +
-        '>' +
-        '</label>'
-      );
-    }
+    var unit = slot === 'carton' ? carton : piece;
     var pieceCls = extra ? 'js-uextra js-extra-piece' : 'js-uqty js-qty-piece js-qty';
     var cartonCls = extra ? 'js-uextra js-extra-carton' : 'js-uqty js-qty-carton';
+    var cls = slot === 'carton' ? cartonCls : pieceCls;
+    var fallback =
+      slot === 'carton'
+        ? extra
+          ? ln.extra_carton
+          : ln.qty_carton
+        : extra
+          ? ln.extra_piece
+          : ln.qty_piece;
+    var slotKey = slot === 'carton' ? 'slot:carton' : 'slot:piece';
+    var val = unit ? qtyOf(ln, unit, extra ? 'extra' : 'qty') : fallback;
+    var key = unit ? unitKey(unit) : slotKey;
+    var title = slot === 'carton' ? 'كرتونة' : 'قطعة';
     return (
-      '<div class="co-qty-pair" title="' +
-      (extra ? 'الكمية المجانية' : 'الكمية') +
-      '">' +
-      one(
-        'كرتونة',
-        cartonCls,
-        carton,
-        'slot:carton',
-        extra ? ln.extra_carton : ln.qty_carton
-      ) +
-      one('قطعة', pieceCls, piece, 'slot:piece', extra ? ln.extra_piece : ln.qty_piece) +
-      '</div>'
+      '<input class="' +
+      cls +
+      ' co-qty-in" type="number" step="1" min="0" inputmode="numeric" data-nav="1" data-unit-key="' +
+      escAttr(key) +
+      '" placeholder="0" title="' +
+      escAttr(title) +
+      '" value="' +
+      escAttr(userNumAttr(val)) +
+      '" ' +
+      ro +
+      '>'
     );
   }
 
+  function patchQtyCells(tr, ln) {
+    if (!tr || !ln) return;
+    var map = [
+      ['.co-qty-cell--qty-k', 'qty', 'carton'],
+      ['.co-qty-cell--qty-q', 'qty', 'piece'],
+      ['.co-qty-cell--extra-k', 'extra', 'carton'],
+      ['.co-qty-cell--extra-q', 'extra', 'piece'],
+    ];
+    map.forEach(function (entry) {
+      var cell = tr.querySelector(entry[0]);
+      if (cell) cell.innerHTML = qtySlotHtml(ln, entry[1], entry[2], locked);
+    });
+  }
   function unitSelectHtml(ln, disabled) {
     var units = Array.isArray(ln.units) && ln.units.length
       ? ln.units
@@ -1132,8 +1160,7 @@
     var grossEl = tr.querySelector('.js-gross');
     if (subEl) subEl.textContent = fmt(t.sub);
     if (grossEl) grossEl.textContent = fmt(t.gross);
-    var priceCell = tr.querySelector('.co-price-cell');
-    if (priceCell) priceCell.innerHTML = priceBoxHtml(ln);
+    patchPriceCells(tr, ln);
     recomputeFooter();
   }
 
@@ -1256,14 +1283,23 @@
         '<td class="si-unit-cell co-pack-cell" dir="ltr">' +
         cartonPackText(ln) +
         '</td>' +
-        '<td class="co-qty-cell">' +
-        qtyPairHtml(ln, 'qty', locked) +
+        '<td class="co-qty-cell co-qty-cell--qty-k">' +
+        qtySlotHtml(ln, 'qty', 'carton', locked) +
         '</td>' +
-        '<td class="co-qty-cell">' +
-        qtyPairHtml(ln, 'extra', locked) +
+        '<td class="co-qty-cell co-qty-cell--qty-q">' +
+        qtySlotHtml(ln, 'qty', 'piece', locked) +
         '</td>' +
-        '<td class="co-price-cell">' +
-        priceBoxHtml(ln) +
+        '<td class="co-qty-cell co-qty-cell--extra-k">' +
+        qtySlotHtml(ln, 'extra', 'carton', locked) +
+        '</td>' +
+        '<td class="co-qty-cell co-qty-cell--extra-q">' +
+        qtySlotHtml(ln, 'extra', 'piece', locked) +
+        '</td>' +
+        '<td class="co-price-cell co-price-cell--k">' +
+        priceSideHtml(ln, 'carton', false) +
+        '</td>' +
+        '<td class="co-price-cell co-price-cell--q">' +
+        priceSideHtml(ln, 'piece', true) +
         '</td>' +
         '<td><input class="js-disc" type="number" step="' +
         qtyStep() +
@@ -1398,13 +1434,8 @@
     }
     var packEl = tr.querySelector('.co-pack-cell');
     if (packEl) packEl.textContent = cartonPackText(ln);
-    var qtyCell = tr.querySelectorAll('.co-qty-cell');
-    if (qtyCell.length >= 2) {
-      qtyCell[0].innerHTML = qtyPairHtml(ln, 'qty', locked);
-      qtyCell[1].innerHTML = qtyPairHtml(ln, 'extra', locked);
-    }
-    var priceCell = tr.querySelector('.co-price-cell');
-    if (priceCell) priceCell.innerHTML = priceBoxHtml(ln);
+    patchQtyCells(tr, ln);
+    patchPriceCells(tr, ln);
     var discEl = tr.querySelector('.js-disc');
     if (discEl && ln.discount_pct != null) discEl.value = userNumAttr(ln.discount_pct);
     var taxEl = tr.querySelector('.js-tax');
@@ -2535,10 +2566,47 @@
   var custInput = document.getElementById('co_customer');
   var custId = document.getElementById('co_customer_id');
   var custBox = document.getElementById('cust_suggest');
+  var repEl = document.getElementById('co_rep');
+
+  function selectedRepId() {
+    return Number((repEl && repEl.value) || 0) || 0;
+  }
+
+  function clearCustomerPick() {
+    if (custId) custId.value = '';
+    if (custInput) custInput.value = '';
+    setCustomerPriceMode({ use_wholesale_price: 1 });
+    loadCustomerAr(0);
+  }
+
+  function syncCustomerFieldByRep() {
+    if (!custInput || locked) return;
+    var rid = selectedRepId();
+    if (rid < 1) {
+      custInput.placeholder = 'اختر المندوب أولاً ثم ابحث عن العميل…';
+      custInput.title = 'يجب اختيار المندوب لإظهار العملاء المربوطين به';
+    } else {
+      custInput.placeholder = 'ابحث بالاسم أو الرمز (عملاء المندوب فقط)…';
+      custInput.title = 'يظهر فقط العملاء المربوطون بالمندوب المختار';
+    }
+  }
 
   function searchCustomers(q) {
     if (!custBox || locked) return;
-    fetch('/api/sales/customer-orders/customers?q=' + encodeURIComponent(q || ''))
+    var rid = selectedRepId();
+    if (rid < 1) {
+      custBox.innerHTML =
+        '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b45309;font-size:.85rem">اختر المندوب أولاً لعرض العملاء المربوطين به.</div>';
+      custBox.hidden = false;
+      custBox.removeAttribute('hidden');
+      return;
+    }
+    fetch(
+      '/api/sales/customer-orders/customers?sales_rep_id=' +
+        encodeURIComponent(String(rid)) +
+        '&q=' +
+        encodeURIComponent(q || '')
+    )
       .then(function (r) {
         return r.json();
       })
@@ -2552,16 +2620,25 @@
           custBox.removeAttribute('hidden');
           return;
         }
-        custBox.innerHTML = '';
-        var rows = data.rows || [];
-        if (!rows.length) {
+        if (data.need_rep) {
           custBox.innerHTML =
-            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا يوجد عملاء مطابقون.</div>';
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#b45309;font-size:.85rem">اختر المندوب أولاً لعرض العملاء المربوطين به.</div>';
           custBox.hidden = false;
           custBox.removeAttribute('hidden');
           return;
         }
-        rows.slice(0, 25).forEach(function (c) {
+        custBox.innerHTML = '';
+        var rows = data.rows || [];
+        if (!rows.length) {
+          custBox.innerHTML =
+            '<div class="si-suggest-empty" style="padding:.65rem .8rem;color:#64748b;font-size:.85rem">لا يوجد عملاء مربوطون بهذا المندوب' +
+            (q ? ' مطابقون للبحث' : '') +
+            '.</div>';
+          custBox.hidden = false;
+          custBox.removeAttribute('hidden');
+          return;
+        }
+        rows.slice(0, 40).forEach(function (c) {
           var b = document.createElement('button');
           b.type = 'button';
           b.textContent = (c.code || '') + ' — ' + (c.name_ar || '');
@@ -2580,6 +2657,18 @@
         custBox.removeAttribute('hidden');
       });
   }
+
+  if (repEl && !locked) {
+    repEl.addEventListener('change', function () {
+      clearCustomerPick();
+      if (custBox) {
+        custBox.hidden = true;
+        custBox.setAttribute('hidden', '');
+      }
+      syncCustomerFieldByRep();
+    });
+  }
+  syncCustomerFieldByRep();
 
   if (custInput && custBox && !locked) {
     custInput.addEventListener('focus', function () {
@@ -2815,17 +2904,17 @@
   function saveOrder() {
     if (locked || busy) return Promise.resolve(null);
     var payload = collectPayload();
-    if (!payload.customer_id) {
-      hxAlert('اختر العميل.', { title: 'تنبيه', kind: 'warning' });
-      return Promise.resolve(null);
-    }
     if (!payload.sales_rep_id) {
-      hxAlert('اختر المندوب. رقم الطلب يُولَّد من رمز المندوب مثل الموبايل.', {
+      hxAlert('اختر المندوب أولاً ثم العميل المربوط به.', {
         title: 'تنبيه',
         kind: 'warning',
       });
-      var repEl = document.getElementById('co_rep');
-      if (repEl) repEl.focus();
+      var repFocusEl = document.getElementById('co_rep');
+      if (repFocusEl) repFocusEl.focus();
+      return Promise.resolve(null);
+    }
+    if (!payload.customer_id) {
+      hxAlert('اختر العميل من عملاء المندوب المختار.', { title: 'تنبيه', kind: 'warning' });
       return Promise.resolve(null);
     }
     if (!payload.warehouse_id) {
@@ -2888,7 +2977,9 @@
         setMsg('تم الحفظ · ' + (data.order_no || ''), 'ok');
         clearFormDirty();
         if (data.order_no) {
-          var titleEl = document.getElementById('co-screen-title');
+          var titleEl = document.querySelector(
+            '.hx-ora-screen-title .dashboard-ora-screen-title__text'
+          );
           if (titleEl) titleEl.textContent = 'طلب شراء عميل';
         }
         if (data.id && Number(data.id) !== Number(state.id || 0)) {
@@ -3471,6 +3562,15 @@
     var needBySrl = {};
     var statusMsg = '';
 
+    var undefRows = batchRows.querySelectorAll('tr[data-mascard-ok="0"]');
+    if (undefRows.length) {
+      ok = false;
+      statusMsg =
+        'يوجد ' +
+        undefRows.length +
+        ' مادة غير معرفة في Oracle — صحّح رقم المادة ثم أعد الترحيل.';
+    }
+
     batchRows.querySelectorAll('.co-cat-select').forEach(function (el) {
       var srl = String(el.dataset.srl || '');
       if (!srl || !(el.value || '').trim()) {
@@ -3614,19 +3714,66 @@
     portalBatchModal();
     batchRows.innerHTML = '';
     if (batchSub) {
-      batchSub.textContent = '';
-      batchSub.hidden = true;
+      var undefList = Array.isArray(data.undefined_items) ? data.undefined_items : [];
+      if (data.has_undefined || undefList.length) {
+        batchSub.textContent =
+          'تنبيه: ' +
+          (undefList.length || '') +
+          (undefList.length ? ' مادة غير معرفة في Oracle — تظهر بالأحمر مع رسالة بجانب كل سطر.' : 'يوجد مواد غير معرفة في Oracle.');
+        batchSub.hidden = false;
+      } else {
+        batchSub.textContent = '';
+        batchSub.hidden = true;
+      }
     }
     var rowNo = 0;
     (data.lines || []).forEach(function (ln) {
       var allocs = Array.isArray(ln.allocations) ? ln.allocations : [];
       var batches = Array.isArray(ln.batches) ? ln.batches : [];
+      var mascardOk = ln.mascard_ok !== false;
       var itemHtml =
         '<span class="co-batch-item-line"><span class="co-batch-item-code">' +
         escAttr(String(ln.item || '')) +
         '</span><span class="co-batch-item-name">' +
         escAttr(String(ln.name || '')) +
         '</span></span>';
+
+      if (!mascardOk) {
+        rowNo += 1;
+        var trU = document.createElement('tr');
+        trU.className = 'co-batch-row--invalid co-batch-row--undefined';
+        trU.dataset.srl = String(ln.srl || '');
+        trU.dataset.lineId = String(ln.line_id || '');
+        trU.dataset.mascardOk = '0';
+        trU.dataset.need = String(roundBatchQty(Number(ln.need) || 0));
+        var errMsg =
+          String(ln.error_ar || '').trim() ||
+          'المادة غير معرفة في Oracle — الرقم غير مطابق أو غير موجود';
+        var tried =
+          String(ln.hypex_item || ln.item || '').trim() ||
+          String(ln.hypex_barcode || '').trim();
+        trU.innerHTML =
+          '<td class="co-batch-col-idx">' +
+          rowNo +
+          '</td>' +
+          '<td class="co-batch-col-item">' +
+          itemHtml +
+          '</td>' +
+          '<td class="co-batch-col-cat">—</td>' +
+          '<td class="co-batch-col-qty" dir="ltr">' +
+          fmtBatchQty(ln.qty) +
+          '</td>' +
+          '<td class="co-batch-col-bonus" dir="ltr">' +
+          fmtBatchQty(ln.bonus) +
+          '</td>' +
+          '<td class="co-batch-col-take">—</td>' +
+          '<td class="co-batch-col-batch" colspan="2"><div class="co-batch-warn co-batch-warn--undefined">' +
+          escAttr(errMsg) +
+          (tried ? ' (الرقم: ' + escAttr(tried) + ')' : '') +
+          '</div></td>';
+        batchRows.appendChild(trU);
+        return;
+      }
 
       if (!allocs.length) {
         rowNo += 1;
@@ -3800,11 +3947,23 @@
       .then(function (data) {
         setBusy(false);
         if (!data.ok) {
+          if (data.code === 'item_undefined') {
+            showActionError(data);
+            return;
+          }
           setMsg(data.message || data.error || 'تعذر جلب التشغيلات.', 'error');
           return;
         }
         setMsg('');
         openBatchModal(data);
+        if (data.has_undefined && Array.isArray(data.undefined_items) && data.undefined_items.length) {
+          hxAlert(
+            'بعض المواد غير معرفة في Oracle:\n' +
+              data.undefined_items.join('\n') +
+              '\n\nستظهر رسالة بجانب كل مادة غير مطابقة في شاشة الترحيل.',
+            { title: 'مواد غير معرفة في Oracle', kind: 'warning' }
+          );
+        }
       })
       .catch(function () {
         setBusy(false);
@@ -3817,8 +3976,11 @@
     batchConfirm.addEventListener('click', function () {
       if (!pickerData || !pickerData.lines) return;
       if (!validateBatchModal()) {
+        var hasUndef = batchRows && batchRows.querySelector('tr[data-mascard-ok="0"]');
         hxAlert(
-          'لا يمكن الترحيل: التشغيلات يجب أن تغطي الكمية المطلوبة بالكامل، دون تجاوز رصيد أي تشغيلة.',
+          hasUndef
+            ? 'لا يمكن الترحيل: صحّح المواد غير المعرفة في Oracle (الرقم غير مطابق أو غير موجود) ثم أعد المحاولة.'
+            : 'لا يمكن الترحيل: التشغيلات يجب أن تغطي الكمية المطلوبة بالكامل، دون تجاوز رصيد أي تشغيلة.',
           {
             title: 'ترحيل الكميات',
             kind: 'warning',
